@@ -1,5 +1,9 @@
 import { User, IUser, UserRole } from "./user.model";
 import { CreateUserDTO, UpdateUserDTO } from "./dto/user.dto";
+import { NotificationService } from "../notification/notification.service";
+import { NotificationType } from "../notification/notification.model";
+
+const notificationService = new NotificationService();
 
 export class UserService {
   async getAll(filters?: { role?: string; isActive?: string; search?: string; excludeCustomers?: string }): Promise<IUser[]> {
@@ -35,7 +39,13 @@ export class UserService {
     }
     const existing = await User.findOne({ email: dto.email });
     if (existing) throw new Error("Email đã được sử dụng");
-    return User.create(dto);
+    const user = await User.create(dto);
+    notificationService.create({
+      title: "Tạo tài khoản nhân viên",
+      message: `Đã tạo tài khoản "${user.name}" (${user.email}) với vai trò ${user.role}.`,
+      type: NotificationType.USER,
+    }).catch(() => {});
+    return user;
   }
 
   async update(id: string, dto: UpdateUserDTO): Promise<IUser> {
@@ -49,6 +59,11 @@ export class UserService {
     if (!user) throw new Error("Không tìm thấy người dùng");
     user.isLocked = !user.isLocked;
     await user.save();
+    notificationService.create({
+      title: user.isLocked ? "Khóa tài khoản" : "Mở khóa tài khoản",
+      message: `Tài khoản "${user.name}" (${user.email}) đã ${user.isLocked ? "bị khóa" : "được mở khóa"}.`,
+      type: NotificationType.USER,
+    }).catch(() => {});
     return user;
   }
 
@@ -57,6 +72,11 @@ export class UserService {
     if (!user) throw new Error("Không tìm thấy người dùng");
     user.isActive = !user.isActive;
     await user.save();
+    notificationService.create({
+      title: user.isActive ? "Kích hoạt tài khoản" : "Vô hiệu hóa tài khoản",
+      message: `Tài khoản "${user.name}" (${user.email}) đã ${user.isActive ? "được kích hoạt" : "bị vô hiệu hóa"}.`,
+      type: NotificationType.USER,
+    }).catch(() => {});
     return user;
   }
 
@@ -68,6 +88,11 @@ export class UserService {
       if (adminCount <= 1) throw new Error("Không thể xóa tài khoản Admin cuối cùng trong hệ thống");
     }
     await User.findByIdAndDelete(id);
+    notificationService.create({
+      title: "Xóa tài khoản",
+      message: `Đã xóa tài khoản "${user.name}" (${user.email}).`,
+      type: NotificationType.USER,
+    }).catch(() => {});
   }
 
   async getStats() {

@@ -24,9 +24,9 @@ const ConfirmModal = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel}></div>
-      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 overflow-hidden animate-scale-in">
         <div className="px-6 py-4 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-navy-800">{title}</h3>
         </div>

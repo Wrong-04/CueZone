@@ -14,6 +14,25 @@ export const authService = {
     return data.data!;
   },
 
+  async sendVerificationCode(name: string, email: string, password: string, phone?: string): Promise<void> {
+    const { data } = await api.post<ApiResponse>("/auth/register/request", {
+      name,
+      email,
+      password,
+      phone,
+    });
+    if (!data.success) throw new Error(data.message);
+  },
+
+  async verifyAndRegister(email: string, code: string): Promise<AuthResponse> {
+    const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/register/verify", {
+      email,
+      code,
+    });
+    if (!data.success) throw new Error(data.message);
+    return data.data!;
+  },
+
   async getProfile(): Promise<User> {
     const { data } = await api.get<ApiResponse<User>>("/auth/profile");
     if (!data.success) throw new Error(data.message);

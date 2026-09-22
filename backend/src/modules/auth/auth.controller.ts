@@ -12,6 +12,29 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
+export const sendVerificationCode = async (req: Request, res: Response) => {
+  try {
+    const result = await authService.sendVerificationCode(req.body);
+    res.json({
+      success: true,
+      message: "Mã xác minh đã được gửi đến email của bạn",
+      data: result,
+    });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+export const verifyAndRegister = async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+    const result = await authService.verifyAndRegister(email, code);
+    res.json({ success: true, message: "Xác minh email thành công", data: result });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
 export const login = async (req: Request, res: Response) => {
   try {
     const result = await authService.login(req.body);

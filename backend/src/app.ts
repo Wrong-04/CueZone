@@ -10,6 +10,7 @@ import * as userController from "./modules/user/user.controller";
 import * as roleController from "./modules/role/role.controller";
 import * as tableController from "./modules/table/table.controller";
 import * as pricingController from "./modules/pricing/pricing.controller";
+import * as notificationController from "./modules/notification/notification.controller";
 
 dotenv.config();
 
@@ -57,6 +58,8 @@ export class App {
   private setupRoutes(): void {
     const publicRouter = express.Router();
     publicRouter.post("/auth/register", authController.register);
+    publicRouter.post("/auth/register/request", authController.sendVerificationCode);
+    publicRouter.post("/auth/register/verify", authController.verifyAndRegister);
     publicRouter.post("/auth/login", authController.login);
     publicRouter.post("/auth/refresh-token", authController.refreshToken);
     this.app.use("/api/v1", publicRouter);
@@ -95,6 +98,13 @@ export class App {
     protectedRouter.put("/pricing/:id", pricingController.update);
     protectedRouter.put("/pricing/:id/activate", pricingController.activate);
     protectedRouter.delete("/pricing/:id", pricingController.delete_);
+
+    protectedRouter.get("/notifications", notificationController.getAll);
+    protectedRouter.get("/notifications/unread-count", notificationController.getUnreadCount);
+    protectedRouter.put("/notifications/:id/read", notificationController.markRead);
+    protectedRouter.put("/notifications/read-all", notificationController.markAllRead);
+    protectedRouter.delete("/notifications/:id", notificationController.delete_);
+    protectedRouter.delete("/notifications", notificationController.clearAll);
 
     this.app.use("/api/v1", protectedRouter);
 

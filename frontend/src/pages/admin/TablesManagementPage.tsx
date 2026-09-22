@@ -274,7 +274,7 @@ const TablesManagementPage = () => {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${
+          className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-toast-in ${
             toast.type === "success"
               ? "bg-green-500 text-white"
               : "bg-red-500 text-white"
@@ -677,7 +677,7 @@ const TablesManagementPage = () => {
 
       {/* ═══════════════ TABLE MODAL ═══════════════ */}
       {showTableModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowTableModal(false)}
@@ -786,7 +786,7 @@ const TablesManagementPage = () => {
 
       {/* ═══════════ TABLE DELETE CONFIRM ═══════════ */}
       {showTableDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowTableDeleteConfirm(false)}
@@ -816,7 +816,7 @@ const TablesManagementPage = () => {
 
       {/* ═══════════════ PRICING MODAL ═══════════════ */}
       {showPricingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowPricingModal(false)}
@@ -923,7 +923,7 @@ const TablesManagementPage = () => {
 
       {/* ═══════════ PRICING DELETE CONFIRM ═══════════ */}
       {showPricingDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowPricingDeleteConfirm(false)}

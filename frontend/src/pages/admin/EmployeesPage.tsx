@@ -132,6 +132,8 @@ const EmployeesPage = () => {
     if (!formData.email.trim()) errors.email = "Email không được để trống";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Email không hợp lệ";
     if (!isEdit && !formData.password) errors.password = "Mật khẩu không được để trống";
+    else if (formData.password && (formData.password.length < 8 || !/[a-zA-Z]/.test(formData.password) || !/\d/.test(formData.password)))
+      errors.password = "Mật khẩu phải chứa cả chữ cái và số, tối thiểu 8 ký tự";
     if (!formData.role) errors.role = "Vui lòng chọn vai trò";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -154,7 +156,11 @@ const EmployeesPage = () => {
       setFormErrors({});
       fetchEmployees();
     } catch (err: any) {
-      setFormErrors({ email: err.message || "Tạo tài khoản thất bại" });
+      const msg = err.message || "Tạo tài khoản thất bại";
+      if (/mật khẩu/i.test(msg)) setFormErrors({ password: msg });
+      else if (/email/i.test(msg)) setFormErrors({ email: msg });
+      else if (/họ tên/i.test(msg)) setFormErrors({ name: msg });
+      else setFormErrors({ email: msg });
     } finally {
       setSubmitting(false);
     }
@@ -194,7 +200,11 @@ const EmployeesPage = () => {
       setFormErrors({});
       fetchEmployees();
     } catch (err: any) {
-      setFormErrors({ email: err.message || "Cập nhật thất bại" });
+      const msg = err.message || "Cập nhật thất bại";
+      if (/mật khẩu/i.test(msg)) setFormErrors({ password: msg });
+      else if (/email/i.test(msg)) setFormErrors({ email: msg });
+      else if (/họ tên/i.test(msg)) setFormErrors({ name: msg });
+      else setFormErrors({ email: msg });
     } finally {
       setSubmitting(false);
     }
@@ -506,7 +516,7 @@ const EmployeesPage = () => {
 
       {/* ==================== CREATE MODAL ==================== */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} />
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -546,7 +556,7 @@ const EmployeesPage = () => {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${formErrors.password ? "border-red-400" : "border-gray-200"}`}
-                  placeholder="Ít nhất 6 ký tự"
+                  placeholder="Ít nhất 8 ký tự, gồm chữ và số"
                 />
                 {formErrors.password && <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>}
               </div>
@@ -607,7 +617,7 @@ const EmployeesPage = () => {
 
       {/* ==================== EDIT MODAL ==================== */}
       {showEditModal && selectedEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowEditModal(false)} />
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -704,7 +714,7 @@ const EmployeesPage = () => {
 
       {/* ==================== DELETE MODAL ==================== */}
       {showDeleteModal && selectedEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowDeleteModal(false)} />
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
             <div className="p-6 text-center">
