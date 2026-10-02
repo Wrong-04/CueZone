@@ -1,4 +1,13 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import {
+  AppstoreOutlined,
+  CalendarOutlined,
+  SettingOutlined,
+  ThunderboltOutlined,
+  BulbOutlined,
+  LockOutlined,
+  CheckOutlined,
+} from "@ant-design/icons";
 import { tableService, pricingService } from "../../services/table.service";
 import type { BilliardTable, PricingTier } from "../../types";
 
@@ -49,7 +58,8 @@ const TablesManagementPage = () => {
   const [activeTab, setActiveTab] = useState<"pricing" | "tables">("pricing");
   const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
   const [tables, setTables] = useState<BilliardTable[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
+  void _loading;
   const [currentPage, setCurrentPage] = useState(1);
   const [tablesPerPage] = useState(6);
 
@@ -318,7 +328,7 @@ const TablesManagementPage = () => {
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          🎱 Danh Mục Bida & VIP Room
+          <span className="inline-flex items-center gap-1.5"><AppstoreOutlined /> Danh Mục Bida & VIP Room</span>
         </button>
       </div>
 
@@ -407,12 +417,20 @@ const TablesManagementPage = () => {
                   </div>
 
                   <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                    <p className="text-xs text-gray-400">
-                      {tier.dayType === "weekday"
-                        ? "⚙️ Áp dụng từ thứ 2 đến thứ 6"
-                        : tier.dayType === "weekend"
-                        ? "📅 Tự động kích hoạt Thứ 7 & Chủ Nhật"
-                        : "⚡ Khung giờ hiện hành theo thời gian hệ thống"}
+                    <p className="text-xs text-gray-400 inline-flex items-center gap-1">
+                      {tier.dayType === "weekday" ? (
+                        <>
+                          <SettingOutlined /> Áp dụng từ thứ 2 đến thứ 6
+                        </>
+                      ) : tier.dayType === "weekend" ? (
+                        <>
+                          <CalendarOutlined /> Tự động kích hoạt Thứ 7 & Chủ Nhật
+                        </>
+                      ) : (
+                        <>
+                          <ThunderboltOutlined /> Khung giờ hiện hành theo thời gian hệ thống
+                        </>
+                      )}
                     </p>
                     <div className="flex items-center gap-3">
                       <button
@@ -436,7 +454,7 @@ const TablesManagementPage = () => {
             {/* Rounding rule */}
             <div className="mt-6 p-4 bg-yellow-50 border border-yellow-100 rounded-xl">
               <div className="flex items-start gap-3">
-                <span className="text-yellow-600 mt-0.5">💡</span>
+                <BulbOutlined className="text-yellow-600 mt-1" />
                 <div>
                   <p className="text-sm font-medium text-yellow-800">Quy tắc làm tròn:</p>
                   <p className="text-xs text-yellow-700 mt-1">
@@ -662,15 +680,15 @@ const TablesManagementPage = () => {
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-        <p className="text-xs text-gray-500">
-          🔒 Mọi thay đổi về đơn giá khung giờ sẽ lập tức áp dụng cho các bàn mở phiên chơi mới tiếp theo.
+        <p className="text-xs text-gray-500 inline-flex items-center gap-1.5">
+          <LockOutlined /> Mọi thay đổi về đơn giá khung giờ sẽ lập tức áp dụng cho các bàn mở phiên chơi mới tiếp theo.
         </p>
         <div className="flex items-center gap-3">
           <button className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition">
             Hủy thay đổi
           </button>
-          <button className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition">
-            ✓ Lưu Cấu Hình Bảng Giá
+          <button className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition inline-flex items-center gap-1.5">
+            <CheckOutlined /> Lưu Cấu Hình Bảng Giá
           </button>
         </div>
       </div>

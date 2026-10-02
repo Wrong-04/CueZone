@@ -1,32 +1,52 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
+import {
+  DashboardOutlined,
+  AppstoreOutlined,
+  CalendarOutlined,
+  TrophyOutlined,
+  CoffeeOutlined,
+  InboxOutlined,
+  FileTextOutlined,
+  LineChartOutlined,
+  TeamOutlined,
+  ReadOutlined,
+  SettingOutlined,
+  UserOutlined,
+  DollarOutlined,
+  SafetyCertificateOutlined,
+  MenuOutlined,
+  BellOutlined,
+  LeftOutlined,
+  RightOutlined,
+} from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
 import ConfirmModal from "../ui/ConfirmModal";
 import { notificationService, type Notification } from "../../services/notification.service";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
-const menuItems = [
-  { path: "/admin", label: "Tổng quan", icon: "📊" },
-  { path: "/admin/tables", label: "Quản lý Bàn", icon: "🎱" },
-  { path: "/admin/booking", label: "Đặt bàn", icon: "📅" },
-  { path: "/admin/tournaments", label: "Giải đấu", icon: "🏆" },
-  { path: "/admin/fnb", label: "Thực đơn F&B", icon: "🍹" },
-  { path: "/admin/inventory", label: "Kho hàng", icon: "📦" },
-  { path: "/admin/invoices", label: "Hóa đơn", icon: "🧾" },
-  { path: "/admin/reports", label: "Báo cáo", icon: "📈" },
-  { path: "/admin/employees", label: "Nhân sự", icon: "👥" },
-  { path: "/admin/news", label: "Tin tức", icon: "📰" },
-  { path: "/admin/settings", label: "Cài đặt", icon: "⚙️" },
+const menuItems: { path: string; label: string; icon: ReactNode }[] = [
+  { path: "/admin", label: "Tổng quan", icon: <DashboardOutlined /> },
+  { path: "/admin/tables", label: "Quản lý Bàn", icon: <AppstoreOutlined /> },
+  { path: "/admin/booking", label: "Đặt bàn", icon: <CalendarOutlined /> },
+  { path: "/admin/tournaments", label: "Giải đấu", icon: <TrophyOutlined /> },
+  { path: "/admin/fnb", label: "Thực đơn F&B", icon: <CoffeeOutlined /> },
+  { path: "/admin/inventory", label: "Kho hàng", icon: <InboxOutlined /> },
+  { path: "/admin/invoices", label: "Hóa đơn", icon: <FileTextOutlined /> },
+  { path: "/admin/reports", label: "Báo cáo", icon: <LineChartOutlined /> },
+  { path: "/admin/employees", label: "Nhân sự", icon: <TeamOutlined /> },
+  { path: "/admin/news", label: "Tin tức", icon: <ReadOutlined /> },
+  { path: "/admin/settings", label: "Cài đặt", icon: <SettingOutlined /> },
 ];
 
-const typeIcons: Record<string, string> = {
-  user: "👤",
-  table: "🎱",
-  pricing: "💰",
-  role: "🛡️",
-  system: "⚙️",
+const typeIcons: Record<string, ReactNode> = {
+  user: <UserOutlined />,
+  table: <AppstoreOutlined />,
+  pricing: <DollarOutlined />,
+  role: <SafetyCertificateOutlined />,
+  system: <SettingOutlined />,
 };
 
 const AdminLayout = () => {
@@ -140,9 +160,9 @@ const AdminLayout = () => {
           </div>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-gray-400 hover:text-white transition hidden lg:block"
+            className="text-gray-400 hover:text-white transition hidden lg:block p-1"
           >
-            {sidebarOpen ? "◀" : "▶"}
+            {sidebarOpen ? <LeftOutlined className="text-xs" /> : <RightOutlined className="text-xs" />}
           </button>
         </div>
 
@@ -160,7 +180,7 @@ const AdminLayout = () => {
                     : "text-gray-300 hover:bg-navy-700 hover:text-white"
                 }`}
               >
-                <span className="text-xl flex-shrink-0">{item.icon}</span>
+                <span className="text-lg flex-shrink-0">{item.icon}</span>
                 {sidebarOpen && (
                   <span className="text-sm font-medium">{item.label}</span>
                 )}
@@ -204,7 +224,7 @@ const AdminLayout = () => {
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="lg:hidden text-gray-500 hover:text-gray-700"
             >
-              ☰
+              <MenuOutlined className="text-base" />
             </button>
             <span className="text-sm text-gray-500">
               {new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
@@ -220,9 +240,9 @@ const AdminLayout = () => {
                   setShowNotifPanel(next);
                   if (next) fetchNotifications();
                 }}
-                className="relative p-2 text-gray-400 hover:text-gray-600 transition"
+                className="relative p-2 text-gray-400 hover:text-gray-600 transition flex items-center justify-center"
               >
-                🔔
+                <BellOutlined className="text-xl" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-scale-in">
                     {unreadCount > 99 ? "99+" : unreadCount}
@@ -250,7 +270,9 @@ const AdminLayout = () => {
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
                       <div className="py-8 text-center text-gray-400 text-sm">
-                        <p className="text-3xl mb-2">🔔</p>
+                        <p className="text-2xl mb-2 text-gray-400">
+                          <BellOutlined />
+                        </p>
                         Không có thông báo nào
                       </div>
                     ) : (
@@ -263,8 +285,8 @@ const AdminLayout = () => {
                           }`}
                         >
                           <div className="flex items-start gap-3">
-                            <span className="text-lg flex-shrink-0 mt-0.5">
-                              {typeIcons[n.type] || "⚙️"}
+                            <span className="text-base flex-shrink-0 mt-0.5 text-gray-600">
+                              {typeIcons[n.type] || <SettingOutlined />}
                             </span>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">

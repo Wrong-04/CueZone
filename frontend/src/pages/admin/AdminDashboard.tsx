@@ -1,4 +1,9 @@
-import React from "react";
+import {
+  PlayCircleOutlined,
+  CheckCircleOutlined,
+  DollarOutlined,
+  TeamOutlined,
+} from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
 
 const AdminDashboard = () => {
@@ -8,23 +13,23 @@ const AdminDashboard = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-navy-800">
-          Xin chào, {user?.name} 👋
+          Xin chào, {user?.name}
         </h1>
         <p className="text-gray-500 mt-1">Tổng quan hoạt động hôm nay</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Bàn đang chơi", value: "6", color: "bg-red-50 text-red-600 border-red-100", icon: "🎱" },
-          { label: "Bàn trống", value: "3", color: "bg-green-50 text-green-600 border-green-100", icon: "✅" },
-          { label: "Doanh thu hôm nay", value: "4.2M", color: "bg-primary-50 text-primary-600 border-primary-100", icon: "💰" },
-          { label: "Khách hàng", value: "24", color: "bg-blue-50 text-blue-600 border-blue-100", icon: "👥" },
+          { label: "Bàn đang chơi", value: "6", color: "bg-red-50 text-red-600 border-red-100", icon: <PlayCircleOutlined /> },
+          { label: "Bàn trống", value: "3", color: "bg-green-50 text-green-600 border-green-100", icon: <CheckCircleOutlined /> },
+          { label: "Doanh thu hôm nay", value: "4.2M", color: "bg-primary-50 text-primary-600 border-primary-100", icon: <DollarOutlined /> },
+          { label: "Khách hàng", value: "24", color: "bg-blue-50 text-blue-600 border-blue-100", icon: <TeamOutlined /> },
         ].map((stat) => (
           <div
             key={stat.label}
             className={`p-5 rounded-xl border ${stat.color} flex items-center gap-4`}
           >
-            <span className="text-3xl">{stat.icon}</span>
+            <span className="text-3xl flex items-center justify-center">{stat.icon}</span>
             <div>
               <p className="text-2xl font-bold">{stat.value}</p>
               <p className="text-sm opacity-80">{stat.label}</p>

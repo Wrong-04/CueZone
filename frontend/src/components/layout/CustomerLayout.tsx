@@ -1,6 +1,9 @@
-import React from "react";
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { Button, Space, Typography } from "../../shared/ui";
+import { Sparkles, Trophy, BookOpen, Newspaper, Calendar } from "lucide-react";
+
+const { Text } = Typography;
 
 const CustomerLayout = () => {
   const { user, logout } = useAuth();
@@ -12,95 +15,98 @@ const CustomerLayout = () => {
     navigate("/login");
   };
 
+  const navLinks = [
+    { to: "/customer", label: "Trang chủ", icon: <Sparkles className="h-4 w-4" /> },
+    { to: "/customer/tournaments", label: "Giải đấu & Lệ phí", icon: <Trophy className="h-4 w-4" /> },
+    { to: "/customer?tab=rules", label: "Luật Bank Pool", icon: <BookOpen className="h-4 w-4" /> },
+    { to: "/customer/news", label: "Tin tức & Ưu đãi", icon: <Newspaper className="h-4 w-4" /> },
+    { to: "/customer/booking", label: "Đặt bàn", icon: <Calendar className="h-4 w-4" /> },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-6 xl:gap-8">
               <Link to="/customer" className="flex items-center gap-2.5">
                 <img
-                  src="/favicon.svg"
+                  src="/cuezone-favicon.svg?v=2"
                   alt="CueZone"
-                  className="w-10 h-10 rounded-xl flex-shrink-0 shadow-sm"
+                  className="w-9 h-9 rounded-xl flex-shrink-0 ring-1 ring-emerald-500/50 p-0.5 bg-slate-950 shadow-md shadow-emerald-500/10"
                 />
-                <span className="text-xl font-black text-navy-800 tracking-tight">
-                  CUE<span className="text-emerald-600">ZONE</span>
+                <span className="text-xl font-black text-white tracking-tight">
+                  CUE<span className="text-emerald-400">ZONE</span>
                 </span>
               </Link>
+
               <nav className="hidden md:flex items-center gap-1">
-                <Link
-                  to="/customer"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    location.pathname === "/customer"
-                      ? "bg-primary-50 text-primary-600"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  Trang chủ
-                </Link>
-                <Link
-                  to="/customer/booking"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    location.pathname === "/customer/booking"
-                      ? "bg-primary-50 text-primary-600"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  Đặt bàn
-                </Link>
-                <Link
-                  to="/customer/tournaments"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    location.pathname === "/customer/tournaments"
-                      ? "bg-primary-50 text-primary-600"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  Giải đấu
-                </Link>
-                <Link
-                  to="/customer/news"
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    location.pathname === "/customer/news"
-                      ? "bg-primary-50 text-primary-600"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  Tin tức
-                </Link>
+                {navLinks.map((item) => {
+                  const isActive =
+                    item.to.includes("?tab=rules")
+                      ? location.pathname === "/customer" && location.search.includes("rules")
+                      : location.pathname === item.to && !location.search.includes("rules");
+                  return (
+                    <Link
+                      key={item.label}
+                      to={item.to}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                        isActive
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                          : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                      }`}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  );
+                })}
               </nav>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {user ? (
-                <>
+                <Space align="center" size={8}>
                   <Link
                     to="/customer/profile"
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition"
                   >
-                    <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">
+                    <div className="w-7 h-7 bg-emerald-600 rounded-full flex items-center justify-center">
+                      <span className="text-white font-bold text-xs">
                         {user.name?.charAt(0)}
                       </span>
                     </div>
-                    <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                    <Text className="!text-xs !font-medium !text-slate-200">{user.name}</Text>
                   </Link>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={handleLogout}
-                    className="text-sm text-gray-500 hover:text-gray-700"
+                    className="!text-xs !text-slate-400 hover:!text-red-400"
                   >
                     Đăng xuất
-                  </button>
-                </>
+                  </Button>
+                </Space>
               ) : (
-                <Link
-                  to="/login"
-                  className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                >
-                  Đăng nhập
-                </Link>
+                <Space align="center" size={8}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    to="/register"
+                    className="!text-xs !border-slate-700 !bg-slate-900 !text-slate-300 hover:!border-emerald-500 hover:!text-emerald-300"
+                  >
+                    Đăng Ký
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    to="/login"
+                    className="!text-xs !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600 font-bold shadow-md shadow-emerald-600/20"
+                  >
+                    Đăng Nhập
+                  </Button>
+                </Space>
               )}
             </div>
           </div>
@@ -108,16 +114,21 @@ const CustomerLayout = () => {
       </header>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
         <Outlet />
       </main>
 
       {/* Footer */}
-      <footer className="bg-navy-800 text-white py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-gray-400 text-sm">
-            © 2026 CueZone Billiards Club. All rights reserved.
-          </p>
+      <footer className="bg-slate-900 border-t border-slate-800 py-6 text-slate-400 text-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <Text className="!text-xs !text-slate-400">
+            © 2026 CueZone Billiards Club & Bank Pool Tournament System. All rights reserved.
+          </Text>
+          <div className="flex items-center gap-4 text-xs text-slate-400">
+            <Link to="/customer?tab=rules" className="hover:text-emerald-400 transition">Luật Bank Pool</Link>
+            <Link to="/customer/tournaments" className="hover:text-emerald-400 transition">Giải Đấu</Link>
+            <Link to="/customer/news" className="hover:text-emerald-400 transition">Ưu Đãi & Tin Tức</Link>
+          </div>
         </div>
       </footer>
     </div>
@@ -125,3 +136,4 @@ const CustomerLayout = () => {
 };
 
 export default CustomerLayout;
+

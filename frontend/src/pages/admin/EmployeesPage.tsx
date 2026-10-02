@@ -1,4 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import {
+  SearchOutlined,
+  TeamOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+} from "@ant-design/icons";
 import { employeeService } from "../../services/employee.service";
 import type { User } from "../../types";
 import { UserRole } from "../../types";
@@ -117,7 +123,7 @@ const EmployeesPage = () => {
     }
   };
 
-  const handleToggleActive = async (id: string) => {
+  const _handleToggleActive = async (id: string) => {
     try {
       await employeeService.toggleActive(id);
       fetchEmployees();
@@ -125,6 +131,7 @@ const EmployeesPage = () => {
       console.error(err);
     }
   };
+  void _handleToggleActive;
 
   const validateForm = (isEdit: boolean): boolean => {
     const errors: Partial<Record<keyof EmployeeFormData, string>> = {};
@@ -260,7 +267,7 @@ const EmployeesPage = () => {
               aria-label="Tìm kiếm nhân viên"
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
 
           <select
@@ -426,7 +433,7 @@ const EmployeesPage = () => {
 
           {employees.length === 0 && !loading && (
             <div className="py-12 text-center text-gray-500">
-              <p className="text-4xl mb-3">👥</p>
+              <p className="text-4xl mb-3"><TeamOutlined /></p>
               <p>Không tìm thấy nhân viên nào</p>
             </div>
           )}
@@ -456,9 +463,9 @@ const EmployeesPage = () => {
                 </span>
                 <button
                   onClick={() => setShowPermissionModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 flex items-center justify-center p-1"
                 >
-                  ✕
+                  <CloseOutlined />
                 </button>
               </div>
             </div>
@@ -526,7 +533,7 @@ const EmployeesPage = () => {
                 <h3 className="font-bold text-lg text-navy-800">Tạo Tài Khoản Nhân Viên</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Điền thông tin để tạo tài khoản mới</p>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600 p-1 flex items-center justify-center"><CloseOutlined /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -627,7 +634,7 @@ const EmployeesPage = () => {
                 <h3 className="font-bold text-lg text-navy-800">Chỉnh Sửa Nhân Viên</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Cập nhật thông tin tài khoản {selectedEmployee.name}</p>
               </div>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600 p-1 flex items-center justify-center"><CloseOutlined /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -720,8 +727,8 @@ const EmployeesPage = () => {
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowDeleteModal(false)} />
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
             <div className="p-6 text-center">
-              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🗑️</span>
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 text-2xl">
+                <DeleteOutlined />
               </div>
               <h3 className="font-bold text-lg text-navy-800 mb-2">Xóa Tài Khoản Nhân Viên</h3>
               <p className="text-sm text-gray-500 mb-1">

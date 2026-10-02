@@ -1,25 +1,41 @@
-import React from "react";
+import type { ReactNode } from "react";
+import {
+  CalendarOutlined,
+  TrophyOutlined,
+  CoffeeOutlined,
+  InboxOutlined,
+  FileTextOutlined,
+  LineChartOutlined,
+  ReadOutlined,
+  SettingOutlined,
+} from "@ant-design/icons";
+import CustomerHome from "./customer/CustomerHome";
+import { Typography } from "../shared/ui";
 
-const PlaceholderPage = ({ title, icon }: { title: string; icon: string }) => (
-  <div className="flex items-center justify-center h-96">
-    <div className="text-center">
-      <span className="text-6xl">{icon}</span>
-      <h2 className="mt-4 text-xl font-semibold text-navy-800">{title}</h2>
-      <p className="mt-2 text-gray-500">Trang đang được xây dựng</p>
+const { Title, Text } = Typography;
+
+const PlaceholderPage = ({ title, icon }: { title: string; icon: ReactNode }) => (
+  <div className="flex flex-col items-center justify-center min-h-[360px] p-8 text-center">
+    <div className="text-4xl text-emerald-400 mb-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 inline-flex items-center justify-center">
+      {icon}
     </div>
+    <Title level={3} className="!text-lg !font-bold !text-white !mb-1">
+      {title}
+    </Title>
+    <Text className="!text-xs !text-slate-400">Trang đang được xây dựng</Text>
   </div>
 );
 
 export { default as TablesPage } from "./admin/TablesManagementPage";
-export const BookingPage = () => <PlaceholderPage title="Đặt bàn" icon="📅" />;
-export const TournamentsPage = () => <PlaceholderPage title="Giải đấu" icon="🏆" />;
-export const FnBPage = () => <PlaceholderPage title="Thực đơn F&B" icon="🍹" />;
-export const InventoryPage = () => <PlaceholderPage title="Kho hàng" icon="📦" />;
-export const InvoicesPage = () => <PlaceholderPage title="Hóa đơn" icon="🧾" />;
-export const ReportsPage = () => <PlaceholderPage title="Báo cáo" icon="📈" />;
+export const BookingPage = () => <PlaceholderPage title="Đặt bàn" icon={<CalendarOutlined />} />;
+export const TournamentsPage = () => <PlaceholderPage title="Giải đấu" icon={<TrophyOutlined />} />;
+export const FnBPage = () => <PlaceholderPage title="Thực đơn F&B" icon={<CoffeeOutlined />} />;
+export const InventoryPage = () => <PlaceholderPage title="Kho hàng" icon={<InboxOutlined />} />;
+export const InvoicesPage = () => <PlaceholderPage title="Hóa đơn" icon={<FileTextOutlined />} />;
+export const ReportsPage = () => <PlaceholderPage title="Báo cáo" icon={<LineChartOutlined />} />;
 export { default as EmployeesPage } from "./admin/EmployeesPage";
-export const NewsPage = () => <PlaceholderPage title="Tin tức" icon="📰" />;
-export const SettingsPage = () => <PlaceholderPage title="Cài đặt" icon="⚙️" />;
-export const CustomerBooking = () => <PlaceholderPage title="Đặt bàn" icon="📅" />;
-export const CustomerTournaments = () => <PlaceholderPage title="Giải đấu" icon="🏆" />;
-export const CustomerNews = () => <PlaceholderPage title="Tin tức" icon="📰" />;
+export const NewsPage = () => <PlaceholderPage title="Tin tức" icon={<ReadOutlined />} />;
+export const SettingsPage = () => <PlaceholderPage title="Cài đặt" icon={<SettingOutlined />} />;
+export const CustomerBooking = () => <PlaceholderPage title="Đặt bàn" icon={<CalendarOutlined />} />;
+export const CustomerTournaments = () => <CustomerHome initialTab="tournaments" />;
+export const CustomerNews = () => <CustomerHome initialTab="news" />;
