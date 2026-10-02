@@ -173,8 +173,21 @@ const RegisterPage: React.FC = () => {
           colorPrimary: "#059669",
           colorBgContainer: "#0b131e",
           colorBorder: "#1e293b",
+          colorText: "#f1f5f9",
+          colorTextPlaceholder: "#64748b",
           borderRadius: 8,
           fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        },
+        components: {
+          Input: {
+            colorBgContainer: "#0b131e",
+            colorBorder: "#1e293b",
+            activeBorderColor: "#059669",
+            hoverBorderColor: "#10b981",
+            activeShadow: "0 0 0 2px rgba(5, 150, 105, 0.2)",
+            colorText: "#f1f5f9",
+            colorTextPlaceholder: "#64748b",
+          },
         },
       }}
     >
@@ -264,8 +277,8 @@ const RegisterPage: React.FC = () => {
                       placeholder="Nguyễn Văn A"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      prefix={<UserOutlined className="text-slate-500" />}
-                      className="!bg-slate-900/70 !border-slate-800 focus:!border-emerald-500 !text-slate-200 !h-10 !rounded-xl"
+                      prefix={<UserOutlined className="text-slate-500 mr-1.5" />}
+                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
                     />
                   </div>
 
@@ -278,8 +291,8 @@ const RegisterPage: React.FC = () => {
                       placeholder="email@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      prefix={<MailOutlined className="text-slate-500" />}
-                      className="!bg-slate-900/70 !border-slate-800 focus:!border-emerald-500 !text-slate-200 !h-10 !rounded-xl"
+                      prefix={<MailOutlined className="text-slate-500 mr-1.5" />}
+                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
                     />
                   </div>
 
@@ -292,8 +305,8 @@ const RegisterPage: React.FC = () => {
                       placeholder="0912 345 678"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      prefix={<PhoneOutlined className="text-slate-500" />}
-                      className="!bg-slate-900/70 !border-slate-800 focus:!border-emerald-500 !text-slate-200 !h-10 !rounded-xl"
+                      prefix={<PhoneOutlined className="text-slate-500 mr-1.5" />}
+                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
                     />
                   </div>
 
@@ -305,8 +318,8 @@ const RegisterPage: React.FC = () => {
                       placeholder="Ít nhất 8 ký tự, gồm chữ và số"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      prefix={<LockOutlined className="text-slate-500" />}
-                      className="!bg-slate-900/70 !border-slate-800 focus:!border-emerald-500 !text-slate-200 !h-10 !rounded-xl"
+                      prefix={<LockOutlined className="text-slate-500 mr-1.5" />}
+                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
                     />
                   </div>
 
@@ -318,8 +331,8 @@ const RegisterPage: React.FC = () => {
                       placeholder="Nhập lại mật khẩu"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      prefix={<LockOutlined className="text-slate-500" />}
-                      className="!bg-slate-900/70 !border-slate-800 focus:!border-emerald-500 !text-slate-200 !h-10 !rounded-xl"
+                      prefix={<LockOutlined className="text-slate-500 mr-1.5" />}
+                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
                     />
                   </div>
 

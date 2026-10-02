@@ -570,3 +570,31 @@ tr {
   background: #9ca3af;
 }
 
+/* ── Dark mode input & Webkit autofill fix ───────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: #ffffff !important;
+}
+
+.ant-input-affix-wrapper {
+  background-color: #0b131e;
+}
+
+.ant-input-affix-wrapper input.ant-input,
+.ant-input-affix-wrapper input {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus-within {
+  background-color: #0b131e !important;
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2) !important;
+}
+
