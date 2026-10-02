@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  ReadOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
 import { Typography } from "../shared/ui";
@@ -27,5 +26,5 @@ export { default as InventoryPage } from "./admin/WarehouseInventoryPage";
 export { default as InvoicesPage } from "./admin/InvoicesManagementPage";
 export { default as ReportsPage } from "./admin/ReportsAnalyticsPage";
 export { default as EmployeesPage } from "./admin/EmployeesPage";
-export const NewsPage = () => <PlaceholderPage title="Tin tức" icon={<ReadOutlined />} />;
+export { default as NewsPage } from "./admin/NewsManagementPage";
 export const SettingsPage = () => <PlaceholderPage title="Cài đặt" icon={<SettingOutlined />} />;
