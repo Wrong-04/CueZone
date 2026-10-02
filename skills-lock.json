@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "ui-ux": {
+      "source": "evondev/evondevKit",
+      "sourceType": "github",
+      "skillPath": "skills/ui-ux/SKILL.md",
+      "computedHash": "f74bd621a84eaebab3268fc557464686a04e46488e5cf22dc5bd840d95f58998"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ConfigProvider, theme } from "antd";
 import {
@@ -9,10 +9,13 @@ import {
   Sparkles,
   Trophy,
   ShieldCheck,
-  UserCheck,
   User,
-  CreditCard,
   Eye,
+  Star,
+  Award,
+  ChevronDown,
+  CheckCircle2,
+  Flame,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../../contexts/AuthContext";
@@ -24,39 +27,72 @@ import {
 } from "../../mock/seedData";
 import {
   Button,
-  Card,
   Checkbox,
   Form,
   Input,
   Space,
   Tag,
-  Tooltip,
   Typography,
+  Tabs,
   message,
 } from "../../shared/ui";
 
 const { Title, Text, Paragraph } = Typography;
 
-const ROLE_ICONS: Record<string, React.ReactNode> = {
-  [UserRole.ADMIN]: <ShieldCheck className="h-3.5 w-3.5" />,
-  [UserRole.STAFF]: <UserCheck className="h-3.5 w-3.5" />,
-  [UserRole.CUSTOMER]: <User className="h-3.5 w-3.5" />,
-};
+const MEMBER_PERKS = [
+  {
+    icon: <Star className="h-4 w-4 text-emerald-400" />,
+    title: "Đặt Bàn Trước Chuẩn Thi Đấu",
+    desc: "Giữ bàn chuẩn quốc tế (Min, Rasson, Aileex) trước 24h không cần đặt cọc",
+  },
+  {
+    icon: <Trophy className="h-4 w-4 text-amber-400" />,
+    title: "Tích Điểm Tự Động & Đổi Quà",
+    desc: "Hoàn 10% điểm tích lũy cho mỗi giờ chơi, đổi giờ miễn phí & voucher F&B",
+  },
+  {
+    icon: <Award className="h-4 w-4 text-sky-400" />,
+    title: "Giải Đấu Bank Pool & Xếp Hạng ELO",
+    desc: "Tham gia các giải nội bộ cuối tuần có trọng tài chấm điểm & vinh danh cơ thủ",
+  },
+  {
+    icon: <Sparkles className="h-4 w-4 text-teal-400" />,
+    title: "Phục Vụ F&B Trực Tiếp Tại Bàn",
+    desc: "Quét mã QR tại bàn gọi đồ uống, thức ăn nhẹ phục vụ tận nơi không ngắt quãng trận",
+  },
+];
 
 const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState<string>("admin@cuezone.com");
+  const [activeTab, setActiveTab] = useState<string>("customer");
+  const [email, setEmail] = useState<string>("customer@cuezone.com");
   const [password, setPassword] = useState<string>("password123");
-  const [selectedSeed, setSelectedSeed] = useState<SeedAccount>(SEED_ACCOUNTS[0]);
   const [loading, setLoading] = useState<boolean>(false);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
+  const [showDemoAccounts, setShowDemoAccounts] = useState<boolean>(false);
 
   const { login, loginWithSeed } = useAuth();
   const navigate = useNavigate();
 
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    if (key === "customer") {
+      setEmail("customer@cuezone.com");
+      setPassword("password123");
+    } else {
+      setEmail("admin@cuezone.com");
+      setPassword("password123");
+    }
+  };
+
   const handleSelectSeed = (seed: SeedAccount) => {
-    setSelectedSeed(seed);
     setEmail(seed.email);
     setPassword(seed.password);
+    if (seed.role === UserRole.CUSTOMER) {
+      setActiveTab("customer");
+    } else {
+      setActiveTab("staff");
+    }
+    message.info(`Đã điền tài khoản: ${seed.name}`);
   };
 
   const handleInstantSeedLogin = async (seed: SeedAccount) => {
@@ -64,7 +100,7 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       loginWithSeed(seed);
-      message.success(`Đăng nhập vai trò: ${seed.roleTitle}`);
+      message.success(`Đăng nhập thành công với vai trò: ${seed.roleTitle}`);
       navigate(seed.targetPath);
     } catch {
       message.error("Đăng nhập thất bại. Vui lòng thử lại!");
@@ -75,7 +111,7 @@ const LoginPage: React.FC = () => {
 
   const handleFormSubmit = async () => {
     if (!email) {
-      message.warning("Vui lòng nhập email đăng nhập!");
+      message.warning("Vui lòng nhập email hoặc tài khoản đăng nhập!");
       return;
     }
 
@@ -98,7 +134,7 @@ const LoginPage: React.FC = () => {
           ? "/admin/tables"
           : "/admin";
 
-      message.success("Đăng nhập thành công!");
+      message.success("Đăng nhập CueZone thành công!");
       navigate(targetPath);
     } catch {
       message.error("Đăng nhập thất bại, vui lòng kiểm tra lại thông tin!");
@@ -121,38 +157,49 @@ const LoginPage: React.FC = () => {
       }}
     >
       <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#070d14] text-slate-100 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
-        {/* CỘT TRÁI (50%): HERO & CONTEXT DIAGRAM SYSTEM ARCHITECTURE */}
-        <div className="relative hidden lg:flex lg:w-1/2 min-h-screen flex-col justify-between p-8 xl:p-12 overflow-hidden border-r border-emerald-950/60">
+        {/* =========================================================================
+            CỘT TRÁI (52%): SHOWCASE ĐẶC QUYỀN HỘI VIÊN & THẺ THÀNH VIÊN VIP LOUNGE
+            ========================================================================= */}
+        <div className="relative hidden lg:flex lg:w-[52%] min-h-screen flex-col justify-between p-8 xl:p-12 overflow-hidden border-r border-emerald-950/60 bg-gradient-to-br from-[#061118] via-[#070d14] to-[#04080e]">
+          {/* Background image & gradient overlay */}
           <div className="absolute inset-0 z-0">
             <img
               src="/cuezone_billiards_hero.jpg"
               alt="CueZone Billiards Club & Lounge"
-              className="h-full w-full object-cover object-center filter brightness-[0.32] contrast-[1.15]"
+              className="h-full w-full object-cover object-center filter brightness-[0.25] contrast-[1.2]"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#070d14] via-[#070d14]/65 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#070d14]/40 to-[#070d14]" />
-            <div className="absolute inset-0 bg-emerald-950/25 mix-blend-color" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#070d14] via-[#070d14]/70 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#070d14]/50 to-[#070d14]" />
+            <div className="absolute inset-0 bg-emerald-950/20 mix-blend-color" />
           </div>
 
-          {/* Header trái */}
+          {/* Header Trái: Brand Logo */}
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img
-                src="/cuezone-favicon.svg?v=2"
-                alt="CueZone Logo"
-                className="h-10 w-10 rounded-xl shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-500/50"
-              />
+              <div className="relative">
+                <img
+                  src="/cuezone-favicon.svg?v=2"
+                  alt="CueZone Logo"
+                  className="h-11 w-11 rounded-xl shadow-xl shadow-emerald-500/20 ring-1 ring-emerald-500/60 p-0.5 bg-slate-950"
+                />
+                <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-[#070d14]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                </span>
+              </div>
               <div>
-                <Space align="center" size={6}>
-                  <Text className="!text-xl !font-black !tracking-wider !text-white !mb-0">
+                <Space align="center" size={8}>
+                  <Text className="!text-2xl !font-black !tracking-wider !text-white !mb-0">
                     CUE<span className="text-emerald-400">ZONE</span>
                   </Text>
-                  <Tag color="green" className="!rounded-full !px-2 !py-0 !text-[10px] !font-bold !border-emerald-500/40 !bg-emerald-500/20 !text-emerald-300">
-                    BANK POOL & CLUB
+                  <Tag
+                    color="green"
+                    className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !border-emerald-500/40 !bg-emerald-500/20 !text-emerald-300"
+                  >
+                    BILLIARDS LOUNGE
                   </Tag>
                 </Space>
-                <Text className="!text-[11px] !text-slate-400 block leading-tight">
-                  Billiards Clubs & Bank Pool Tournament System
+                <Text className="!text-xs !text-slate-400 block leading-tight font-medium">
+                  Hệ Thống Bida Giải Đấu & Hội Viên Chuyên Nghiệp
                 </Text>
               </div>
             </div>
@@ -162,213 +209,285 @@ const LoginPage: React.FC = () => {
               size="sm"
               to="/customer"
               rightIcon={<ArrowRight className="h-3.5 w-3.5 text-emerald-400" />}
-              className="!border-slate-800 !bg-slate-900/60 !text-slate-300 hover:!border-emerald-500 hover:!text-emerald-300 backdrop-blur-md !text-xs !h-8 !px-3"
+              className="!border-slate-800 !bg-slate-900/70 !text-slate-300 hover:!border-emerald-500 hover:!text-emerald-300 backdrop-blur-md !text-xs !h-9 !px-3.5 shadow-sm"
             >
-              Cổng Khách Hàng
+              Cổng Khách Vãng Lai
             </Button>
           </div>
 
-          {/* Giữa: Giới thiệu hệ thống & Sơ đồ phân vai trò chuẩn Context Diagram */}
-          <div className="relative z-10 max-w-lg space-y-4 my-auto py-6">
-            <Tag
-              color="green"
-              className="!inline-flex !items-center !gap-1.5 !rounded-full !border-emerald-500/40 !bg-emerald-500/15 !px-3 !py-0.5 !text-[11px] !font-semibold !text-emerald-300 shadow-sm shadow-emerald-500/10"
-            >
-              <Sparkles className="h-3 w-3 text-emerald-400" />
-              <span>HỆ THỐNG QUẢN TRỊ CLB & GIẢI ĐẤU TOÀN DIỆN</span>
-            </Tag>
+          {/* Giữa: VIP Member Card Mockup + Đặc quyền hội viên */}
+          <div className="relative z-10 max-w-xl space-y-6 my-auto py-6">
+            <div>
+              <Tag
+                color="green"
+                className="!inline-flex !items-center !gap-1.5 !rounded-full !border-emerald-500/40 !bg-emerald-500/15 !px-3 !py-1 !text-xs !font-semibold !text-emerald-300 shadow-sm shadow-emerald-500/10 mb-3"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                <span>CỔNG TRẢI NGHIỆM CƠ THỦ & HỘI VIÊN ĐẲNG CẤP</span>
+              </Tag>
 
-            <Title level={1} className="!text-3xl xl:!text-4xl !font-extrabold !text-white !leading-tight !mb-0">
-              Vận Hành Chuẩn Xác <br />
-              <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 bg-clip-text text-transparent">
-                Kết Nối 4 Vai Trò Hệ Thống
-              </span>
-            </Title>
+              <Title
+                level={1}
+                className="!text-3xl xl:!text-4xl !font-extrabold !text-white !leading-tight !mb-2"
+              >
+                Đẳng Cấp Cơ Thủ, <br />
+                <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 bg-clip-text text-transparent">
+                  Đặc Quyền Vượt Trội
+                </span>
+              </Title>
+              <Paragraph className="!text-xs xl:!text-sm !text-slate-300 !leading-relaxed !mb-0">
+                Đăng nhập để đặt bàn giữ chỗ ưu tiên, theo dõi bảng xếp hạng ELO giải đấu Bank Pool và tích lũy điểm thưởng thành viên sau mỗi trận cơ.
+              </Paragraph>
+            </div>
 
-            <Paragraph className="!text-xs xl:!text-sm !text-slate-300 !leading-relaxed !mb-0">
-              Được thiết kế chuyên biệt cho mô hình CLB Billiards & Giải đấu Bank Pool, liên thông liền mạch giữa Quản trị, Vận hành bàn, Hội viên và Khách vãng lai.
-            </Paragraph>
+            {/* MOCKUP THẺ HỘI VIÊN CUEZONE ELITE MEMBER PASS */}
+            <div className="relative rounded-2xl p-5 border border-emerald-500/30 bg-gradient-to-br from-[#0c2420] via-[#09151e] to-[#050b12] shadow-2xl shadow-emerald-950/80 backdrop-blur-xl overflow-hidden group hover:border-emerald-500/50 transition-all duration-300">
+              {/* Ánh sáng holographic nền thẻ */}
+              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
+              <div className="absolute -left-10 -bottom-10 h-36 w-36 rounded-full bg-teal-500/10 blur-2xl pointer-events-none" />
 
-            {/* 4 Khối Vai Trò theo đúng Context Diagram */}
-            <div className="grid grid-cols-2 gap-2.5 pt-2">
-              <Card className="!rounded-xl !border-emerald-900/40 !bg-slate-950/60 backdrop-blur-md [&>.ant-card-body]:!p-3">
-                <Space align="center" size={6} className="mb-1">
-                  <ShieldCheck className="h-4 w-4 text-red-400" />
-                  <Text strong className="!text-xs !text-white">Admin (Chủ CLB)</Text>
+              {/* Phần đầu thẻ */}
+              <div className="flex items-center justify-between relative z-10 mb-6">
+                <Space align="center" size={8}>
+                  <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
+                    <Flame className="h-4 w-4 text-emerald-400 fill-emerald-400/30" />
+                  </div>
+                  <div>
+                    <Text strong className="!text-xs !tracking-widest !text-white uppercase block">
+                      CueZone Elite Club
+                    </Text>
+                    <Text className="!text-[10px] !text-emerald-400/90 font-mono tracking-wider">
+                      MEMBER PASS
+                    </Text>
+                  </div>
                 </Space>
-                <Text className="!text-[11px] !text-slate-400 block leading-snug">
-                  Cấu hình giá giờ bàn, nhân sự, kho hàng, giải đấu & xem báo cáo doanh thu.
-                </Text>
-              </Card>
 
-              <Card className="!rounded-xl !border-emerald-900/40 !bg-slate-950/60 backdrop-blur-md [&>.ant-card-body]:!p-3">
-                <Space align="center" size={6} className="mb-1">
-                  <UserCheck className="h-4 w-4 text-emerald-400" />
-                  <Text strong className="!text-xs !text-white">Staff (Vận Hành)</Text>
-                </Space>
-                <Text className="!text-[11px] !text-slate-400 block leading-snug">
-                  Mở bàn realtime, duyệt đặt bàn, duyệt order F&B, in hóa đơn & giao ca.
-                </Text>
-              </Card>
+                <Tag
+                  color="gold"
+                  className="!rounded-md !px-2.5 !py-0.5 !text-[11px] !font-bold !border-amber-500/40 !bg-amber-500/15 !text-amber-300 flex items-center gap-1"
+                >
+                  <Award className="h-3 w-3" />
+                  DIAMOND VIP
+                </Tag>
+              </div>
 
-              <Card className="!rounded-xl !border-emerald-900/40 !bg-slate-950/60 backdrop-blur-md [&>.ant-card-body]:!p-3">
-                <Space align="center" size={6} className="mb-1">
-                  <User className="h-4 w-4 text-amber-400" />
-                  <Text strong className="!text-xs !text-white">Customer (Hội Viên)</Text>
-                </Space>
-                <Text className="!text-[11px] !text-slate-400 block leading-snug">
-                  Tra cứu bàn realtime, đặt bàn trước, order F&B, tích điểm & thi đấu giải.
-                </Text>
-              </Card>
+              {/* Chip & Số thẻ mô phỏng */}
+              <div className="flex items-center justify-between relative z-10 mb-5">
+                <div className="flex items-center gap-3">
+                  {/* EMV Chip mô phỏng */}
+                  <div className="h-7 w-9 rounded-md bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 p-[1px] shadow-sm">
+                    <div className="h-full w-full rounded-[5px] bg-[#222] border border-amber-300/40 flex flex-col justify-around p-1">
+                      <div className="h-[1px] bg-amber-400/60 w-full" />
+                      <div className="h-[1px] bg-amber-400/60 w-full" />
+                    </div>
+                  </div>
+                  <Text className="!font-mono !text-xs !tracking-widest !text-slate-300">
+                    •••• •••• •••• 8829
+                  </Text>
+                </div>
 
-              <Card className="!rounded-xl !border-emerald-900/40 !bg-slate-950/60 backdrop-blur-md [&>.ant-card-body]:!p-3">
-                <Space align="center" size={6} className="mb-1">
-                  <Eye className="h-4 w-4 text-sky-400" />
-                  <Text strong className="!text-xs !text-white">Guest (Khách Vãng Lai)</Text>
+                <div className="text-right">
+                  <Text className="!text-[10px] !text-slate-400 uppercase tracking-wider block">
+                    Điểm tích lũy
+                  </Text>
+                  <Text strong className="!text-sm !text-emerald-300 font-mono">
+                    2,450 pts
+                  </Text>
+                </div>
+              </div>
+
+              {/* Tên chủ thẻ & Thông số */}
+              <div className="flex items-end justify-between relative z-10 border-t border-emerald-900/40 pt-3">
+                <div>
+                  <Text className="!text-[10px] !text-slate-400 uppercase tracking-wider block">
+                    Cơ thủ hội viên
+                  </Text>
+                  <Text strong className="!text-sm !text-white tracking-wide">
+                    ĐẶNG TUẤN ANH
+                  </Text>
+                </div>
+
+                <Space size={12} className="text-right">
+                  <div>
+                    <Text className="!text-[10px] !text-slate-400 block">Tỉ lệ thắng</Text>
+                    <Text strong className="!text-xs !text-emerald-400">68%</Text>
+                  </div>
+                  <div>
+                    <Text className="!text-[10px] !text-slate-400 block">Hạng ELO</Text>
+                    <Text strong className="!text-xs !text-amber-400">Master 1850</Text>
+                  </div>
                 </Space>
-                <Text className="!text-[11px] !text-slate-400 block leading-snug">
-                  Xem menu F&B, kiểm tra bàn trống, xem giải đấu và đăng ký hội viên.
-                </Text>
-              </Card>
+              </div>
+            </div>
+
+            {/* 4 Đặc quyền hội viên thực tế */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              {MEMBER_PERKS.map((perk, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-3 backdrop-blur-md hover:border-emerald-800/50 transition-colors"
+                >
+                  <Space align="center" size={8} className="mb-1">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 border border-slate-800">
+                      {perk.icon}
+                    </span>
+                    <Text strong className="!text-xs !text-white">
+                      {perk.title}
+                    </Text>
+                  </Space>
+                  <Text className="!text-[11px] !text-slate-400 block leading-snug pl-9">
+                    {perk.desc}
+                  </Text>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Footer trái: VNPay Integration & Trạng thái CLB */}
-          <div className="relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs text-slate-400">
+          {/* Footer Trái: Realtime Club Status & Bảo mật */}
+          <div className="relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-3.5 text-xs text-slate-400">
             <Space align="center" size={8}>
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <Text className="!text-[11px] !text-slate-400">
-                CLB hoạt động: <strong className="text-emerald-400 font-semibold">18 Bàn Thi Đấu</strong>
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse ring-4 ring-emerald-500/20" />
+              <Text className="!text-xs !text-slate-300">
+                CLB hiện tại: <strong className="text-emerald-400 font-semibold">18/20 Bàn Thi Đấu Sẵn Sàng</strong>
               </Text>
             </Space>
             <Space align="center" size={6}>
-              <CreditCard className="h-3.5 w-3.5 text-emerald-400" />
-              <Text className="!text-[11px] !text-slate-400">Tích hợp cổng thanh toán VNPay QR</Text>
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+              <Text className="!text-xs !text-slate-400">Kết nối mã hóa bảo mật 256-bit</Text>
             </Space>
           </div>
         </div>
 
-        {/* CỘT PHẢI (50%): FORM ĐĂNG NHẬP CHUẨN SHARED/UI */}
+        {/* =========================================================================
+            CỘT PHẢI (48%): PORTAL ĐĂNG NHẬP CHUẨN SHARED/UI (TABS KHÁCH HÀNG & NHÂN VIÊN)
+            ========================================================================= */}
         <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-gradient-to-b from-[#080e18] via-[#09121d] to-[#060a10]">
-          {/* Header mobile */}
+          {/* Header Mobile */}
           <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-800">
             <Space align="center" size={8}>
               <img
                 src="/cuezone-favicon.svg?v=2"
                 alt="CueZone Logo"
-                className="h-8 w-8 rounded-lg ring-1 ring-emerald-500/50"
+                className="h-8 w-8 rounded-lg ring-1 ring-emerald-500/50 p-0.5 bg-slate-900"
               />
               <Text className="!text-lg !font-black !text-white !mb-0">
                 CUE<span className="text-emerald-400">ZONE</span>
               </Text>
             </Space>
-            <Button variant="outline" size="sm" to="/customer" className="!text-xs !h-7 !px-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              to="/customer"
+              className="!text-xs !h-8 !px-3 !border-slate-800 !bg-slate-900 !text-slate-300"
+            >
               Cổng Khách
             </Button>
           </div>
 
-          {/* Form container trung tâm */}
-          <div className="my-auto w-full max-w-sm mx-auto py-4">
-            {/* Tiêu đề */}
-            <div className="mb-4">
-              <Title level={2} className="!text-2xl !font-bold !text-white !tracking-tight !mb-1">
-                Đăng Nhập Hệ Thống
-              </Title>
-              <Text className="!text-xs !text-slate-400">
-                Chọn vai trò theo cấu trúc hệ thống CueZone
+          {/* Form Container Trung Tâm */}
+          <div className="my-auto w-full max-w-md mx-auto py-4">
+            {/* Header Form */}
+            <div className="mb-5">
+              <Space align="center" size={8} className="mb-1.5">
+                <Title level={2} className="!text-2xl !font-bold !text-white !tracking-tight !mb-0">
+                  Chào Mừng Đến CueZone
+                </Title>
+              </Space>
+              <Text className="!text-xs !text-slate-400 block">
+                Hệ thống đặt bàn, quản lý hội viên và điều hành giải đấu billiards
               </Text>
             </div>
 
-            {/* Quick Role Switcher Pills (Chính xác 3 role đăng nhập: Admin, Staff, Customer) */}
-            <Card
-              className="!mb-4 !rounded-xl !border-emerald-950/80 !bg-slate-900/60 backdrop-blur-sm shadow-sm shadow-emerald-950/50 [&>.ant-card-body]:!p-2.5"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Space align="center" size={4}>
-                  <Zap className="h-3 w-3 fill-emerald-400 text-emerald-400" />
-                  <Text strong className="!text-[11px] !text-emerald-400">
-                    Chọn nhanh vai trò:
+            {/* TAB CHUYỂN ĐỔI: [HỘI VIÊN / KHÁCH HÀNG] VS [NHÂN VIÊN & QUẢN TRỊ] */}
+            <div className="mb-4">
+              <Tabs
+                activeKey={activeTab}
+                onChange={handleTabChange}
+                className="cuezone-login-tabs [&_.ant-tabs-nav]:!mb-4 [&_.ant-tabs-tab]:!text-xs [&_.ant-tabs-tab]:!py-2 [&_.ant-tabs-tab]:!text-slate-400 [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-emerald-400 [&_.ant-tabs-ink-bar]:!bg-emerald-500"
+                items={[
+                  {
+                    key: "customer",
+                    label: (
+                      <Space size={6} align="center">
+                        <User className="h-4 w-4 text-emerald-400" />
+                        <span className="font-semibold">Hội Viên / Khách Chơi</span>
+                      </Space>
+                    ),
+                  },
+                  {
+                    key: "staff",
+                    label: (
+                      <Space size={6} align="center">
+                        <ShieldCheck className="h-4 w-4 text-slate-400" />
+                        <span className="font-semibold">Nhân Viên & Quản Lý</span>
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+
+            {/* Thông báo bối cảnh của Tab được chọn */}
+            {activeTab === "customer" ? (
+              <div className="mb-4 rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3 flex items-start gap-2.5">
+                <Sparkles className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <Text strong className="!text-xs !text-emerald-300 block">
+                    Đăng nhập tài khoản Hội Viên
                   </Text>
-                </Space>
-                <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 !bg-emerald-500/10 !text-emerald-400">
-                  Context Diagram
-                </Tag>
-              </div>
-
-              {/* 3 Nút Role tương ứng 3 thực thể đăng nhập */}
-              <div className="grid grid-cols-3 gap-1.5">
-                {SEED_ACCOUNTS.map((acc) => {
-                  const isCurrent = selectedSeed.id === acc.id;
-                  return (
-                    <Tooltip key={acc.id} title={`${acc.name} - ${acc.description}`}>
-                      <Button
-                        variant={isCurrent ? "primary" : "outline"}
-                        size="sm"
-                        onClick={() => handleSelectSeed(acc)}
-                        leftIcon={ROLE_ICONS[acc.role]}
-                        className={clsx(
-                          "!h-9 !px-2 !text-xs !rounded-lg flex items-center justify-center transition-all !w-full",
-                          isCurrent
-                            ? "!bg-emerald-600 !text-white !font-bold !border-emerald-500 shadow-md shadow-emerald-600/30"
-                            : "!bg-slate-950/70 !text-slate-400 !border-slate-800 hover:!text-slate-200 hover:!border-slate-700"
-                        )}
-                      >
-                        {acc.role === UserRole.ADMIN
-                          ? "Admin"
-                          : acc.role === UserRole.STAFF
-                          ? "Staff"
-                          : "Customer"}
-                      </Button>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-
-              {/* Chi tiết nhiệm vụ của vai trò được chọn + Nút Đăng nhập 1-click */}
-              <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex orientation-col gap-1.5">
-                <div className="flex items-center justify-between text-[11px] w-full">
-                  <div className="truncate pr-2">
-                    <Text strong className="!text-[11px] !text-slate-200">
-                      {selectedSeed.name}
-                    </Text>
-                    <Text className="!text-[10px] !text-emerald-400 block truncate">
-                      {selectedSeed.description}
-                    </Text>
-                  </div>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => handleInstantSeedLogin(selectedSeed)}
-                    disabled={loading}
-                    rightIcon={<ArrowRight className="h-3 w-3" />}
-                    className="!p-0 !h-auto !text-[11px] !font-bold !text-emerald-400 hover:!text-emerald-300 flex-shrink-0"
-                  >
-                    Vào ngay
-                  </Button>
+                  <Text className="!text-[11px] !text-slate-400 leading-snug">
+                    Tích điểm cơ thủ, xem lịch sử đặt bàn và nhận ưu đãi giờ chơi.
+                  </Text>
                 </div>
               </div>
-            </Card>
+            ) : (
+              <div className="mb-4 rounded-xl border border-slate-800/80 bg-slate-900/40 p-3 flex items-start gap-2.5">
+                <ShieldCheck className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <Text strong className="!text-xs !text-slate-200 block">
+                    Cổng Vận Hành & Quản Trị Hệ Thống
+                  </Text>
+                  <Text className="!text-[11px] !text-slate-400 leading-snug">
+                    Dành cho Thu ngân, Trọng tài, Nhân viên kho và Quản lý CLB.
+                  </Text>
+                </div>
+              </div>
+            )}
 
-            {/* Form đăng nhập chính (Sử dụng Form, Form.Item, Input từ shared/ui) */}
+            {/* FORM ĐĂNG NHẬP CHÍNH */}
             <Form
               layout="vertical"
               onFinish={handleFormSubmit}
               requiredMark={false}
-              className="space-y-3"
+              className="space-y-3.5"
             >
               <Form.Item
-                label={<Text className="!text-xs !font-semibold !text-slate-300">Email đăng nhập</Text>}
+                label={
+                  <Text className="!text-xs !font-semibold !text-slate-300">
+                    {activeTab === "customer" ? "Email hoặc Số điện thoại" : "Email tài khoản nội bộ"}
+                  </Text>
+                }
                 className="!mb-3"
               >
                 <Input
-                  type="email"
+                  type={activeTab === "customer" ? "text" : "email"}
                   size="large"
-                  prefix={<Mail className="h-4 w-4 text-slate-400 mr-1.5" />}
+                  prefix={
+                    activeTab === "customer" ? (
+                      <Mail className="h-4 w-4 text-slate-400 mr-2" />
+                    ) : (
+                      <Mail className="h-4 w-4 text-slate-400 mr-2" />
+                    )
+                  }
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@cuezone.com, staff@cuezone.com..."
+                  placeholder={
+                    activeTab === "customer"
+                      ? "customer@cuezone.com hoặc 0912 345 678"
+                      : "admin@cuezone.com, staff@cuezone.com"
+                  }
                   allowClear
-                  className="!h-10 !rounded-lg !border-slate-800 !bg-slate-950/80 !text-white text-xs placeholder:!text-slate-600 focus:!border-emerald-500"
+                  className="!h-11 !rounded-lg !border-slate-800 !bg-slate-950/80 !text-white text-xs placeholder:!text-slate-600 focus:!border-emerald-500"
                 />
               </Form.Item>
 
@@ -379,7 +498,9 @@ const LoginPage: React.FC = () => {
                     <Button
                       variant="link"
                       size="sm"
-                      onClick={() => message.info("Chế độ thử nghiệm: Mật khẩu mặc định là 'password123'")}
+                      onClick={() =>
+                        message.info("Mật khẩu thử nghiệm mặc định của tất cả tài khoản: 'password123'")
+                      }
                       className="!p-0 !h-auto !text-[11px] !font-medium !text-emerald-400 hover:!text-emerald-300"
                     >
                       Quên mật khẩu?
@@ -390,11 +511,11 @@ const LoginPage: React.FC = () => {
               >
                 <Input.Password
                   size="large"
-                  prefix={<Lock className="h-4 w-4 text-slate-400 mr-1.5" />}
+                  prefix={<Lock className="h-4 w-4 text-slate-400 mr-2" />}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="!h-10 !rounded-lg !border-slate-800 !bg-slate-950/80 !text-white text-xs placeholder:!text-slate-600 focus:!border-emerald-500"
+                  className="!h-11 !rounded-lg !border-slate-800 !bg-slate-950/80 !text-white text-xs placeholder:!text-slate-600 focus:!border-emerald-500"
                 />
               </Form.Item>
 
@@ -403,9 +524,8 @@ const LoginPage: React.FC = () => {
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                 >
-                  <Text className="!text-xs !text-slate-300">Ghi nhớ tài khoản</Text>
+                  <Text className="!text-xs !text-slate-300">Ghi nhớ đăng nhập trên thiết bị này</Text>
                 </Checkbox>
-                <Text className="!text-[11px] !text-slate-500">Mặc định: password123</Text>
               </div>
 
               <Button
@@ -413,53 +533,142 @@ const LoginPage: React.FC = () => {
                 htmlType="submit"
                 size="large"
                 loading={loading}
-                rightIcon={!loading ? <ArrowRight className="h-4 w-4 ml-1" /> : undefined}
-                className="w-full !h-11 !text-xs !font-bold !rounded-lg shadow-lg shadow-emerald-600/25 transition-all hover:scale-[1.01] active:scale-[0.99] mt-1 !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600"
+                rightIcon={!loading ? <ArrowRight className="h-4 w-4 ml-1.5" /> : undefined}
+                className="w-full !h-12 !text-sm !font-bold !rounded-xl shadow-lg shadow-emerald-600/25 transition-all hover:scale-[1.008] active:scale-[0.99] mt-2 !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600"
               >
-                {loading ? "Đang kết nối hệ thống..." : "Đăng Nhập"}
+                {loading
+                  ? "Đang xác thực thông tin..."
+                  : activeTab === "customer"
+                  ? "Đăng Nhập Hội Viên"
+                  : "Đăng Nhập Quản Trị"}
               </Button>
             </Form>
 
-            {/* KHU VỰC DÀNH CHO GUEST (KHÁCH VÃNG LAI) & ĐĂNG KÝ HỘI VIÊN THEO SƠ ĐỒ */}
-            <Card className="!mt-4 !rounded-xl !border-slate-800/80 !bg-slate-950/60 [&>.ant-card-body]:!p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Space align="center" size={6}>
-                    <Eye className="h-3.5 w-3.5 text-sky-400" />
-                    <Text strong className="!text-xs !text-white">Khách Vãng Lai (Guest)</Text>
-                  </Space>
-                  <Text className="!text-[11px] !text-slate-400 block mt-0.5">
-                    Tra cứu bàn trống, xem menu F&B không cần đăng nhập
-                  </Text>
+            {/* DÀNH CHO KHÁCH VÃNG LAI: KHÔNG CẦN TÀI KHOẢN VẪN TRA CỨU ĐƯỢC BÀN */}
+            {activeTab === "customer" && (
+              <div className="mt-4 pt-3 border-t border-slate-800/80">
+                <div className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-3.5 flex items-center justify-between">
+                  <div className="pr-3">
+                    <Space align="center" size={6} className="mb-0.5">
+                      <Eye className="h-3.5 w-3.5 text-sky-400" />
+                      <Text strong className="!text-xs !text-white">
+                        Khách Vãng Lai (Không Cần Tài Khoản)
+                      </Text>
+                    </Space>
+                    <Text className="!text-[11px] !text-slate-400 block">
+                      Xem danh sách bàn trống theo thời gian thực & đặt bàn nhanh
+                    </Text>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    to="/customer"
+                    className="!text-xs !h-8 !px-3 !border-slate-700 !bg-slate-900/90 !text-sky-300 hover:!border-sky-500 hover:!text-white flex-shrink-0"
+                  >
+                    Xem Ngay
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  to="/customer"
-                  className="!text-xs !h-8 !px-3 !border-slate-700 !bg-slate-900/80 !text-sky-300 hover:!border-sky-500 hover:!text-white flex-shrink-0"
-                >
-                  Vào Cổng Khách
-                </Button>
-              </div>
-            </Card>
 
-            {/* Chuyển trang đăng ký hội viên (Account Registration) */}
-            <div className="mt-3 text-center text-xs text-slate-400">
-              <Text className="!text-xs !text-slate-400">Bạn muốn trở thành hội viên?</Text>{" "}
-              <Button
-                variant="link"
-                to="/register"
-                className="!p-0 !h-auto !text-xs !font-bold !text-emerald-400 hover:!text-emerald-300 ml-1 inline-block"
-              >
-                Đăng ký tài khoản (Account registration)
-              </Button>
+                {/* Link Đăng Ký Hội Viên Mới */}
+                <div className="mt-3.5 text-center text-xs text-slate-400">
+                  <Text className="!text-xs !text-slate-400">Chưa có thẻ hội viên?</Text>{" "}
+                  <Button
+                    variant="link"
+                    to="/register"
+                    className="!p-0 !h-auto !text-xs !font-bold !text-emerald-400 hover:!text-emerald-300 ml-1 inline-block"
+                  >
+                    Đăng ký tài khoản miễn phí
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* HỘP TEST TÀI KHOẢN MẪU (THU GỌN GỌN GÀNG, KHÔNG PHÁ HỎNG GIAO DIỆN) */}
+            <div className="mt-5 pt-3 border-t border-slate-800/60">
+              <div className="rounded-xl border border-emerald-950/60 bg-slate-950/40 p-3">
+                <div
+                  className="flex items-center justify-between cursor-pointer select-none"
+                  onClick={() => setShowDemoAccounts(!showDemoAccounts)}
+                >
+                  <Space align="center" size={6}>
+                    <Zap className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400/20" />
+                    <Text strong className="!text-xs !text-emerald-400">
+                      Tài khoản thử nghiệm (1-Click Demo)
+                    </Text>
+                  </Space>
+                  <Space align="center" size={4}>
+                    <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 !bg-emerald-500/10 !text-emerald-400">
+                      3 Vai trò
+                    </Tag>
+                    <ChevronDown
+                      className={clsx(
+                        "h-3.5 w-3.5 text-slate-400 transition-transform duration-200",
+                        showDemoAccounts && "rotate-180"
+                      )}
+                    />
+                  </Space>
+                </div>
+
+                {showDemoAccounts && (
+                  <div className="mt-3 pt-2.5 border-t border-slate-800/70 space-y-2 animate-fade-in">
+                    <Text className="!text-[11px] !text-slate-400 block mb-1.5">
+                      Bấm vào vai trò bất kỳ để điền form hoặc bấm &quot;Vào ngay&quot; để đăng nhập tức thì:
+                    </Text>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {SEED_ACCOUNTS.map((acc) => (
+                        <div
+                          key={acc.id}
+                          className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-2 hover:border-emerald-600/50 transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <Text strong className="!text-[11px] !text-slate-200 truncate">
+                                {acc.role === UserRole.ADMIN
+                                  ? "Admin (Chủ CLB)"
+                                  : acc.role === UserRole.STAFF
+                                  ? "Staff (Vận Hành)"
+                                  : "Hội Viên (Cơ Thủ)"}
+                              </Text>
+                            </div>
+                            <Text className="!text-[10px] !text-slate-400 truncate block">
+                              {acc.email}
+                            </Text>
+                          </div>
+
+                          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-800/80">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSelectSeed(acc)}
+                              className="!p-0 !h-auto !text-[10px] !text-slate-400 hover:!text-white"
+                            >
+                              Điền form
+                            </Button>
+                            <Button
+                              variant="link"
+                              size="sm"
+                              onClick={() => handleInstantSeedLogin(acc)}
+                              disabled={loading}
+                              rightIcon={<ArrowRight className="h-2.5 w-2.5" />}
+                              className="!p-0 !h-auto !text-[10px] !font-bold !text-emerald-400 hover:!text-emerald-300"
+                            >
+                              Vào ngay
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Footer thông tin */}
-          <div className="pt-2 text-center text-[11px] text-slate-600">
-            <Text className="!text-[11px] !text-slate-600">
-              Billiards Clubs & Bank Pool Tournament System • Phiên bản 1.0
+          {/* Footer Bản Quyền */}
+          <div className="pt-3 text-center text-[11px] text-slate-500">
+            <Text className="!text-[11px] !text-slate-500">
+              CueZone Billiards Management & Bank Pool Tournament System • Phiên bản 2.0
             </Text>
           </div>
         </div>
@@ -469,4 +678,5 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
+
 
