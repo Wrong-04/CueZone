@@ -352,7 +352,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 45,
     minThreshold: 15,
     unit: "Ly",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-salt-coffee.jpg",
   },
   {
     id: "fnb-02",
@@ -365,7 +365,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 38,
     minThreshold: 15,
     unit: "Ly",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-salt-coffee.jpg",
   },
   {
     id: "fnb-03",
@@ -378,7 +378,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 28,
     minThreshold: 10,
     unit: "Ly",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-peach-tea.jpg",
   },
   {
     id: "fnb-04",
@@ -391,7 +391,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 8, // Sắp hết
     minThreshold: 10,
     unit: "Ly",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-peach-tea.jpg",
   },
   {
     id: "fnb-05",
@@ -404,7 +404,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 120,
     minThreshold: 24,
     unit: "Lon",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-cold-beer.jpg",
   },
   {
     id: "fnb-06",
@@ -417,7 +417,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 5, // Sắp hết
     minThreshold: 12,
     unit: "Chai",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-cold-beer.jpg",
   },
   {
     id: "fnb-07",
@@ -430,7 +430,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 30,
     minThreshold: 10,
     unit: "Phần",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-beef-noodles.jpg",
   },
   {
     id: "fnb-08",
@@ -443,7 +443,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 0, // Hết hàng
     minThreshold: 10,
     unit: "Dĩa",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-seafood-rice.jpg",
   },
   {
     id: "fnb-09",
@@ -456,7 +456,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 18,
     minThreshold: 8,
     unit: "Hũ",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-beef-jerky.jpg",
   },
   {
     id: "fnb-10",
@@ -469,12 +469,12 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 14,
     minThreshold: 5,
     unit: "Cục",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-billiard-gear.jpg",
   },
   {
     id: "fnb-11",
     code: "EQ-02",
-    name: "Bao Tay Bida Taom Billiard Glove",
+    name: "Bao Tay Bida Predator Special Edition",
     category: "equipment",
     categoryName: "Phụ Kiện",
     price: 350000,
@@ -482,7 +482,7 @@ export const INITIAL_FNB_STOCK: FnbStockItem[] = [
     stockQuantity: 22,
     minThreshold: 5,
     unit: "Chiếc",
-    image: "/news/news-club-hero.jpg",
+    image: "/fnb/fnb-billiard-gear.jpg",
   },
 ];
 
