@@ -1,759 +1,1366 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
-  SearchOutlined,
   TeamOutlined,
-  CloseOutlined,
-  DeleteOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  ScheduleOutlined,
+  ClockCircleOutlined,
+  UserOutlined,
+  EditOutlined,
+  LockOutlined,
+  UnlockOutlined,
+  ReloadOutlined,
+  TrophyOutlined,
+  StarOutlined,
+  AppstoreOutlined,
 } from "@ant-design/icons";
-import { employeeService } from "../../services/employee.service";
-import type { User } from "../../types";
+import {
+  Button,
+  Tag,
+  Typography,
+  message,
+  Modal,
+  Table,
+  Input,
+  Select,
+  SegmentedPillList,
+  Card,
+  type TableColumnsType,
+} from "../../shared/ui";
 import { UserRole } from "../../types";
 
-const roleLabels: Record<string, string> = {
-  [UserRole.ADMIN]: "Quản lý CLB",
-  [UserRole.STAFF]: "Nhân viên Phục vụ",
-  [UserRole.CASHIER]: "Thu ngân",
-  [UserRole.WAREHOUSE]: "Thủ kho",
-  [UserRole.REFEREE]: "Điều phối Giải đấu",
-  [UserRole.CUSTOMER]: "Khách hàng",
-};
+const { Title, Text } = Typography;
 
-const roleBadgeColors: Record<string, string> = {
-  [UserRole.ADMIN]: "bg-orange-100 text-orange-700",
-  [UserRole.STAFF]: "bg-blue-100 text-blue-700",
-  [UserRole.CASHIER]: "bg-green-100 text-green-700",
-  [UserRole.WAREHOUSE]: "bg-purple-100 text-purple-700",
-  [UserRole.REFEREE]: "bg-yellow-100 text-yellow-700",
-  [UserRole.CUSTOMER]: "bg-gray-100 text-gray-700",
-};
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-const permissionModules = [
+export interface ClubEmployee {
+  id: string;
+  code: string;
+  name: string;
+  avatar: string;
+  role: UserRole;
+  roleName: string;
+  position: string;
+  email: string;
+  phone: string;
+  shift: "morning" | "evening" | "night" | "fulltime";
+  shiftName: string;
+  assignedArea: string; // e.g. "Bàn 01 - 06", "Khu VIP 10 - 12", "Bàn Match 13 - 14 VAR"
+  onDutyStatus: "on_duty" | "off_duty" | "leave";
+  isActive: boolean;
+  isLocked: boolean;
+  joinDate: string;
+  tablesServedMonth: number;
+  fnbOrdersServed: number;
+  ratingScore: number;
+}
+
+export interface ShiftInfo {
+  key: "morning" | "evening" | "night";
+  name: string;
+  timeRange: string;
+  leaderName: string;
+  staffCount: number;
+  status: "active" | "completed" | "upcoming";
+  tablesAssigned: string;
+  notes: string;
+}
+
+export interface PermissionItem {
+  key: string;
+  label: string;
+  desc: string;
+  module: string;
+  enabledRoles: UserRole[];
+}
+
+// ── Mock Initial Employees Data ───────────────────────────────────────────────
+
+const INITIAL_EMPLOYEES: ClubEmployee[] = [
   {
-    name: "Quản lý Bàn & Billing",
-    permissions: [
-      { key: "open_table", label: "Mở bàn & Đặt bàn trước", desc: "Tạo phiên chơi mới và nhận lịch đặt bàn" },
-      { key: "print_invoice", label: "In hóa đơn & Áp dụng ưu đãi", desc: "Chốt giờ, xuất bill tạm tính và chiết khấu VIP" },
-      { key: "cancel_invoice", label: "Hủy hóa đơn / Cho nợ", desc: "Yêu cầu quyền Quản lý CLB phê duyệt", restricted: true },
-    ],
+    id: "emp-01",
+    code: "NV-001",
+    name: "Nguyễn Hải Long",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.ADMIN,
+    roleName: "Quản Lý Điều Hành CLB",
+    position: "Club General Manager",
+    email: "hailong.cuezone@gmail.com",
+    phone: "0908 112 334",
+    shift: "fulltime",
+    shiftName: "Toàn Thời Gian",
+    assignedArea: "Toàn bộ CLB & Hệ thống POS",
+    onDutyStatus: "on_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "01/01/2025",
+    tablesServedMonth: 120,
+    fnbOrdersServed: 180,
+    ratingScore: 4.9,
   },
   {
-    name: "Quản lý Kho & F&B",
-    permissions: [
-      { key: "view_inventory", label: "Xem tồn kho thực đơn F&B", desc: "Tra cứu số lượng đồ uống & phụ kiện sẵn có" },
-      { key: "manage_inventory", label: "Lập phiếu nhập / xuất kho", desc: "Dành riêng cho vị trí Thủ kho" },
-      { key: "audit_inventory", label: "Kiểm kê & Cân bằng kho", desc: "Điều chỉnh số lượng chênh lệch thực tế" },
-    ],
+    id: "emp-02",
+    code: "NV-002",
+    name: "Trần Đình Trọng",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.CASHIER,
+    roleName: "Thu Ngân Trưởng",
+    position: "Head Cashier (Ca Sáng)",
+    email: "dinhtrong.cashier@cuezone.vn",
+    phone: "0901 223 344",
+    shift: "morning",
+    shiftName: "Ca Sáng (08:00 - 16:00)",
+    assignedArea: "Quầy Thu Ngân & Sơ đồ POS Tầng 1",
+    onDutyStatus: "off_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "15/03/2025",
+    tablesServedMonth: 210,
+    fnbOrdersServed: 320,
+    ratingScore: 4.8,
   },
   {
-    name: "Quản lý Giải đấu Bank Pool",
-    permissions: [
-      { key: "register_player", label: "Đăng ký cơ thủ & Thu lệ phí", desc: "Xác nhận cơ thủ và thu lệ phí tham gia giải" },
-      { key: "update_score", label: "Cập nhật tỷ số trận đấu", desc: "" },
-    ],
+    id: "emp-03",
+    code: "NV-003",
+    name: "Lê Văn Hùng",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.CASHIER,
+    roleName: "Thu Ngân Ca Tối",
+    position: "Senior Cashier (Ca Chiều/Tối)",
+    email: "vanhung.cashier@cuezone.vn",
+    phone: "0918 332 211",
+    shift: "evening",
+    shiftName: "Ca Tối (16:00 - 24:00)",
+    assignedArea: "Quầy Thu Ngân & POS Khu VIP",
+    onDutyStatus: "on_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "01/06/2025",
+    tablesServedMonth: 245,
+    fnbOrdersServed: 410,
+    ratingScore: 4.9,
+  },
+  {
+    id: "emp-04",
+    code: "NV-004",
+    name: "Bùi Quốc Bảo",
+    avatar: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.REFEREE,
+    roleName: "Trọng Tài Bank Pool Quốc Gia",
+    position: "Chief Tournament Referee",
+    email: "quocbao.referee@cuezone.vn",
+    phone: "0934 998 811",
+    shift: "evening",
+    shiftName: "Ca Tối (16:00 - 24:00)",
+    assignedArea: "Bàn Match 13 & Match 14 (Khu VAR)",
+    onDutyStatus: "on_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "10/05/2025",
+    tablesServedMonth: 65,
+    fnbOrdersServed: 80,
+    ratingScore: 5.0,
+  },
+  {
+    id: "emp-05",
+    code: "NV-005",
+    name: "Nguyễn Văn Nam",
+    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.WAREHOUSE,
+    roleName: "Thủ Kho Vật Tư Bida & F&B",
+    position: "Warehouse & Inventory Specialist",
+    email: "vannam.warehouse@cuezone.vn",
+    phone: "0944 556 677",
+    shift: "morning",
+    shiftName: "Ca Sáng (08:00 - 16:00)",
+    assignedArea: "Tổng Kho Vật Tư & Tủ Cơ VIP",
+    onDutyStatus: "off_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "20/04/2025",
+    tablesServedMonth: 40,
+    fnbOrdersServed: 60,
+    ratingScore: 4.7,
+  },
+  {
+    id: "emp-06",
+    code: "NV-006",
+    name: "Vũ Minh Quân",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.STAFF,
+    roleName: "Nhân Viên Phục Vụ Bàn VIP",
+    position: "VIP Area Table Runner",
+    email: "minhquan.staff@cuezone.vn",
+    phone: "0988 776 554",
+    shift: "evening",
+    shiftName: "Ca Tối (16:00 - 24:00)",
+    assignedArea: "Bàn VIP 10, VIP 11, VIP 12",
+    onDutyStatus: "on_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "01/08/2025",
+    tablesServedMonth: 310,
+    fnbOrdersServed: 480,
+    ratingScore: 4.9,
+  },
+  {
+    id: "emp-07",
+    code: "NV-007",
+    name: "Phan Hải Đăng",
+    avatar: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.STAFF,
+    roleName: "Nhân Viên Phục Vụ Bàn Thường",
+    position: "Table Attendant (Ca Chiều)",
+    email: "haidang.staff@cuezone.vn",
+    phone: "0912 345 678",
+    shift: "evening",
+    shiftName: "Ca Tối (16:00 - 24:00)",
+    assignedArea: "Bàn 01 đến Bàn 06",
+    onDutyStatus: "on_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "15/08/2025",
+    tablesServedMonth: 290,
+    fnbOrdersServed: 395,
+    ratingScore: 4.8,
+  },
+  {
+    id: "emp-08",
+    code: "NV-008",
+    name: "Đỗ Tuấn Kiệt",
+    avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80",
+    role: UserRole.STAFF,
+    roleName: "Nhân Viên Phục Vụ Ca Đêm",
+    position: "Night Shift Table Attendant",
+    email: "tuankiet.staff@cuezone.vn",
+    phone: "0945 678 901",
+    shift: "night",
+    shiftName: "Ca Đêm (00:00 - 04:00)",
+    assignedArea: "Khu Vực Bàn Đấu & Bảo Dưỡng Nỉ Bàn",
+    onDutyStatus: "off_duty",
+    isActive: true,
+    isLocked: false,
+    joinDate: "01/09/2025",
+    tablesServedMonth: 180,
+    fnbOrdersServed: 230,
+    ratingScore: 4.6,
   },
 ];
 
-const employeeRoles = Object.entries(roleLabels)
-  .filter(([k]) => k !== UserRole.CUSTOMER)
-  .map(([value, label]) => ({ value, label }));
+const SHIFT_SCHEDULES: ShiftInfo[] = [
+  {
+    key: "morning",
+    name: "Ca Sáng (08:00 - 16:00)",
+    timeRange: "08:00 - 16:00 (8 Tiếng)",
+    leaderName: "Trần Đình Trọng (Thu Ngân Trưởng)",
+    staffCount: 3,
+    status: "completed",
+    tablesAssigned: "Bàn 01 đến Bàn 14 (Tất cả khu vực)",
+    notes: "Đã bàn giao tiền mặt quầy thu ngân và kiểm tra bóng bida lúc 16:00",
+  },
+  {
+    key: "evening",
+    name: "Ca Chiều / Tối (16:00 - 24:00 - CA VÀNG)",
+    timeRange: "16:00 - 24:00 (8 Tiếng)",
+    leaderName: "Nguyễn Hải Long (Quản Lý CLB)",
+    staffCount: 5,
+    status: "active",
+    tablesAssigned: "Khu VIP 10-12, Match 13-14 (VAR On), Bàn thường",
+    notes: "Khung giờ cao điểm giải đấu Bank Pool, tăng cường 2 nhân viên chăm sóc bàn Match",
+  },
+  {
+    key: "night",
+    name: "Ca Đêm (00:00 - 04:00 / Khách Xuyên Đêm)",
+    timeRange: "00:00 - 04:00 (4 Tiếng)",
+    leaderName: "Đỗ Tuấn Kiệt (Trưởng Ca Đêm)",
+    staffCount: 2,
+    status: "upcoming",
+    tablesAssigned: "Bàn 01 - Bàn 04 & Bàn VIP 10",
+    notes: "Bảo dưỡng hút bụi nỉ bàn Simonis, đánh bóng bi Aramith sau giờ đóng cửa",
+  },
+];
 
-interface EmployeeFormData {
-  name: string;
-  email: string;
-  password: string;
-  role: string;
-  phone: string;
-  position: string;
-}
+const PERMISSIONS_LIST: PermissionItem[] = [
+  {
+    key: "pos_open_table",
+    label: "Mở Bàn Bida & Nhận Đặt Bàn",
+    desc: "Khởi tạo phiên chơi mới, xếp bàn và duyệt đặt bàn trước",
+    module: "Bàn & Billing",
+    enabledRoles: [UserRole.ADMIN, UserRole.CASHIER, UserRole.STAFF],
+  },
+  {
+    key: "pos_checkout",
+    label: "In Hóa Đơn & Chốt Giờ Thanh Toán",
+    desc: "Xuất bill tính giờ chơi, thu tiền khách và áp dụng chiết khấu thẻ",
+    module: "Bàn & Billing",
+    enabledRoles: [UserRole.ADMIN, UserRole.CASHIER],
+  },
+  {
+    key: "pos_cancel_invoice",
+    label: "Hủy Hóa Đơn / Miễn Phí Giờ Chơi",
+    desc: "Yêu cầu quyền Quản lý phê duyệt khi xảy ra lỗi sự cố",
+    module: "Bàn & Billing",
+    enabledRoles: [UserRole.ADMIN],
+  },
+  {
+    key: "wh_view_stock",
+    label: "Xem Tồn Kho Thực Đơn F&B & Phụ Kiện",
+    desc: "Tra cứu số lượng đồ uống, cơ bida và phụ kiện sẵn có",
+    module: "Kho Hàng & Vật Tư",
+    enabledRoles: [UserRole.ADMIN, UserRole.CASHIER, UserRole.WAREHOUSE, UserRole.STAFF],
+  },
+  {
+    key: "wh_create_slips",
+    label: "Lập Phiếu Nhập / Xuất Kho",
+    desc: "Ghi nhận hàng về từ nhà phân phối hoặc xuất thay nỉ bàn",
+    module: "Kho Hàng & Vật Tư",
+    enabledRoles: [UserRole.ADMIN, UserRole.WAREHOUSE],
+  },
+  {
+    key: "tourney_scoring",
+    label: "Chấm Điểm Trọng Tài & Ghi Nhận VAR",
+    desc: "Cập nhật tỉ số ván đấu Bank Pool và xem lại camera 60fps",
+    module: "Giải Đấu & Trọng Tài",
+    enabledRoles: [UserRole.ADMIN, UserRole.REFEREE],
+  },
+  {
+    key: "hr_manage_shifts",
+    label: "Phân Ca Trực & Quản Lý Hồ Sơ Nhân Sự",
+    desc: "Cấu hình lịch làm việc, đổi ca và khóa/mở khóa tài khoản",
+    module: "Nhân Sự & Hệ Thống",
+    enabledRoles: [UserRole.ADMIN],
+  },
+];
 
-const emptyForm: EmployeeFormData = {
-  name: "",
-  email: "",
-  password: "",
-  role: UserRole.STAFF,
-  phone: "",
-  position: "",
-};
-
-const EmployeesPage = () => {
-  const [employees, setEmployees] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filterRole, setFilterRole] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("true");
-  const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
-  const [formData, setFormData] = useState<EmployeeFormData>(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof EmployeeFormData, string>>>({});
+export const EmployeesPage: React.FC = () => {
+  // ── 1. STATE ──────────────────────────────────────────────────────────────
+  const [employeesList, setEmployeesList] = useState<ClubEmployee[]>(() => {
+    const saved = localStorage.getItem("cuezone_admin_employees");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_EMPLOYEES;
+  });
 
   useEffect(() => {
-    fetchEmployees();
-  }, [filterRole, filterStatus]);
+    localStorage.setItem("cuezone_admin_employees", JSON.stringify(employeesList));
+  }, [employeesList]);
 
-  const fetchEmployees = async () => {
-    setLoading(true);
-    try {
-      const filters: any = {};
-      if (filterRole !== "all") filters.role = filterRole;
-      if (filterStatus !== "all") filters.isActive = filterStatus;
-      if (search) filters.search = search;
-      const data = await employeeService.getAll(filters);
-      setEmployees(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  // Main Tabs
+  const [activeTab, setActiveTab] = useState<string>("staff");
+
+  // Filters
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [dutyFilter, setDutyFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Modals
+  const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
+  const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
+  const [selectedEmp, setSelectedEmp] = useState<ClubEmployee | null>(null);
+
+  // Form State
+  interface EmployeeFormData {
+    name: string;
+    email: string;
+    phone: string;
+    role: UserRole;
+    position: string;
+    shift: ClubEmployee["shift"];
+    assignedArea: string;
+  }
+
+  const [empForm, setEmpForm] = useState<EmployeeFormData>({
+    name: "",
+    email: "",
+    phone: "",
+    role: UserRole.STAFF,
+    position: "Nhân viên phục vụ",
+    shift: "evening",
+    assignedArea: "Khu vực Bàn 01 - 06",
+  });
+
+  // ── 2. ACTIONS ────────────────────────────────────────────────────────────
+  const handleOpenCreate = () => {
+    setEmpForm({
+      name: "",
+      email: "",
+      phone: "",
+      role: UserRole.STAFF,
+      position: "Nhân viên phục vụ bàn",
+      shift: "evening",
+      assignedArea: "Khu vực Bàn 01 - 06",
+    });
+    setCreateModalVisible(true);
   };
 
-  const handleSearch = () => {
-    fetchEmployees();
-  };
-
-  const handleToggleLock = async (id: string) => {
-    try {
-      await employeeService.toggleLock(id);
-      fetchEmployees();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const _handleToggleActive = async (id: string) => {
-    try {
-      await employeeService.toggleActive(id);
-      fetchEmployees();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-  void _handleToggleActive;
-
-  const validateForm = (isEdit: boolean): boolean => {
-    const errors: Partial<Record<keyof EmployeeFormData, string>> = {};
-    if (!formData.name.trim()) errors.name = "Họ tên không được để trống";
-    if (!formData.email.trim()) errors.email = "Email không được để trống";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Email không hợp lệ";
-    if (!isEdit && !formData.password) errors.password = "Mật khẩu không được để trống";
-    else if (formData.password && (formData.password.length < 8 || !/[a-zA-Z]/.test(formData.password) || !/\d/.test(formData.password)))
-      errors.password = "Mật khẩu phải chứa cả chữ cái và số, tối thiểu 8 ký tự";
-    if (!formData.role) errors.role = "Vui lòng chọn vai trò";
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleCreate = async () => {
-    if (!validateForm(false)) return;
-    setSubmitting(true);
-    try {
-      await employeeService.create({
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        role: formData.role,
-        phone: formData.phone.trim() || undefined,
-        position: formData.position.trim() || undefined,
-      });
-      setShowCreateModal(false);
-      setFormData(emptyForm);
-      setFormErrors({});
-      fetchEmployees();
-    } catch (err: any) {
-      const msg = err.message || "Tạo tài khoản thất bại";
-      if (/mật khẩu/i.test(msg)) setFormErrors({ password: msg });
-      else if (/email/i.test(msg)) setFormErrors({ email: msg });
-      else if (/họ tên/i.test(msg)) setFormErrors({ name: msg });
-      else setFormErrors({ email: msg });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleOpenEdit = (emp: User) => {
-    setSelectedEmployee(emp);
-    setFormData({
+  const handleOpenEdit = (emp: ClubEmployee) => {
+    setSelectedEmp(emp);
+    setEmpForm({
       name: emp.name,
       email: emp.email,
-      password: "",
+      phone: emp.phone,
       role: emp.role,
-      phone: emp.phone || "",
-      position: emp.position || "",
+      position: emp.position,
+      shift: emp.shift,
+      assignedArea: emp.assignedArea,
     });
-    setFormErrors({});
-    setShowEditModal(true);
+    setEditModalVisible(true);
   };
 
-  const handleEdit = async () => {
-    if (!validateForm(true)) return;
-    if (!selectedEmployee) return;
-    setSubmitting(true);
-    try {
-      const payload: any = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        role: formData.role,
-        phone: formData.phone.trim() || undefined,
-        position: formData.position.trim() || undefined,
-      };
-      if (formData.password) payload.password = formData.password;
-      await employeeService.update(selectedEmployee._id, payload);
-      setShowEditModal(false);
-      setSelectedEmployee(null);
-      setFormData(emptyForm);
-      setFormErrors({});
-      fetchEmployees();
-    } catch (err: any) {
-      const msg = err.message || "Cập nhật thất bại";
-      if (/mật khẩu/i.test(msg)) setFormErrors({ password: msg });
-      else if (/email/i.test(msg)) setFormErrors({ email: msg });
-      else if (/họ tên/i.test(msg)) setFormErrors({ name: msg });
-      else setFormErrors({ email: msg });
-    } finally {
-      setSubmitting(false);
+  const handleSaveCreate = () => {
+    if (!empForm.name.trim()) {
+      message.warning("Vui lòng nhập họ tên nhân viên!");
+      return;
+    }
+    if (!empForm.email.trim()) {
+      message.warning("Vui lòng nhập địa chỉ email!");
+      return;
+    }
+
+    const roleNameMap: Record<string, string> = {
+      [UserRole.ADMIN]: "Quản Lý CLB",
+      [UserRole.CASHIER]: "Thu Ngân Quầy",
+      [UserRole.STAFF]: "Nhân Viên Phục Vụ",
+      [UserRole.REFEREE]: "Trọng Tài Bida",
+      [UserRole.WAREHOUSE]: "Thủ Kho Vật Tư",
+    };
+
+    const shiftNameMap: Record<string, string> = {
+      morning: "Ca Sáng (08:00 - 16:00)",
+      evening: "Ca Tối (16:00 - 24:00)",
+      night: "Ca Đêm (00:00 - 04:00)",
+      fulltime: "Toàn Thời Gian",
+    };
+
+    const newCode = `NV-${String(employeesList.length + 1).padStart(3, "0")}`;
+
+    const created: ClubEmployee = {
+      id: `emp-${Date.now()}`,
+      code: newCode,
+      name: empForm.name.trim(),
+      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      role: empForm.role,
+      roleName: roleNameMap[empForm.role] || "Nhân viên",
+      position: empForm.position.trim() || "Nhân viên",
+      email: empForm.email.trim(),
+      phone: empForm.phone.trim() || "0900 000 000",
+      shift: empForm.shift,
+      shiftName: shiftNameMap[empForm.shift] || "Ca Tối",
+      assignedArea: empForm.assignedArea.trim() || "Bàn bida chỉ định",
+      onDutyStatus: "on_duty",
+      isActive: true,
+      isLocked: false,
+      joinDate: new Date().toLocaleDateString("vi-VN"),
+      tablesServedMonth: 0,
+      fnbOrdersServed: 0,
+      ratingScore: 5.0,
+    };
+
+    setEmployeesList((prev) => [created, ...prev]);
+    message.success(`Đã thêm thành công nhân viên "${created.name}" (${created.code})!`);
+    setCreateModalVisible(false);
+  };
+
+  const handleSaveEdit = () => {
+    if (!selectedEmp) return;
+    if (!empForm.name.trim()) {
+      message.warning("Vui lòng nhập họ tên nhân viên!");
+      return;
+    }
+
+    const roleNameMap: Record<string, string> = {
+      [UserRole.ADMIN]: "Quản Lý CLB",
+      [UserRole.CASHIER]: "Thu Ngân Quầy",
+      [UserRole.STAFF]: "Nhân Viên Phục Vụ",
+      [UserRole.REFEREE]: "Trọng Tài Bida",
+      [UserRole.WAREHOUSE]: "Thủ Kho Vật Tư",
+    };
+
+    const shiftNameMap: Record<string, string> = {
+      morning: "Ca Sáng (08:00 - 16:00)",
+      evening: "Ca Tối (16:00 - 24:00)",
+      night: "Ca Đêm (00:00 - 04:00)",
+      fulltime: "Toàn Thời Gian",
+    };
+
+    setEmployeesList((prev) =>
+      prev.map((e) =>
+        e.id === selectedEmp.id
+          ? {
+              ...e,
+              name: empForm.name.trim(),
+              email: empForm.email.trim(),
+              phone: empForm.phone.trim(),
+              role: empForm.role,
+              roleName: roleNameMap[empForm.role] || e.roleName,
+              position: empForm.position.trim(),
+              shift: empForm.shift,
+              shiftName: shiftNameMap[empForm.shift] || e.shiftName,
+              assignedArea: empForm.assignedArea.trim(),
+            }
+          : e
+      )
+    );
+
+    message.success(`Đã cập nhật thông tin nhân viên "${empForm.name}"!`);
+    setEditModalVisible(false);
+    setSelectedEmp(null);
+  };
+
+  const handleToggleLock = (emp: ClubEmployee) => {
+    const nextLocked = !emp.isLocked;
+    setEmployeesList((prev) =>
+      prev.map((e) => (e.id === emp.id ? { ...e, isLocked: nextLocked } : e))
+    );
+    if (nextLocked) {
+      message.warning(`Đã tạm khóa tài khoản nhân viên ${emp.name}!`);
+    } else {
+      message.success(`Đã mở khóa tài khoản nhân viên ${emp.name}!`);
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedEmployee) return;
-    setSubmitting(true);
-    try {
-      await employeeService.delete(selectedEmployee._id);
-      setShowDeleteModal(false);
-      setSelectedEmployee(null);
-      fetchEmployees();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSubmitting(false);
+  const handleToggleDuty = (emp: ClubEmployee) => {
+    const nextDuty = emp.onDutyStatus === "on_duty" ? "off_duty" : "on_duty";
+    setEmployeesList((prev) =>
+      prev.map((e) => (e.id === emp.id ? { ...e, onDutyStatus: nextDuty } : e))
+    );
+    if (nextDuty === "on_duty") {
+      message.success(`Điểm danh: ${emp.name} đã vào ca trực!`);
+    } else {
+      message.info(`Bàn giao: ${emp.name} đã hết ca trực.`);
     }
   };
 
-  const openCreateModal = () => {
-    setFormData(emptyForm);
-    setFormErrors({});
-    setShowCreateModal(true);
+  const handleResetToDefaults = () => {
+    localStorage.removeItem("cuezone_admin_employees");
+    setEmployeesList(INITIAL_EMPLOYEES);
+    message.success("Đã khôi phục danh sách nhân sự về dữ liệu mẫu chuẩn!");
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy-800">Quản lý Tài khoản & Phân quyền</h1>
-          <p className="text-gray-500 text-sm mt-1">Quản lý danh sách nhân viên và phân quyền hệ thống</p>
-        </div>
-        <button
-          onClick={openCreateModal}
-          className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2"
-        >
-          <span>+</span> Tạo Tài Khoản Nhân Viên
-        </button>
-      </div>
+  // ── 3. FILTERED EMPLOYEES & METRICS ───────────────────────────────────────
+  const filteredEmployees = useMemo(() => {
+    return employeesList.filter((emp) => {
+      const matchRole = roleFilter === "all" || emp.role === roleFilter;
+      const matchDuty = dutyFilter === "all" || emp.onDutyStatus === dutyFilter;
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 min-w-[280px]">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="Tìm theo tên nhân viên, email, SĐT..."
-              aria-label="Tìm kiếm nhân viên"
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      const q = searchQuery.toLowerCase().trim();
+      const matchQuery =
+        !q ||
+        emp.name.toLowerCase().includes(q) ||
+        emp.code.toLowerCase().includes(q) ||
+        emp.phone.toLowerCase().includes(q) ||
+        emp.email.toLowerCase().includes(q) ||
+        emp.position.toLowerCase().includes(q);
+
+      return matchRole && matchDuty && matchQuery;
+    });
+  }, [employeesList, roleFilter, dutyFilter, searchQuery]);
+
+  const metrics = useMemo(() => {
+    const totalStaff = employeesList.length;
+    const onDutyCount = employeesList.filter((e) => e.onDutyStatus === "on_duty").length;
+    const waiterCount = employeesList.filter((e) => e.role === UserRole.STAFF).length;
+    const specialistCount = employeesList.filter(
+      (e) => e.role === UserRole.CASHIER || e.role === UserRole.REFEREE
+    ).length;
+
+    return { totalStaff, onDutyCount, waiterCount, specialistCount };
+  }, [employeesList]);
+
+  // Main navigation tabs
+  const mainPills = [
+    {
+      key: "staff",
+      label: "Hồ Sơ Nhân Sự CLB",
+      badge: employeesList.length,
+    },
+    {
+      key: "shifts",
+      label: "Phân Ca Trực Hôm Nay",
+      badge: "3 Ca Trực",
+      dotClassName: "bg-emerald-500 animate-ping",
+    },
+    {
+      key: "permissions",
+      label: "Ma Trận Phân Quyền Role",
+      badge: `${PERMISSIONS_LIST.length} Quyền`,
+    },
+    {
+      key: "performance",
+      label: "Hiệu Suất & Đánh Giá Phục Vụ",
+      badge: "Top Rating",
+    },
+  ];
+
+  // Employee Table Columns
+  const employeeColumns: TableColumnsType<ClubEmployee> = [
+    {
+      title: "Mã NV",
+      dataIndex: "code",
+      key: "code",
+      width: 100,
+      render: (code: string) => (
+        <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">
+          {code}
+        </span>
+      ),
+    },
+    {
+      title: "Họ Tên & Trạng Thái Ca",
+      key: "name_duty",
+      render: (_: unknown, record: ClubEmployee) => (
+        <div className="flex items-center gap-3">
+          <img
+            src={record.avatar}
+            alt={record.name}
+            className="w-10 h-10 rounded-2xl object-cover ring-2 ring-emerald-500/20 shadow-2xs"
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-900 text-sm">{record.name}</span>
+              {record.onDutyStatus === "on_duty" ? (
+                <Tag color="green" className="!rounded-full !px-2 !py-0 !text-[10px] !font-bold">
+                  ĐANG TRỰC CA
+                </Tag>
+              ) : (
+                <Tag color="default" className="!rounded-full !px-2 !py-0 !text-[10px]">
+                  HẾT CA
+                </Tag>
+              )}
+            </div>
+            <span className="text-[11px] text-slate-400 block">{record.position}</span>
           </div>
-
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
-          >
-            <option value="all">Vai trò: Tất cả</option>
-            {Object.entries(roleLabels)
-              .filter(([k]) => k !== UserRole.CUSTOMER)
-              .map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-          </select>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
-          >
-            <option value="all">Trạng thái: Tất cả</option>
-            <option value="true">Đang hoạt động</option>
-            <option value="false">Tạm khóa</option>
-          </select>
-
-          <span className="text-sm text-gray-500">
-            Tổng cộng: <span className="font-semibold text-navy-800">{employees.length} nhân sự</span>
+        </div>
+      ),
+    },
+    {
+      title: "Vai Trò (Role)",
+      dataIndex: "role",
+      key: "role",
+      width: 150,
+      render: (role: UserRole, record: ClubEmployee) => {
+        const colorMap: Record<string, string> = {
+          [UserRole.ADMIN]: "orange",
+          [UserRole.CASHIER]: "green",
+          [UserRole.STAFF]: "blue",
+          [UserRole.REFEREE]: "gold",
+          [UserRole.WAREHOUSE]: "purple",
+        };
+        return (
+          <Tag color={colorMap[role] || "default"} className="!rounded-md !px-2 !py-0.5 !text-xs !font-bold">
+            {record.roleName}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Ca Trực & Khu Vực Bàn",
+      key: "shift_area",
+      render: (_: unknown, record: ClubEmployee) => (
+        <div className="text-xs">
+          <span className="font-bold text-slate-800 block">{record.shiftName}</span>
+          <span className="text-[11px] text-emerald-700 font-medium">
+            Phụ trách: {record.assignedArea}
           </span>
         </div>
-      </div>
+      ),
+    },
+    {
+      title: "Liên Hệ",
+      key: "contact",
+      width: 170,
+      render: (_: unknown, record: ClubEmployee) => (
+        <div className="text-xs">
+          <span className="font-mono text-slate-800 font-bold block">{record.phone}</span>
+          <span className="text-[11px] text-slate-400 block truncate max-w-[160px]">
+            {record.email}
+          </span>
+        </div>
+      ),
+    },
+    {
+      title: "Tài Khoản",
+      key: "account_status",
+      width: 120,
+      align: "center",
+      render: (_: unknown, record: ClubEmployee) => (
+        <Tag
+          color={record.isLocked ? "error" : "green"}
+          className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold"
+        >
+          {record.isLocked ? "TẠM KHÓA" : "HOẠT ĐỘNG"}
+        </Tag>
+      ),
+    },
+    {
+      title: "Thao Tác",
+      key: "actions",
+      width: 180,
+      align: "right",
+      render: (_: unknown, record: ClubEmployee) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleToggleDuty(record)}
+            className={`!text-[11px] !h-8 !px-2 !rounded-xl font-bold ${
+              record.onDutyStatus === "on_duty"
+                ? "!border-slate-200 !text-slate-600 hover:!bg-slate-100"
+                : "!border-emerald-300 !text-emerald-700 hover:!bg-emerald-50"
+            }`}
+          >
+            {record.onDutyStatus === "on_duty" ? "Hết Ca" : "Vào Ca"}
+          </Button>
 
-      {/* Main content */}
-      <div className="flex gap-6">
-        {/* Employee table */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="font-semibold text-navy-800">
-              Danh sách Tài khoản Nhân viên
-              <span className="ml-2 text-sm font-normal text-gray-500">{employees.length}</span>
-            </h3>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                {employees.filter((e) => e.isActive && !e.isLocked).length} Đang hoạt động
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleOpenEdit(record)}
+            leftIcon={<EditOutlined />}
+            className="!text-[11px] !h-8 !px-2 !rounded-xl !bg-slate-100 hover:!bg-slate-200 !text-slate-700"
+          >
+            Sửa
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleToggleLock(record)}
+            leftIcon={record.isLocked ? <UnlockOutlined /> : <LockOutlined />}
+            className={`!text-[11px] !h-8 !px-2 !rounded-xl ${
+              record.isLocked
+                ? "!bg-emerald-50 !text-emerald-700 hover:!bg-emerald-100"
+                : "!bg-rose-50 !text-rose-600 hover:!bg-rose-100"
+            }`}
+          >
+            {record.isLocked ? "Mở" : "Khóa"}
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* ── COMMAND HEADER & SUMMARY KPI CARDS ────────────────────────────── */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                <TeamOutlined className="text-xl" />
+              </div>
+              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+                Quản Lý Nhân Sự, Phân Ca & Phân Quyền CLB
+              </Title>
+              <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
+                CUEZONE WORKFORCE & SHIFT HUB
+              </Tag>
+            </div>
+            <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
+              Quản lý đội ngũ nhân viên phục vụ bàn bida, thu ngân, trọng tài giải đấu, thủ kho, bảng phân ca trực hàng ngày và chấm công thời gian thực.
+            </Text>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<ReloadOutlined />}
+              onClick={handleResetToDefaults}
+              className="!rounded-xl !text-xs !text-slate-600"
+            >
+              Mặc định
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<ScheduleOutlined />}
+              onClick={() => setActiveTab("shifts")}
+              className="!rounded-xl !text-xs font-bold !text-slate-700"
+            >
+              Xem Ca Trực Hôm Nay
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              leftIcon={<PlusOutlined />}
+              onClick={handleOpenCreate}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-sm"
+            >
+              Thêm Nhân Viên Mới
+            </Button>
+          </div>
+        </div>
+
+        {/* Counter KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 relative z-10">
+          <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                Tổng nhân sự CLB
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                {employees.filter((e) => e.isLocked).length} Tạm khóa
+              <span className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-slate-400 text-xs border border-slate-200">
+                <TeamOutlined />
               </span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                {metrics.totalStaff}
+              </span>
+              <span className="text-xs font-semibold text-slate-500">nhân viên</span>
             </div>
           </div>
 
+          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">
+                Đang trong ca trực
+              </span>
+              <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs border border-emerald-200">
+                <ClockCircleOutlined />
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-emerald-800 tracking-tight">
+                {metrics.onDutyCount}
+              </span>
+              <span className="text-xs font-semibold text-emerald-700">nhân sự online</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-blue-800 font-semibold uppercase tracking-wider">
+                Phục vụ & Chăm bàn
+              </span>
+              <span className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 text-xs border border-blue-200">
+                <AppstoreOutlined />
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-blue-800 tracking-tight">
+                {metrics.waiterCount}
+              </span>
+              <span className="text-xs font-semibold text-blue-700">chăm sóc 14 bàn</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-purple-50/80 border border-purple-200/80">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-purple-800 font-semibold uppercase tracking-wider">
+                Thu ngân & Trọng tài
+              </span>
+              <span className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700 text-xs border border-purple-200">
+                <TrophyOutlined />
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-purple-800 tracking-tight">
+                {metrics.specialistCount}
+              </span>
+              <span className="text-xs font-semibold text-purple-700">chuyên viên POS & VAR</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MAIN TABS SWITCHER ────────────────────────────────────────────── */}
+      <div className="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-xs">
+        <SegmentedPillList
+          items={mainPills}
+          activeKey={activeTab}
+          onSelect={(key) => setActiveTab(key)}
+        />
+      </div>
+
+      {/* ── TAB 1: HỒ SƠ NHÂN SỰ CLB ───────────────────────────────────────── */}
+      {activeTab === "staff" && (
+        <div className="space-y-4">
+          {/* Sub Filters */}
+          <div className="bg-white p-4 rounded-3xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                value={roleFilter}
+                onChange={(val) => setRoleFilter(val)}
+                className="!w-44 !rounded-xl !text-xs"
+                options={[
+                  { value: "all", label: "Tất cả vai trò (Roles)" },
+                  { value: UserRole.STAFF, label: "Nhân viên Phục vụ" },
+                  { value: UserRole.CASHIER, label: "Thu ngân Quầy" },
+                  { value: UserRole.REFEREE, label: "Trọng tài Bank Pool" },
+                  { value: UserRole.WAREHOUSE, label: "Thủ kho Vật tư" },
+                  { value: UserRole.ADMIN, label: "Quản lý CLB" },
+                ]}
+              />
+
+              <Select
+                value={dutyFilter}
+                onChange={(val) => setDutyFilter(val)}
+                className="!w-40 !rounded-xl !text-xs"
+                options={[
+                  { value: "all", label: "Tất cả tình trạng ca" },
+                  { value: "on_duty", label: "Đang trực ca" },
+                  { value: "off_duty", label: "Hết ca trực" },
+                ]}
+              />
+            </div>
+
+            <div className="w-full sm:w-72">
+              <Input
+                placeholder="Tìm tên, mã NV, chức vụ, SĐT..."
+                prefix={<SearchOutlined className="text-slate-400" />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                allowClear
+                className="!rounded-xl !h-10 text-xs"
+              />
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+            <Table<ClubEmployee>
+              columns={employeeColumns}
+              dataSource={filteredEmployees}
+              rowKey="id"
+              pagination={{
+                pageSize: 8,
+                showTotal: (total, range) =>
+                  `Hiển thị ${range[0]}-${range[1]} trên tổng số ${total} nhân sự`,
+                className: "!px-4 !py-3",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 2: PHÂN CA TRỰC HÔM NAY ────────────────────────────────────── */}
+      {activeTab === "shifts" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {SHIFT_SCHEDULES.map((shift) => (
+              <Card
+                key={shift.key}
+                className="!rounded-3xl border border-slate-200 shadow-xs p-5 flex flex-col justify-between bg-white relative overflow-hidden"
+              >
+                {shift.status === "active" && (
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full pointer-events-none" />
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <Tag
+                      color={
+                        shift.status === "active"
+                          ? "green"
+                          : shift.status === "completed"
+                          ? "default"
+                          : "blue"
+                      }
+                      className="!rounded-full !px-3 !py-0.5 !text-xs !font-bold inline-flex items-center gap-1"
+                    >
+                      {shift.status === "active" && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mr-1" />}
+                      {shift.status === "active"
+                        ? "ĐANG DIỄN RA"
+                        : shift.status === "completed"
+                        ? "ĐÃ BÀN GIAO"
+                        : "CHUẨN BỊ CA"}
+                    </Tag>
+
+                    <span className="font-mono text-xs font-bold text-slate-500">
+                      {shift.staffCount} nhân sự
+                    </span>
+                  </div>
+
+                  <h3 className="text-base font-black text-slate-900 mb-1 leading-snug">
+                    {shift.name}
+                  </h3>
+                  <div className="text-xs text-slate-500 mb-4 flex items-center gap-1.5">
+                    <ClockCircleOutlined />
+                    <span>{shift.timeRange}</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-2 mb-4">
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Trưởng ca phụ trách:</span>
+                      <strong className="text-slate-900">{shift.leaderName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Phạm vi bàn trực:</span>
+                      <strong className="text-emerald-700">{shift.tablesAssigned}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Ghi chú bàn giao:</span>
+                      <span className="text-slate-600 italic">{shift.notes}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400">Chấm công tự động qua POS</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      message.info(`Đã mở danh sách nhân viên trực thuộc ca: ${shift.name}`)
+                    }
+                    className="!rounded-xl !text-xs font-bold"
+                  >
+                    Xem Chi Tiết Ca
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Current On-Duty Roster */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-black text-slate-900 mb-0.5">
+                  Danh Sách Nhân Viên Đang Trực Ca Vàng Chiều / Tối
+                </h3>
+                <p className="text-xs text-slate-500 mb-0">
+                  Thời gian thực: 16:00 - 24:00 • Khu vực bàn hoạt động 100% công suất
+                </p>
+              </div>
+              <Tag color="green" className="!rounded-full !px-3 !py-1 !text-xs !font-bold">
+                5 NHÂN SỰ ĐANG TRỰC
+              </Tag>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {employeesList
+                .filter((e) => e.onDutyStatus === "on_duty")
+                .map((emp) => (
+                  <div
+                    key={emp.id}
+                    className="p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between bg-slate-50/60"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={emp.avatar}
+                        alt={emp.name}
+                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-emerald-500/20"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 text-xs block">{emp.name}</span>
+                        <span className="text-[11px] text-emerald-700">{emp.assignedArea}</span>
+                      </div>
+                    </div>
+                    <Tag color="green" className="!rounded-full !text-[10px] !font-bold">
+                      {emp.roleName.split(" ")[0]}
+                    </Tag>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 3: MA TRẬN PHÂN QUYỀN ROLE ─────────────────────────────────── */}
+      {activeTab === "permissions" && (
+        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 mb-0.5">
+                Ma Trận Phân Quyền Vai Trò Hệ Thống CueZone
+              </h3>
+              <p className="text-xs text-slate-500 mb-0">
+                Quy định quyền truy cập tính năng POS, quản lý kho, bảng điểm trọng tài và thu ngân
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => message.success("Đã lưu ma trận phân quyền hệ thống thành công!")}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
+            >
+              Lưu Cấu Hình Phân Quyền
+            </Button>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <th className="px-6 py-3">Mã NV</th>
-                  <th className="px-6 py-3">Họ tên</th>
-                  <th className="px-6 py-3">Vai trò (Role)</th>
-                  <th className="px-6 py-3">Email / SĐT</th>
-                  <th className="px-6 py-3">Trạng thái</th>
-                  <th className="px-6 py-3">Thao tác</th>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-6">Phân Hệ & Quyền Hạn</th>
+                  <th className="py-3 px-4 text-center">Quản Lý (ADMIN)</th>
+                  <th className="py-3 px-4 text-center">Thu Ngân (CASHIER)</th>
+                  <th className="py-3 px-4 text-center">Phục Vụ (STAFF)</th>
+                  <th className="py-3 px-4 text-center">Trọng Tài (REFEREE)</th>
+                  <th className="py-3 px-4 text-center">Thủ Kho (WAREHOUSE)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {employees.map((emp) => (
-                  <tr key={emp._id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4">
-                      <span className="font-mono text-sm font-semibold text-primary-600">
-                        NV{emp._id.slice(-3).toUpperCase()}
+              <tbody className="divide-y divide-slate-100">
+                {PERMISSIONS_LIST.map((perm) => (
+                  <tr key={perm.key} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3.5 px-6">
+                      <span className="font-bold text-slate-900 text-xs block">{perm.label}</span>
+                      <span className="text-[11px] text-slate-400">
+                        {perm.module} • {perm.desc}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-primary-700 font-bold text-sm">
-                            {emp.name.charAt(0)}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm text-navy-800">{emp.name}</p>
-                          {emp.position && (
-                            <p className="text-xs text-gray-500">{emp.position}</p>
-                          )}
-                        </div>
-                      </div>
+                    <td className="py-3 px-4 text-center">
+                      <Tag color="green" className="!rounded-full font-bold">
+                        Cho phép
+                      </Tag>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${roleBadgeColors[emp.role] || "bg-gray-100 text-gray-700"}`}>
-                        {roleLabels[emp.role] || emp.role}
-                      </span>
+                    <td className="py-3 px-4 text-center">
+                      {perm.enabledRoles.includes(UserRole.CASHIER) ? (
+                        <Tag color="green" className="!rounded-full font-bold">
+                          Cho phép
+                        </Tag>
+                      ) : (
+                        <span className="text-slate-300 font-bold">-</span>
+                      )}
                     </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-gray-800">{emp.email}</p>
-                      <p className="text-xs text-gray-500">{emp.phone || "-"}</p>
+                    <td className="py-3 px-4 text-center">
+                      {perm.enabledRoles.includes(UserRole.STAFF) ? (
+                        <Tag color="green" className="!rounded-full font-bold">
+                          Cho phép
+                        </Tag>
+                      ) : (
+                        <span className="text-slate-300 font-bold">-</span>
+                      )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-                          emp.isLocked
-                            ? "bg-gray-100 text-gray-600"
-                            : emp.isActive
-                            ? "bg-green-50 text-green-700"
-                            : "bg-red-50 text-red-600"
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            emp.isLocked ? "bg-gray-400" : emp.isActive ? "bg-green-500" : "bg-red-500"
-                          }`}
-                        ></span>
-                        {emp.isLocked ? "Tạm khóa" : emp.isActive ? "Hoạt động" : "Vô hiệu"}
-                      </span>
+                    <td className="py-3 px-4 text-center">
+                      {perm.enabledRoles.includes(UserRole.REFEREE) ? (
+                        <Tag color="green" className="!rounded-full font-bold">
+                          Cho phép
+                        </Tag>
+                      ) : (
+                        <span className="text-slate-300 font-bold">-</span>
+                      )}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setSelectedEmployee(emp);
-                            setShowPermissionModal(true);
-                          }}
-                          className="text-xs px-3 py-1.5 bg-navy-800 text-white rounded-lg hover:bg-navy-900 transition"
-                        >
-                          Phân quyền
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(emp)}
-                          className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition"
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedEmployee(emp);
-                            setShowDeleteModal(true);
-                          }}
-                          className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition"
-                        >
-                          Xóa
-                        </button>
-                        {emp.isLocked ? (
-                          <button
-                            onClick={() => handleToggleLock(emp._id)}
-                            className="text-xs px-3 py-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition"
-                          >
-                            Mở khóa
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleToggleLock(emp._id)}
-                            className="text-xs px-3 py-1.5 text-gray-500 hover:text-red-600 transition"
-                          >
-                            Khóa
-                          </button>
-                        )}
-                      </div>
+                    <td className="py-3 px-4 text-center">
+                      {perm.enabledRoles.includes(UserRole.WAREHOUSE) ? (
+                        <Tag color="green" className="!rounded-full font-bold">
+                          Cho phép
+                        </Tag>
+                      ) : (
+                        <span className="text-slate-300 font-bold">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          {employees.length === 0 && !loading && (
-            <div className="py-12 text-center text-gray-500">
-              <p className="text-4xl mb-3"><TeamOutlined /></p>
-              <p>Không tìm thấy nhân viên nào</p>
-            </div>
-          )}
-
-          {/* Pagination placeholder */}
-          <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-            <span>Hiển thị 1 - {employees.length} trong tổng số {employees.length} nhân viên</span>
-            <div className="flex items-center gap-1">
-              <button className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">&lt;</button>
-              <button className="px-3 py-1 bg-primary-500 text-white rounded">1</button>
-              <button className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">&gt;</button>
-            </div>
-          </div>
-        </div>
-
-        {/* Permission Matrix Panel */}
-        {showPermissionModal && selectedEmployee && (
-          <div className="w-[420px] flex-shrink-0 bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-navy-800">Ma Trận Phân Quyền Role</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Cấu hình quyền truy cập tính năng hệ thống</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-xs font-medium">
-                  Role: {roleLabels[selectedEmployee.role] || selectedEmployee.role}
-                </span>
-                <button
-                  onClick={() => setShowPermissionModal(false)}
-                  className="text-gray-400 hover:text-gray-600 flex items-center justify-center p-1"
-                >
-                  <CloseOutlined />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[calc(100vh-300px)] overflow-y-auto">
-              {permissionModules.map((mod) => (
-                <div key={mod.name}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-sm text-navy-800">{mod.name}</h4>
-                    <span className="text-xs text-gray-500">
-                      {mod.permissions.filter((_, i) => i < 2).length} / {mod.permissions.length} Quyền
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {mod.permissions.map((perm) => (
-                      <div key={perm.key} className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-800 flex items-center gap-2">
-                            {perm.label}
-                            {perm.restricted && (
-                              <span className="px-1.5 py-0.5 bg-red-50 text-red-500 text-[10px] rounded font-normal">
-                                Giới hạn
-                              </span>
-                            )}
-                          </p>
-                          {perm.desc && (
-                            <p className="text-xs text-gray-500 mt-0.5">{perm.desc}</p>
-                          )}
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer ml-4">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            defaultChecked={!perm.restricted}
-                            aria-label={perm.label}
-                          />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-              <button className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">
-                Khôi phục mặc định
-              </button>
-              <button className="px-6 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition">
-                Lưu Phân Quyền Role
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ==================== CREATE MODAL ==================== */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-lg text-navy-800">Tạo Tài Khoản Nhân Viên</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Điền thông tin để tạo tài khoản mới</p>
-              </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600 p-1 flex items-center justify-center"><CloseOutlined /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Họ tên <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${formErrors.name ? "border-red-400" : "border-gray-200"}`}
-                  placeholder="Nguyễn Văn A"
-                />
-                {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${formErrors.email ? "border-red-400" : "border-gray-200"}`}
-                  placeholder="nhanvien@cuezone.vn"
-                />
-                {formErrors.email && <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu <span className="text-red-500">*</span></label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${formErrors.password ? "border-red-400" : "border-gray-200"}`}
-                  placeholder="Ít nhất 8 ký tự, gồm chữ và số"
-                />
-                {formErrors.password && <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vai trò <span className="text-red-500">*</span></label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${formErrors.role ? "border-red-400" : "border-gray-200"}`}
-                  >
-                    {employeeRoles.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                  {formErrors.role && <p className="text-xs text-red-500 mt-1">{formErrors.role}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="0901234567"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Chức danh</label>
-                <input
-                  type="text"
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Nhân viên phục vụ"
-                />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-800 transition"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={submitting}
-                className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-              >
-                {submitting ? "Đang tạo..." : "Tạo tài khoản"}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* ==================== EDIT MODAL ==================== */}
-      {showEditModal && selectedEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowEditModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-lg text-navy-800">Chỉnh Sửa Nhân Viên</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Cập nhật thông tin tài khoản {selectedEmployee.name}</p>
-              </div>
-              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600 p-1 flex items-center justify-center"><CloseOutlined /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Họ tên <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${formErrors.name ? "border-red-400" : "border-gray-200"}`}
-                />
-                {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${formErrors.email ? "border-red-400" : "border-gray-200"}`}
-                />
-                {formErrors.email && <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu mới (để trống nếu không đổi)</label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${formErrors.password ? "border-red-400" : "border-gray-200"}`}
-                  placeholder="Để trống nếu không muốn đổi"
-                />
-                {formErrors.password && <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vai trò <span className="text-red-500">*</span></label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white ${formErrors.role ? "border-red-400" : "border-gray-200"}`}
-                  >
-                    {employeeRoles.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                  {formErrors.role && <p className="text-xs text-red-500 mt-1">{formErrors.role}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Chức danh</label>
-                <input
-                  type="text"
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-800 transition"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleEdit}
-                disabled={submitting}
-                className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-              >
-                {submitting ? "Đang lưu..." : "Lưu thay đổi"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ==================== DELETE MODAL ==================== */}
-      {showDeleteModal && selectedEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowDeleteModal(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-            <div className="p-6 text-center">
-              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 text-2xl">
-                <DeleteOutlined />
-              </div>
-              <h3 className="font-bold text-lg text-navy-800 mb-2">Xóa Tài Khoản Nhân Viên</h3>
-              <p className="text-sm text-gray-500 mb-1">
-                Bạn có chắc chắn muốn xóa tài khoản <span className="font-semibold text-gray-800">{selectedEmployee.name}</span>?
+      {/* ── TAB 4: HIỆU SUẤT & ĐÁNH GIÁ PHỤC VỤ ────────────────────────────── */}
+      {activeTab === "performance" && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 mb-0.5">
+                Bảng Đánh Giá Hiệu Suất & Đóng Góp Nhân Viên
+              </h3>
+              <p className="text-xs text-slate-500 mb-0">
+                Thống kê số lượng lượt phục vụ bàn bida, món F&B order và điểm đánh giá hài lòng từ khách
               </p>
-              <p className="text-xs text-red-500">Hành động này không thể hoàn tác.</p>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-center gap-3">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-5 py-2.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg transition"
+            <Tag color="gold" className="!rounded-full !px-3 !py-1 !text-xs !font-bold">
+              THƯỞNG DOANH SỐ THÁNG
+            </Tag>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {employeesList.slice(0, 4).map((emp, index) => (
+              <div
+                key={emp.id}
+                className="p-5 rounded-3xl border border-slate-200 bg-white shadow-2xs hover:shadow-xs hover:border-emerald-300 transition-all text-center space-y-3"
               >
-                Hủy
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={submitting}
-                className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-              >
-                {submitting ? "Đang xóa..." : "Xóa"}
-              </button>
-            </div>
+                <div className="relative inline-block">
+                  <img
+                    src={emp.avatar}
+                    alt={emp.name}
+                    className="w-16 h-16 rounded-2xl object-cover mx-auto ring-4 ring-emerald-500/10 shadow-xs"
+                  />
+                  {index === 0 && (
+                    <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-amber-400 text-amber-950 flex items-center justify-center text-xs shadow-xs">
+                      <StarOutlined />
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="font-black text-slate-900 text-sm mb-0.5">{emp.name}</h4>
+                  <span className="text-[11px] text-slate-400 block">{emp.position}</span>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Phục vụ bàn:</span>
+                    <strong className="text-slate-800">{emp.tablesServedMonth} lượt</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Order F&B:</span>
+                    <strong className="text-emerald-700">{emp.fnbOrdersServed} món</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Điểm Rating:</span>
+                    <strong className="text-amber-600 font-bold">{emp.ratingScore} / 5.0</strong>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
+
+      {/* ── MODAL: THÊM / CHỈNH SỬA NHÂN VIÊN ──────────────────────────────── */}
+      <Modal
+        open={createModalVisible || editModalVisible}
+        onCancel={() => {
+          setCreateModalVisible(false);
+          setEditModalVisible(false);
+          setSelectedEmp(null);
+        }}
+        footer={null}
+        width={600}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <UserOutlined className="text-emerald-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">
+              {createModalVisible ? "Thêm Mới Nhân Viên CLB Bida" : "Chỉnh Sửa Hồ Sơ Nhân Viên"}
+            </span>
+          </div>
+        }
+      >
+        <div className="py-4 space-y-4 text-xs">
+          <div className="grid grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Họ và tên: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                placeholder="Ví dụ: Nguyễn Văn A"
+                value={empForm.name}
+                onChange={(e) => setEmpForm((prev) => ({ ...prev, name: e.target.value }))}
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Số điện thoại: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                placeholder="0901..."
+                value={empForm.phone}
+                onChange={(e) => setEmpForm((prev) => ({ ...prev, phone: e.target.value }))}
+                className="!h-10 !rounded-xl text-xs font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Địa chỉ Email: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                type="email"
+                placeholder="nhanvien@cuezone.vn"
+                value={empForm.email}
+                onChange={(e) => setEmpForm((prev) => ({ ...prev, email: e.target.value }))}
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Vai trò hệ thống (Role):
+              </label>
+              <Select
+                value={empForm.role}
+                onChange={(val) => setEmpForm((prev) => ({ ...prev, role: val }))}
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={[
+                  { value: UserRole.STAFF, label: "Nhân viên Phục vụ bàn" },
+                  { value: UserRole.CASHIER, label: "Thu ngân Quầy POS" },
+                  { value: UserRole.REFEREE, label: "Trọng tài Bank Pool" },
+                  { value: UserRole.WAREHOUSE, label: "Thủ kho Vật tư" },
+                  { value: UserRole.ADMIN, label: "Quản lý CLB" },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Chức danh công việc:
+              </label>
+              <Input
+                placeholder="Phục vụ khu VIP, Thu ngân..."
+                value={empForm.position}
+                onChange={(e) => setEmpForm((prev) => ({ ...prev, position: e.target.value }))}
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ca làm việc mặc định:
+              </label>
+              <Select
+                value={empForm.shift}
+                onChange={(val) => setEmpForm((prev) => ({ ...prev, shift: val }))}
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={[
+                  { value: "morning", label: "Ca Sáng (08:00 - 16:00)" },
+                  { value: "evening", label: "Ca Tối (16:00 - 24:00)" },
+                  { value: "night", label: "Ca Đêm (00:00 - 04:00)" },
+                  { value: "fulltime", label: "Toàn Thời Gian" },
+                ]}
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Phân công phụ trách khu vực bàn bida:
+              </label>
+              <Input
+                placeholder="Ví dụ: Bàn 01 - 06, Khu VIP 10 - 12, Bàn Match 13 VAR..."
+                value={empForm.assignedArea}
+                onChange={(e) => setEmpForm((prev) => ({ ...prev, assignedArea: e.target.value }))}
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setCreateModalVisible(false);
+                setEditModalVisible(false);
+                setSelectedEmp(null);
+              }}
+              className="!rounded-xl !text-xs"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={createModalVisible ? handleSaveCreate : handleSaveEdit}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
+            >
+              {createModalVisible ? "Lưu Nhân Viên" : "Cập Nhật Hồ Sơ"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
