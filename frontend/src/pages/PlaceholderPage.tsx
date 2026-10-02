@@ -1,9 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  CalendarOutlined,
-  TrophyOutlined,
-  CoffeeOutlined,
-  InboxOutlined,
   FileTextOutlined,
   LineChartOutlined,
   ReadOutlined,
@@ -26,10 +22,10 @@ const PlaceholderPage = ({ title, icon }: { title: string; icon: ReactNode }) =>
 );
 
 export { default as TablesPage } from "./admin/TablesManagementPage";
-export const BookingPage = () => <PlaceholderPage title="Đặt bàn" icon={<CalendarOutlined />} />;
-export const TournamentsPage = () => <PlaceholderPage title="Giải đấu" icon={<TrophyOutlined />} />;
-export const FnBPage = () => <PlaceholderPage title="Thực đơn F&B" icon={<CoffeeOutlined />} />;
-export const InventoryPage = () => <PlaceholderPage title="Kho hàng" icon={<InboxOutlined />} />;
+export { default as BookingPage } from "./admin/BookingManagementPage";
+export { default as TournamentsPage } from "./admin/RefereeScoringPage";
+export { default as FnBPage } from "./admin/FnBInventoryPage";
+export { default as InventoryPage } from "./admin/FnBInventoryPage";
 export const InvoicesPage = () => <PlaceholderPage title="Hóa đơn" icon={<FileTextOutlined />} />;
 export const ReportsPage = () => <PlaceholderPage title="Báo cáo" icon={<LineChartOutlined />} />;
 export { default as EmployeesPage } from "./admin/EmployeesPage";

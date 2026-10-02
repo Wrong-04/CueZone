@@ -15,6 +15,7 @@ import CustomerFnB from "./pages/customer/CustomerFnB";
 import CustomerHistory from "./pages/customer/CustomerHistory";
 import CustomerWallet from "./pages/customer/CustomerWallet";
 import CustomerProfile from "./pages/customer/CustomerProfile";
+import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
 import {
   TablesPage,
   BookingPage,
@@ -51,8 +52,8 @@ const AppRoutes = () => {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/login" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin"} replace /> : <LoginPage />} />
-      <Route path="/register" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin"} replace /> : <RegisterPage />} />
+      <Route path="/login" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin/pos"} replace /> : <LoginPage />} />
+      <Route path="/register" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin/pos"} replace /> : <RegisterPage />} />
 
       {/* Admin routes */}
       <Route
@@ -64,6 +65,7 @@ const AppRoutes = () => {
         }
       >
         <Route index element={<AdminDashboard />} />
+        <Route path="pos" element={<PosTableFloorPage />} />
         <Route path="tables" element={<TablesPage />} />
         <Route path="booking" element={<BookingPage />} />
         <Route path="tournaments" element={<TournamentsPage />} />

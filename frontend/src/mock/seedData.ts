@@ -48,7 +48,7 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
     ballBg: 'bg-emerald-600 border-2 border-emerald-400 shadow-inner',
     ballTextColor: 'text-white',
     description: 'Mở bàn, duyệt đặt bàn, order F&B, in hóa đơn & báo cáo giao ca',
-    targetPath: '/admin/tables',
+    targetPath: '/admin/pos',
   },
   {
     id: 'seed_customer_1',

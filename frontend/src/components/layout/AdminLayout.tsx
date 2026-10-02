@@ -20,6 +20,7 @@ import {
   BellOutlined,
   LeftOutlined,
   RightOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
 import ConfirmModal from "../ui/ConfirmModal";
@@ -28,11 +29,12 @@ import { notificationService, type Notification } from "../../services/notificat
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
 const menuItems: { path: string; label: string; icon: ReactNode }[] = [
+  { path: "/admin/pos", label: "POS Sơ Đồ Bàn", icon: <ThunderboltOutlined /> },
   { path: "/admin", label: "Tổng quan", icon: <DashboardOutlined /> },
   { path: "/admin/tables", label: "Quản lý Bàn", icon: <AppstoreOutlined /> },
-  { path: "/admin/booking", label: "Đặt bàn", icon: <CalendarOutlined /> },
-  { path: "/admin/tournaments", label: "Giải đấu", icon: <TrophyOutlined /> },
+  { path: "/admin/booking", label: "Duyệt Đặt Bàn", icon: <CalendarOutlined /> },
   { path: "/admin/fnb", label: "Thực đơn F&B", icon: <CoffeeOutlined /> },
+  { path: "/admin/tournaments", label: "Trọng tài Bank Pool", icon: <TrophyOutlined /> },
   { path: "/admin/inventory", label: "Kho hàng", icon: <InboxOutlined /> },
   { path: "/admin/invoices", label: "Hóa đơn", icon: <FileTextOutlined /> },
   { path: "/admin/reports", label: "Báo cáo", icon: <LineChartOutlined /> },
