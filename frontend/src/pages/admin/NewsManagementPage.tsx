@@ -33,7 +33,6 @@ import {
   Table,
   Input,
   Select,
-  Card,
   Tooltip,
   type TableColumnsType,
 } from "../../shared/ui";
@@ -562,7 +561,7 @@ const NewsManagementPage: React.FC = () => {
       key: "article",
       render: (_, record) => (
         <div className="flex items-center gap-3">
-          <div className="relative w-20 h-14 rounded-lg overflow-hidden shrink-0 border border-slate-700 bg-slate-800">
+          <div className="relative w-20 h-14 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-100 shadow-2xs">
             <img
               src={record.image}
               alt={record.title}
@@ -572,30 +571,30 @@ const NewsManagementPage: React.FC = () => {
               }}
             />
             {record.isFeatured && (
-              <span className="absolute top-1 left-1 bg-amber-500 text-black text-[9px] font-bold px-1 rounded shadow">
+              <span className="absolute top-1 left-1 bg-amber-500 text-white text-[9px] font-bold px-1 rounded shadow">
                 HOT
               </span>
             )}
           </div>
           <div className="min-w-0 max-w-md">
             <div className="flex items-center gap-1.5 mb-1">
-              <Tag color={record.tagColor} className="!text-[11px] !px-1.5 !py-0 !leading-none">
+              <Tag color={record.tagColor} className="!text-[11px] !px-1.5 !py-0 !leading-none font-bold">
                 {record.categoryLabel}
               </Tag>
               {record.isFeatured && (
-                <Tag color="gold" className="!text-[11px] !px-1.5 !py-0 !leading-none">
+                <Tag color="gold" className="!text-[11px] !px-1.5 !py-0 !leading-none font-bold">
                   Nổi bật
                 </Tag>
               )}
             </div>
             <Typography.Text
               strong
-              className="!text-white !text-sm block truncate hover:text-emerald-400 cursor-pointer"
+              className="!text-slate-900 !text-sm block truncate hover:!text-emerald-600 cursor-pointer font-bold"
               onClick={() => handleOpenPreview(record)}
             >
               {record.title}
             </Typography.Text>
-            <Typography.Text className="!text-xs !text-slate-400 block truncate">
+            <Typography.Text className="!text-xs !text-slate-500 block truncate">
               {record.excerpt}
             </Typography.Text>
           </div>
@@ -608,12 +607,12 @@ const NewsManagementPage: React.FC = () => {
       width: 170,
       render: (_, record) => (
         <div>
-          <div className="flex items-center gap-1 text-xs text-slate-200 font-medium">
-            <UserOutlined className="text-emerald-400 text-xs" />
+          <div className="flex items-center gap-1 text-xs text-slate-800 font-semibold">
+            <UserOutlined className="text-emerald-600 text-xs" />
             <span>{record.author}</span>
           </div>
-          <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
-            <CalendarOutlined className="text-slate-500" />
+          <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5">
+            <CalendarOutlined className="text-slate-400" />
             <span>{record.date}</span>
             <span>•</span>
             <span>{record.readTime}</span>
@@ -626,7 +625,7 @@ const NewsManagementPage: React.FC = () => {
       key: "views",
       width: 110,
       render: (_, record) => (
-        <div className="flex items-center gap-1 text-xs text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 w-fit">
+        <div className="flex items-center gap-1 text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 w-fit">
           <EyeOutlined />
           <span>{record.viewCount.toLocaleString()}</span>
         </div>
@@ -639,19 +638,19 @@ const NewsManagementPage: React.FC = () => {
       render: (_, record) => {
         if (record.status === "published") {
           return (
-            <Tag color="green" className="!inline-flex !items-center !gap-1">
+            <Tag color="green" className="!inline-flex !items-center !gap-1 !font-bold">
               <CheckCircleOutlined /> Đã xuất bản
             </Tag>
           );
         }
         if (record.status === "draft") {
           return (
-            <Tag color="orange" className="!inline-flex !items-center !gap-1">
+            <Tag color="orange" className="!inline-flex !items-center !gap-1 !font-bold">
               <ClockCircleOutlined /> Bản nháp
             </Tag>
           );
         }
-        return <Tag color="blue">Lên lịch</Tag>;
+        return <Tag color="blue" className="!font-bold">Lên lịch</Tag>;
       },
     },
     {
@@ -664,7 +663,11 @@ const NewsManagementPage: React.FC = () => {
           variant={record.isFeatured ? "primary" : "outline"}
           leftIcon={<PushpinOutlined />}
           onClick={(e) => handleToggleFeature(record.id, e)}
-          className={record.isFeatured ? "!bg-amber-500 !border-amber-500 !text-black !font-semibold" : ""}
+          className={
+            record.isFeatured
+              ? "!bg-amber-500 !border-amber-500 !text-white !font-bold shadow-2xs"
+              : "!border-slate-300 !text-slate-600 hover:!border-amber-400"
+          }
         >
           {record.isFeatured ? "Đã ghim" : "Ghim"}
         </Button>
@@ -679,9 +682,10 @@ const NewsManagementPage: React.FC = () => {
           <Tooltip title="Xem trước giao diện">
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               leftIcon={<EyeOutlined />}
               onClick={() => handleOpenPreview(record)}
+              className="!border-slate-300 !text-slate-700 hover:!bg-emerald-50 hover:!text-emerald-700 hover:!border-emerald-300"
             />
           </Tooltip>
           <Tooltip title="Chỉnh sửa bài viết">
@@ -690,6 +694,7 @@ const NewsManagementPage: React.FC = () => {
               variant="outline"
               leftIcon={<EditOutlined />}
               onClick={() => handleOpenEdit(record)}
+              className="!border-slate-300 !text-slate-700 hover:!bg-amber-50 hover:!text-amber-700 hover:!border-amber-300"
             />
           </Tooltip>
           <Tooltip title="Gỡ bài viết">
@@ -706,121 +711,114 @@ const NewsManagementPage: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* ── 1. Page Header ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-xl backdrop-blur-md">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white text-2xl shadow-lg shadow-emerald-500/20">
+    <div className="space-y-6 pb-12">
+      {/* ── 1. Page Header (Light Theme) ── */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-2xl shadow-2xs">
               <ReadOutlined />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <Title level={2} className="!text-xl md:!text-2xl !font-bold !text-white !mb-0 tracking-tight">
+                <Title level={2} className="!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
                   Quản Lý Tin Tức & Bản Tin CLB
                 </Title>
-                <Tag color="green" className="!px-2 !py-0.5 !text-xs !font-bold">
-                  CueZone CMS
+                <Tag color="green" className="!px-2.5 !py-0.5 !text-xs !font-black !rounded-full">
+                  CUEZONE CMS
                 </Tag>
               </div>
-              <Text className="!text-xs md:!text-sm !text-slate-400">
+              <Text className="!text-xs md:!text-sm !text-slate-500">
                 Biên tập khuyến mãi giờ vàng, giải đấu cọ xát, cẩm nang kỹ thuật và chính sách hội viên VIP
               </Text>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            leftIcon={<BellOutlined />}
-            onClick={() => setPushModalVisible(true)}
-            className="!border-amber-500/30 !text-amber-400 hover:!bg-amber-500/10"
-          >
-            Gửi thông báo Push
-          </Button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Button
+              variant="outline"
+              leftIcon={<BellOutlined />}
+              onClick={() => setPushModalVisible(true)}
+              className="!border-amber-300 !text-amber-800 !bg-amber-50/70 hover:!bg-amber-100 font-semibold !rounded-xl !h-9 text-xs"
+            >
+              Gửi thông báo Push
+            </Button>
 
-          <Button
-            variant="ghost"
-            leftIcon={<ReloadOutlined />}
-            onClick={handleResetData}
-            className="!text-slate-300"
-          >
-            Khôi phục mẫu
-          </Button>
+            <Button
+              variant="outline"
+              leftIcon={<ReloadOutlined />}
+              onClick={handleResetData}
+              className="!border-slate-200 !text-slate-700 hover:!bg-slate-50 !rounded-xl !h-9 text-xs"
+            >
+              Khôi phục mẫu
+            </Button>
 
-          <Button
-            variant="primary"
-            leftIcon={<PlusOutlined />}
-            onClick={handleOpenCreate}
-            className="!bg-emerald-600 hover:!bg-emerald-500 !shadow-lg !shadow-emerald-600/30"
-          >
-            Tạo bài viết mới
-          </Button>
+            <Button
+              variant="primary"
+              leftIcon={<PlusOutlined />}
+              onClick={handleOpenCreate}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !rounded-xl !h-9 text-xs text-white shadow-2xs"
+            >
+              Tạo bài viết mới
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* ── 2. Metric KPI Cards ── */}
+      {/* ── 2. Metric KPI Cards (Clean Light Theme) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-emerald-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Tổng bài viết</Text>
-              <div className="text-2xl font-bold text-white mt-1">{metrics.total}</div>
-              <Text className="!text-[11px] !text-emerald-400 mt-1 block">5 Chuyên mục nội dung</Text>
-            </div>
-            <div className="w-11 h-11 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-xl">
-              <FileTextOutlined />
-            </div>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-emerald-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Tổng bài viết</span>
+            <div className="text-2xl font-black text-slate-900 mt-1">{metrics.total}</div>
+            <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block">5 Chuyên mục nội dung</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
+            <FileTextOutlined />
+          </div>
+        </div>
 
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-teal-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Đang xuất bản (Public)</Text>
-              <div className="text-2xl font-bold text-teal-400 mt-1">{metrics.published}</div>
-              <Text className="!text-[11px] !text-slate-400 mt-1 block">Hiển thị trên App Khách hàng</Text>
-            </div>
-            <div className="w-11 h-11 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 text-xl">
-              <CheckCircleOutlined />
-            </div>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-teal-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Đang xuất bản (Public)</span>
+            <div className="text-2xl font-black text-teal-700 mt-1">{metrics.published}</div>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">Hiển thị trên App Khách hàng</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 text-xl">
+            <CheckCircleOutlined />
+          </div>
+        </div>
 
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-amber-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Đã ghim nổi bật (Hot)</Text>
-              <div className="text-2xl font-bold text-amber-400 mt-1">{metrics.featured}</div>
-              <Text className="!text-[11px] !text-slate-400 mt-1 block">Ưu tiên vị trí Top Banner</Text>
-            </div>
-            <div className="w-11 h-11 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-xl">
-              <PushpinOutlined />
-            </div>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-amber-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Đã ghim nổi bật (Hot)</span>
+            <div className="text-2xl font-black text-amber-700 mt-1">{metrics.featured}</div>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">Ưu tiên vị trí Top Banner</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
+            <PushpinOutlined />
+          </div>
+        </div>
 
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-indigo-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Tổng lượt tiếp cận</Text>
-              <div className="text-2xl font-bold text-indigo-400 mt-1">
-                {metrics.totalViews.toLocaleString()}
-              </div>
-              <Text className="!text-[11px] !text-emerald-400 mt-1 block">Tăng +24% so với tháng trước</Text>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-indigo-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Tổng lượt tiếp cận</span>
+            <div className="text-2xl font-black text-indigo-700 mt-1">
+              {metrics.totalViews.toLocaleString()}
             </div>
-            <div className="w-11 h-11 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xl">
-              <EyeOutlined />
-            </div>
+            <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block">Tăng +24% tháng này</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-xl">
+            <EyeOutlined />
+          </div>
+        </div>
       </div>
 
       {/* ── 3. Filters & View Control Bar ── */}
-      <Card className="!bg-slate-900/80 !border-slate-800 !p-4 !rounded-xl shadow-lg">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Search & Selects */}
           <div className="flex flex-wrap items-center gap-3 flex-1">
             <div className="w-full sm:w-64">
               <Input
@@ -865,12 +863,13 @@ const NewsManagementPage: React.FC = () => {
 
           {/* View mode toggle */}
           <div className="flex items-center gap-2 self-end lg:self-auto">
-            <Text className="!text-xs !text-slate-400 mr-1">Hiển thị:</Text>
+            <span className="text-xs text-slate-500 font-medium mr-1">Hiển thị:</span>
             <Button
               size="sm"
               variant={viewMode === "grid" ? "primary" : "outline"}
               leftIcon={<AppstoreOutlined />}
               onClick={() => setViewMode("grid")}
+              className={viewMode === "grid" ? "!bg-emerald-600 font-bold" : "!border-slate-300 !text-slate-700"}
             >
               Thẻ ảnh
             </Button>
@@ -879,20 +878,21 @@ const NewsManagementPage: React.FC = () => {
               variant={viewMode === "table" ? "primary" : "outline"}
               leftIcon={<BarsOutlined />}
               onClick={() => setViewMode("table")}
+              className={viewMode === "table" ? "!bg-emerald-600 font-bold" : "!border-slate-300 !text-slate-700"}
             >
               Danh sách
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* ── 4. Main Articles Content ── */}
       {viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredArticles.length === 0 ? (
-            <div className="col-span-full py-16 text-center bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
-              <FileTextOutlined className="text-4xl text-slate-600 mb-2" />
-              <Title level={4} className="!text-slate-300 !text-base !mb-1">
+            <div className="col-span-full py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300">
+              <FileTextOutlined className="text-4xl text-slate-400 mb-2" />
+              <Title level={4} className="!text-slate-800 !text-base !mb-1">
                 Không tìm thấy bài viết nào
               </Title>
               <Text className="!text-xs !text-slate-500">
@@ -901,12 +901,12 @@ const NewsManagementPage: React.FC = () => {
             </div>
           ) : (
             filteredArticles.map((article) => (
-              <Card
+              <div
                 key={article.id}
-                className="!bg-slate-900/90 !border-slate-800 !p-0 !rounded-2xl overflow-hidden hover:!border-emerald-500/50 transition-all duration-300 flex flex-col group shadow-xl hover:shadow-emerald-500/10"
+                className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-emerald-400 hover:shadow-md transition-all duration-300 flex flex-col group shadow-xs"
               >
                 {/* Image Cover */}
-                <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-950">
+                <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
                   <img
                     src={article.image}
                     alt={article.title}
@@ -915,18 +915,18 @@ const NewsManagementPage: React.FC = () => {
                       (e.currentTarget as HTMLImageElement).src = "/news/news-club-hero.jpg";
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
                   {/* Top Badges */}
                   <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
                     <Tag
                       color={article.tagColor}
-                      className="!text-[11px] !font-bold !px-2.5 !py-0.5 !rounded-full shadow-md backdrop-blur-md"
+                      className="!text-[11px] !font-bold !px-2.5 !py-0.5 !rounded-full shadow-md"
                     >
                       {article.categoryLabel}
                     </Tag>
                     {article.isFeatured && (
-                      <span className="bg-amber-500 text-black text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                      <span className="bg-amber-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
                         <PushpinOutlined /> Nổi bật
                       </span>
                     )}
@@ -935,65 +935,65 @@ const NewsManagementPage: React.FC = () => {
                   {/* Status badge */}
                   <div className="absolute top-3 right-3">
                     {article.status === "published" ? (
-                      <span className="bg-emerald-500/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-md flex items-center gap-1">
+                      <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
                         <CheckCircleOutlined /> Đang hiển thị
                       </span>
                     ) : (
-                      <span className="bg-orange-500/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-md flex items-center gap-1">
+                      <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
                         <ClockCircleOutlined /> Bản nháp
                       </span>
                     )}
                   </div>
 
                   {/* Bottom Image Meta: Views & Read time */}
-                  <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] text-slate-300">
+                  <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] text-white">
                     <span className="flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded backdrop-blur-sm">
                       <EyeOutlined className="text-emerald-400" />
                       {article.viewCount.toLocaleString()} lượt đọc
                     </span>
                     <span className="flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded backdrop-blur-sm">
-                      <ClockCircleOutlined className="text-slate-400" />
+                      <ClockCircleOutlined className="text-slate-300" />
                       {article.readTime}
                     </span>
                   </div>
                 </div>
 
                 {/* Body Content */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
                   <div>
                     <Typography.Title
                       level={4}
-                      className="!text-white !text-base !font-bold !mb-2 line-clamp-2 group-hover:!text-emerald-400 transition-colors cursor-pointer"
+                      className="!text-slate-900 !text-base !font-bold !mb-2 line-clamp-2 group-hover:!text-emerald-600 transition-colors cursor-pointer leading-snug"
                       onClick={() => handleOpenPreview(article)}
                     >
                       {article.title}
                     </Typography.Title>
-                    <Typography.Paragraph className="!text-xs !text-slate-400 line-clamp-2 !mb-0 leading-relaxed">
+                    <Typography.Paragraph className="!text-xs !text-slate-500 line-clamp-2 !mb-0 leading-relaxed">
                       {article.excerpt}
                     </Typography.Paragraph>
                   </div>
 
                   {/* Author & Actions Footer */}
-                  <div className="pt-3 border-t border-slate-800/80">
-                    <div className="flex items-center justify-between mb-3 text-[11px] text-slate-400">
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-3 text-[11px] text-slate-500">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">
                           {article.author.charAt(0)}
                         </div>
-                        <span className="text-slate-300 font-medium truncate max-w-[120px]">
+                        <span className="text-slate-700 font-semibold truncate max-w-[140px]">
                           {article.author}
                         </span>
                       </div>
-                      <span className="text-slate-500">{article.date}</span>
+                      <span className="text-slate-400">{article.date}</span>
                     </div>
 
                     {/* Quick Button Group */}
                     <div className="flex items-center gap-1.5">
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="outline"
                         leftIcon={<EyeOutlined />}
-                        className="flex-1 !text-xs !text-slate-300 hover:!text-white"
+                        className="flex-1 !text-xs !border-slate-200 !text-slate-700 hover:!bg-emerald-50 hover:!text-emerald-700 hover:!border-emerald-300 font-semibold"
                         onClick={() => handleOpenPreview(article)}
                       >
                         Xem trước
@@ -1002,7 +1002,7 @@ const NewsManagementPage: React.FC = () => {
                         size="sm"
                         variant="outline"
                         leftIcon={<EditOutlined />}
-                        className="flex-1 !text-xs"
+                        className="flex-1 !text-xs !border-slate-200 !text-slate-700 hover:!bg-amber-50 hover:!text-amber-700 hover:!border-amber-300 font-semibold"
                         onClick={() => handleOpenEdit(article)}
                       >
                         Sửa
@@ -1010,13 +1010,13 @@ const NewsManagementPage: React.FC = () => {
                       <Tooltip title={article.isFeatured ? "Bỏ ghim bài viết" : "Ghim lên đầu"}>
                         <Button
                           size="sm"
-                          variant={article.isFeatured ? "primary" : "ghost"}
+                          variant={article.isFeatured ? "primary" : "outline"}
                           leftIcon={<PushpinOutlined />}
                           onClick={(e) => handleToggleFeature(article.id, e)}
                           className={
                             article.isFeatured
-                              ? "!bg-amber-500 !border-amber-500 !text-black"
-                              : "!text-slate-400"
+                              ? "!bg-amber-500 !border-amber-500 !text-white shadow-2xs"
+                              : "!border-slate-200 !text-slate-500 hover:!text-amber-600"
                           }
                         />
                       </Tooltip>
@@ -1031,26 +1031,26 @@ const NewsManagementPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))
           )}
         </div>
       ) : (
-        <Card className="!bg-slate-900/90 !border-slate-800 !p-0 !rounded-2xl overflow-hidden shadow-xl">
+        <div className="bg-white rounded-2xl border border-slate-200 p-0 overflow-hidden shadow-xs">
           <Table<NewsArticleItem>
             dataSource={filteredArticles}
             columns={columns}
             rowKey="id"
             pagination={{ pageSize: 8 }}
           />
-        </Card>
+        </div>
       )}
 
       {/* ── 5. Modal: Create Article ── */}
       <Modal
         title={
-          <div className="flex items-center gap-2 text-white">
-            <PlusOutlined className="text-emerald-400" />
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <PlusOutlined className="text-emerald-600" />
             <span>Tạo Bài Viết / Thông Báo Mới</span>
           </div>
         }
@@ -1067,10 +1067,9 @@ const NewsManagementPage: React.FC = () => {
         ]}
       >
         <div className="space-y-4 py-2">
-          {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Tiêu đề bài viết <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Tiêu đề bài viết <span className="text-rose-500">*</span>
             </label>
             <Input
               placeholder="VD: Chương Trình Giờ Vàng: Giảm 20% Tiền Bàn Từ 13:00 Đến 17:00..."
@@ -1079,10 +1078,9 @@ const NewsManagementPage: React.FC = () => {
             />
           </div>
 
-          {/* Row: Category + Status */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Chuyên mục</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Chuyên mục</label>
               <Select
                 value={formData.category}
                 onChange={(val) => setFormData({ ...formData, category: val as NewsCategory })}
@@ -1098,7 +1096,7 @@ const NewsManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Trạng thái phát hành</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Trạng thái phát hành</label>
               <Select
                 value={formData.status}
                 onChange={(val) =>
@@ -1113,9 +1111,8 @@ const NewsManagementPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Visual Cover Image Selection Gallery */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               Chọn ảnh bìa bài viết (Chuẩn tỉ lệ 16:9 sắc nét)
             </label>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2">
@@ -1125,13 +1122,13 @@ const NewsManagementPage: React.FC = () => {
                   onClick={() => setFormData({ ...formData, image: cov.url })}
                   className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all aspect-[16/9] relative group ${
                     formData.image === cov.url
-                      ? "border-emerald-500 ring-2 ring-emerald-500/30"
-                      : "border-slate-700 opacity-60 hover:opacity-100 hover:border-slate-500"
+                      ? "border-emerald-600 ring-2 ring-emerald-500/30"
+                      : "border-slate-200 opacity-70 hover:opacity-100 hover:border-slate-400"
                   }`}
                 >
                   <img src={cov.url} alt={cov.label} className="w-full h-full object-cover" />
                   {formData.image === cov.url && (
-                    <div className="absolute inset-0 bg-emerald-500/30 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-emerald-600/30 flex items-center justify-center">
                       <CheckCircleOutlined className="text-white text-base drop-shadow" />
                     </div>
                   )}
@@ -1145,10 +1142,9 @@ const NewsManagementPage: React.FC = () => {
             />
           </div>
 
-          {/* Excerpt */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Trích dẫn ngắn gọn (Excerpt / Tóm tắt) <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Trích dẫn ngắn gọn (Excerpt / Tóm tắt) <span className="text-rose-500">*</span>
             </label>
             <Input.TextArea
               rows={2}
@@ -1158,9 +1154,8 @@ const NewsManagementPage: React.FC = () => {
             />
           </div>
 
-          {/* Full Content */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               Nội dung chi tiết bài viết (Cách nhau 2 dòng trống để chia đoạn)
             </label>
             <Input.TextArea
@@ -1171,10 +1166,9 @@ const NewsManagementPage: React.FC = () => {
             />
           </div>
 
-          {/* Row: Author + ReadTime */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Tác giả biên tập</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Tác giả biên tập</label>
               <Input
                 placeholder="VD: Ban Quản Lý CueZone"
                 value={formData.author}
@@ -1182,7 +1176,7 @@ const NewsManagementPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Thời gian đọc ước tính</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Thời gian đọc ước tính</label>
               <Input
                 placeholder="VD: 3 phút đọc"
                 value={formData.readTime}
@@ -1191,24 +1185,23 @@ const NewsManagementPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Options: Feature & Push Notification */}
-          <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60 space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
               <input
                 type="checkbox"
                 checked={formData.isFeatured}
                 onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
-                className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
               />
-              <span className="font-semibold text-amber-400">Ghim bài viết lên vị trí Nổi Bật (Top Banner)</span>
+              <span className="font-bold text-amber-700">Ghim bài viết lên vị trí Nổi Bật (Top Banner)</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
               <input
                 type="checkbox"
                 checked={formData.sendPush}
                 onChange={(e) => setFormData({ ...formData, sendPush: e.target.checked })}
-                className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
               />
               <span>Gửi thông báo đẩy (Push Notification) đến toàn bộ ứng dụng khách hàng ngay khi đăng</span>
             </label>
@@ -1219,8 +1212,8 @@ const NewsManagementPage: React.FC = () => {
       {/* ── 6. Modal: Edit Article ── */}
       <Modal
         title={
-          <div className="flex items-center gap-2 text-white">
-            <EditOutlined className="text-amber-400" />
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <EditOutlined className="text-amber-600" />
             <span>Chỉnh Sửa Bài Viết</span>
           </div>
         }
@@ -1248,8 +1241,8 @@ const NewsManagementPage: React.FC = () => {
       >
         <div className="space-y-4 py-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Tiêu đề bài viết <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Tiêu đề bài viết <span className="text-rose-500">*</span>
             </label>
             <Input
               value={formData.title}
@@ -1259,7 +1252,7 @@ const NewsManagementPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Chuyên mục</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Chuyên mục</label>
               <Select
                 value={formData.category}
                 onChange={(val) => setFormData({ ...formData, category: val as NewsCategory })}
@@ -1275,7 +1268,7 @@ const NewsManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Trạng thái phát hành</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Trạng thái phát hành</label>
               <Select
                 value={formData.status}
                 onChange={(val) =>
@@ -1291,7 +1284,7 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Ảnh bìa bài viết</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Ảnh bìa bài viết</label>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2">
               {AVAILABLE_COVERS.map((cov) => (
                 <div
@@ -1299,13 +1292,13 @@ const NewsManagementPage: React.FC = () => {
                   onClick={() => setFormData({ ...formData, image: cov.url })}
                   className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all aspect-[16/9] relative group ${
                     formData.image === cov.url
-                      ? "border-emerald-500 ring-2 ring-emerald-500/30"
-                      : "border-slate-700 opacity-60 hover:opacity-100 hover:border-slate-500"
+                      ? "border-emerald-600 ring-2 ring-emerald-500/30"
+                      : "border-slate-200 opacity-70 hover:opacity-100 hover:border-slate-400"
                   }`}
                 >
                   <img src={cov.url} alt={cov.label} className="w-full h-full object-cover" />
                   {formData.image === cov.url && (
-                    <div className="absolute inset-0 bg-emerald-500/30 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-emerald-600/30 flex items-center justify-center">
                       <CheckCircleOutlined className="text-white text-base drop-shadow" />
                     </div>
                   )}
@@ -1319,7 +1312,7 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Tóm tắt ngắn (Excerpt)</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Tóm tắt ngắn (Excerpt)</label>
             <Input.TextArea
               rows={2}
               value={formData.excerpt}
@@ -1328,7 +1321,7 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Nội dung chi tiết</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Nội dung chi tiết</label>
             <Input.TextArea
               rows={6}
               value={formData.contentString}
@@ -1338,14 +1331,14 @@ const NewsManagementPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Tác giả</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Tác giả</label>
               <Input
                 value={formData.author}
                 onChange={(e) => setFormData({ ...formData, author: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Thời gian đọc</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Thời gian đọc</label>
               <Input
                 value={formData.readTime}
                 onChange={(e) => setFormData({ ...formData, readTime: e.target.value })}
@@ -1353,30 +1346,30 @@ const NewsManagementPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
               <input
                 type="checkbox"
                 checked={formData.isFeatured}
                 onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
-                className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
               />
-              <span className="font-semibold text-amber-400">Ghim bài viết lên vị trí Nổi Bật (Top Banner)</span>
+              <span className="font-bold text-amber-700">Ghim bài viết lên vị trí Nổi Bật (Top Banner)</span>
             </label>
           </div>
         </div>
       </Modal>
 
-      {/* ── 7. Modal: Live Article Preview ── */}
+      {/* ── 7. Modal: Live Article Preview (Reading Experience) ── */}
       <Modal
         title={
-          <div className="flex items-center justify-between text-white pr-6">
-            <div className="flex items-center gap-2">
-              <EyeOutlined className="text-emerald-400" />
+          <div className="flex items-center justify-between text-slate-900 pr-6">
+            <div className="flex items-center gap-2 font-bold">
+              <EyeOutlined className="text-emerald-600" />
               <span>Xem Trước Bản Tin (Customer App View)</span>
             </div>
             {selectedArticle && (
-              <Tag color={selectedArticle.tagColor} className="!text-xs">
+              <Tag color={selectedArticle.tagColor} className="!text-xs !font-bold">
                 {selectedArticle.categoryLabel}
               </Tag>
             )}
@@ -1417,8 +1410,8 @@ const NewsManagementPage: React.FC = () => {
       >
         {selectedArticle && (
           <div className="space-y-5 py-2">
-            {/* Mock Header Banner */}
-            <div className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden border border-slate-700 bg-black">
+            {/* Banner Cover */}
+            <div className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden border border-slate-200 bg-black shadow-md">
               <img
                 src={selectedArticle.image}
                 alt={selectedArticle.title}
@@ -1427,32 +1420,32 @@ const NewsManagementPage: React.FC = () => {
                   (e.currentTarget as HTMLImageElement).src = "/news/news-club-hero.jpg";
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
               <div className="absolute bottom-4 left-4 right-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Tag color={selectedArticle.tagColor} className="!font-bold">
                     {selectedArticle.categoryLabel}
                   </Tag>
                   {selectedArticle.isFeatured && (
-                    <span className="bg-amber-500 text-black text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                    <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
                       <PushpinOutlined /> Nổi bật
                     </span>
                   )}
                 </div>
-                <Typography.Title level={3} className="!text-white !text-xl md:!text-2xl !font-bold !mb-0 drop-shadow-md">
+                <Typography.Title level={3} className="!text-white !text-xl md:!text-2xl !font-black !mb-0 drop-shadow-md leading-tight">
                   {selectedArticle.title}
                 </Typography.Title>
               </div>
             </div>
 
             {/* Author Bar */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800 text-xs text-slate-400">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 text-xs text-slate-500">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
                   {selectedArticle.author.charAt(0)}
                 </div>
                 <div>
-                  <div className="text-slate-200 font-semibold">{selectedArticle.author}</div>
+                  <div className="text-slate-900 font-bold">{selectedArticle.author}</div>
                   <div className="text-[11px] text-slate-500">{selectedArticle.authorRole}</div>
                 </div>
               </div>
@@ -1466,19 +1459,19 @@ const NewsManagementPage: React.FC = () => {
                   <ClockCircleOutlined /> {selectedArticle.readTime}
                 </span>
                 <span>•</span>
-                <span className="flex items-center gap-1 text-emerald-400 font-medium">
+                <span className="flex items-center gap-1 text-emerald-700 font-bold">
                   <EyeOutlined /> {selectedArticle.viewCount.toLocaleString()} lượt đọc
                 </span>
               </div>
             </div>
 
             {/* Excerpt Lead Box */}
-            <div className="p-4 rounded-xl bg-emerald-500/10 border-l-4 border-emerald-500 text-slate-200 text-sm leading-relaxed italic">
+            <div className="p-4 rounded-xl bg-emerald-50 border-l-4 border-emerald-600 text-slate-800 text-sm leading-relaxed italic">
               "{selectedArticle.excerpt}"
             </div>
 
             {/* Content Paragraphs */}
-            <div className="space-y-4 text-slate-300 text-sm leading-relaxed">
+            <div className="space-y-4 text-slate-700 text-sm leading-relaxed">
               {selectedArticle.content.map((p, idx) => (
                 <p key={idx} className="!mb-0 text-justify">
                   {p}
@@ -1487,14 +1480,14 @@ const NewsManagementPage: React.FC = () => {
             </div>
 
             {/* Footer Tip Box */}
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-4">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg">
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg">
                   <ThunderboltOutlined />
                 </div>
                 <div>
-                  <div className="text-white text-xs font-semibold">Ưu đãi áp dụng trên toàn hệ thống CueZone</div>
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-slate-900 text-xs font-bold">Ưu đãi áp dụng trên toàn hệ thống CueZone</div>
+                  <div className="text-[11px] text-slate-500">
                     Mở app để nhận thông báo giải đấu và đặt bàn trước
                   </div>
                 </div>
@@ -1510,8 +1503,8 @@ const NewsManagementPage: React.FC = () => {
       {/* ── 8. Modal: Broadcast Push Notification ── */}
       <Modal
         title={
-          <div className="flex items-center gap-2 text-white">
-            <BellOutlined className="text-amber-400" />
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <BellOutlined className="text-amber-600" />
             <span>Gửi Thông Báo Đẩy Nhanh (Push Notification)</span>
           </div>
         }
@@ -1527,7 +1520,7 @@ const NewsManagementPage: React.FC = () => {
             variant="primary"
             leftIcon={<SendOutlined />}
             onClick={handleSendBroadcastPush}
-            className="!bg-amber-600 hover:!bg-amber-500 !text-black !font-semibold"
+            className="!bg-amber-600 hover:!bg-amber-700 !border-amber-600 text-white font-bold"
           >
             Phát sóng thông báo
           </Button>,
@@ -1535,7 +1528,7 @@ const NewsManagementPage: React.FC = () => {
       >
         <div className="space-y-4 py-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               Kênh đối tượng nhận tin
             </label>
             <Select
@@ -1551,8 +1544,8 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Tiêu đề thông báo <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Tiêu đề thông báo <span className="text-rose-500">*</span>
             </label>
             <Input
               placeholder="VD: [HOT] Giờ vàng giảm 20% tiền bàn hôm nay bắt đầu lúc 13:00!"
@@ -1562,8 +1555,8 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Nội dung thông báo (Tối đa 160 ký tự) <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Nội dung thông báo (Tối đa 160 ký tự) <span className="text-rose-500">*</span>
             </label>
             <Input.TextArea
               rows={3}
@@ -1573,8 +1566,8 @@ const NewsManagementPage: React.FC = () => {
             />
           </div>
 
-          <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
-            <ThunderboltOutlined className="text-base shrink-0 mt-0.5" />
+          <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
+            <ThunderboltOutlined className="text-base text-amber-600 shrink-0 mt-0.5" />
             <span>
               Thông báo push sẽ được gửi tức thì qua dịch vụ Firebase Cloud Messaging (FCM) đến tất cả
               thiết bị di động của hội viên đã cài đặt ứng dụng CueZone.

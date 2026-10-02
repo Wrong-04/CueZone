@@ -32,7 +32,6 @@ import {
   Table,
   Input,
   Select,
-  Card,
   Tooltip,
   type TableColumnsType,
 } from "../../shared/ui";
@@ -335,10 +334,10 @@ const SettingsManagementPage: React.FC = () => {
       key: "tableTypeName",
       render: (_, r) => (
         <div>
-          <Text strong className="!text-white !text-sm block">
+          <Text strong className="!text-slate-900 !text-sm block font-bold">
             {r.tableTypeName}
           </Text>
-          <Text className="!text-xs !text-slate-400 block">{r.description}</Text>
+          <Text className="!text-xs !text-slate-500 block">{r.description}</Text>
         </div>
       ),
     },
@@ -347,7 +346,7 @@ const SettingsManagementPage: React.FC = () => {
       key: "regularHourRate",
       width: 220,
       render: (_, r) => (
-        <div className="flex items-center gap-1.5 font-bold text-emerald-400 text-sm bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20 w-fit">
+        <div className="flex items-center gap-1.5 font-bold text-emerald-700 text-sm bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 w-fit">
           <DollarOutlined />
           <span>{r.regularHourRate.toLocaleString()} đ / giờ</span>
         </div>
@@ -358,8 +357,8 @@ const SettingsManagementPage: React.FC = () => {
       key: "goldHourRate",
       width: 220,
       render: (_, r) => (
-        <div className="flex items-center gap-1.5 font-bold text-amber-400 text-sm bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 w-fit">
-          <CrownOutlined />
+        <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 w-fit">
+          <CrownOutlined className="text-amber-600" />
           <span>{r.goldHourRate.toLocaleString()} đ / giờ</span>
         </div>
       ),
@@ -369,7 +368,7 @@ const SettingsManagementPage: React.FC = () => {
       key: "actions",
       width: 110,
       render: (_, r) => (
-        <Button size="sm" variant="outline" onClick={() => handleOpenEditPricing(r)}>
+        <Button size="sm" variant="outline" onClick={() => handleOpenEditPricing(r)} className="!border-slate-300 font-semibold">
           Sửa giá
         </Button>
       ),
@@ -394,7 +393,7 @@ const SettingsManagementPage: React.FC = () => {
       key: "minPoints",
       width: 180,
       render: (_, r) => (
-        <Text strong className="!text-slate-200 !text-xs">
+        <Text strong className="!text-slate-800 !text-xs font-semibold">
           Từ {r.minPoints.toLocaleString()} điểm
         </Text>
       ),
@@ -404,7 +403,7 @@ const SettingsManagementPage: React.FC = () => {
       key: "tableDiscountPercent",
       width: 150,
       render: (_, r) => (
-        <span className="text-emerald-400 font-bold text-xs bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/20">
+        <span className="text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
           Giảm {r.tableDiscountPercent}%
         </span>
       ),
@@ -414,7 +413,7 @@ const SettingsManagementPage: React.FC = () => {
       key: "fnbDiscountPercent",
       width: 140,
       render: (_, r) => (
-        <span className="text-blue-400 font-bold text-xs bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20">
+        <span className="text-blue-700 font-bold text-xs bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
           Giảm {r.fnbDiscountPercent}%
         </span>
       ),
@@ -422,161 +421,182 @@ const SettingsManagementPage: React.FC = () => {
     {
       title: "Đặc quyền bổ sung",
       key: "perks",
-      render: (_, r) => <Text className="!text-xs !text-slate-300">{r.perks}</Text>,
+      render: (_, r) => <Text className="!text-xs !text-slate-600">{r.perks}</Text>,
     },
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* ── 1. Page Header ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white text-2xl shadow-lg shadow-emerald-500/20">
-            <SettingOutlined />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <Title level={2} className="!text-xl md:!text-2xl !font-bold !text-white !mb-0 tracking-tight">
-                Cài Đặt Hệ Thống & Cấu Hình CLB
-              </Title>
-              <Tag color="green" className="!px-2 !py-0.5 !text-xs !font-bold">
-                CueZone Admin v2.6.4
-              </Tag>
+    <div className="space-y-6 pb-12">
+      {/* ── 1. Page Header (Light Theme) ── */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-2xl shadow-2xs">
+              <SettingOutlined />
             </div>
-            <Text className="!text-xs md:!text-sm !text-slate-400">
-              Quản lý thông tin câu lạc bộ, bảng giá giờ chơi, thẻ hội viên, rơ-le đèn tự động và cổng thanh toán
-            </Text>
+            <div>
+              <div className="flex items-center gap-2">
+                <Title level={2} className="!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+                  Cài Đặt Hệ Thống & Cấu Hình CLB
+                </Title>
+                <Tag color="green" className="!px-2.5 !py-0.5 !text-xs !font-black !rounded-full">
+                  CUEZONE ADMIN V2.6.4
+                </Tag>
+              </div>
+              <Text className="!text-xs md:!text-sm !text-slate-500">
+                Quản lý thông tin câu lạc bộ, bảng giá giờ chơi, thẻ hội viên, rơ-le đèn tự động và cổng thanh toán
+              </Text>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" leftIcon={<ReloadOutlined />} onClick={handleResetDefaults}>
-            Khôi phục mặc định
-          </Button>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Button
+              variant="outline"
+              leftIcon={<ReloadOutlined />}
+              onClick={handleResetDefaults}
+              className="!border-slate-200 !text-slate-700 hover:!bg-slate-50 !rounded-xl !h-9 text-xs"
+            >
+              Khôi phục mặc định
+            </Button>
 
-          <Button
-            variant="primary"
-            leftIcon={<SaveOutlined />}
-            onClick={handleSaveAllSettings}
-            className="!bg-emerald-600 hover:!bg-emerald-500 !shadow-lg !shadow-emerald-600/30"
-          >
-            Lưu toàn bộ cài đặt
-          </Button>
+            <Button
+              variant="primary"
+              leftIcon={<SaveOutlined />}
+              onClick={handleSaveAllSettings}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !rounded-xl !h-9 text-xs text-white shadow-2xs"
+            >
+              Lưu toàn bộ cài đặt
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* ── 2. Quick Hardware Status Bar ── */}
+      {/* ── 2. Quick Hardware Status Bar (Clean Light Cards) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-emerald-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Hệ thống POS</Text>
-              <div className="text-base font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                Đang trực tuyến (Online)
-              </div>
-              <Text className="!text-[11px] !text-slate-500 mt-0.5 block">{settings.totalTables} Bàn hoạt động</Text>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-emerald-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Hệ thống POS</span>
+            <div className="text-base font-black text-emerald-700 mt-1 flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              Đang trực tuyến (Online)
             </div>
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-lg">
-              <ThunderboltOutlined />
-            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">{settings.totalTables} Bàn hoạt động</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
+            <ThunderboltOutlined />
+          </div>
+        </div>
 
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-teal-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Rơ-le Đèn Thông Minh</Text>
-              <div className="text-base font-bold text-teal-400 mt-1 flex items-center gap-1.5">
-                <CheckCircleOutlined /> Modbus TCP
-              </div>
-              <Text className="!text-[11px] !text-slate-500 mt-0.5 block">20/20 Cổng rơ-le sẵn sàng</Text>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-teal-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Rơ-le Đèn Thông Minh</span>
+            <div className="text-base font-black text-teal-700 mt-1 flex items-center gap-1.5">
+              <CheckCircleOutlined /> Modbus TCP
             </div>
-            <div className="w-10 h-10 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 text-lg">
-              <BulbOutlined />
-            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">20/20 Cổng rơ-le sẵn sàng</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 text-xl">
+            <BulbOutlined />
+          </div>
+        </div>
 
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-blue-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Máy in hóa đơn</Text>
-              <div className="text-base font-bold text-blue-400 mt-1 flex items-center gap-1.5">
-                <PrinterOutlined /> Khổ K80 (80mm)
-              </div>
-              <Text className="!text-[11px] !text-slate-500 mt-0.5 block">{settings.printerIpAddress}</Text>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-blue-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Máy in hóa đơn</span>
+            <div className="text-base font-black text-blue-700 mt-1 flex items-center gap-1.5">
+              <PrinterOutlined /> Khổ K80 (80mm)
             </div>
-            <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-lg">
-              <PrinterOutlined />
-            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">{settings.printerIpAddress}</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl">
+            <PrinterOutlined />
+          </div>
+        </div>
 
-        <Card className="!bg-slate-900/90 !border-slate-800 !rounded-xl !p-4 hover:!border-amber-500/40 transition-all shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <Text className="!text-xs !text-slate-400 block font-medium">Cổng VietQR Napas</Text>
-              <div className="text-base font-bold text-amber-400 mt-1 flex items-center gap-1.5">
-                <BankOutlined /> MB Bank Quầy
-              </div>
-              <Text className="!text-[11px] !text-slate-500 mt-0.5 block">STK: {settings.bankAccountNo}</Text>
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-amber-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Cổng VietQR Napas</span>
+            <div className="text-base font-black text-amber-800 mt-1 flex items-center gap-1.5">
+              <BankOutlined /> MB Bank Quầy
             </div>
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-lg">
-              <QrcodeOutlined />
-            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">STK: {settings.bankAccountNo}</span>
           </div>
-        </Card>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
+            <QrcodeOutlined />
+          </div>
+        </div>
       </div>
 
-      {/* ── 3. Navigation Tabs Bar ── */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
+      {/* ── 3. Navigation Tabs Bar (Consistent Styled Buttons) ── */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
         <Button
           size="sm"
-          variant={activeTab === "general" ? "primary" : "ghost"}
+          variant={activeTab === "general" ? "primary" : "outline"}
           leftIcon={<ShopOutlined />}
           onClick={() => setActiveTab("general")}
-          className={activeTab === "general" ? "!bg-emerald-600" : "!text-slate-300"}
+          className={
+            activeTab === "general"
+              ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
+              : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
+          }
         >
           Thông tin CLB & Thương hiệu
         </Button>
 
         <Button
           size="sm"
-          variant={activeTab === "pricing" ? "primary" : "ghost"}
+          variant={activeTab === "pricing" ? "primary" : "outline"}
           leftIcon={<DollarOutlined />}
           onClick={() => setActiveTab("pricing")}
-          className={activeTab === "pricing" ? "!bg-emerald-600" : "!text-slate-300"}
+          className={
+            activeTab === "pricing"
+              ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
+              : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
+          }
         >
           Bảng giá & Quy tắc tính tiền
         </Button>
 
         <Button
           size="sm"
-          variant={activeTab === "membership" ? "primary" : "ghost"}
+          variant={activeTab === "membership" ? "primary" : "outline"}
           leftIcon={<CrownOutlined />}
           onClick={() => setActiveTab("membership")}
-          className={activeTab === "membership" ? "!bg-emerald-600" : "!text-slate-300"}
+          className={
+            activeTab === "membership"
+              ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
+              : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
+          }
         >
           Hội viên & Tích lũy điểm
         </Button>
 
         <Button
           size="sm"
-          variant={activeTab === "hardware" ? "primary" : "ghost"}
+          variant={activeTab === "hardware" ? "primary" : "outline"}
           leftIcon={<PrinterOutlined />}
           onClick={() => setActiveTab("hardware")}
-          className={activeTab === "hardware" ? "!bg-emerald-600" : "!text-slate-300"}
+          className={
+            activeTab === "hardware"
+              ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
+              : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
+          }
         >
           Thiết bị phần cứng & Thanh toán
         </Button>
 
         <Button
           size="sm"
-          variant={activeTab === "system" ? "primary" : "ghost"}
+          variant={activeTab === "system" ? "primary" : "outline"}
           leftIcon={<SafetyCertificateOutlined />}
           onClick={() => setActiveTab("system")}
-          className={activeTab === "system" ? "!bg-emerald-600" : "!text-slate-300"}
+          className={
+            activeTab === "system"
+              ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
+              : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
+          }
         >
           Bảo mật & Tự động hóa
         </Button>
@@ -586,18 +606,18 @@ const SettingsManagementPage: React.FC = () => {
       {activeTab === "general" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 space-y-4 shadow-xl">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-                <ShopOutlined className="text-emerald-400 text-lg" />
-                <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <ShopOutlined className="text-emerald-600 text-lg" />
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                   Thông Tin Cơ Bản Câu Lạc Bộ
                 </Title>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Tên Câu lạc bộ <span className="text-rose-400">*</span>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Tên Câu lạc bộ <span className="text-rose-500">*</span>
                   </label>
                   <Input
                     value={settings.clubName}
@@ -606,7 +626,7 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Số lượng bàn hoạt động
                   </label>
                   <Input
@@ -620,7 +640,7 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Khẩu hiệu / Slogan</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Khẩu hiệu / Slogan</label>
                 <Input
                   value={settings.slogan}
                   onChange={(e) => setSettings({ ...settings, slogan: e.target.value })}
@@ -628,8 +648,8 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Địa chỉ cơ sở <span className="text-rose-400">*</span>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Địa chỉ cơ sở <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   prefix={<EnvironmentOutlined className="text-slate-400" />}
@@ -640,8 +660,8 @@ const SettingsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Hotline đặt bàn <span className="text-rose-400">*</span>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Hotline đặt bàn <span className="text-rose-500">*</span>
                   </label>
                   <Input
                     prefix={<PhoneOutlined className="text-slate-400" />}
@@ -651,7 +671,7 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Email hỗ trợ</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email hỗ trợ</label>
                   <Input
                     prefix={<MailOutlined className="text-slate-400" />}
                     value={settings.email}
@@ -661,7 +681,7 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Giờ mở cửa phục vụ
                 </label>
                 <Input
@@ -670,19 +690,19 @@ const SettingsManagementPage: React.FC = () => {
                   onChange={(e) => setSettings({ ...settings, openingHours: e.target.value })}
                 />
               </div>
-            </Card>
+            </div>
 
-            <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 space-y-4 shadow-xl">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-                <WifiOutlined className="text-teal-400 text-lg" />
-                <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                <WifiOutlined className="text-teal-600 text-lg" />
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                   Mạng Wifi Khách Hàng (Tự In Lên Bill)
                 </Title>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Tên mạng Wifi (SSID)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Tên mạng Wifi (SSID)</label>
                   <Input
                     value={settings.wifiSSID}
                     onChange={(e) => setSettings({ ...settings, wifiSSID: e.target.value })}
@@ -690,19 +710,19 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Mật khẩu Wifi</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Mật khẩu Wifi</label>
                   <Input
                     value={settings.wifiPassword}
                     onChange={(e) => setSettings({ ...settings, wifiPassword: e.target.value })}
                   />
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
 
-          {/* Right Preview Card */}
+          {/* Right Preview Card (Clean Brand Showcase) */}
           <div className="space-y-4">
-            <Card className="!bg-gradient-to-br !from-slate-900 !to-slate-950 !border-slate-800 !rounded-2xl !p-6 shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-2xl border border-slate-800 p-6 shadow-xl relative overflow-hidden text-white">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
 
               <div className="text-center pb-4 border-b border-slate-800">
@@ -728,7 +748,7 @@ const SettingsManagementPage: React.FC = () => {
                   <ClockCircleOutlined className="text-emerald-400 shrink-0" />
                   <span>{settings.openingHours}</span>
                 </div>
-                <div className="flex items-center gap-2 text-slate-300 bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                <div className="flex items-center gap-2 text-slate-300 bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
                   <WifiOutlined className="text-teal-400 shrink-0" />
                   <div className="flex-1">
                     <div className="font-semibold text-white">{settings.wifiSSID}</div>
@@ -743,6 +763,7 @@ const SettingsManagementPage: React.FC = () => {
                         navigator.clipboard.writeText(settings.wifiPassword);
                         message.success("Đã sao chép mật khẩu Wifi!");
                       }}
+                      className="!text-slate-300 hover:!text-white"
                     />
                   </Tooltip>
                 </div>
@@ -753,12 +774,12 @@ const SettingsManagementPage: React.FC = () => {
                   variant="outline"
                   leftIcon={<EyeOutlined />}
                   onClick={() => setBillPreviewVisible(true)}
-                  className="w-full !text-xs !border-emerald-500/40 !text-emerald-400"
+                  className="w-full !text-xs !border-emerald-500/50 !text-emerald-400 hover:!bg-emerald-500/10 font-bold"
                 >
                   Xem mẫu in đầu hóa đơn
                 </Button>
               </div>
-            </Card>
+            </div>
           </div>
         </div>
       )}
@@ -767,15 +788,15 @@ const SettingsManagementPage: React.FC = () => {
       {activeTab === "pricing" && (
         <div className="space-y-6">
           {/* Hourly Rates by Table Type */}
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <DollarOutlined className="text-emerald-400 text-lg" />
+                <DollarOutlined className="text-emerald-600 text-lg" />
                 <div>
-                  <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+                  <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                     Bảng Giá Giờ Chơi Theo Loại Bàn
                   </Title>
-                  <Text className="!text-xs !text-slate-400">
+                  <Text className="!text-xs !text-slate-500">
                     Hệ thống POS tự động áp dụng giá theo phân loại bàn và khung giờ trong ngày
                   </Text>
                 </div>
@@ -788,20 +809,20 @@ const SettingsManagementPage: React.FC = () => {
               rowKey="id"
               pagination={false}
             />
-          </Card>
+          </div>
 
           {/* Billing Calculation Rules */}
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-5">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-              <ClockCircleOutlined className="text-amber-400 text-lg" />
-              <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <ClockCircleOutlined className="text-amber-600 text-lg" />
+              <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                 Quy Tắc Tính Tiền Giờ & Khung Giờ Vàng
               </Title>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Khung Giờ Vàng (Bắt đầu)
                 </label>
                 <Input
@@ -812,7 +833,7 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Khung Giờ Vàng (Kết thúc)
                 </label>
                 <Input
@@ -823,7 +844,7 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Block tính tiền tối thiểu
                 </label>
                 <Select
@@ -841,7 +862,7 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Làm tròn thời gian</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Làm tròn thời gian</label>
                 <Select
                   value={settings.roundBillingMinutes.toString()}
                   onChange={(val) =>
@@ -859,18 +880,18 @@ const SettingsManagementPage: React.FC = () => {
             </div>
 
             {/* Taxes & Surcharges */}
-            <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/60 space-y-3">
-              <Title level={5} className="!text-white !text-xs !font-bold !mb-0">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+              <Title level={5} className="!text-slate-900 !text-xs !font-bold !mb-0">
                 Thuế VAT & Phụ Thu Ngày Lễ
               </Title>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200 mb-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800 mb-1">
                     <input
                       type="checkbox"
                       checked={settings.isVatEnabled}
                       onChange={(e) => setSettings({ ...settings, isVatEnabled: e.target.checked })}
-                      className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                     />
                     <span className="font-semibold">Áp dụng Thuế VAT xuất hóa đơn</span>
                   </label>
@@ -886,7 +907,7 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Phí dịch vụ phòng lạnh (Service Charge)
                   </label>
                   <Input
@@ -903,7 +924,7 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Phụ thu ngày Lễ / Tết
                   </label>
                   <Input
@@ -920,31 +941,31 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
       {/* ── 6. Tab 3: Membership & Loyalty Points ── */}
       {activeTab === "membership" && (
         <div className="space-y-6">
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-              <CrownOutlined className="text-amber-400 text-lg" />
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <CrownOutlined className="text-amber-600 text-lg" />
               <div>
-                <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                   Tỷ Lệ Tích Điểm & Đổi Thưởng
                 </Title>
-                <Text className="!text-xs !text-slate-400">
+                <Text className="!text-xs !text-slate-500">
                   Tự động cộng điểm cho hội viên khi thanh toán hóa đơn bàn chơi hoặc F&B
                 </Text>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                <Text className="!text-xs !text-slate-300 block font-semibold mb-1">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-xs text-slate-700 block font-bold mb-1">
                   Tỷ lệ tích lũy điểm tiêu dùng
-                </Text>
+                </span>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -957,17 +978,17 @@ const SettingsManagementPage: React.FC = () => {
                     }
                     suffix="VNĐ"
                   />
-                  <span className="text-white text-sm font-bold">= 1 Điểm</span>
+                  <span className="text-slate-900 text-sm font-bold">= 1 Điểm</span>
                 </div>
-                <Text className="!text-[11px] !text-emerald-400 mt-1 block">
+                <span className="text-[11px] text-emerald-700 font-semibold mt-1 block">
                   Ví dụ: Hóa đơn 300.000đ sẽ tích được 30 điểm
-                </Text>
+                </span>
               </div>
 
-              <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                <Text className="!text-xs !text-slate-300 block font-semibold mb-1">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-xs text-slate-700 block font-bold mb-1">
                   Tỷ lệ quy đổi điểm trừ tiền hóa đơn
-                </Text>
+                </span>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -980,21 +1001,21 @@ const SettingsManagementPage: React.FC = () => {
                     }
                     suffix="Điểm"
                   />
-                  <span className="text-white text-sm font-bold">= 10.000 VNĐ</span>
+                  <span className="text-slate-900 text-sm font-bold">= 10.000 VNĐ</span>
                 </div>
-                <Text className="!text-[11px] !text-amber-400 mt-1 block">
+                <span className="text-[11px] text-amber-800 font-semibold mt-1 block">
                   Trừ trực tiếp vào tổng tiền khi khách yêu cầu dùng điểm
-                </Text>
+                </span>
               </div>
             </div>
-          </Card>
+          </div>
 
           {/* Member Tiers Matrix */}
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <CrownOutlined className="text-purple-400 text-lg" />
-                <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+                <CrownOutlined className="text-purple-600 text-lg" />
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                   Chính Sách Đặc Quyền Cấp Bậc Hội Viên
                 </Title>
               </div>
@@ -1006,7 +1027,7 @@ const SettingsManagementPage: React.FC = () => {
               rowKey="tierKey"
               pagination={false}
             />
-          </Card>
+          </div>
         </div>
       )}
 
@@ -1014,22 +1035,22 @@ const SettingsManagementPage: React.FC = () => {
       {activeTab === "hardware" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Thermal Printer Settings */}
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <PrinterOutlined className="text-blue-400 text-lg" />
-                <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+                <PrinterOutlined className="text-blue-600 text-lg" />
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                   Máy In Hóa Đơn Nhiệt (K80 / K58)
                 </Title>
               </div>
-              <Button size="sm" variant="outline" onClick={handleTestPrinter}>
+              <Button size="sm" variant="outline" onClick={handleTestPrinter} className="!border-slate-300 font-semibold">
                 In thử hóa đơn
               </Button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Loại máy in</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Loại máy in</label>
                 <Input
                   value={settings.printerType}
                   onChange={(e) => setSettings({ ...settings, printerType: e.target.value })}
@@ -1038,7 +1059,7 @@ const SettingsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Khổ giấy in</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Khổ giấy in</label>
                   <Select
                     value={settings.printerPaperWidth}
                     onChange={(val) => setSettings({ ...settings, printerPaperWidth: val })}
@@ -1051,7 +1072,7 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Địa chỉ IP máy in LAN</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Địa chỉ IP máy in LAN</label>
                   <Input
                     value={settings.printerIpAddress}
                     onChange={(e) => setSettings({ ...settings, printerIpAddress: e.target.value })}
@@ -1059,55 +1080,55 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-2 p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+              <div className="space-y-2 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
                   <input
                     type="checkbox"
                     checked={settings.autoCutPaper}
                     onChange={(e) => setSettings({ ...settings, autoCutPaper: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
                   <span>Tự động cắt giấy khi in xong bill</span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
                   <input
                     type="checkbox"
                     checked={settings.printVietQROnBill}
                     onChange={(e) =>
                       setSettings({ ...settings, printVietQROnBill: e.target.checked })
                     }
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
                   <span>In mã QR chuyển khoản VietQR ở chân hóa đơn</span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
                   <input
                     type="checkbox"
                     checked={settings.printClubLogoOnBill}
                     onChange={(e) =>
                       setSettings({ ...settings, printClubLogoOnBill: e.target.checked })
                     }
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
                   <span>In logo CueZone và thông tin Wifi ở đầu hóa đơn</span>
                 </label>
               </div>
             </div>
-          </Card>
+          </div>
 
           {/* Smart Relay Table Lighting */}
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <BulbOutlined className="text-teal-400 text-lg" />
-                <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+                <BulbOutlined className="text-teal-600 text-lg" />
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                   Rơ-le Đèn Bàn Thông Minh (Smart Relay)
                 </Title>
               </div>
               <div className="flex items-center gap-1.5">
-                <Button size="sm" variant="ghost" onClick={() => handleTestRelay("all_on")}>
+                <Button size="sm" variant="outline" onClick={() => handleTestRelay("all_on")} className="!border-slate-300 font-semibold">
                   Bật tất cả
                 </Button>
                 <Button size="sm" variant="danger" onClick={() => handleTestRelay("all_off")}>
@@ -1119,7 +1140,7 @@ const SettingsManagementPage: React.FC = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Giao thức điều khiển</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Giao thức điều khiển</label>
                   <Input
                     value={settings.relayProtocol}
                     onChange={(e) => setSettings({ ...settings, relayProtocol: e.target.value })}
@@ -1127,7 +1148,7 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Địa chỉ Gateway Modbus TCP</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Địa chỉ Gateway Modbus TCP</label>
                   <Input
                     value={settings.relayControllerIp}
                     onChange={(e) =>
@@ -1137,23 +1158,23 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-2 p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+              <div className="space-y-2 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
                   <input
                     type="checkbox"
                     checked={settings.autoTurnOnLightOnOpen}
                     onChange={(e) =>
                       setSettings({ ...settings, autoTurnOnLightOnOpen: e.target.checked })
                     }
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
-                  <span className="font-semibold text-teal-400">
+                  <span className="font-bold text-teal-800">
                     Tự động bật rơ-le đèn bàn ngay khi bấm "Mở bàn" trên POS
                   </span>
                 </label>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Độ trễ tự động tắt đèn sau khi thanh toán hóa đơn
                   </label>
                   <Select
@@ -1171,14 +1192,14 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
 
           {/* Payment VietQR Gateway */}
-          <Card className="lg:col-span-2 !bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <BankOutlined className="text-amber-400 text-lg" />
-                <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+                <BankOutlined className="text-amber-600 text-lg" />
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                   Tài Khoản Ngân Hàng Nhận Tiền & Cổng VietQR Napas
                 </Title>
               </div>
@@ -1189,8 +1210,8 @@ const SettingsManagementPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Ngân hàng thụ hưởng <span className="text-rose-400">*</span>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Ngân hàng thụ hưởng <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   value={settings.bankName}
@@ -1199,8 +1220,8 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Số tài khoản nhận tiền <span className="text-rose-400">*</span>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Số tài khoản nhận tiền <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   value={settings.bankAccountNo}
@@ -1209,8 +1230,8 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Chủ tài khoản (Không dấu) <span className="text-rose-400">*</span>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Chủ tài khoản (Không dấu) <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   value={settings.bankAccountName}
@@ -1218,24 +1239,24 @@ const SettingsManagementPage: React.FC = () => {
                 />
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
       {/* ── 8. Tab 5: Security & Automation ── */}
       {activeTab === "system" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-              <LockOutlined className="text-emerald-400 text-lg" />
-              <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <LockOutlined className="text-emerald-600 text-lg" />
+              <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                 Bảo Mật Thu Ngân & Phân Quyền Vận Hành
               </Title>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Tự động khóa màn hình POS khi không có thao tác
                 </label>
                 <Select
@@ -1256,8 +1277,8 @@ const SettingsManagementPage: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-3 p-4 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+              <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
                   <input
                     type="checkbox"
                     checked={settings.requireAdminPassOnCancelItem}
@@ -1267,12 +1288,12 @@ const SettingsManagementPage: React.FC = () => {
                         requireAdminPassOnCancelItem: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
                   <span>Bắt buộc mã PIN Quản lý khi hủy món F&B hoặc giảm số lượng đã phục vụ</span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
                   <input
                     type="checkbox"
                     checked={settings.requireAdminPassOnHighDiscount}
@@ -1282,25 +1303,25 @@ const SettingsManagementPage: React.FC = () => {
                         requireAdminPassOnHighDiscount: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
                   <span>Bắt buộc duyệt mã PIN khi áp dụng chiết khấu đặc biệt trên 20%</span>
                 </label>
               </div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="!bg-slate-900/90 !border-slate-800 !rounded-2xl !p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
-              <BellOutlined className="text-amber-400 text-lg" />
-              <Title level={4} className="!text-white !text-base !font-bold !mb-0">
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <BellOutlined className="text-amber-600 text-lg" />
+              <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
                 Tự Động Hóa & Thông Báo Ca Trực
               </Title>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Giờ chốt ca đêm tự động & tổng kết báo cáo doanh thu
                 </label>
                 <Input
@@ -1310,36 +1331,36 @@ const SettingsManagementPage: React.FC = () => {
                 />
               </div>
 
-              <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/60 space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-200">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
                   <input
                     type="checkbox"
                     checked={settings.soundAlertNewBooking}
                     onChange={(e) =>
                       setSettings({ ...settings, soundAlertNewBooking: e.target.checked })
                     }
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
-                  <span className="font-semibold text-amber-300">
+                  <span className="font-bold text-amber-800">
                     Phát chuông thông báo âm thanh khi có yêu cầu đặt bàn mới từ App Khách Hàng
                   </span>
                 </label>
 
-                <div className="text-[11px] text-slate-400 leading-relaxed">
+                <div className="text-[11px] text-slate-500 leading-relaxed">
                   Hệ thống tự động kích hoạt Web Audio API phát âm thanh "Ding" tại quầy thu ngân giúp nhân
                   viên không bỏ lỡ lịch đặt bàn giờ vàng của hội viên.
                 </div>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
       {/* ── 9. Modal: Edit Price Rule ── */}
       <Modal
         title={
-          <div className="flex items-center gap-2 text-white">
-            <DollarOutlined className="text-emerald-400" />
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <DollarOutlined className="text-emerald-600" />
             <span>Chỉnh Sửa Giá Giờ Chơi: {editingPriceRule?.tableTypeName}</span>
           </div>
         }
@@ -1368,7 +1389,7 @@ const SettingsManagementPage: React.FC = () => {
         {editingPriceRule && (
           <div className="space-y-4 py-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Giá ngày thường (08:00 - 18:00)
               </label>
               <Input
@@ -1385,7 +1406,7 @@ const SettingsManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Giá Giờ Vàng (18:00 - 23:00)
               </label>
               <Input
@@ -1402,7 +1423,7 @@ const SettingsManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Mô tả loại bàn</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Mô tả loại bàn</label>
               <Input
                 value={editingPriceRule.description}
                 onChange={(e) =>
@@ -1420,8 +1441,8 @@ const SettingsManagementPage: React.FC = () => {
       {/* ── 10. Modal: Thermal Bill Header Preview ── */}
       <Modal
         title={
-          <div className="flex items-center gap-2 text-white">
-            <PrinterOutlined className="text-emerald-400" />
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <PrinterOutlined className="text-emerald-600" />
             <span>Mô Phỏng Đầu Hóa Đơn Nhiệt K80 (Thermal Receipt)</span>
           </div>
         }
@@ -1481,7 +1502,7 @@ const SettingsManagementPage: React.FC = () => {
 
           <div className="text-center pt-2 space-y-1">
             <div className="text-[10px] text-slate-600">STK: {settings.bankAccountNo} ({settings.bankName})</div>
-            <div className="text-[10px] font-bold">CẢM ƠN QUÝ KHÁCH & HẸN GẶP LẠI!</div>
+            <div className="text-[10px] font-bold">CẢMƠN QUÝ KHÁCH & HẸN GẶP LẠI!</div>
           </div>
         </div>
       </Modal>
