@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
 
 const OTP_LENGTH = 4;
@@ -209,7 +210,8 @@ const RegisterPage = () => {
                   }}
                   className="text-gray-500 hover:text-gray-700 transition"
                 >
-                  ← Quay lại
+                  <ArrowLeftOutlined className="mr-1" />
+                  Quay lại
                 </button>
                 <button
                   type="button"

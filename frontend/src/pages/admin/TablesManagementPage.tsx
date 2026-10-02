@@ -7,6 +7,7 @@ import {
   BulbOutlined,
   LockOutlined,
   CheckOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import { tableService, pricingService } from "../../services/table.service";
 import type { BilliardTable, PricingTier } from "../../types";
@@ -318,7 +319,8 @@ const TablesManagementPage = () => {
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          ⏰ Cấu hình Bảng giá Khung Giờ
+          <ClockCircleOutlined className="mr-1.5" />
+          Cấu hình Bảng giá Khung Giờ
         </button>
         <button
           onClick={() => setActiveTab("tables")}

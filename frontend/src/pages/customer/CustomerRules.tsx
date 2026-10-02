@@ -4,6 +4,7 @@ import {
   XCircle,
   HelpCircle,
 } from "lucide-react";
+import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import {
   Button,
   Card,
@@ -141,11 +142,23 @@ const CustomerRules = () => {
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               CÁC TÌNH HUỐNG HỢP LỆ (TÍNH ĐIỂM)
             </div>
-            <ul className="space-y-2 text-slate-700 pl-1 leading-relaxed">
-              <li>✓ Bi mục tiêu dội 1 băng vào đúng lỗ đã gọi.</li>
-              <li>✓ Bi mục tiêu dội 2 băng (Double Bank) hoặc 3 băng vào đúng lỗ đã gọi.</li>
-              <li>✓ Sau khi bi mục tiêu rơi vào lỗ hợp lệ, các bi phụ khác rơi vào lỗ cũng được nhặt lại bàn mà không bị phạt.</li>
-              <li>✓ Cơ thủ đánh trúng bi mục tiêu hợp lệ, không có bi vào lỗ nhưng có ít nhất 1 bi chạm băng (không bị foul).</li>
+            <ul className="space-y-2.5 text-slate-700 pl-1 leading-relaxed">
+              <li className="flex items-start gap-2">
+                <CheckCircleOutlined className="text-emerald-600 mt-1 flex-shrink-0" />
+                <span>Bi mục tiêu dội 1 băng vào đúng lỗ đã gọi.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircleOutlined className="text-emerald-600 mt-1 flex-shrink-0" />
+                <span>Bi mục tiêu dội 2 băng (Double Bank) hoặc 3 băng vào đúng lỗ đã gọi.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircleOutlined className="text-emerald-600 mt-1 flex-shrink-0" />
+                <span>Sau khi bi mục tiêu rơi vào lỗ hợp lệ, các bi phụ khác rơi vào lỗ cũng được nhặt lại bàn mà không bị phạt.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircleOutlined className="text-emerald-600 mt-1 flex-shrink-0" />
+                <span>Cơ thủ đánh trúng bi mục tiêu hợp lệ, không có bi vào lỗ nhưng có ít nhất 1 bi chạm băng (không bị foul).</span>
+              </li>
             </ul>
           </div>
 
@@ -155,11 +168,23 @@ const CustomerRules = () => {
               <XCircle className="h-5 w-5 text-rose-600" />
               CÁC TÌNH HUỐNG PHẠM QUY (PHẠT BI)
             </div>
-            <ul className="space-y-2 text-slate-700 pl-1 leading-relaxed">
-              <li>✕ Bi mục tiêu đi thẳng trực tiếp vào lỗ mà không chạm băng (không tính điểm, đặt lại bi).</li>
-              <li>✕ Bi cái rơi vào bất kỳ lỗ nào trên bàn (Scratch - phạt 1 bi).</li>
-              <li>✕ Bi mục tiêu rơi vào lỗ khác với lỗ đã gọi ban đầu (nhặt lại bi, mất lượt).</li>
-              <li>✕ Cơ thủ phạm quy 3 lần liên tiếp trong một ván đấu (xử thua ván đó ngay lập tức).</li>
+            <ul className="space-y-2.5 text-slate-700 pl-1 leading-relaxed">
+              <li className="flex items-start gap-2">
+                <CloseCircleOutlined className="text-rose-600 mt-1 flex-shrink-0" />
+                <span>Bi mục tiêu đi thẳng trực tiếp vào lỗ mà không chạm băng (không tính điểm, đặt lại bi).</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CloseCircleOutlined className="text-rose-600 mt-1 flex-shrink-0" />
+                <span>Bi cái rơi vào bất kỳ lỗ nào trên bàn (Scratch - phạt 1 bi).</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CloseCircleOutlined className="text-rose-600 mt-1 flex-shrink-0" />
+                <span>Bi mục tiêu rơi vào lỗ khác với lỗ đã gọi ban đầu (nhặt lại bi, mất lượt).</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CloseCircleOutlined className="text-rose-600 mt-1 flex-shrink-0" />
+                <span>Cơ thủ phạm quy 3 lần liên tiếp trong một ván đấu (xử thua ván đó ngay lập tức).</span>
+              </li>
             </ul>
           </div>
         </div>

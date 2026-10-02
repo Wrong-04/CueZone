@@ -70,22 +70,22 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
 
 export const CLUB_HIGHLIGHTS = [
   {
-    icon: '🎱',
+    icon: 'AimOutlined',
     title: '18+ Bàn Tiêu Chuẩn Quốc Tế',
     desc: 'Bàn thi đấu 9FT Aileex, Min Table, vải nỉ Simonis 860 cao cấp chuẩn giải',
   },
   {
-    icon: '⚡',
+    icon: 'ThunderboltOutlined',
     title: 'Tự Động Tính Giờ & Bật Bàn',
     desc: 'Hệ thống tự động đồng bộ thời gian chơi, chuyển bàn và tách tiền giờ linh hoạt',
   },
   {
-    icon: '🏆',
+    icon: 'TrophyOutlined',
     title: 'Giải Đấu & Xếp Hạng ELO',
     desc: 'Cập nhật bảng đấu trực tiếp, tính điểm handicap và xếp hạng cơ thủ tự động',
   },
   {
-    icon: '🍹',
+    icon: 'CoffeeOutlined',
     title: 'Tích Hợp F&B Tại Bàn',
     desc: 'Menu đồ uống, bia tươi và đồ ăn nhẹ được order và tính vào hoá đơn bàn',
   },

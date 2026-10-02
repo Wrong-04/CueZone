@@ -22,3 +22,4 @@ Tất cả các trang (pages) và components trong dự án **BẮT BUỘC** ph�
 - **KHÔNG** tự ý dùng thẻ HTML nguyên thủy (`<button>`, `<input>`, `<form>`) khi đã có component tương ứng trong `src/shared/ui`.
 - **KHÔNG** cài đặt thêm các thư viện UI bên ngoài trùng lặp chức năng.
 - **KHÔNG** hardcode các mã màu ngoài hệ thống token (`--brand: #059669`, `primary-*` Simonis Emerald & Obsidian).
+- **KHÔNG** dùng emoji thuần túy (như 📍, ⏰, 📞, 💰, 🏆, 🔥, ⭐...) trong giao diện người dùng. **BẮT BUỘC** sử dụng các icon chuẩn hóa từ `@ant-design/icons` (ví dụ: `<EnvironmentOutlined />`, `<ClockCircleOutlined />`, `<PhoneOutlined />`, `<DollarOutlined />`, `<TrophyOutlined />`...) để đảm bảo tính chuyên nghiệp, nhất quán và thẩm mỹ cao cấp.

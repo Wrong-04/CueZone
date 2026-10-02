@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Info,
 } from "lucide-react";
+import { TrophyOutlined, CrownOutlined } from "@ant-design/icons";
 import {
   Button,
   Card,
@@ -363,10 +364,19 @@ const CustomerTournaments = () => {
                   Cơ Cấu Giải Thưởng: {selectedTournament.prizePool}
                 </Text>
               </Space>
-              <ul className="space-y-1 text-slate-700 pl-2">
-                <li>🥇 <strong>Giải Nhất:</strong> {selectedTournament.firstPrize}</li>
-                <li>🥈 <strong>Giải Nhì:</strong> {selectedTournament.secondPrize}</li>
-                <li>🥉 <strong>Giải Ba:</strong> {selectedTournament.thirdPrize}</li>
+              <ul className="space-y-1.5 text-slate-700 pl-1">
+                <li className="flex items-center gap-2">
+                  <CrownOutlined className="text-amber-500" />
+                  <span><strong>Giải Nhất:</strong> {selectedTournament.firstPrize}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <TrophyOutlined className="text-slate-400" />
+                  <span><strong>Giải Nhì:</strong> {selectedTournament.secondPrize}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <TrophyOutlined className="text-amber-700" />
+                  <span><strong>Giải Ba:</strong> {selectedTournament.thirdPrize}</span>
+                </li>
               </ul>
             </div>
 

@@ -8,6 +8,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import {
+  EnvironmentOutlined,
+  ClockCircleOutlined,
+  PhoneOutlined,
+  DollarOutlined,
+} from "@ant-design/icons";
+import {
   Button,
   Card,
   Tag,
@@ -303,11 +309,23 @@ const CustomerBooking = () => {
           <p className="text-sm">
             Cảm ơn cơ thủ <strong>{name}</strong>! Yêu cầu đặt bàn của bạn đã được chuyển đến quầy lễ tân CueZone.
           </p>
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1.5">
-            <div>📍 <strong>Bàn:</strong> {selectedTable.name} ({selectedTable.typeName})</div>
-            <div>⏰ <strong>Thời gian:</strong> {time} ({date}) - Thời lượng dự kiến: {duration} giờ</div>
-            <div>📞 <strong>SĐT xác nhận:</strong> {phone}</div>
-            <div>💰 <strong>Chi phí tạm tính:</strong> {totalCost.toLocaleString("vi-VN")} VNĐ (Thanh toán tại quầy)</div>
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
+            <div className="flex items-center gap-2">
+              <EnvironmentOutlined className="text-emerald-600" />
+              <span><strong>Bàn:</strong> {selectedTable.name} ({selectedTable.typeName})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ClockCircleOutlined className="text-emerald-600" />
+              <span><strong>Thời gian:</strong> {time} ({date}) - Thời lượng dự kiến: {duration} giờ</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <PhoneOutlined className="text-emerald-600" />
+              <span><strong>SĐT xác nhận:</strong> {phone}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <DollarOutlined className="text-emerald-600" />
+              <span><strong>Chi phí tạm tính:</strong> {totalCost.toLocaleString("vi-VN")} VNĐ (Thanh toán tại quầy)</span>
+            </div>
           </div>
           <p className="text-slate-500">
             CLB sẽ giữ bàn cho bạn tối đa 15 phút. Nếu có thay đổi, vui lòng gọi hotline <strong>1900 6868</strong> để được hỗ trợ.

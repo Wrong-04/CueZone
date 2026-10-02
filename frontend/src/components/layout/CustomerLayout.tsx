@@ -2,6 +2,7 @@ import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { Button, Space, Typography } from "../../shared/ui";
 import { Sparkles, Trophy, BookOpen, Newspaper, Calendar, Phone, MapPin, Clock } from "lucide-react";
+import { EnvironmentOutlined, ClockCircleOutlined, CreditCardOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
 
@@ -236,9 +237,18 @@ const CustomerLayout = () => {
               <h4 className="font-bold text-white uppercase text-xs tracking-wider mb-3">
                 Địa Chỉ & Giờ Mở Cửa
               </h4>
-              <p className="text-slate-400">📍 123 Nguyễn Thị Minh Khai, Phường 6, Quận 3, TP. Hồ Chí Minh</p>
-              <p className="text-slate-400">⏰ Hoạt động: 08:00 - 24:00 các ngày trong tuần</p>
-              <p className="text-slate-400">💳 Thanh toán: Tiền mặt, Thẻ, VNPay QR Code</p>
+              <p className="text-slate-400 flex items-center gap-2">
+                <EnvironmentOutlined className="text-emerald-400 flex-shrink-0" />
+                <span>123 Nguyễn Thị Minh Khai, Phường 6, Quận 3, TP. Hồ Chí Minh</span>
+              </p>
+              <p className="text-slate-400 flex items-center gap-2">
+                <ClockCircleOutlined className="text-emerald-400 flex-shrink-0" />
+                <span>Hoạt động: 08:00 - 24:00 các ngày trong tuần</span>
+              </p>
+              <p className="text-slate-400 flex items-center gap-2">
+                <CreditCardOutlined className="text-emerald-400 flex-shrink-0" />
+                <span>Thanh toán: Tiền mặt, Thẻ, VNPay QR Code</span>
+              </p>
             </div>
           </div>
 
