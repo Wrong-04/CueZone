@@ -1,8 +1,24 @@
+import { useState } from "react";
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { Button, Space, Typography } from "../../shared/ui";
-import { Sparkles, Trophy, BookOpen, Newspaper, Calendar, Phone, MapPin, Clock } from "lucide-react";
-import { EnvironmentOutlined, ClockCircleOutlined, CreditCardOutlined } from "@ant-design/icons";
+import { Button, Space, Typography, Tag, Modal } from "../../shared/ui";
+import {
+  EnvironmentOutlined,
+  ClockCircleOutlined,
+  CreditCardOutlined,
+  WalletOutlined,
+  TrophyOutlined,
+  BellOutlined,
+  UserOutlined,
+  CalendarOutlined,
+  HistoryOutlined,
+  CoffeeOutlined,
+  BookOutlined,
+  ReadOutlined,
+  HomeOutlined,
+  PhoneOutlined,
+  LogoutOutlined,
+} from "@ant-design/icons";
 
 const { Text } = Typography;
 
@@ -10,18 +26,54 @@ const CustomerLayout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showNotifModal, setShowNotifModal] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
 
-  const navLinks = [
-    { to: "/customer", label: "Trang chủ", icon: <Sparkles className="h-4 w-4" /> },
-    { to: "/customer/booking", label: "Đặt bàn online", icon: <Calendar className="h-4 w-4" /> },
-    { to: "/customer/tournaments", label: "Giải đấu & Lệ phí", icon: <Trophy className="h-4 w-4" /> },
-    { to: "/customer/rules", label: "Luật Bank Pool", icon: <BookOpen className="h-4 w-4" /> },
-    { to: "/customer/news", label: "Tin tức & Ưu đãi", icon: <Newspaper className="h-4 w-4" /> },
+  const guestNavLinks = [
+    { to: "/customer", label: "Trang chủ", icon: <HomeOutlined /> },
+    { to: "/customer/booking", label: "Đặt bàn online", icon: <CalendarOutlined /> },
+    { to: "/customer/tournaments", label: "Giải đấu & Lệ phí", icon: <TrophyOutlined /> },
+    { to: "/customer/rules", label: "Luật Bank Pool", icon: <BookOutlined /> },
+    { to: "/customer/news", label: "Tin tức & Ưu đãi", icon: <ReadOutlined /> },
+  ];
+
+  const memberNavLinks = [
+    { to: "/customer", label: "Trang chủ", icon: <HomeOutlined /> },
+    { to: "/customer/booking", label: "Đặt bàn", icon: <CalendarOutlined /> },
+    { to: "/customer/fnb", label: "Gọi món F&B", icon: <CoffeeOutlined /> },
+    { to: "/customer/tournaments", label: "Giải đấu & ELO", icon: <TrophyOutlined /> },
+    { to: "/customer/history", label: "Lịch sử & Đánh giá", icon: <HistoryOutlined /> },
+    { to: "/customer/news", label: "Tin tức", icon: <ReadOutlined /> },
+  ];
+
+  const navLinks = user ? memberNavLinks : guestNavLinks;
+
+  const mockNotifications = [
+    {
+      id: "n1",
+      title: "Nhắc nhở ca chơi sắp tới",
+      desc: "Bàn VIP 01 của bạn đã sẵn sàng lúc 14:00 hôm nay. Vui lòng check-in trước 15 phút.",
+      time: "10 phút trước",
+      read: false,
+    },
+    {
+      id: "n2",
+      title: "Hoàn tất nạp ví CueZone Pay",
+      desc: "Tài khoản của bạn đã được cộng +500.000 VNĐ qua VietQR Techcombank.",
+      time: "2 giờ trước",
+      read: false,
+    },
+    {
+      id: "n3",
+      title: "Xác nhận ghi danh Giải Bank Pool Q2",
+      desc: "Bạn đã đăng ký thành công giải Bank Pool Open Q2. Lệ phí 200k đã khấu trừ ví.",
+      time: "Hôm qua",
+      read: true,
+    },
   ];
 
   return (
@@ -31,20 +83,20 @@ const CustomerLayout = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-5">
             <span className="flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+              <EnvironmentOutlined className="text-emerald-400" />
               123 Nguyễn Thị Minh Khai, Q.3, TP.HCM
             </span>
             <span className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-emerald-400" />
+              <ClockCircleOutlined className="text-emerald-400" />
               08:00 - 24:00 (Hàng ngày)
             </span>
           </div>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1 text-slate-300">
-              Hotline: <strong className="text-emerald-400 font-bold">1900 6868</strong>
+              <PhoneOutlined className="text-emerald-400" /> Hotline: <strong className="text-emerald-400 font-bold">1900 6868</strong>
             </span>
             <span className="text-slate-600">|</span>
-            <span className="text-slate-400">CLB Bida & Giải đấu Bank Pool</span>
+            <span className="text-slate-400">CLB Bida & Hệ Thống Giải Đấu Bank Pool</span>
           </div>
         </div>
       </div>
@@ -53,7 +105,7 @@ const CustomerLayout = () => {
       <header className="bg-white/95 border-b border-slate-200 sticky top-0 z-50 backdrop-blur-md shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
-            <div className="flex items-center gap-6 xl:gap-10">
+            <div className="flex items-center gap-6 xl:gap-8">
               <Link to="/customer" className="flex items-center gap-3 group">
                 <div className="relative">
                   <img
@@ -86,7 +138,7 @@ const CustomerLayout = () => {
                     <Link
                       key={item.label}
                       to={item.to}
-                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                         isActive
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200/90 shadow-2xs"
                           : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
@@ -102,35 +154,64 @@ const CustomerLayout = () => {
               </nav>
             </div>
 
-            {/* Auth Actions */}
-            <div className="flex items-center gap-3">
+            {/* Auth Actions & Member Badges */}
+            <div className="flex items-center gap-2 sm:gap-3">
               {user ? (
-                <Space align="center" size={10}>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Ví CueZone Pay badge */}
+                  <Link
+                    to="/customer/wallet"
+                    className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 text-emerald-800 transition shadow-2xs group"
+                    title="Ví trả trước CueZone Pay"
+                  >
+                    <WalletOutlined className="text-emerald-600 text-sm group-hover:scale-110 transition-transform" />
+                    <div className="text-left text-xs">
+                      <span className="text-[10px] block text-emerald-600 font-medium leading-none">Ví trả trước</span>
+                      <strong className="text-emerald-900 font-bold leading-tight">750.000 VNĐ</strong>
+                    </div>
+                  </Link>
+
+                  {/* Thông báo bell */}
+                  <button
+                    type="button"
+                    onClick={() => setShowNotifModal(true)}
+                    className="relative p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/50 transition cursor-pointer"
+                    title="Thông báo"
+                  >
+                    <BellOutlined className="text-base" />
+                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-emerald-600 ring-2 ring-white" />
+                  </button>
+
+                  {/* User Profile Pill */}
                   <Link
                     to="/customer/profile"
-                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition"
+                    className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition"
                   >
                     <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-xs">
-                      {user.name?.charAt(0) || "U"}
+                      {user.name?.charAt(0) || <UserOutlined />}
                     </div>
-                    <div className="text-left hidden sm:block">
+                    <div className="text-left hidden md:block">
                       <Text strong className="!text-xs !text-slate-800 block leading-tight">
                         {user.name}
                       </Text>
-                      <Text className="!text-[10px] !text-emerald-600 font-medium block">
-                        Hội Viên CLB
-                      </Text>
+                      <span className="text-[10px] text-emerald-600 font-bold block leading-none">
+                        VIP Diamond
+                      </span>
                     </div>
                   </Link>
+
+                  {/* Đăng xuất */}
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleLogout}
-                    className="!text-xs !text-slate-500 hover:!text-red-600"
+                    className="!text-xs !text-slate-500 hover:!text-red-600 !px-2.5"
+                    title="Đăng xuất"
                   >
-                    Đăng xuất
+                    <LogoutOutlined className="text-sm" />
+                    <span className="hidden sm:inline">Thoát</span>
                   </Button>
-                </Space>
+                </div>
               ) : (
                 <Space align="center" size={8}>
                   <Button
@@ -168,14 +249,84 @@ const CustomerLayout = () => {
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  {item.icon}
+                  <span className={isActive ? "text-white" : "text-slate-400"}>
+                    {item.icon}
+                  </span>
                   {item.label}
                 </Link>
               );
             })}
+            {user && (
+              <Link
+                to="/customer/wallet"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                  location.pathname === "/customer/wallet"
+                    ? "bg-emerald-600 text-white font-bold"
+                    : "bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                <WalletOutlined />
+                Ví: 750k
+              </Link>
+            )}
           </div>
         </div>
       </header>
+
+      {/* Modal Thông Báo Hội Viên */}
+      <Modal
+        open={showNotifModal}
+        onCancel={() => setShowNotifModal(false)}
+        footer={[
+          <Button
+            key="close"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowNotifModal(false)}
+            className="!rounded-xl !text-xs"
+          >
+            Đóng
+          </Button>,
+          <Button
+            key="all"
+            variant="primary"
+            size="sm"
+            to="/customer/profile"
+            onClick={() => setShowNotifModal(false)}
+            className="!rounded-xl !text-xs !bg-emerald-600 !border-emerald-600"
+          >
+            Cài Đặt Thông Báo
+          </Button>,
+        ]}
+        title={
+          <div className="flex items-center gap-2">
+            <BellOutlined className="text-emerald-600" />
+            <span className="font-bold text-slate-900 text-sm">Hộp Thư Thông Báo CLB</span>
+            <Tag color="green" className="!text-[10px] !font-bold">2 Chưa Đọc</Tag>
+          </div>
+        }
+      >
+        <div className="space-y-3 py-2">
+          {mockNotifications.map((notif) => (
+            <div
+              key={notif.id}
+              className={`p-3.5 rounded-2xl border transition ${
+                notif.read ? "bg-white border-slate-200" : "bg-emerald-50/40 border-emerald-200/80"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <Text strong className="!text-xs !text-slate-900">
+                  {notif.title}
+                </Text>
+                <span className="text-[10px] text-slate-400">{notif.time}</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed mb-0">
+                {notif.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Modal>
 
       {/* Main Content Area */}
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
@@ -202,7 +353,7 @@ const CustomerLayout = () => {
                 Hệ thống CLB Bida chuẩn thi đấu quốc tế và điều hành giải đấu Bank Pool chuyên nghiệp hàng đầu.
               </p>
               <div className="pt-1 flex items-center gap-2 text-emerald-400 font-semibold">
-                <Phone className="h-3.5 w-3.5" /> 1900 6868 • Hỗ trợ 24/7
+                <PhoneOutlined /> 1900 6868 • Hỗ trợ 24/7
               </div>
             </div>
 

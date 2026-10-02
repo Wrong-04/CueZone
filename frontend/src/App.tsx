@@ -11,6 +11,10 @@ import CustomerBooking from "./pages/customer/CustomerBooking";
 import CustomerTournaments from "./pages/customer/CustomerTournaments";
 import CustomerRules from "./pages/customer/CustomerRules";
 import CustomerNews from "./pages/customer/CustomerNews";
+import CustomerFnB from "./pages/customer/CustomerFnB";
+import CustomerHistory from "./pages/customer/CustomerHistory";
+import CustomerWallet from "./pages/customer/CustomerWallet";
+import CustomerProfile from "./pages/customer/CustomerProfile";
 import {
   TablesPage,
   BookingPage,
@@ -76,7 +80,11 @@ const AppRoutes = () => {
       <Route path="/customer" element={<CustomerLayout />}>
         <Route index element={<CustomerHome />} />
         <Route path="booking" element={<CustomerBooking />} />
+        <Route path="fnb" element={<CustomerFnB />} />
         <Route path="tournaments" element={<CustomerTournaments />} />
+        <Route path="history" element={<CustomerHistory />} />
+        <Route path="wallet" element={<CustomerWallet />} />
+        <Route path="profile" element={<CustomerProfile />} />
         <Route path="rules" element={<CustomerRules />} />
         <Route path="news" element={<CustomerNews />} />
       </Route>
