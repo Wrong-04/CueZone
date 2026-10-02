@@ -40,7 +40,7 @@ const ARTICLES: NewsArticle[] = [
     desc: "Thỏa sức luyện cơ với mức giá giờ chơi chỉ từ 40.000đ/giờ tại toàn bộ hệ thống 20 bàn thi đấu CueZone. Tặng kèm 01 phần nước ngọt hoặc nước suối cho nhóm từ 3 người.",
     date: "01/10/2026",
     author: "Ban Quản Lý CueZone",
-    image: "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=1000&q=80",
+    image: "/news/news-promo-goldhour.jpg",
   },
   {
     id: "art-2",
@@ -51,7 +51,7 @@ const ARTICLES: NewsArticle[] = [
     desc: "Cơ hội cọ xát với các cơ thủ hàng đầu miền Nam. Giải đấu giới hạn 32 suất cơ thủ, diễn ra từ ngày 15/10 đến 18/10/2026 tại sảnh thi đấu trung tâm.",
     date: "28/09/2026",
     author: "Tổ Trọng Tài CueZone",
-    image: "https://images.unsplash.com/photo-1544698310-74ea9d1c8288?auto=format&fit=crop&w=800&q=80",
+    image: "/news/news-bankpool-tourney.jpg",
   },
   {
     id: "art-3",
@@ -62,7 +62,7 @@ const ARTICLES: NewsArticle[] = [
     desc: "Hướng dẫn chi tiết phương pháp chia đôi góc băng và ước lượng độ biến dạng của băng cao su Artemis khi đánh lực vừa và lực mạnh.",
     date: "25/09/2026",
     author: "HLV Quốc Gia Tuấn Anh",
-    image: "https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80",
+    image: "/news/news-cue-technique.jpg",
   },
   {
     id: "art-4",
@@ -73,7 +73,7 @@ const ARTICLES: NewsArticle[] = [
     desc: "Chương trình chào đón thành viên mới gia nhập cộng đồng cơ thủ CueZone. Đăng ký tài khoản miễn phí và nhận voucher áp dụng ngay cho buổi chơi đầu tiên.",
     date: "20/09/2026",
     author: "Phòng Chăm Sóc Khách Hàng",
-    image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=800&q=80",
+    image: "/news/news-club-hero.jpg",
   },
   {
     id: "art-5",
@@ -84,7 +84,7 @@ const ARTICLES: NewsArticle[] = [
     desc: "Trải nghiệm các dòng gậy cơ cao cấp Predator, Mezz và Predator Revo shaft hoàn toàn miễn phí tại không gian VIP Lounge CueZone.",
     date: "15/09/2026",
     author: "Ban Tổ Chức Sự Kiện",
-    image: "https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80",
+    image: "/news/news-cue-technique.jpg",
   },
   {
     id: "art-6",
@@ -95,7 +95,7 @@ const ARTICLES: NewsArticle[] = [
     desc: "Phân tích độ văng của bi Aramith Pro TV Cup và cách đặt mũi cơ tiếp xúc bi cái để bi mục tiêu đi đúng quỹ đạo dự kiến.",
     date: "10/09/2026",
     author: "HLV Tuấn Anh",
-    image: "https://images.unsplash.com/photo-1528722828814-77b9b83aafb2?auto=format&fit=crop&w=800&q=80",
+    image: "/news/news-bankpool-tourney.jpg",
   },
 ];
 
@@ -132,6 +132,9 @@ const CustomerNews = () => {
             <img
               src={featuredArticle.image}
               alt={featuredArticle.title}
+              onError={(e) => {
+                e.currentTarget.src = "/news/news-club-hero.jpg";
+              }}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
             <div className="absolute top-4 left-4">
@@ -227,6 +230,9 @@ const CustomerNews = () => {
                 <img
                   src={art.image}
                   alt={art.title}
+                  onError={(e) => {
+                    e.currentTarget.src = "/news/news-club-hero.jpg";
+                  }}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute top-3 left-3">
