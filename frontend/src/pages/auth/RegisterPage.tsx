@@ -191,7 +191,10 @@ const RegisterPage: React.FC = () => {
         },
       }}
     >
-      <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#070d14] text-slate-100 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
+      <div
+        className="auth-dark-container relative min-h-screen w-screen overflow-x-hidden bg-[#070d14] text-slate-100 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white"
+        style={{ colorScheme: "dark" }}
+      >
         {/* =========================================================================
             CỘT TRÁI (52%): THƯƠNG HIỆU & ĐẶC QUYỀN HỘI VIÊN (ĐỒNG BỘ VỚI FORM LOGIN)
             ========================================================================= */}
@@ -276,6 +279,7 @@ const RegisterPage: React.FC = () => {
                     <Input
                       placeholder="Nguyễn Văn A"
                       value={name}
+                      autoComplete="name"
                       onChange={(e) => setName(e.target.value)}
                       prefix={<UserOutlined className="text-slate-500 mr-1.5" />}
                       className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
@@ -290,6 +294,7 @@ const RegisterPage: React.FC = () => {
                       type="email"
                       placeholder="email@example.com"
                       value={email}
+                      autoComplete="username"
                       onChange={(e) => setEmail(e.target.value)}
                       prefix={<MailOutlined className="text-slate-500 mr-1.5" />}
                       className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
@@ -304,6 +309,7 @@ const RegisterPage: React.FC = () => {
                       type="tel"
                       placeholder="0912 345 678"
                       value={phone}
+                      autoComplete="tel"
                       onChange={(e) => setPhone(e.target.value)}
                       prefix={<PhoneOutlined className="text-slate-500 mr-1.5" />}
                       className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
@@ -317,6 +323,7 @@ const RegisterPage: React.FC = () => {
                     <Input.Password
                       placeholder="Ít nhất 8 ký tự, gồm chữ và số"
                       value={password}
+                      autoComplete="new-password"
                       onChange={(e) => setPassword(e.target.value)}
                       prefix={<LockOutlined className="text-slate-500 mr-1.5" />}
                       className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
@@ -330,6 +337,7 @@ const RegisterPage: React.FC = () => {
                     <Input.Password
                       placeholder="Nhập lại mật khẩu"
                       value={confirmPassword}
+                      autoComplete="new-password"
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       prefix={<LockOutlined className="text-slate-500 mr-1.5" />}
                       className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"

@@ -571,24 +571,52 @@ tr {
 }
 
 /* ── Dark mode input & Webkit autofill fix ───────────── */
+.auth-dark-container {
+  color-scheme: dark;
+}
+
+.auth-dark-container input,
+.auth-dark-container .ant-input,
+.auth-dark-container .ant-input-affix-wrapper {
+  color-scheme: dark !important;
+}
+
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
 input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
+  box-shadow: 0 0 0 1000px #0b131e inset !important;
   -webkit-text-fill-color: #f1f5f9 !important;
-  transition: background-color 5000s ease-in-out 0s;
+  color: #f1f5f9 !important;
+  transition: background-color 50000s ease-in-out 0s, color 50000s ease-in-out 0s !important;
   caret-color: #ffffff !important;
 }
 
+input:-internal-autofill-selected {
+  -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
+  box-shadow: 0 0 0 1000px #0b131e inset !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+  color: #f1f5f9 !important;
+  transition: background-color 50000s ease-in-out 0s !important;
+}
+
+input:-internal-autofill-previewed {
+  -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
+  box-shadow: 0 0 0 1000px #0b131e inset !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+  color: #f1f5f9 !important;
+  transition: background-color 50000s ease-in-out 0s !important;
+}
+
 .ant-input-affix-wrapper {
-  background-color: #0b131e;
+  background-color: #0b131e !important;
 }
 
 .ant-input-affix-wrapper input.ant-input,
 .ant-input-affix-wrapper input {
   background-color: transparent !important;
-  color: inherit !important;
+  color: #f1f5f9 !important;
 }
 
 .ant-input-affix-wrapper-focused,
@@ -596,5 +624,10 @@ input:-webkit-autofill:active {
   background-color: #0b131e !important;
   border-color: #059669 !important;
   box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2) !important;
+}
+
+.ant-input-affix-wrapper-focused input.ant-input,
+.ant-input-affix-wrapper:focus-within input.ant-input {
+  background-color: transparent !important;
 }
 
