@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  FileTextOutlined,
-  LineChartOutlined,
   ReadOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
@@ -26,8 +24,8 @@ export { default as BookingPage } from "./admin/BookingManagementPage";
 export { default as TournamentsPage } from "./admin/AdminTournamentsPage";
 export { default as FnBPage } from "./admin/FnBInventoryPage";
 export { default as InventoryPage } from "./admin/WarehouseInventoryPage";
-export const InvoicesPage = () => <PlaceholderPage title="Hóa đơn" icon={<FileTextOutlined />} />;
-export const ReportsPage = () => <PlaceholderPage title="Báo cáo" icon={<LineChartOutlined />} />;
+export { default as InvoicesPage } from "./admin/InvoicesManagementPage";
+export { default as ReportsPage } from "./admin/ReportsAnalyticsPage";
 export { default as EmployeesPage } from "./admin/EmployeesPage";
 export const NewsPage = () => <PlaceholderPage title="Tin tức" icon={<ReadOutlined />} />;
 export const SettingsPage = () => <PlaceholderPage title="Cài đặt" icon={<SettingOutlined />} />;
