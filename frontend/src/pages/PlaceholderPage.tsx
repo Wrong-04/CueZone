@@ -25,7 +25,7 @@ export { default as TablesPage } from "./admin/TablesManagementPage";
 export { default as BookingPage } from "./admin/BookingManagementPage";
 export { default as TournamentsPage } from "./admin/AdminTournamentsPage";
 export { default as FnBPage } from "./admin/FnBInventoryPage";
-export { default as InventoryPage } from "./admin/FnBInventoryPage";
+export { default as InventoryPage } from "./admin/WarehouseInventoryPage";
 export const InvoicesPage = () => <PlaceholderPage title="Hóa đơn" icon={<FileTextOutlined />} />;
 export const ReportsPage = () => <PlaceholderPage title="Báo cáo" icon={<LineChartOutlined />} />;
 export { default as EmployeesPage } from "./admin/EmployeesPage";
