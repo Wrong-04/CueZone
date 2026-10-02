@@ -29,6 +29,7 @@ import {
   Tag,
   Typography,
   Tabs,
+  Modal,
   message,
 } from "../../shared/ui";
 import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
@@ -42,6 +43,15 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
   const [showDemoAccounts, setShowDemoAccounts] = useState<boolean>(false);
+
+  // Forgot password OTP flow
+  const [showForgotModal, setShowForgotModal] = useState<boolean>(false);
+  const [forgotEmail, setForgotEmail] = useState<string>("customer@cuezone.com");
+  const [forgotOtp, setForgotOtp] = useState<string>("");
+  const [forgotNewPassword, setForgotNewPassword] = useState<string>("");
+  const [forgotStep, setForgotStep] = useState<"email" | "otp">("email");
+  const [isSendingOtp, setIsSendingOtp] = useState<boolean>(false);
+  const [isResetting, setIsResetting] = useState<boolean>(false);
 
   const { login, loginWithSeed } = useAuth();
   const navigate = useNavigate();
@@ -275,9 +285,10 @@ const LoginPage: React.FC = () => {
                     <Button
                       variant="link"
                       size="sm"
-                      onClick={() =>
-                        message.info("Mật khẩu thử nghiệm mặc định của tất cả tài khoản: 'password123'")
-                      }
+                      onClick={() => {
+                        setForgotEmail(email || "customer@cuezone.com");
+                        setShowForgotModal(true);
+                      }}
                       className="!p-0 !h-auto !text-[11px] !font-medium !text-emerald-400 hover:!text-emerald-300"
                     >
                       Quên mật khẩu?
@@ -441,6 +452,149 @@ const LoginPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Modal Quên mật khẩu qua OTP (Send OTP Reset Email -> Verify OTP) */}
+          <Modal
+            open={showForgotModal}
+            onCancel={() => {
+              setShowForgotModal(false);
+              setForgotStep("email");
+            }}
+            footer={null}
+            title={
+              <span className="text-slate-900 font-bold text-sm">
+                {forgotStep === "email" ? "Khôi Phục Mật Khẩu Qua Email" : "Xác Thực OTP & Đặt Mật Khẩu Mới"}
+              </span>
+            }
+          >
+            <div className="py-2 space-y-4 text-xs">
+              {forgotStep === "email" ? (
+                <>
+                  <p className="text-slate-600 text-xs leading-relaxed mb-0">
+                    Nhập địa chỉ email tài khoản CueZone của bạn. Hệ thống sẽ gửi mã xác thực OTP 4 chữ số để tiến hành đặt lại mật khẩu.
+                  </p>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Email nhận mã OTP:
+                    </label>
+                    <Input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      className="!h-10 !rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowForgotModal(false)}
+                      className="!rounded-xl"
+                    >
+                      Hủy bỏ
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={isSendingOtp}
+                      onClick={() => {
+                        if (!forgotEmail) {
+                          message.warning("Vui lòng nhập địa chỉ email!");
+                          return;
+                        }
+                        setIsSendingOtp(true);
+                        setTimeout(() => {
+                          setIsSendingOtp(false);
+                          setForgotStep("otp");
+                          message.success(`Đã gửi mã xác thực OTP 4 chữ số về email: ${forgotEmail}`);
+                        }, 700);
+                      }}
+                      className="!bg-emerald-600 !border-emerald-600 !rounded-xl font-bold"
+                    >
+                      Gửi Mã OTP
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
+                    Mã OTP 4 số đã được gửi đến: <strong>{forgotEmail}</strong>. (Mã thử nghiệm: <strong>8888</strong>)
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Nhập mã OTP 4 số:
+                    </label>
+                    <Input
+                      value={forgotOtp}
+                      onChange={(e) => setForgotOtp(e.target.value)}
+                      maxLength={4}
+                      placeholder="8888"
+                      className="!h-10 !rounded-xl text-center font-mono font-bold tracking-widest text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Mật khẩu mới:
+                    </label>
+                    <Input.Password
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                      className="!h-10 !rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setForgotStep("email")}
+                      className="!text-xs !text-slate-500"
+                    >
+                      Gửi lại mã khác
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowForgotModal(false)}
+                        className="!rounded-xl"
+                      >
+                        Đóng
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={isResetting}
+                        onClick={() => {
+                          if (forgotOtp.length < 4) {
+                            message.warning("Vui lòng nhập đủ 4 chữ số mã OTP!");
+                            return;
+                          }
+                          if (forgotNewPassword.length < 6) {
+                            message.warning("Mật khẩu mới tối thiểu 6 ký tự!");
+                            return;
+                          }
+                          setIsResetting(true);
+                          setTimeout(() => {
+                            setIsResetting(false);
+                            setShowForgotModal(false);
+                            setForgotStep("email");
+                            setForgotOtp("");
+                            setForgotNewPassword("");
+                            message.success("Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.");
+                          }, 800);
+                        }}
+                        className="!bg-emerald-600 !border-emerald-600 !rounded-xl font-bold"
+                      >
+                        Xác Nhận Đặt Lại
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </Modal>
 
           {/* Footer Bản Quyền */}
           <div className="pt-3 text-center text-[11px] text-slate-500">
