@@ -9,7 +9,6 @@ import {
   ReadOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import CustomerHome from "./customer/CustomerHome";
 import { Typography } from "../shared/ui";
 
 const { Title, Text } = Typography;
@@ -36,6 +35,3 @@ export const ReportsPage = () => <PlaceholderPage title="Báo cáo" icon={<LineC
 export { default as EmployeesPage } from "./admin/EmployeesPage";
 export const NewsPage = () => <PlaceholderPage title="Tin tức" icon={<ReadOutlined />} />;
 export const SettingsPage = () => <PlaceholderPage title="Cài đặt" icon={<SettingOutlined />} />;
-export const CustomerBooking = () => <PlaceholderPage title="Đặt bàn" icon={<CalendarOutlined />} />;
-export const CustomerTournaments = () => <CustomerHome initialTab="tournaments" />;
-export const CustomerNews = () => <CustomerHome initialTab="news" />;

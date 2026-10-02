@@ -7,6 +7,10 @@ import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CustomerHome from "./pages/customer/CustomerHome";
+import CustomerBooking from "./pages/customer/CustomerBooking";
+import CustomerTournaments from "./pages/customer/CustomerTournaments";
+import CustomerRules from "./pages/customer/CustomerRules";
+import CustomerNews from "./pages/customer/CustomerNews";
 import {
   TablesPage,
   BookingPage,
@@ -18,9 +22,6 @@ import {
   EmployeesPage,
   NewsPage,
   SettingsPage,
-  CustomerBooking,
-  CustomerTournaments,
-  CustomerNews,
 } from "./pages/PlaceholderPage";
 
 const ProtectedRoute = ({ children, roles }: { children: React.ReactNode; roles?: string[] }) => {
@@ -76,6 +77,7 @@ const AppRoutes = () => {
         <Route index element={<CustomerHome />} />
         <Route path="booking" element={<CustomerBooking />} />
         <Route path="tournaments" element={<CustomerTournaments />} />
+        <Route path="rules" element={<CustomerRules />} />
         <Route path="news" element={<CustomerNews />} />
       </Route>
 

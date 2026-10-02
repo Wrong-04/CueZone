@@ -1,756 +1,545 @@
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Trophy,
   BookOpen,
-  Newspaper,
   Calendar,
   ArrowRight,
   Sparkles,
   Clock,
-  Coins,
-  CheckCircle2,
-  Filter,
+  ShieldCheck,
   Flame,
   Award,
-  HelpCircle,
-  ChevronRight,
   Users,
+  ChevronRight,
+  Star,
+  Coffee,
+  Tv,
 } from "lucide-react";
 import {
   Button,
   Card,
   Tag,
-  Space,
   Typography,
-  Tabs,
-  Modal,
 } from "../../shared/ui";
 
 const { Title, Text, Paragraph } = Typography;
 
-interface TournamentItem {
-  id: string;
-  title: string;
-  badge: string;
-  badgeColor: string;
-  format: string;
-  fee: string;
-  prizePool: string;
-  date: string;
-  participants: string;
-  rulesDetail: string[];
-  feeDetail: string;
-}
-
-const TOURNAMENTS: TournamentItem[] = [
-  {
-    id: "tourney_1",
-    title: "CueZone Bank Pool Open Championship Q2/2026",
-    badge: "GIẢI MỞ RỘNG TOÀN QUỐC",
-    badgeColor: "gold",
-    format: "Loại trực tiếp (Single Elimination) • Race to 5 (Chạm 5 ván thắng)",
-    fee: "200.000 VNĐ / Cơ thủ",
-    prizePool: "15.000.000 VNĐ + Cúp Vô Địch",
-    date: "15/10/2026 - 18/10/2026 (Khởi tranh lúc 09:00)",
-    participants: "32 Cơ thủ (Đã đăng ký: 24/32)",
-    feeDetail:
-      "Lệ phí tham gia 200.000 VNĐ đã bao gồm tiền bàn thi đấu suốt giải, 01 áo đấu CLB và nước uống miễn phí. Đóng lệ phí tại quầy thu ngân hoặc chuyển khoản qua VNPay QR trước ngày 14/10.",
-    rulesDetail: [
-      "Áp dụng chuẩn Luật Bank Pool Quốc tế (BCA/WPA Rules).",
-      "Luật Gọi Bi & Gọi Lỗ (Call Shot): Bắt buộc chỉ rõ số bi và lỗ mục tiêu trước khi đánh.",
-      "Bi mục tiêu bắt buộc phải chạm ít nhất 1 băng trước khi rơi vào lỗ được gọi.",
-      "Các bi vào lỗ sai quy cách hoặc vào lỗ mà không chạm băng sẽ được nhặt lại đặt tại điểm Foot Spot.",
-      "Mỗi cú đánh có thời gian shot clock 40 giây (có 1 lần xin hội ý 30 giây mỗi ván).",
-      "Trang phục: Quần tây tối màu, áo polo có cổ, giày thể thao sạch sẽ.",
-    ],
-  },
-  {
-    id: "tourney_2",
-    title: "Bank Pool Weekly Challenge - Cuối Tuần Cơ Thủ",
-    badge: "GIẢI NỘI BỘ THƯỜNG NIÊN",
-    badgeColor: "green",
-    format: "Chia bảng vòng tròn & Vòng knock-out • Race to 4",
-    fee: "100.000 VNĐ / Cơ thủ",
-    prizePool: "5.000.000 VNĐ + Điểm ELO Hội Viên",
-    date: "Chủ Nhật hàng tuần (Bắt đầu lúc 14:00)",
-    participants: "16 Cơ thủ (Đã đăng ký: 12/16)",
-    feeDetail:
-      "Lệ phí 100.000 VNĐ / cơ thủ. Thành viên có thẻ VIP Diamond được giảm 50% lệ phí tham gia giải.",
-    rulesDetail: [
-      "Áp dụng luật Bank Pool chạm 1 băng cơ bản.",
-      "Thời gian mỗi trận tối đa 45 phút, không áp dụng shot-clock nghiêm ngặt.",
-      "Cơ thủ phạm quy 3 lỗi liên tiếp trong 1 ván sẽ bị xử thua ván đó.",
-      "Điểm số được cập nhật trực tiếp vào hệ thống tính hạng ELO của CLB CueZone.",
-    ],
-  },
+// Mock 20 bàn bida realtime cho khách theo dõi
+const REALTIME_TABLES = [
+  { id: "TB-01", name: "Bàn 01", type: "Standard 9FT", status: "playing", time: "45p", price: "50.000đ/h", brand: "Min Table" },
+  { id: "TB-02", name: "Bàn 02", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Min Table" },
+  { id: "TB-03", name: "Bàn 03", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Min Table" },
+  { id: "TB-04", name: "Bàn 04", type: "Standard 9FT", status: "playing", time: "1h 15p", price: "50.000đ/h", brand: "Min Table" },
+  { id: "TB-05", name: "Bàn 05", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Aileex Crown" },
+  { id: "TB-06", name: "Bàn 06", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Aileex Crown" },
+  { id: "TB-07", name: "Bàn 07", type: "Standard 9FT", status: "playing", time: "20p", price: "50.000đ/h", brand: "Aileex Crown" },
+  { id: "TB-08", name: "Bàn 08", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Aileex Crown" },
+  { id: "TB-09", name: "Bàn 09", type: "VIP Lounge", status: "available", price: "70.000đ/h", brand: "Rasson Ox" },
+  { id: "TB-10", name: "Bàn 10", type: "VIP Lounge", status: "available", price: "70.000đ/h", brand: "Rasson Ox" },
+  { id: "TB-11", name: "Bàn 11", type: "VIP Lounge", status: "playing", time: "30p", price: "70.000đ/h", brand: "Rasson Ox" },
+  { id: "TB-12", name: "Bàn 12", type: "VIP Lounge", status: "available", price: "70.000đ/h", brand: "Rasson Ox" },
+  { id: "TB-13", name: "Bàn 13", type: "Match Arena", status: "available", price: "80.000đ/h", brand: "K-Steel Pro (VAR)" },
+  { id: "TB-14", name: "Bàn 14", type: "Match Arena", status: "available", price: "80.000đ/h", brand: "K-Steel Pro (VAR)" },
 ];
 
-interface NewsItem {
-  id: string;
-  category: "all" | "promo" | "tournament" | "tips";
-  categoryLabel: string;
-  title: string;
-  desc: string;
-  date: string;
-  image: string;
-  tagColor: string;
-}
-
-const NEWS_LIST: NewsItem[] = [
+const PROMOTIONS = [
   {
-    id: "news_1",
-    category: "promo",
-    categoryLabel: "Khuyến Mãi",
-    title: "Giờ Vàng Ưu Đãi: Giảm 20% Tiền Giờ Chơi Cho Cơ Thủ",
-    desc: "Áp dụng khung giờ 13h00 - 17h00 từ Thứ 2 đến Thứ 6. Tặng thêm 01 nước suối cho khách chơi từ 2 tiếng trở lên.",
-    date: "01/10/2026",
-    image: "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=600&q=80",
+    id: "p1",
+    tag: "GIỜ VÀNG",
     tagColor: "red",
+    title: "Giảm 20% Tiền Bàn Khung Giờ 13:00 - 17:00",
+    desc: "Áp dụng từ Thứ 2 đến Thứ 6 hàng tuần cho tất cả các loại bàn bida tại CLB.",
+    valid: "Áp dụng đến 31/12/2026",
   },
   {
-    id: "news_2",
-    category: "tournament",
-    categoryLabel: "Giải Đấu",
-    title: "Công Bố Thể Thức Mới Của Giải Bank Pool Championship Q2",
-    desc: "Mở rộng số lượng cơ thủ lên 32 suất, tăng tổng giải thưởng lên 15 triệu đồng cùng hệ thống camera VAR góc lỗ.",
-    date: "28/09/2026",
-    image: "https://images.unsplash.com/photo-1544698310-74ea9d1c8288?auto=format&fit=crop&w=600&q=80",
-    tagColor: "gold",
-  },
-  {
-    id: "news_3",
-    category: "tips",
-    categoryLabel: "Mẹo & Kỹ Thuật",
-    title: "Bí Quyết Canh Điểm Chạm Băng Chính Xác Tuyệt Đối",
-    desc: "Phương pháp chia đôi góc băng và kiểm soát lực tay để bi mục tiêu dội băng chuẩn xác vào lỗ góc.",
-    date: "25/09/2026",
-    image: "https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=600&q=80",
-    tagColor: "cyan",
-  },
-  {
-    id: "news_4",
-    category: "promo",
-    categoryLabel: "Khuyến Mãi",
-    title: "Đăng Ký Tài Khoản Mới: Nhận Ngay Voucher Giờ Chơi 50.000đ",
-    desc: "Khách hàng đăng ký tài khoản hội viên và xác thực email sẽ được tặng voucher giảm giá áp dụng ngay lần chơi đầu tiên.",
-    date: "20/09/2026",
-    image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=600&q=80",
+    id: "p2",
+    tag: "HỘI VIÊN MỚI",
     tagColor: "green",
+    title: "Tặng Voucher 50.000đ & 01 Phần Nước Ép",
+    desc: "Dành riêng cho khách hàng đăng ký tài khoản hội viên CueZone lần đầu tiên.",
+    valid: "Nhận ngay khi đăng ký",
+  },
+  {
+    id: "p3",
+    tag: "COMBO NHÓM",
+    tagColor: "gold",
+    title: "Combo Cơ Thủ: 3 Giờ Chơi + 4 Đồ Uống + Snack",
+    desc: "Tiết kiệm 25% chi phí cho các buổi giao lưu cơ thủ từ 4 người trở lên.",
+    valid: "Áp dụng cả tuần",
   },
 ];
 
-interface CustomerHomeProps {
-  initialTab?: string;
-}
+const CLUB_AMENITIES = [
+  { icon: <ShieldCheck className="h-5 w-5 text-emerald-600" />, title: "Bàn Thi Đấu Tiêu Chuẩn", desc: "Vải Simonis 860 chính hãng, băng cao su Artemis và bi Aramith Pro TV Cup." },
+  { icon: <Tv className="h-5 w-5 text-emerald-600" />, title: "Camera VAR Góc Lỗ", desc: "Hệ thống quay chậm hỗ trợ trọng tài xác định bi chạm băng trong các trận thi đấu giải." },
+  { icon: <Coffee className="h-5 w-5 text-emerald-600" />, title: "Menu F&B Phục Vụ Tại Bàn", desc: "Cà phê pha máy, nước ép nguyên chất, thức ăn nóng phục vụ liên tục." },
+  { icon: <Users className="h-5 w-5 text-emerald-600" />, title: "Trọng Tài & Huấn Luyện Viên", desc: "Hỗ trợ xếp bi, bấm giờ và hướng dẫn kỹ thuật dội băng cho người mới." },
+];
 
-const CustomerHome = ({ initialTab }: CustomerHomeProps) => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const urlTab = searchParams.get("tab") || initialTab || "overview";
-  const [activeTab, setActiveTab] = useState<string>(urlTab);
-
-  const [selectedTournament, setSelectedTournament] = useState<TournamentItem | null>(null);
-  const [newsFilter, setNewsFilter] = useState<"all" | "promo" | "tournament" | "tips">("all");
-
-  useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab);
-    } else if (searchParams.get("tab")) {
-      setActiveTab(searchParams.get("tab")!);
-    }
-  }, [initialTab, searchParams]);
-
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    setSearchParams(key === "overview" ? {} : { tab: key });
-  };
-
-  const filteredNews = newsFilter === "all" ? NEWS_LIST : NEWS_LIST.filter((n) => n.category === newsFilter);
-
+const CustomerHome = () => {
   return (
-    <div className="space-y-6">
+    <div className="space-y-12">
       {/* =========================================================================
-          HERO BANNER DÀNH CHO KHÁCH CHƯA ĐĂNG NHẬP (GUEST PORTAL)
+          1. HERO SECTION SÁNG SỦA, SANG TRỌNG (LUXURY BILLIARDS LOUNGE)
           ========================================================================= */}
-      <div className="relative rounded-2xl overflow-hidden border border-emerald-950/80 bg-gradient-to-r from-[#06121a] via-[#091823] to-[#040910] p-6 sm:p-8 xl:p-10 shadow-2xl">
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/cuezone_billiards_hero.jpg"
-            alt="CueZone Billiards"
-            className="w-full h-full object-cover object-center opacity-15 filter brightness-90"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#06121a] via-[#06121a]/90 to-transparent" />
-        </div>
+      <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-white via-[#f0fdf4] to-[#ecfdf5] border border-emerald-100 shadow-sm p-8 sm:p-12 xl:p-16">
+        {/* Subtle decorative elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-teal-300/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-2xl space-y-4">
-          <Tag
-            color="green"
-            className="!inline-flex !items-center !gap-1.5 !rounded-full !border-emerald-500/40 !bg-emerald-500/15 !px-3 !py-0.5 !text-xs !font-bold !text-emerald-300"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-            CỔNG THÔNG TIN CLB & GIẢI ĐẤU BANK POOL
-          </Tag>
+        <div className="relative z-10 max-w-3xl space-y-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/80 border border-emerald-300/60 text-emerald-800 text-xs font-bold tracking-wide shadow-2xs">
+            <Sparkles className="h-4 w-4 text-emerald-600" />
+            <span>HỆ THỐNG CLB BIDA & GIẢI ĐẤU BANK POOL ĐẲNG CẤP</span>
+          </div>
 
-          <Title level={1} className="!text-3xl sm:!text-4xl !font-extrabold !text-white !leading-tight !mb-0">
-            Trải Nghiệm Bida Đỉnh Cao <br />
-            <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-green-400 bg-clip-text text-transparent">
-              Chuẩn Quốc Tế Tại CueZone
+          <Title level={1} className="!text-3xl sm:!text-5xl !font-black !text-slate-900 !leading-tight !tracking-tight !mb-0">
+            Trải Nghiệm Cơ Thủ Chuẩn Mực <br />
+            <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 bg-clip-text text-transparent">
+              Không Gian Thể Thao Đẳng Cấp
             </span>
           </Title>
 
-          <Paragraph className="!text-sm !text-slate-300 !leading-relaxed !mb-0">
-            Dành cho khách chơi và cơ thủ: Xem trực tiếp luật thi đấu Bank Pool, theo dõi lịch trình giải đấu mở rộng và cập nhật các chương trình ưu đãi mới nhất.
+          <Paragraph className="!text-base !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
+            CueZone mang đến 20 bàn bida thi đấu quốc tế (Min, Rasson, K-Steel), hệ thống giải đấu Bank Pool hàng tuần có trọng tài chuyên nghiệp, và công nghệ đặt bàn realtime không cần cọc.
           </Paragraph>
 
-          {/* Quick CTAs theo đúng Use Case của Guest */}
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          {/* Social Proof */}
+          <div className="flex items-center gap-3 pt-1 text-xs text-slate-500 font-medium">
+            <div className="flex items-center text-amber-500">
+              <Star className="h-4 w-4 fill-amber-400" />
+              <Star className="h-4 w-4 fill-amber-400" />
+              <Star className="h-4 w-4 fill-amber-400" />
+              <Star className="h-4 w-4 fill-amber-400" />
+              <Star className="h-4 w-4 fill-amber-400" />
+            </div>
+            <span className="font-bold text-slate-700">4.9/5.0</span>
+            <span>• Được hơn 1,200+ cơ thủ phong trào & chuyên nghiệp tin chọn</span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-4 pt-2">
             <Button
               variant="primary"
               size="large"
-              to="/register"
-              rightIcon={<ArrowRight className="h-4 w-4" />}
-              className="!h-11 !px-5 !text-xs !font-bold !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600 shadow-lg shadow-emerald-600/30"
+              to="/customer/booking"
+              rightIcon={<Calendar className="h-4 w-4" />}
+              className="!h-12 !px-6 !text-sm !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white shadow-lg shadow-emerald-600/25 !rounded-xl"
             >
-              Đăng Ký Hội Viên (Nhận Ưu Đãi 20%)
+              Đặt Bàn Trực Tuyến Ngay
             </Button>
             <Button
               variant="outline"
               size="large"
-              to="/login"
-              className="!h-11 !px-5 !text-xs !font-semibold !border-slate-700 !bg-slate-900/80 !text-slate-200 hover:!border-emerald-500 hover:!text-emerald-300"
+              to="/register"
+              rightIcon={<ArrowRight className="h-4 w-4 text-emerald-600" />}
+              className="!h-12 !px-6 !text-sm !font-bold !border-emerald-600/40 !bg-white hover:!bg-emerald-50 !text-emerald-800 !rounded-xl shadow-xs"
             >
-              Đăng Nhập Tài Khoản
+              Đăng Ký Hội Viên (Nhận Ưu Đãi 20%)
+            </Button>
+          </div>
+        </div>
+
+        {/* 4 Thống kê nổi bật bên dưới Hero */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10 pt-8 border-t border-emerald-200/60 relative z-10">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+            <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold mb-1">
+              <Flame className="h-4 w-4" /> 20 BÀN THI ĐẤU
+            </div>
+            <div className="text-2xl font-black text-slate-900">18 Sẵn Sàng</div>
+            <div className="text-xs text-slate-500 mt-0.5">Vải Simonis 860 chính hãng</div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+            <div className="flex items-center gap-2 text-amber-600 text-xs font-bold mb-1">
+              <Trophy className="h-4 w-4" /> GIẢI BANK POOL
+            </div>
+            <div className="text-2xl font-black text-slate-900">15.000.000đ</div>
+            <div className="text-xs text-slate-500 mt-0.5">Tổng thưởng giải Q2 mở rộng</div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+            <div className="flex items-center gap-2 text-blue-600 text-xs font-bold mb-1">
+              <Clock className="h-4 w-4" /> GIỜ VÀNG ƯU ĐÃI
+            </div>
+            <div className="text-2xl font-black text-slate-900">Giảm 20%</div>
+            <div className="text-xs text-slate-500 mt-0.5">Khung giờ 13:00 - 17:00</div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+            <div className="flex items-center gap-2 text-purple-600 text-xs font-bold mb-1">
+              <Award className="h-4 w-4" /> ĐẶC QUYỀN VIP
+            </div>
+            <div className="text-2xl font-black text-slate-900">Tích Điểm 10%</div>
+            <div className="text-xs text-slate-500 mt-0.5">Đổi giờ chơi & voucher F&B</div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          2. SƠ ĐỒ & BẢNG TRẠNG THÁI 20 BÀN REALTIME (LIVE TABLE MAP)
+          ========================================================================= */}
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md mb-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              THỜI GIAN THỰC (REALTIME)
+            </div>
+            <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
+              Tình Trạng Bàn Đang Hoạt Động
+            </Title>
+            <Text className="!text-xs !text-slate-500">
+              Kiểm tra nhanh bàn trống, loại bàn và giá giờ để chọn vị trí chơi ưng ý nhất
+            </Text>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="h-3 w-3 rounded-full bg-emerald-500" />
+              <span className="text-slate-700">Trống (Sẵn sàng)</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="h-3 w-3 rounded-full bg-rose-500" />
+              <span className="text-slate-700">Đang chơi</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              to="/customer/booking"
+              rightIcon={<ChevronRight className="h-3.5 w-3.5" />}
+              className="!text-xs !font-bold !border-slate-300"
+            >
+              Vào Trang Đặt Bàn
+            </Button>
+          </div>
+        </div>
+
+        {/* Lưới hiển thị các bàn */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {REALTIME_TABLES.map((table) => {
+            const isAvail = table.status === "available";
+            return (
+              <div
+                key={table.id}
+                className={`p-3.5 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
+                  isAvail
+                    ? "bg-white border-slate-200/90 hover:border-emerald-500 hover:shadow-md cursor-pointer group"
+                    : "bg-slate-50 border-slate-200/60 opacity-85"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-black text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
+                      {table.name}
+                    </span>
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        isAvail ? "bg-emerald-500 ring-2 ring-emerald-200" : "bg-rose-500"
+                      }`}
+                    />
+                  </div>
+
+                  <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 block w-fit mb-1.5">
+                    {table.type}
+                  </span>
+
+                  <div className="text-[11px] text-slate-500 font-medium">
+                    {table.brand}
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-700">
+                    {table.price}
+                  </span>
+                  {isAvail ? (
+                    <Link
+                      to={`/customer/booking?table=${table.id}`}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800"
+                    >
+                      Đặt ngay
+                    </Link>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {table.time}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* =========================================================================
+          3. FEATURED TOURNAMENT (GIẢI ĐẤU NỔI BẬT NHẤT)
+          ========================================================================= */}
+      <section className="rounded-3xl bg-slate-900 text-white p-8 sm:p-10 relative overflow-hidden shadow-xl border border-slate-800">
+        <div className="absolute right-0 top-0 w-1/2 h-full opacity-20 pointer-events-none">
+          <img
+            src="/cuezone_billiards_hero.jpg"
+            alt="Tournament"
+            className="w-full h-full object-cover"
+          />
+        </div>
+
+        <div className="relative z-10 max-w-2xl space-y-4">
+          <div className="flex items-center gap-2">
+            <Tag color="gold" className="!text-xs !font-bold !px-3 !py-1 !rounded-md uppercase">
+              GIẢI ĐẤU NỔI BẬT Q2/2026
+            </Tag>
+            <span className="text-xs text-amber-400 font-semibold flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" /> Khởi tranh ngày 15/10/2026
+            </span>
+          </div>
+
+          <Title level={2} className="!text-2xl sm:!text-4xl !font-black !text-white !mb-1 leading-tight">
+            CueZone Bank Pool Open Championship
+          </Title>
+
+          <Paragraph className="!text-sm !text-slate-300 !leading-relaxed !mb-0">
+            Giải đấu Bank Pool quy tụ 32 cơ thủ hàng đầu khu vực miền Nam. Tổng giá trị giải thưởng lên đến 15.000.000 VNĐ cùng Cúp Vô Địch và cộng 250 điểm ELO vào hệ thống hội viên CueZone.
+          </Paragraph>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 py-2">
+            <div className="p-3 rounded-xl bg-white/10 backdrop-blur-md">
+              <div className="text-[11px] text-slate-400 uppercase font-bold">Lệ phí thi đấu</div>
+              <div className="text-lg font-black text-amber-300">200.000 VNĐ</div>
+            </div>
+            <div className="p-3 rounded-xl bg-white/10 backdrop-blur-md">
+              <div className="text-[11px] text-slate-400 uppercase font-bold">Giải nhất</div>
+              <div className="text-lg font-black text-emerald-400">8.000.000 VNĐ + Cúp</div>
+            </div>
+            <div className="p-3 rounded-xl bg-white/10 backdrop-blur-md col-span-2 sm:col-span-1">
+              <div className="text-[11px] text-slate-400 uppercase font-bold">Quy mô giải</div>
+              <div className="text-lg font-black text-white">32 Cơ Thủ (Còn 8 suất)</div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Button
+              variant="primary"
+              size="large"
+              to="/customer/tournaments"
+              rightIcon={<ArrowRight className="h-4 w-4" />}
+              className="!h-11 !px-5 !text-xs !font-bold !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600 shadow-md"
+            >
+              Xem Thể Lệ & Lệ Phí Chi Tiết
             </Button>
             <Button
-              variant="ghost"
+              variant="outline"
               size="large"
-              to="/customer/booking"
-              rightIcon={<Calendar className="h-4 w-4 text-emerald-400" />}
-              className="!h-11 !px-4 !text-xs !text-slate-300 hover:!text-white hover:!bg-slate-800/60"
+              to="/register"
+              className="!h-11 !px-5 !text-xs !font-bold !border-slate-700 !bg-slate-800/80 !text-slate-200 hover:!border-emerald-500 hover:!text-white"
             >
-              Đặt Bàn Nhanh
+              Đăng Ký Tài Khoản Thi Đấu
             </Button>
           </div>
         </div>
+      </section>
 
-        {/* 3 Thẻ thống kê realtime góc phải */}
-        <div className="mt-6 pt-6 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-3 gap-3 relative z-10">
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30">
-              <Flame className="h-5 w-5 text-emerald-400" />
-            </div>
-            <div>
-              <Text strong className="!text-xs !text-white block">18/20 Bàn Sẵn Sàng</Text>
-              <Text className="!text-[11px] !text-emerald-400 font-medium">Bàn Min, Rasson quốc tế</Text>
-            </div>
+      {/* =========================================================================
+          4. KHÁM PHÁ BỘ LUẬT BANK POOL (CUSHION REQUIREMENT SHOWCASE)
+          ========================================================================= */}
+      <section className="space-y-6">
+        <div className="text-center max-w-xl mx-auto space-y-2">
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
+            <BookOpen className="h-3.5 w-3.5 text-emerald-600" />
+            CẨM NANG THỂ THAO
           </div>
-
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/30">
-              <Trophy className="h-5 w-5 text-amber-400" />
-            </div>
-            <div>
-              <Text strong className="!text-xs !text-white block">2 Giải Bank Pool Mở</Text>
-              <Text className="!text-[11px] !text-amber-400 font-medium">Tổng thưởng 20.000.000đ</Text>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 col-span-2 sm:col-span-1">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/15 border border-sky-500/30">
-              <Clock className="h-5 w-5 text-sky-400" />
-            </div>
-            <div>
-              <Text strong className="!text-xs !text-white block">Mở Cửa 08:00 - 24:00</Text>
-              <Text className="!text-[11px] !text-sky-400 font-medium">Giờ vàng giảm 20%</Text>
-            </div>
-          </div>
+          <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
+            Luật Thi Đấu Bank Pool Chuẩn Quốc Tế
+          </Title>
+          <Text className="!text-xs !text-slate-500 block">
+            Nắm vững 4 quy tắc cơ bản trước khi bước vào bàn thi đấu tại CLB CueZone
+          </Text>
         </div>
-      </div>
 
-      {/* =========================================================================
-          TABS ĐIỀU HƯỚNG TẬP TRUNG TOÀN BỘ 5 USE CASE CỦA GUEST
-          ========================================================================= */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6 backdrop-blur-sm">
-        <Tabs
-          activeKey={activeTab}
-          onChange={handleTabChange}
-          className="cuezone-guest-tabs [&_.ant-tabs-nav]:!mb-6 [&_.ant-tabs-tab]:!text-sm [&_.ant-tabs-tab]:!text-slate-400 [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-emerald-400 [&_.ant-tabs-ink-bar]:!bg-emerald-500 font-medium"
-          items={[
-            {
-              key: "overview",
-              label: (
-                <Space size={6} align="center">
-                  <Sparkles className="h-4 w-4" />
-                  <span>Tổng Quan & Khám Phá</span>
-                </Space>
-              ),
-              children: (
-                <div className="space-y-6">
-                  {/* Khối giới thiệu 3 chuyên mục chính */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card
-                      className="!rounded-xl !border-slate-800 !bg-slate-950/80 hover:!border-emerald-500/50 transition-all cursor-pointer"
-                      onClick={() => handleTabChange("tournaments")}
-                    >
-                      <Space align="center" size={10} className="mb-2">
-                        <div className="h-8 w-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                          <Trophy className="h-4 w-4 text-amber-400" />
-                        </div>
-                        <Text strong className="!text-sm !text-white">Giải Đấu & Lệ Phí</Text>
-                      </Space>
-                      <Text className="!text-xs !text-slate-400 block mb-3">
-                        Xem lịch thi đấu, thể lệ chi tiết và mức lệ phí tham gia các giải đấu Bank Pool hàng tuần.
-                      </Text>
-                      <Text className="!text-xs !text-emerald-400 font-semibold inline-flex items-center gap-1">
-                        Xem thông tin giải đấu <ChevronRight className="h-3 w-3" />
-                      </Text>
-                    </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="!rounded-2xl !border-slate-200 !bg-white hover:!border-emerald-500/60 hover:!shadow-md transition-all">
+            <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-700 font-black text-sm flex items-center justify-center mb-3">
+              01
+            </div>
+            <Title level={4} className="!text-sm !font-bold !text-slate-900 !mb-1.5">
+              Chạm Băng Bắt Buộc
+            </Title>
+            <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
+              Bi mục tiêu bắt buộc phải dội ít nhất <strong>01 băng</strong> trước khi vào lỗ. Đánh bi thẳng trực tiếp vào lỗ không được tính điểm.
+            </Paragraph>
+          </Card>
 
-                    <Card
-                      className="!rounded-xl !border-slate-800 !bg-slate-950/80 hover:!border-emerald-500/50 transition-all cursor-pointer"
-                      onClick={() => handleTabChange("rules")}
-                    >
-                      <Space align="center" size={10} className="mb-2">
-                        <div className="h-8 w-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-                          <BookOpen className="h-4 w-4 text-emerald-400" />
-                        </div>
-                        <Text strong className="!text-sm !text-white">Luật Bank Pool Chuẩn</Text>
-                      </Space>
-                      <Text className="!text-xs !text-slate-400 block mb-3">
-                        Nắm rõ quy tắc bi chạm băng bắt buộc, luật gọi bi - gọi lỗ và các lỗi phạm quy khi thi đấu.
-                      </Text>
-                      <Text className="!text-xs !text-emerald-400 font-semibold inline-flex items-center gap-1">
-                        Đọc luật chi tiết <ChevronRight className="h-3 w-3" />
-                      </Text>
-                    </Card>
+          <Card className="!rounded-2xl !border-slate-200 !bg-white hover:!border-emerald-500/60 hover:!shadow-md transition-all">
+            <div className="h-9 w-9 rounded-xl bg-teal-50 text-teal-700 font-black text-sm flex items-center justify-center mb-3">
+              02
+            </div>
+            <Title level={4} className="!text-sm !font-bold !text-slate-900 !mb-1.5">
+              Gọi Bi & Gọi Lỗ
+            </Title>
+            <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
+              Trước cú đánh, cơ thủ phải tuyên bố rõ số bi mục tiêu và miệng lỗ định đưa bi vào. Không bắt buộc chỉ định số lần dội băng.
+            </Paragraph>
+          </Card>
 
-                    <Card
-                      className="!rounded-xl !border-slate-800 !bg-slate-950/80 hover:!border-emerald-500/50 transition-all cursor-pointer"
-                      onClick={() => handleTabChange("news")}
-                    >
-                      <Space align="center" size={10} className="mb-2">
-                        <div className="h-8 w-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
-                          <Newspaper className="h-4 w-4 text-sky-400" />
-                        </div>
-                        <Text strong className="!text-sm !text-white">Tin Tức & Ưu Đãi</Text>
-                      </Space>
-                      <Text className="!text-xs !text-slate-400 block mb-3">
-                        Cập nhật khuyến mãi giờ vàng, voucher thành viên mới và mẹo nâng cao kỹ thuật bida.
-                      </Text>
-                      <Text className="!text-xs !text-emerald-400 font-semibold inline-flex items-center gap-1">
-                        Xem tin tức & ưu đãi <ChevronRight className="h-3 w-3" />
-                      </Text>
-                    </Card>
-                  </div>
+          <Card className="!rounded-2xl !border-slate-200 !bg-white hover:!border-emerald-500/60 hover:!shadow-md transition-all">
+            <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-700 font-black text-sm flex items-center justify-center mb-3">
+              03
+            </div>
+            <Title level={4} className="!text-sm !font-bold !text-slate-900 !mb-1.5">
+              Lỗi & Phạt Bi
+            </Title>
+            <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
+              Khi phạm quy (bi cái vào lỗ, bi văng khỏi bàn), cơ thủ bị trừ 01 bi điểm số đã ăn. Đối thủ nhận quyền bi trong tay (Ball in hand).
+            </Paragraph>
+          </Card>
 
-                  {/* Thông tin câu lạc bộ & Đặt bàn */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-5 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="space-y-1 text-center md:text-left">
-                      <Text strong className="!text-sm !text-white block">
-                        Bạn muốn chơi thử hoặc tổ chức trận đấu giao hữu?
-                      </Text>
-                      <Text className="!text-xs !text-slate-400">
-                        CueZone phục vụ 20 bàn chuẩn quốc tế tại 123 Nguyễn Thị Minh Khai, Q.3, TP.HCM. Hotline: 1900 6868
-                      </Text>
-                    </div>
-                    <Space size={8}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        to="/customer/booking"
-                        className="!text-xs !border-slate-700 !bg-slate-900 !text-slate-200"
-                      >
-                        Kiểm Tra Bàn Trống
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        to="/register"
-                        className="!text-xs !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600 font-semibold"
-                      >
-                        Đăng Ký Hội Viên
-                      </Button>
-                    </Space>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              key: "tournaments",
-              label: (
-                <Space size={6} align="center">
-                  <Trophy className="h-4 w-4 text-amber-400" />
-                  <span>Giải Đấu & Lệ Phí (Tournament Info)</span>
-                </Space>
-              ),
-              children: (
-                <div className="space-y-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
-                    <div>
-                      <Title level={3} className="!text-lg !font-bold !text-white !mb-0">
-                        Thông Tin Các Giải Đấu Bank Pool
-                      </Title>
-                      <Text className="!text-xs !text-slate-400">
-                        Cơ hội cọ xát đỉnh cao cùng các cơ thủ phong trào và chuyên nghiệp
-                      </Text>
-                    </div>
-                    <Tag color="gold" className="!text-xs !px-2.5 !py-1 !font-bold">
-                      HỆ THỐNG GIẢI THƯỞNG 2026
-                    </Tag>
-                  </div>
+          <Card className="!rounded-2xl !border-slate-200 !bg-white hover:!border-emerald-500/60 hover:!shadow-md transition-all">
+            <div className="h-9 w-9 rounded-xl bg-amber-50 text-amber-700 font-black text-sm flex items-center justify-center mb-3">
+              04
+            </div>
+            <Title level={4} className="!text-sm !font-bold !text-slate-900 !mb-1.5">
+              Chạm 5 Ván Thắng
+            </Title>
+            <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
+              Cơ thủ đầu tiên đưa thành công 5 bi mục tiêu hợp lệ vào lỗ sẽ chiến thắng ván đấu (Thể thức chuẩn Race to 5).
+            </Paragraph>
+          </Card>
+        </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {TOURNAMENTS.map((tourney) => (
-                      <div
-                        key={tourney.id}
-                        className="rounded-xl border border-slate-800 bg-slate-950/70 p-5 flex flex-col justify-between hover:border-emerald-600/50 transition-all shadow-md"
-                      >
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <Tag
-                              color={tourney.badgeColor}
-                              className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase"
-                            >
-                              {tourney.badge}
-                            </Tag>
-                            <span className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
-                              <Users className="h-3.5 w-3.5 text-slate-400" />
-                              {tourney.participants}
-                            </span>
-                          </div>
-
-                          <Title level={4} className="!text-base !font-bold !text-white !mb-1">
-                            {tourney.title}
-                          </Title>
-
-                          <div className="space-y-1.5 text-xs text-slate-300">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                              <span>{tourney.date}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Coins className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
-                              <span>
-                                Lệ phí tham gia: <strong className="text-amber-400">{tourney.fee}</strong>
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Award className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
-                              <span>
-                                Tổng giải thưởng: <strong className="text-emerald-400">{tourney.prizePool}</strong>
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-slate-400">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                              <span>{tourney.format}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Nút xem thể lệ & lệ phí chi tiết (Mở Modal theo use case diagram) */}
-                        <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setSelectedTournament(tourney)}
-                            rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
-                            className="!text-xs !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600 font-semibold"
-                          >
-                            Xem Thể Lệ & Lệ Phí Chi Tiết
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            to="/register"
-                            className="!text-xs !text-slate-400 hover:!text-emerald-400"
-                          >
-                            Đăng Ký Tham Gia
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ),
-            },
-            {
-              key: "rules",
-              label: (
-                <Space size={6} align="center">
-                  <BookOpen className="h-4 w-4 text-emerald-400" />
-                  <span>Luật Chơi Bank Pool (Bank Pool Rules)</span>
-                </Space>
-              ),
-              children: (
-                <div className="space-y-6">
-                  <div className="pb-2 border-b border-slate-800">
-                    <Title level={3} className="!text-lg !font-bold !text-white !mb-0">
-                      Bộ Quy Tắc Thi Đấu Bank Pool Chuẩn Quốc Tế
-                    </Title>
-                    <Text className="!text-xs !text-slate-400">
-                      Bank Pool là thể loại bida đòi hỏi kỹ thuật dội băng điêu luyện và tư duy chiến thuật cao
-                    </Text>
-                  </div>
-
-                  {/* 4 Trụ cột luật thi đấu */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="rounded-xl border border-emerald-950/80 bg-slate-950/60 p-4 space-y-2">
-                      <Space align="center" size={8}>
-                        <div className="h-7 w-7 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-bold text-xs text-emerald-400">
-                          1
-                        </div>
-                        <Text strong className="!text-sm !text-white">
-                          Bắt Buộc Chạm Băng (Cushion Requirement)
-                        </Text>
-                      </Space>
-                      <Paragraph className="!text-xs !text-slate-300 !leading-relaxed !mb-0">
-                        Bi mục tiêu bắt buộc phải dội vào ít nhất <strong>01 băng</strong> trước khi rơi vào lỗ chỉ định. Bất kỳ cú đánh nào đưa bi thẳng trực tiếp vào lỗ mà không chạm băng đều bị tính là không hợp lệ; bi đó sẽ được nhặt lại đặt lên điểm Foot Spot.
-                      </Paragraph>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-2">
-                      <Space align="center" size={8}>
-                        <div className="h-7 w-7 rounded-lg bg-teal-500/20 border border-teal-500/40 flex items-center justify-center font-bold text-xs text-teal-400">
-                          2
-                        </div>
-                        <Text strong className="!text-sm !text-white">
-                          Gọi Bi & Gọi Lỗ (Call Shot)
-                        </Text>
-                      </Space>
-                      <Paragraph className="!text-xs !text-slate-300 !leading-relaxed !mb-0">
-                        Trước mỗi cú đánh, cơ thủ phải tuyên bố rõ số bi mục tiêu và miệng lỗ dự định đưa bi vào. Không bắt buộc phải thông báo số băng dội hay các va chạm phụ (carom/kiss). Nếu bi mục tiêu vào đúng lỗ đã gọi sau khi dội băng, cơ thủ được tính 01 điểm và tiếp tục lượt đánh.
-                      </Paragraph>
-                    </div>
-
-                    <div className="rounded-xl border border-red-950/80 bg-slate-950/60 p-4 space-y-2">
-                      <Space align="center" size={8}>
-                        <div className="h-7 w-7 rounded-lg bg-red-500/20 border border-red-500/40 flex items-center justify-center font-bold text-xs text-red-400">
-                          3
-                        </div>
-                        <Text strong className="!text-sm !text-white">
-                          Các Lỗi Phạm Quy (Fouls & Penalties)
-                        </Text>
-                      </Space>
-                      <Paragraph className="!text-xs !text-slate-300 !leading-relaxed !mb-0">
-                        Phạm quy xảy ra khi: Bi cái vào lỗ (scratch), bi cái không chạm bi mục tiêu, bi văng khỏi bàn, hoặc cơ thủ chạm tay/quần áo vào bi. Khi phạm lỗi, cơ thủ bị phạt 01 bi (phải nhặt 1 bi đã ghi điểm trước đó đặt lại bàn). Đối thủ được hưởng bi cái trong tay (Ball in hand).
-                      </Paragraph>
-                    </div>
-
-                    <div className="rounded-xl border border-amber-950/80 bg-slate-950/60 p-4 space-y-2">
-                      <Space align="center" size={8}>
-                        <div className="h-7 w-7 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-bold text-xs text-amber-400">
-                          4
-                        </div>
-                        <Text strong className="!text-sm !text-white">
-                          Điều Kiện Chiến Thắng (Victory Condition)
-                        </Text>
-                      </Space>
-                      <Paragraph className="!text-xs !text-slate-300 !leading-relaxed !mb-0">
-                        Trong ván thi đấu chuẩn 9 bi hoặc 15 bi, cơ thủ đầu tiên đưa hợp lệ <strong>5 bi mục tiêu</strong> vào lỗ (hoặc 8 bi trong thể thức 15 bi) sẽ là người chiến thắng ván đấu (Chạm 5).
-                      </Paragraph>
-                    </div>
-                  </div>
-
-                  {/* Sơ đồ quy ước minh họa */}
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 flex items-start gap-3">
-                    <HelpCircle className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <Text strong className="!text-xs !text-slate-200 block">
-                        Lưu ý dành cho cơ thủ mới làm quen:
-                      </Text>
-                      <Text className="!text-xs !text-slate-400">
-                        Cú đánh dội băng trực tiếp (Cross Bank) hoặc dội 2 băng (Double Bank) đều được tính điểm như nhau nếu bi vào đúng lỗ đã gọi. Trọng tài CueZone sẽ giám sát và hỗ trợ bắt lỗi chính xác trong các trận đấu giải.
-                      </Text>
-                    </div>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              key: "news",
-              label: (
-                <Space size={6} align="center">
-                  <Newspaper className="h-4 w-4 text-sky-400" />
-                  <span>Tin Tức & Ưu Đãi (News & Promotions)</span>
-                </Space>
-              ),
-              children: (
-                <div className="space-y-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800">
-                    <div>
-                      <Title level={3} className="!text-lg !font-bold !text-white !mb-0">
-                        Tin Tức & Chương Trình Khuyến Mãi
-                      </Title>
-                      <Text className="!text-xs !text-slate-400">
-                        Cập nhật các sự kiện bida, giải đấu và ưu đãi đặc quyền cho khách hàng
-                      </Text>
-                    </div>
-
-                    {/* Bộ lọc theo danh mục (Filter by Category) */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs text-slate-400 flex items-center gap-1 mr-1">
-                        <Filter className="h-3.5 w-3.5" /> Lọc:
-                      </span>
-                      {[
-                        { key: "all", label: "Tất cả" },
-                        { key: "promo", label: "Khuyến mãi" },
-                        { key: "tournament", label: "Giải đấu" },
-                        { key: "tips", label: "Mẹo bida" },
-                      ].map((cat) => (
-                        <Button
-                          key={cat.key}
-                          variant={newsFilter === cat.key ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => setNewsFilter(cat.key as any)}
-                          className={`!text-xs !h-7 !px-2.5 !rounded-lg ${
-                            newsFilter === cat.key
-                              ? "!bg-emerald-600 !border-emerald-600 !text-white font-bold"
-                              : "!border-slate-800 !bg-slate-900 !text-slate-400 hover:!text-white"
-                          }`}
-                        >
-                          {cat.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Danh sách tin tức */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {filteredNews.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-xl border border-slate-800 bg-slate-950/70 overflow-hidden flex flex-col justify-between hover:border-emerald-600/50 transition-all shadow-md group"
-                      >
-                        <div>
-                          <div className="h-36 w-full overflow-hidden relative">
-                            <img
-                              src={item.image}
-                              alt={item.title}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
-                            <div className="absolute top-2 left-2">
-                              <Tag
-                                color={item.tagColor}
-                                className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase backdrop-blur-md"
-                              >
-                                {item.categoryLabel}
-                              </Tag>
-                            </div>
-                          </div>
-
-                          <div className="p-3.5 space-y-1.5">
-                            <span className="text-[10px] text-slate-500 font-mono block">
-                              {item.date}
-                            </span>
-                            <Title level={4} className="!text-xs !font-bold !text-white !line-clamp-2 !mb-1 group-hover:!text-emerald-400 transition-colors">
-                              {item.title}
-                            </Title>
-                            <Paragraph className="!text-[11px] !text-slate-400 !line-clamp-3 !leading-relaxed !mb-0">
-                              {item.desc}
-                            </Paragraph>
-                          </div>
-                        </div>
-
-                        <div className="p-3.5 pt-0 border-t border-slate-900 mt-2">
-                          <Button
-                            variant="link"
-                            size="sm"
-                            to="/register"
-                            rightIcon={<ChevronRight className="h-3 w-3" />}
-                            className="!p-0 !h-auto !text-xs !font-semibold !text-emerald-400 hover:!text-emerald-300"
-                          >
-                            Xem chi tiết & nhận quà
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ),
-            },
-          ]}
-        />
-      </div>
-
-      {/* =========================================================================
-          MODAL CHI TIẾT THỂ LỆ & LỆ PHÍ THI ĐẤU (VIEW RULES & FEE DETAILS)
-          ========================================================================= */}
-      <Modal
-        open={Boolean(selectedTournament)}
-        onCancel={() => setSelectedTournament(null)}
-        footer={[
+        <div className="text-center pt-2">
           <Button
-            key="close"
             variant="outline"
-            onClick={() => setSelectedTournament(null)}
-            className="!text-xs"
+            size="large"
+            to="/customer/rules"
+            rightIcon={<ArrowRight className="h-4 w-4" />}
+            className="!h-11 !px-6 !text-xs !font-bold !border-slate-300 hover:!border-emerald-600 hover:!text-emerald-700 !rounded-xl"
           >
-            Đóng
-          </Button>,
-          <Button
-            key="register"
-            variant="primary"
-            to="/register"
-            onClick={() => setSelectedTournament(null)}
-            className="!text-xs !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600 font-bold"
-          >
-            Đăng Ký Tài Khoản Tham Gia Giải
-          </Button>,
-        ]}
-        title={
-          <Space align="center" size={8}>
-            <Trophy className="h-4 w-4 text-amber-400" />
-            <span className="text-white text-sm font-bold">
-              {selectedTournament?.title}
-            </span>
-          </Space>
-        }
-        className="[&_.ant-modal-content]:!bg-slate-900 [&_.ant-modal-content]:!border [&_.ant-modal-content]:!border-slate-800"
-      >
-        {selectedTournament && (
-          <div className="space-y-4 py-2 text-xs text-slate-200">
-            {/* Lệ phí & Quyền lợi */}
-            <div className="rounded-xl border border-amber-900/40 bg-amber-950/20 p-3">
-              <Space align="center" size={6} className="mb-1">
-                <Coins className="h-4 w-4 text-amber-400" />
-                <Text strong className="!text-xs !text-amber-300">
-                  Quy Định Lệ Phí Tham Gia ({selectedTournament.fee})
-                </Text>
-              </Space>
-              <Paragraph className="!text-xs !text-slate-300 !mb-0 !leading-relaxed">
-                {selectedTournament.feeDetail}
-              </Paragraph>
-            </div>
+            Đọc Toàn Bộ Cẩm Nang & Tình Huống Luật Bank Pool
+          </Button>
+        </div>
+      </section>
 
-            {/* Thể lệ thi đấu chi tiết */}
-            <div>
-              <Text strong className="!text-xs !text-white block mb-2">
-                Thể Lệ Thi Đấu Chính Thức:
-              </Text>
-              <ul className="space-y-2 pl-1">
-                {selectedTournament.rulesDetail.map((rule, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-slate-300">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <span>{rule}</span>
-                  </li>
-                ))}
-              </ul>
+      {/* =========================================================================
+          5. KHUYẾN MÃI & ƯU ĐÃI NỔI BẬT
+          ========================================================================= */}
+      <section className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-rose-700 bg-rose-50 px-2.5 py-1 rounded-md mb-1.5">
+              ƯU ĐÃI ĐỘC QUYỀN
             </div>
-
-            {/* Thời gian & Địa điểm */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Địa điểm thi đấu:</span>
-                <strong className="text-slate-200">CLB CueZone, 123 Nguyễn Thị Minh Khai, Q.3, TP.HCM</strong>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Tổng giải thưởng:</span>
-                <strong className="text-emerald-400 font-bold">{selectedTournament.prizePool}</strong>
-              </div>
-            </div>
+            <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
+              Chương Trình Khuyến Mãi Hàng Tuần
+            </Title>
+            <Text className="!text-xs !text-slate-500">
+              Tiết kiệm chi phí với giờ vàng giảm giá và ưu đãi thành viên mới
+            </Text>
           </div>
-        )}
-      </Modal>
+
+          <Button
+            variant="outline"
+            size="sm"
+            to="/customer/news"
+            rightIcon={<ChevronRight className="h-3.5 w-3.5" />}
+            className="!text-xs !font-bold !border-slate-300"
+          >
+            Xem Tất Cả Tin Tức & Khuyến Mãi
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {PROMOTIONS.map((promo) => (
+            <Card
+              key={promo.id}
+              className="!rounded-2xl !border-slate-200 !bg-white hover:!shadow-lg transition-all flex flex-col justify-between"
+            >
+              <div className="space-y-2.5">
+                <Tag color={promo.tagColor} className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase">
+                  {promo.tag}
+                </Tag>
+                <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-1 leading-snug">
+                  {promo.title}
+                </Title>
+                <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
+                  {promo.desc}
+                </Paragraph>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] font-mono text-slate-400">
+                  {promo.valid}
+                </span>
+                <Link
+                  to="/register"
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-800 inline-flex items-center gap-1"
+                >
+                  Nhận ưu đãi <ChevronRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* =========================================================================
+          6. TIỆN ÍCH & DỊCH VỤ CLB CUEZONE
+          ========================================================================= */}
+      <section className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-12 shadow-sm space-y-6">
+        <div className="text-center max-w-lg mx-auto space-y-1.5">
+          <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
+            Tiện Ích Chuẩn Thi Đấu Tại CueZone
+          </Title>
+          <Text className="!text-xs !text-slate-500">
+            Cam kết chất lượng phục vụ tốt nhất để mọi cơ thủ thỏa sức tỏa sáng trên từng đường cơ
+          </Text>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
+          {CLUB_AMENITIES.map((am, i) => (
+            <div key={i} className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="h-10 w-10 rounded-xl bg-emerald-100/70 flex items-center justify-center">
+                {am.icon}
+              </div>
+              <Text strong className="!text-sm !text-slate-900 block">
+                {am.title}
+              </Text>
+              <Text className="!text-xs !text-slate-500 leading-relaxed block">
+                {am.desc}
+              </Text>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* =========================================================================
+          7. CTA CUỐI TRANG: ĐĂNG KÝ HỘI VIÊN & ĐẶT BÀN
+          ========================================================================= */}
+      <section className="rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-8 sm:p-10 text-center space-y-4 shadow-xl shadow-emerald-700/20">
+        <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-white !mb-0">
+          Sẵn Sàng Cho Trận Đấu Bida Đỉnh Cao?
+        </Title>
+        <Paragraph className="!text-xs sm:!text-sm !text-emerald-100 !max-w-xl !mx-auto !leading-relaxed !mb-0">
+          Đăng ký tài khoản hội viên CueZone miễn phí ngay hôm nay để nhận voucher giảm 20%, tích điểm sau mỗi giờ chơi và cập nhật thứ hạng ELO cơ thủ.
+        </Paragraph>
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <Button
+            variant="outline"
+            size="large"
+            to="/customer/booking"
+            className="!h-11 !px-6 !text-xs !font-bold !bg-white !text-emerald-800 !border-white hover:!bg-emerald-50 !rounded-xl shadow-sm"
+          >
+            Đặt Bàn Ngay
+          </Button>
+          <Button
+            variant="outline"
+            size="large"
+            to="/register"
+            className="!h-11 !px-6 !text-xs !font-bold !border-emerald-300/60 !bg-emerald-800/40 !text-white hover:!bg-emerald-800/60 !rounded-xl"
+          >
+            Đăng Ký Thẻ Hội Viên
+          </Button>
+        </div>
+      </section>
     </div>
   );
 };
