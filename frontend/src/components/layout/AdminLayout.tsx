@@ -34,7 +34,7 @@ const menuItems: { path: string; label: string; icon: ReactNode }[] = [
   { path: "/admin/tables", label: "Quản lý Bàn", icon: <AppstoreOutlined /> },
   { path: "/admin/booking", label: "Duyệt Đặt Bàn", icon: <CalendarOutlined /> },
   { path: "/admin/fnb", label: "Thực đơn F&B", icon: <CoffeeOutlined /> },
-  { path: "/admin/tournaments", label: "Trọng tài Bank Pool", icon: <TrophyOutlined /> },
+  { path: "/admin/tournaments", label: "Giải đấu & Trọng tài", icon: <TrophyOutlined /> },
   { path: "/admin/inventory", label: "Kho hàng", icon: <InboxOutlined /> },
   { path: "/admin/invoices", label: "Hóa đơn", icon: <FileTextOutlined /> },
   { path: "/admin/reports", label: "Báo cáo", icon: <LineChartOutlined /> },

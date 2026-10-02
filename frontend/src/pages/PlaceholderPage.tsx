@@ -23,7 +23,7 @@ const PlaceholderPage = ({ title, icon }: { title: string; icon: ReactNode }) =>
 
 export { default as TablesPage } from "./admin/TablesManagementPage";
 export { default as BookingPage } from "./admin/BookingManagementPage";
-export { default as TournamentsPage } from "./admin/RefereeScoringPage";
+export { default as TournamentsPage } from "./admin/AdminTournamentsPage";
 export { default as FnBPage } from "./admin/FnBInventoryPage";
 export { default as InventoryPage } from "./admin/FnBInventoryPage";
 export const InvoicesPage = () => <PlaceholderPage title="Hóa đơn" icon={<FileTextOutlined />} />;
