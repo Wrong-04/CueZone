@@ -1,975 +1,1242 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AppstoreOutlined,
-  CalendarOutlined,
-  SettingOutlined,
-  ThunderboltOutlined,
-  BulbOutlined,
-  LockOutlined,
-  CheckOutlined,
   ClockCircleOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ToolOutlined,
+  CheckCircleOutlined,
+  ThunderboltOutlined,
+  SettingOutlined,
+  SafetyCertificateOutlined,
+  BulbOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
-import { tableService, pricingService } from "../../services/table.service";
-import type { BilliardTable, PricingTier } from "../../types";
+import {
+  Button,
+  Card,
+  Tag,
+  Input,
+  Select,
+  Typography,
+  Table,
+  Modal,
+  Space,
+  SegmentedPillList,
+  SearchFilterInput,
+  message,
+} from "../../shared/ui";
+import type { BilliardTable, PricingTier, TableType } from "../../types";
 
-const tableTypeLabels: Record<string, string> = {
-  standard_9ft: "Bàn Thường 9FT",
-  vip_bank_pool: "Bàn VIP Bank Pool",
-  match_ksteel: "Bàn Match K-Steel",
-};
+const { Title, Text } = Typography;
 
-const tableTypeValues = [
-  { value: "standard_9ft", label: "Bàn Thường 9FT" },
-  { value: "vip_bank_pool", label: "Bàn VIP Bank Pool" },
-  { value: "match_ksteel", label: "Bàn Match K-Steel" },
+// Initial 11 tables matching CueZone Billiards Club floor
+const DEFAULT_TABLES: BilliardTable[] = [
+  {
+    _id: "TB-01",
+    code: "T01",
+    name: "Bàn 01",
+    type: "standard_9ft",
+    area: "Tầng 1 - Khu A (Standard Floor)",
+    floor: 1,
+    pricePerHour: 50000,
+    status: "playing",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-02",
+    code: "T02",
+    name: "Bàn 02",
+    type: "standard_9ft",
+    area: "Tầng 1 - Khu A (Standard Floor)",
+    floor: 1,
+    pricePerHour: 50000,
+    status: "available",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-03",
+    code: "T03",
+    name: "Bàn 03",
+    type: "standard_9ft",
+    area: "Tầng 1 - Khu A (Standard Floor)",
+    floor: 1,
+    pricePerHour: 50000,
+    status: "playing",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-05",
+    code: "T05",
+    name: "Bàn 05",
+    type: "standard_9ft",
+    area: "Tầng 1 - Khu B (Standard Floor)",
+    floor: 1,
+    pricePerHour: 50000,
+    status: "available",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-06",
+    code: "T06",
+    name: "Bàn 06",
+    type: "standard_9ft",
+    area: "Tầng 1 - Khu B (Standard Floor)",
+    floor: 1,
+    pricePerHour: 50000,
+    status: "booked",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-08",
+    code: "T08",
+    name: "Bàn 08",
+    type: "standard_9ft",
+    area: "Tầng 1 - Khu B (Standard Floor)",
+    floor: 1,
+    pricePerHour: 50000,
+    status: "maintenance",
+    isActive: false,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-09",
+    code: "V09",
+    name: "Bàn VIP 09",
+    type: "vip_bank_pool",
+    area: "Tầng 2 - Phòng VIP Lounge",
+    floor: 2,
+    pricePerHour: 70000,
+    status: "playing",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-10",
+    code: "V10",
+    name: "Bàn VIP 10",
+    type: "vip_bank_pool",
+    area: "Tầng 2 - Phòng VIP Lounge",
+    floor: 2,
+    pricePerHour: 70000,
+    status: "available",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-12",
+    code: "V12",
+    name: "Bàn VIP 12",
+    type: "vip_bank_pool",
+    area: "Tầng 2 - Phòng VIP Lounge",
+    floor: 2,
+    pricePerHour: 70000,
+    status: "available",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-13",
+    code: "M13",
+    name: "Bàn Match 13",
+    type: "match_ksteel",
+    area: "Tầng 2 - Khán Đài Thi Đấu K-Steel VAR",
+    floor: 2,
+    pricePerHour: 80000,
+    status: "playing",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "TB-14",
+    code: "M14",
+    name: "Bàn Match 14",
+    type: "match_ksteel",
+    area: "Tầng 2 - Khán Đài Thi Đấu K-Steel VAR",
+    floor: 2,
+    pricePerHour: 80000,
+    status: "available",
+    isActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
 ];
 
-const dayTypeLabels: Record<string, string> = {
-  weekday: "Ngày thường (T2–T6)",
-  weekend: "Cuối tuần (T7 & CN)",
-  peak: "Giờ cao điểm",
-};
+// Initial 4 Club Pricing Tiers
+const DEFAULT_PRICING_TIERS: PricingTier[] = [
+  {
+    _id: "PT-01",
+    name: "Khung Giờ Sáng (Tập Luyện & Học Sinh/SV)",
+    dayType: "weekday",
+    startTime: "08:00",
+    endTime: "14:00",
+    daysOfWeek: [1, 2, 3, 4, 5],
+    prices: {
+      standard: 40000,
+      vip: 60000,
+    },
+    isActive: true,
+    isCurrentlyActive: false,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "PT-02",
+    name: "Khung Giờ Tiêu Chuẩn (Buổi Chiều)",
+    dayType: "weekday",
+    startTime: "14:00",
+    endTime: "18:00",
+    daysOfWeek: [1, 2, 3, 4, 5],
+    prices: {
+      standard: 50000,
+      vip: 70000,
+    },
+    isActive: true,
+    isCurrentlyActive: true,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "PT-03",
+    name: "Khung Giờ Vàng (Peak Evening)",
+    dayType: "peak",
+    startTime: "18:00",
+    endTime: "23:00",
+    daysOfWeek: [1, 2, 3, 4, 5],
+    prices: {
+      standard: 60000,
+      vip: 85000,
+    },
+    isActive: true,
+    isCurrentlyActive: false,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  {
+    _id: "PT-04",
+    name: "Khung Giờ Cuối Tuần & Lễ (Weekend All Day)",
+    dayType: "weekend",
+    startTime: "08:00",
+    endTime: "23:59",
+    daysOfWeek: [0, 6],
+    prices: {
+      standard: 60000,
+      vip: 90000,
+    },
+    isActive: true,
+    isCurrentlyActive: false,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+];
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  available: { label: "Hoạt động", color: "bg-green-50 text-green-700" },
-  playing: { label: "Đang chơi", color: "bg-red-50 text-red-600" },
-  booked: { label: "Đặt trước", color: "bg-blue-50 text-blue-600" },
-  maintenance: { label: "Bảo trì", color: "bg-yellow-50 text-yellow-700" },
-};
+export const TablesManagementPage: React.FC = () => {
+  const navigate = useNavigate();
 
-const emptyTableForm = {
-  code: "",
-  name: "",
-  type: "standard_9ft",
-  area: "",
-  floor: 1,
-  pricePerHour: 0,
-};
+  // Active Tab: tables | pricing | automation
+  const [activeTab, setActiveTab] = useState<string>("tables");
 
-const emptyPricingForm = {
-  name: "",
-  dayType: "weekday",
-  startTime: "08:00",
-  endTime: "17:00",
-  standardPrice: 0,
-  vipPrice: 0,
-};
+  // Load Tables
+  const [tables, setTables] = useState<BilliardTable[]>(() => {
+    const saved = localStorage.getItem("cuezone_tables_catalog");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_TABLES;
+  });
 
-const TablesManagementPage = () => {
-  const [activeTab, setActiveTab] = useState<"pricing" | "tables">("pricing");
-  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
-  const [tables, setTables] = useState<BilliardTable[]>([]);
-  const [_loading, setLoading] = useState(true);
-  void _loading;
-  const [currentPage, setCurrentPage] = useState(1);
-  const [tablesPerPage] = useState(6);
+  // Load Pricing Tiers
+  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>(() => {
+    const saved = localStorage.getItem("cuezone_pricing_tiers");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_PRICING_TIERS;
+  });
 
-  // Table modal states
-  const [showTableModal, setShowTableModal] = useState(false);
+  // Persist Tables & Sync with POS
+  useEffect(() => {
+    localStorage.setItem("cuezone_tables_catalog", JSON.stringify(tables));
+
+    // Also sync to cuezone_pos_tables if already exists
+    const posRaw = localStorage.getItem("cuezone_pos_tables");
+    if (posRaw) {
+      try {
+        const currentPosTables = JSON.parse(posRaw);
+        const updatedPos = tables.map((t) => {
+          const existing = currentPosTables.find((pt: any) => pt.id === t._id || pt.code === t.code);
+          return {
+            id: t._id,
+            name: t.name,
+            code: t.code,
+            type: t.type === "standard_9ft" ? "standard" : t.type === "vip_bank_pool" ? "vip" : "match",
+            typeName:
+              t.type === "standard_9ft"
+                ? "Bàn Thường 9FT"
+                : t.type === "vip_bank_pool"
+                ? "Bàn VIP Bank Pool"
+                : "Bàn Match K-Steel (VAR)",
+            pricePerHour: t.pricePerHour,
+            status: t.status === "maintenance" ? "maintenance" : existing?.status || "available",
+            currentSession: existing?.currentSession,
+            bookedInfo: existing?.bookedInfo,
+          };
+        });
+        localStorage.setItem("cuezone_pos_tables", JSON.stringify(updatedPos));
+      } catch {
+        // fallback
+      }
+    }
+  }, [tables]);
+
+  // Persist Pricing Tiers
+  useEffect(() => {
+    localStorage.setItem("cuezone_pricing_tiers", JSON.stringify(pricingTiers));
+  }, [pricingTiers]);
+
+  // Table Filters
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Table Modal States
+  const [tableModalVisible, setTableModalVisible] = useState<boolean>(false);
   const [editingTable, setEditingTable] = useState<BilliardTable | null>(null);
-  const [tableForm, setTableForm] = useState(emptyTableForm);
-  const [tableSubmitting, setTableSubmitting] = useState(false);
+  const [tableCode, setTableCode] = useState<string>("");
+  const [tableName, setTableName] = useState<string>("");
+  const [tableType, setTableType] = useState<TableType>("standard_9ft");
+  const [tableArea, setTableArea] = useState<string>("Tầng 1 - Khu A");
+  const [tableFloor, setTableFloor] = useState<number>(1);
+  const [tablePrice, setTablePrice] = useState<number>(50000);
 
-  // Table delete
-  const [showTableDeleteConfirm, setShowTableDeleteConfirm] = useState(false);
-  const [deletingTableId, setDeletingTableId] = useState<string | null>(null);
-
-  // Pricing modal states
-  const [showPricingModal, setShowPricingModal] = useState(false);
+  // Pricing Modal States
+  const [pricingModalVisible, setPricingModalVisible] = useState<boolean>(false);
   const [editingPricing, setEditingPricing] = useState<PricingTier | null>(null);
-  const [pricingForm, setPricingForm] = useState(emptyPricingForm);
-  const [pricingSubmitting, setPricingSubmitting] = useState(false);
+  const [pricingName, setPricingName] = useState<string>("");
+  const [pricingDayType, setPricingDayType] = useState<string>("weekday");
+  const [pricingStartTime, setPricingStartTime] = useState<string>("08:00");
+  const [pricingEndTime, setPricingEndTime] = useState<string>("14:00");
+  const [pricingStandardPrice, setPricingStandardPrice] = useState<number>(50000);
+  const [pricingVipPrice, setPricingVipPrice] = useState<number>(70000);
 
-  // Pricing delete
-  const [showPricingDeleteConfirm, setShowPricingDeleteConfirm] = useState(false);
-  const [deletingPricingId, setDeletingPricingId] = useState<string | null>(null);
+  // Delete Confirm Modal
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState<boolean>(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: "table" | "pricing"; name: string } | null>(null);
 
-  // Toast
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  // Statistics
+  const stats = useMemo(() => {
+    const total = tables.length;
+    const standard = tables.filter((t) => t.type === "standard_9ft").length;
+    const vip = tables.filter((t) => t.type === "vip_bank_pool").length;
+    const match = tables.filter((t) => t.type === "match_ksteel").length;
+    const maintenance = tables.filter((t) => t.status === "maintenance").length;
+    return { total, standard, vip, match, maintenance };
+  }, [tables]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Filtered Tables
+  const filteredTables = useMemo(() => {
+    return tables.filter((t) => {
+      const matchType = filterType === "all" || t.type === filterType;
+      const matchStatus =
+        filterStatus === "all" ||
+        (filterStatus === "maintenance" ? t.status === "maintenance" : t.status !== "maintenance");
+      const matchQuery =
+        !searchQuery ||
+        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.area.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchType && matchStatus && matchQuery;
+    });
+  }, [tables, filterType, filterStatus, searchQuery]);
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
+  // Tab Items for Segmented Pill List
+  const tabPills = [
+    { key: "tables", label: "Danh Mục Bàn Bida", badge: stats.total, dotClassName: "bg-emerald-500" },
+    { key: "pricing", label: "Cấu Hình Bảng Giá Khung Giờ", badge: pricingTiers.length, dotClassName: "bg-blue-500" },
+    { key: "automation", label: "Quy Tắc Tính Giờ & Tự Động Hóa", dotClassName: "bg-amber-500" },
+  ];
 
-  const showToast = (message: string, type: "success" | "error") => {
-    setToast({ message, type });
-  };
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [tiers, tableData] = await Promise.all([
-        pricingService.getAll(),
-        tableService.getAll(),
-      ]);
-      setPricingTiers(tiers);
-      setTables(tableData);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const totalPages = Math.ceil(tables.length / tablesPerPage);
-  const paginatedTables = tables.slice(
-    (currentPage - 1) * tablesPerPage,
-    currentPage * tablesPerPage
-  );
-
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat("vi-VN").format(price) + " VND";
-
-  const getActiveTierName = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    const day = now.getDay();
-    if (day === 0 || day === 6) return "Weekend";
-    if (hour >= 17) return "Peak";
-    return "Sáng";
-  };
-
-  // ─── Table CRUD ────────────────────────────────────────
-
-  const openCreateTableModal = () => {
+  // ── Handlers: Table CRUD ────────────────────────────────────────────────────
+  const handleOpenAddTable = () => {
     setEditingTable(null);
-    setTableForm(emptyTableForm);
-    setShowTableModal(true);
+    setTableCode(`T${tables.length + 1 < 10 ? "0" + (tables.length + 1) : tables.length + 1}`);
+    setTableName(`Bàn ${tables.length + 1 < 10 ? "0" + (tables.length + 1) : tables.length + 1}`);
+    setTableType("standard_9ft");
+    setTableArea("Tầng 1 - Khu C");
+    setTableFloor(1);
+    setTablePrice(50000);
+    setTableModalVisible(true);
   };
 
-  const openEditTableModal = (table: BilliardTable) => {
+  const handleOpenEditTable = (table: BilliardTable) => {
     setEditingTable(table);
-    setTableForm({
-      code: table.code,
-      name: table.name,
-      type: table.type,
-      area: table.area,
-      floor: table.floor,
-      pricePerHour: table.pricePerHour,
-    });
-    setShowTableModal(true);
+    setTableCode(table.code);
+    setTableName(table.name);
+    setTableType(table.type);
+    setTableArea(table.area);
+    setTableFloor(table.floor);
+    setTablePrice(table.pricePerHour);
+    setTableModalVisible(true);
   };
 
-  const handleTableSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTableSubmitting(true);
-    try {
-      if (editingTable) {
-        await tableService.update(editingTable._id, tableForm);
-        showToast("Cập nhật bàn thành công!", "success");
-      } else {
-        await tableService.create(tableForm);
-        showToast("Thêm bàn mới thành công!", "success");
-      }
-      setShowTableModal(false);
-      fetchData();
-    } catch (err: any) {
-      showToast(err.message || "Thao tác thất bại", "error");
-    } finally {
-      setTableSubmitting(false);
+  const handleSaveTable = () => {
+    if (!tableName.trim() || !tableCode.trim()) {
+      message.warning("Vui lòng điền đầy đủ Mã bàn và Tên bàn!");
+      return;
     }
-  };
 
-  const openTableDeleteConfirm = (id: string) => {
-    setDeletingTableId(id);
-    setShowTableDeleteConfirm(true);
-  };
-
-  const handleDeleteTable = async () => {
-    if (!deletingTableId) return;
-    try {
-      await tableService.delete(deletingTableId);
-      showToast("Xóa bàn thành công!", "success");
-      setShowTableDeleteConfirm(false);
-      setDeletingTableId(null);
-      fetchData();
-    } catch (err: any) {
-      showToast(err.message || "Xóa bàn thất bại", "error");
-    }
-  };
-
-  const handleToggleMaintenance = async (table: BilliardTable) => {
-    const newStatus = table.status === "maintenance" ? "available" : "maintenance";
-    try {
-      await tableService.updateStatus(table._id, newStatus);
-      showToast(
-        newStatus === "maintenance"
-          ? `Bàn ${table.code} đã chuyển sang trạng thái bảo trì`
-          : `Bàn ${table.code} đã hoạt động trở lại`,
-        "success"
+    if (editingTable) {
+      setTables((prev) =>
+        prev.map((t) =>
+          t._id === editingTable._id
+            ? {
+                ...t,
+                code: tableCode.trim(),
+                name: tableName.trim(),
+                type: tableType,
+                area: tableArea.trim(),
+                floor: Number(tableFloor),
+                pricePerHour: Number(tablePrice),
+                updatedAt: new Date().toISOString().split("T")[0],
+              }
+            : t
+        )
       );
-      fetchData();
-    } catch (err: any) {
-      showToast(err.message || "Cập nhật trạng thái thất bại", "error");
+      message.success(`Đã cập nhật thông số ${tableName} thành công!`);
+    } else {
+      const newTable: BilliardTable = {
+        _id: `TB-${Date.now().toString().slice(-4)}`,
+        code: tableCode.trim(),
+        name: tableName.trim(),
+        type: tableType,
+        area: tableArea.trim(),
+        floor: Number(tableFloor),
+        pricePerHour: Number(tablePrice),
+        status: "available",
+        isActive: true,
+        createdAt: new Date().toISOString().split("T")[0],
+        updatedAt: new Date().toISOString().split("T")[0],
+      };
+      setTables((prev) => [...prev, newTable]);
+      message.success(`Đã thêm ${tableName} vào danh mục bàn thành công!`);
+    }
+
+    setTableModalVisible(false);
+  };
+
+  const handleToggleMaintenance = (table: BilliardTable) => {
+    const isMaintenance = table.status === "maintenance";
+    const nextStatus = isMaintenance ? "available" : "maintenance";
+    setTables((prev) =>
+      prev.map((t) => (t._id === table._id ? { ...t, status: nextStatus, isActive: !isMaintenance } : t))
+    );
+    if (!isMaintenance) {
+      message.info(`Đã chuyển ${table.name} sang chế độ bảo trì nỉ!`);
+    } else {
+      message.success(`Đã hoàn tất bảo trì, ${table.name} sẵn sàng hoạt động!`);
     }
   };
 
-  // ─── Pricing CRUD ──────────────────────────────────────
-
-  const openCreatePricingModal = () => {
+  // ── Handlers: Pricing CRUD ──────────────────────────────────────────────────
+  const handleOpenAddPricing = () => {
     setEditingPricing(null);
-    setPricingForm(emptyPricingForm);
-    setShowPricingModal(true);
+    setPricingName("");
+    setPricingDayType("weekday");
+    setPricingStartTime("08:00");
+    setPricingEndTime("14:00");
+    setPricingStandardPrice(50000);
+    setPricingVipPrice(70000);
+    setPricingModalVisible(true);
   };
 
-  const openEditPricingModal = (tier: PricingTier) => {
+  const handleOpenEditPricing = (tier: PricingTier) => {
     setEditingPricing(tier);
-    setPricingForm({
-      name: tier.name,
-      dayType: tier.dayType,
-      startTime: tier.startTime,
-      endTime: tier.endTime,
-      standardPrice: tier.prices.standard,
-      vipPrice: tier.prices.vip,
-    });
-    setShowPricingModal(true);
+    setPricingName(tier.name);
+    setPricingDayType(tier.dayType);
+    setPricingStartTime(tier.startTime);
+    setPricingEndTime(tier.endTime);
+    setPricingStandardPrice(tier.prices.standard);
+    setPricingVipPrice(tier.prices.vip);
+    setPricingModalVisible(true);
   };
 
-  const handlePricingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPricingSubmitting(true);
-    const payload = {
-      name: pricingForm.name,
-      dayType: pricingForm.dayType,
-      startTime: pricingForm.startTime,
-      endTime: pricingForm.endTime,
-      prices: {
-        standard: pricingForm.standardPrice,
-        vip: pricingForm.vipPrice,
-      },
-    };
-    try {
-      if (editingPricing) {
-        await pricingService.update(editingPricing._id, payload);
-        showToast("Cập nhật bảng giá thành công!", "success");
-      } else {
-        await pricingService.create(payload);
-        showToast("Thêm khung giờ mới thành công!", "success");
-      }
-      setShowPricingModal(false);
-      fetchData();
-    } catch (err: any) {
-      showToast(err.message || "Thao tác thất bại", "error");
-    } finally {
-      setPricingSubmitting(false);
+  const handleSavePricing = () => {
+    if (!pricingName.trim()) {
+      message.warning("Vui lòng nhập tên khung giờ!");
+      return;
     }
-  };
 
-  const openPricingDeleteConfirm = (id: string) => {
-    setDeletingPricingId(id);
-    setShowPricingDeleteConfirm(true);
-  };
-
-  const handleDeletePricing = async () => {
-    if (!deletingPricingId) return;
-    try {
-      await pricingService.delete(deletingPricingId);
-      showToast("Xóa khung giờ thành công!", "success");
-      setShowPricingDeleteConfirm(false);
-      setDeletingPricingId(null);
-      fetchData();
-    } catch (err: any) {
-      showToast(err.message || "Xóa khung giờ thất bại", "error");
+    if (editingPricing) {
+      setPricingTiers((prev) =>
+        prev.map((p) =>
+          p._id === editingPricing._id
+            ? {
+                ...p,
+                name: pricingName.trim(),
+                dayType: pricingDayType,
+                startTime: pricingStartTime,
+                endTime: pricingEndTime,
+                prices: {
+                  standard: Number(pricingStandardPrice),
+                  vip: Number(pricingVipPrice),
+                },
+                updatedAt: new Date().toISOString().split("T")[0],
+              }
+            : p
+        )
+      );
+      message.success(`Đã cập nhật biểu giá khung giờ "${pricingName}"!`);
+    } else {
+      const newTier: PricingTier = {
+        _id: `PT-${Date.now().toString().slice(-4)}`,
+        name: pricingName.trim(),
+        dayType: pricingDayType,
+        startTime: pricingStartTime,
+        endTime: pricingEndTime,
+        prices: {
+          standard: Number(pricingStandardPrice),
+          vip: Number(pricingVipPrice),
+        },
+        isActive: true,
+        createdAt: new Date().toISOString().split("T")[0],
+        updatedAt: new Date().toISOString().split("T")[0],
+      };
+      setPricingTiers((prev) => [...prev, newTier]);
+      message.success(`Đã thêm khung giờ "${pricingName}" vào hệ thống!`);
     }
+
+    setPricingModalVisible(false);
   };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+
+    if (deleteTarget.type === "table") {
+      setTables((prev) => prev.filter((t) => t._id !== deleteTarget.id));
+      message.success(`Đã xóa bàn ${deleteTarget.name} khỏi danh mục!`);
+    } else {
+      setPricingTiers((prev) => prev.filter((p) => p._id !== deleteTarget.id));
+      message.success(`Đã xóa khung giờ "${deleteTarget.name}"!`);
+    }
+
+    setDeleteConfirmVisible(false);
+    setDeleteTarget(null);
+  };
+
+  // Table Columns Definition
+  const tableColumns = [
+    {
+      title: "Mã & Tên Bàn",
+      key: "name",
+      render: (_: any, record: BilliardTable) => (
+        <div className="flex items-center gap-2.5">
+          <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+            {record.code}
+          </span>
+          <div>
+            <strong className="text-sm text-slate-900 block">{record.name}</strong>
+            <span className="text-[11px] text-slate-400">Tạo ngày: {record.createdAt}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Phân Loại Bàn",
+      key: "type",
+      render: (_: any, record: BilliardTable) => (
+        <div>
+          {record.type === "standard_9ft" && (
+            <Tag color="default" className="!font-bold !bg-slate-100 !text-slate-700">
+              BÀN THƯỜNG 9FT
+            </Tag>
+          )}
+          {record.type === "vip_bank_pool" && (
+            <Tag color="gold" className="!font-bold">
+              VIP BANK POOL
+            </Tag>
+          )}
+          {record.type === "match_ksteel" && (
+            <Tag color="green" className="!font-bold">
+              MATCH K-STEEL (VAR)
+            </Tag>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: "Khu Vực & Tầng",
+      dataIndex: "area",
+      key: "area",
+      render: (area: string) => <span className="text-xs text-slate-700 font-medium">{area}</span>,
+    },
+    {
+      title: "Đơn Giá Giờ Chuẩn",
+      key: "pricePerHour",
+      render: (_: any, record: BilliardTable) => (
+        <span className="font-mono font-bold text-emerald-700 text-sm">
+          {record.pricePerHour.toLocaleString("vi-VN")}đ<span className="text-xs font-normal text-slate-400">/h</span>
+        </span>
+      ),
+    },
+    {
+      title: "Trang Thiết Bị Chuẩn",
+      key: "equipment",
+      render: (_: any, record: BilliardTable) => (
+        <div className="text-[11px] text-slate-500 space-y-0.5">
+          <div className="flex items-center gap-1">
+            <CheckCircleOutlined className="text-emerald-500 text-xs" />
+            <span>{record.type === "standard_9ft" ? "Nỉ Simonis 860 tiêu chuẩn" : "Nỉ Simonis 860 HR Competition"}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <CheckCircleOutlined className="text-emerald-500 text-xs" />
+            <span>{record.type === "match_ksteel" ? "Bóng Aramith Tournament TV Pro" : "Bóng Aramith Pro Cup"}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Trạng Thái",
+      key: "status",
+      render: (_: any, record: BilliardTable) => (
+        <div>
+          {record.status === "maintenance" ? (
+            <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+              BẢO TRÌ NỈ
+            </Tag>
+          ) : (
+            <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !font-bold inline-flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              SẴN SÀNG HOẠT ĐỘNG
+            </Tag>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: "Thao Tác",
+      key: "actions",
+      align: "right" as const,
+      render: (_: any, record: BilliardTable) => (
+        <Space size={4}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenEditTable(record)}
+            leftIcon={<EditOutlined />}
+            className="!h-7 !px-2 !rounded-lg !text-xs !border-slate-300 !text-slate-700 hover:!border-emerald-600"
+          >
+            Sửa
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleToggleMaintenance(record)}
+            leftIcon={<ToolOutlined />}
+            className={`!h-7 !px-2 !rounded-lg !text-xs ${
+              record.status === "maintenance"
+                ? "!bg-emerald-50 !border-emerald-300 !text-emerald-800"
+                : "!border-amber-300 !bg-amber-50/60 !text-amber-800 hover:!bg-amber-100"
+            }`}
+          >
+            {record.status === "maintenance" ? "Mở Lại" : "Bảo Trì"}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setDeleteTarget({ id: record._id, type: "table", name: `${record.name} (${record.code})` });
+              setDeleteConfirmVisible(true);
+            }}
+            leftIcon={<DeleteOutlined />}
+            className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-slate-300 !text-slate-400 hover:!text-rose-600 hover:!border-rose-300"
+            title="Xóa bàn"
+          />
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-toast-in ${
-            toast.type === "success"
-              ? "bg-green-500 text-white"
-              : "bg-red-500 text-white"
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-navy-800">
-            Admin – Quản lý Danh mục Bàn & Cấu hình Bảng giá
-          </h1>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="px-2 py-1 bg-primary-50 text-primary-700 text-xs rounded-md font-medium">
-              Screen 18/21
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab("pricing")}
-          className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
-            activeTab === "pricing"
-              ? "border-primary-500 text-primary-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <ClockCircleOutlined className="mr-1.5" />
-          Cấu hình Bảng giá Khung Giờ
-        </button>
-        <button
-          onClick={() => setActiveTab("tables")}
-          className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
-            activeTab === "tables"
-              ? "border-primary-500 text-primary-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <span className="inline-flex items-center gap-1.5"><AppstoreOutlined /> Danh Mục Bida & VIP Room</span>
-        </button>
-      </div>
-
-      {/* Active tier notification */}
-      <div className="flex items-center justify-end">
-        <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm">
-          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-          Áp dụng bảng giá thời gian thực: Khung Giờ {getActiveTierName()}
-        </span>
-      </div>
-
-      {/* Pricing Tab */}
-      {activeTab === "pricing" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: Pricing tiers */}
-          <div className="bg-white rounded-xl border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-navy-800">Khung Giờ & Bảng Giá Áp Dụng</h3>
-                <p className="text-xs text-gray-500 mt-1">Quy định mức thu cước theo các khung giờ và loại bàn</p>
-              </div>
-              <button
-                onClick={openCreatePricingModal}
-                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition"
-              >
-                + Thêm Khung Giờ
-              </button>
+      {/* ── 1. HEADER & TOP CONTROLS ────────────────────────────────────────── */}
+      <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden">
+        <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white border-b border-slate-100">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <Title level={3} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+                Quản Lý Danh Mục Bàn & Cấu Hình Bảng Giá
+              </Title>
+              <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0">
+                FLOOR CATALOG
+              </Tag>
             </div>
-
-            <div className="space-y-4">
-              {pricingTiers.map((tier, index) => (
-                <div
-                  key={tier._id}
-                  className={`border rounded-xl p-5 transition ${
-                    tier.isCurrentlyActive
-                      ? "border-primary-300 bg-primary-50/30"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 bg-primary-500 text-white rounded-lg flex items-center justify-center text-sm font-bold">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <h4 className="font-semibold text-sm text-navy-800">{tier.name}</h4>
-                        <p className="text-xs text-gray-500">
-                          {tier.dayType === "weekday"
-                            ? "T2 – T6"
-                            : tier.dayType === "weekend"
-                            ? "T7 & CN"
-                            : "T2 – T6"}
-                          : {tier.startTime} – {tier.endTime}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {tier.isCurrentlyActive && (
-                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                          Đang áp dụng
-                        </span>
-                      )}
-                      {tier.dayType === "peak" && (
-                        <span className="px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs font-medium">
-                          GIỜ VÀNG CLB
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500 mb-1">Bàn Thường (9FT Rasson)</p>
-                      <p className="text-lg font-bold text-navy-800">
-                        {formatPrice(tier.prices.standard)}
-                        <span className="text-xs font-normal text-gray-500"> / giờ</span>
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500 mb-1">Bàn VIP Bank Pool (K-Steel)</p>
-                      <p className="text-lg font-bold text-primary-600">
-                        {formatPrice(tier.prices.vip)}
-                        <span className="text-xs font-normal text-gray-500"> / giờ</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                    <p className="text-xs text-gray-400 inline-flex items-center gap-1">
-                      {tier.dayType === "weekday" ? (
-                        <>
-                          <SettingOutlined /> Áp dụng từ thứ 2 đến thứ 6
-                        </>
-                      ) : tier.dayType === "weekend" ? (
-                        <>
-                          <CalendarOutlined /> Tự động kích hoạt Thứ 7 & Chủ Nhật
-                        </>
-                      ) : (
-                        <>
-                          <ThunderboltOutlined /> Khung giờ hiện hành theo thời gian hệ thống
-                        </>
-                      )}
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => openEditPricingModal(tier)}
-                        className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                      >
-                        Chỉnh sửa
-                      </button>
-                      <button
-                        onClick={() => openPricingDeleteConfirm(tier._id)}
-                        className="text-sm text-red-500 hover:text-red-700 font-medium"
-                      >
-                        Xóa
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Rounding rule */}
-            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-100 rounded-xl">
-              <div className="flex items-start gap-3">
-                <BulbOutlined className="text-yellow-600 mt-1" />
-                <div>
-                  <p className="text-sm font-medium text-yellow-800">Quy tắc làm tròn:</p>
-                  <p className="text-xs text-yellow-700 mt-1">
-                    Sau 15 phút đầu tiên tính block tiêu chuẩn 1 phút, tiền giờ tự động nhân theo đơn giá của khung giờ tương ứng mà bàn đang mở.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <Text className="!text-xs !text-slate-500 block">
+              Quản trị quy mô bàn bida, thông số kỹ thuật nỉ Simonis và cấu hình biểu giá linh hoạt theo từng khung giờ
+            </Text>
           </div>
 
-          {/* Right: Tables list */}
-          <div className="bg-white rounded-xl border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-navy-800">
-                  Danh sách {tables.length} Bàn Bida tại CLB
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">Cấu hình phân loại thiết bị, phòng bàn và gán bảng giá</p>
-              </div>
-              <button
-                onClick={openCreateTableModal}
-                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"
-              >
-                <span>+</span> Thêm Bàn Mới
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                    <th className="pb-3 pr-4">Mã Bàn</th>
-                    <th className="pb-3 pr-4">Khu vực</th>
-                    <th className="pb-3 pr-4">Loại Bàn</th>
-                    <th className="pb-3 pr-4">Khung Giá</th>
-                    <th className="pb-3 pr-4">Đơn Giá (VND/h)</th>
-                    <th className="pb-3 pr-4">Trạng thái</th>
-                    <th className="pb-3">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {paginatedTables.map((table) => (
-                    <tr key={table._id} className="hover:bg-gray-50 transition">
-                      <td className="py-3 pr-4">
-                        <span className="font-semibold text-sm text-navy-800">{table.code}</span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className="text-sm text-gray-600">{table.area}</span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className="text-sm text-gray-600">
-                          {tableTypeLabels[table.type] || table.type}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className="text-sm text-gray-600">Khung Giờ Tối Peak</span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className="text-sm font-semibold text-primary-600">
-                          {formatPrice(table.pricePerHour)}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-                            statusLabels[table.status]?.color || "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              table.status === "available"
-                                ? "bg-green-500"
-                                : table.status === "playing"
-                                ? "bg-red-500"
-                                : table.status === "booked"
-                                ? "bg-blue-500"
-                                : "bg-yellow-500"
-                            }`}
-                          ></span>
-                          {statusLabels[table.status]?.label || table.status}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openEditTableModal(table)}
-                            className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                          >
-                            Sửa
-                          </button>
-                          <span className="text-gray-300">|</span>
-                          <button
-                            onClick={() => handleToggleMaintenance(table)}
-                            className={`text-sm font-medium ${
-                              table.status === "maintenance"
-                                ? "text-green-600 hover:text-green-700"
-                                : "text-gray-500 hover:text-gray-700"
-                            }`}
-                          >
-                            {table.status === "maintenance" ? "Khôi phục" : "Bảo trì"}
-                          </button>
-                          <span className="text-gray-300">|</span>
-                          <button
-                            onClick={() => openTableDeleteConfirm(table._id)}
-                            className="text-sm text-red-500 hover:text-red-700 font-medium"
-                          >
-                            Xóa
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-              <span>
-                Hiển thị {(currentPage - 1) * tablesPerPage + 1} -{" "}
-                {Math.min(currentPage * tablesPerPage, tables.length)} trong tổng số{" "}
-                {tables.length} bàn tại CLB
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
+            {/* Realtime active pricing pill */}
+            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-2 shadow-2xs">
+              <ClockCircleOutlined className="text-emerald-700 text-xs" />
+              <span className="text-xs text-emerald-900 font-semibold">
+                Đang áp dụng: <strong>Khung Giờ Chiều (14:00 - 18:00)</strong>
               </span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                >
-                  &lt;
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1 rounded ${
-                      page === currentPage
-                        ? "bg-primary-500 text-white"
-                        : "border border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
-                >
-                  &gt;
-                </button>
-              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/admin/pos")}
+              leftIcon={<ThunderboltOutlined />}
+              className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs"
+            >
+              Mở Sơ Đồ Bàn POS
+            </Button>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenAddTable}
+              leftIcon={<PlusOutlined />}
+              className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
+            >
+              Thêm Bàn Mới
+            </Button>
+          </div>
+        </div>
+
+        {/* Tab Selector using SegmentedPillList */}
+        <div className="p-3 bg-slate-50/70">
+          <SegmentedPillList
+            items={tabPills}
+            activeKey={activeTab}
+            onSelect={(key) => setActiveTab(key)}
+          />
+        </div>
+      </Card>
+
+      {/* ── 2. TAB 1: DANH MỤC BÀN BIDA (TABLE CATALOG) ────────────────────── */}
+      {activeTab === "tables" && (
+        <div className="space-y-4">
+          {/* KPI Strip: Floor Breakdown */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between shadow-2xs">
+              <span className="text-xs font-semibold text-slate-500 mb-1">Tổng quy mô sàn</span>
+              <span className="text-2xl font-black text-slate-900 font-mono">{stats.total} Bàn</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between shadow-2xs">
+              <span className="text-xs font-semibold text-slate-500 mb-1">Bàn Thường 9FT</span>
+              <span className="text-2xl font-black text-slate-800 font-mono">{stats.standard} Bàn</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 flex flex-col justify-between shadow-2xs">
+              <span className="text-xs font-semibold text-amber-800 mb-1">Bàn VIP Bank Pool</span>
+              <span className="text-2xl font-black text-amber-800 font-mono">{stats.vip} Bàn</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col justify-between shadow-2xs">
+              <span className="text-xs font-semibold text-emerald-800 mb-1">Bàn Match K-Steel</span>
+              <span className="text-2xl font-black text-emerald-700 font-mono">{stats.match} Bàn</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between shadow-2xs col-span-2 sm:col-span-1">
+              <span className="text-xs font-semibold text-slate-500 mb-1">Đang bảo trì nỉ</span>
+              <span className="text-2xl font-black text-rose-600 font-mono">{stats.maintenance} Bàn</span>
             </div>
           </div>
+
+          {/* Filter Toolbar & Data Table */}
+          <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white">
+            <div className="p-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Select
+                  value={filterType}
+                  onChange={(val) => setFilterType(val)}
+                  className="!w-44 !rounded-lg !text-xs"
+                  options={[
+                    { value: "all", label: "Tất cả loại bàn" },
+                    { value: "standard_9ft", label: "Bàn Thường 9FT" },
+                    { value: "vip_bank_pool", label: "Bàn VIP Bank Pool" },
+                    { value: "match_ksteel", label: "Bàn Match K-Steel" },
+                  ]}
+                />
+
+                <Select
+                  value={filterStatus}
+                  onChange={(val) => setFilterStatus(val)}
+                  className="!w-40 !rounded-lg !text-xs"
+                  options={[
+                    { value: "all", label: "Tất cả trạng thái" },
+                    { value: "active", label: "Đang hoạt động" },
+                    { value: "maintenance", label: "Đang bảo trì nỉ" },
+                  ]}
+                />
+              </div>
+
+              <SearchFilterInput
+                value={searchQuery}
+                onChange={(val) => setSearchQuery(val)}
+                placeholder="Tìm mã bàn, tên bàn, khu vực..."
+                width={280}
+              />
+            </div>
+
+            {/* Table component from shared UI */}
+            <div className="overflow-x-auto">
+              <Table
+                dataSource={filteredTables.map((t) => ({ ...t, key: t._id }))}
+                columns={tableColumns}
+                pagination={{ pageSize: 8, showTotal: (total) => `Tổng cộng ${total} bàn bida` }}
+                className="[&_.ant-table-thead_th]:!bg-slate-50 [&_.ant-table-thead_th]:!text-slate-600 [&_.ant-table-thead_th]:!text-xs [&_.ant-table-tbody_td]:!py-3.5"
+              />
+            </div>
+          </Card>
         </div>
       )}
 
-      {/* Tables tab */}
-      {activeTab === "tables" && (
-        <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-semibold text-navy-800">Danh mục bàn Bida & VIP Room</h3>
-            <button
-              onClick={openCreateTableModal}
-              className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition"
+      {/* ── 3. TAB 2: CẤU HÌNH BẢNG GIÁ KHUNG GIỜ (PRICING TIERS) ───────────── */}
+      {activeTab === "pricing" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0">
+                Biểu Giá Giờ Chơi Theo Khung Giờ
+              </Title>
+              <Text className="!text-xs !text-slate-500">
+                Tự động áp dụng mức giá tương ứng theo thời gian khách mở bàn tại quầy POS
+              </Text>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenAddPricing}
+              leftIcon={<PlusOutlined />}
+              className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white"
             >
-              + Thêm bàn mới
-            </button>
+              Thêm Khung Giờ Mới
+            </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tables.map((table) => (
-              <div
-                key={table._id}
-                className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition"
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pricingTiers.map((tier) => (
+              <Card
+                key={tier._id}
+                styles={{ body: { padding: 0 } }}
+                className={`!rounded-2xl border transition-all overflow-hidden shadow-2xs hover:shadow-sm ${
+                  tier.isCurrentlyActive ? "!border-emerald-500 bg-white ring-1 ring-emerald-500/20" : "!border-slate-200 bg-white"
+                }`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-bold text-navy-800">{table.code}</span>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      statusLabels[table.status]?.color || "bg-gray-100"
-                    }`}
-                  >
-                    {statusLabels[table.status]?.label}
-                  </span>
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                  <div className="flex items-center gap-2">
+                    <ClockCircleOutlined className="text-emerald-600 text-base" />
+                    <div>
+                      <strong className="text-sm text-slate-900 block">{tier.name}</strong>
+                      <span className="font-mono text-xs text-slate-500 font-bold">
+                        {tier.startTime} – {tier.endTime}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    {tier.isCurrentlyActive && (
+                      <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !font-bold inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        ĐANG ÁP DỤNG
+                      </Tag>
+                    )}
+                    {tier.dayType === "peak" && (
+                      <Tag color="gold" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                        GIỜ VÀNG PEAK
+                      </Tag>
+                    )}
+                    {tier.dayType === "weekend" && (
+                      <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                        CUỐI TUẦN
+                      </Tag>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600">{table.area}</p>
-                <p className="text-sm text-gray-500">{tableTypeLabels[table.type]}</p>
-                <p className="mt-2 text-lg font-bold text-primary-600">
-                  {formatPrice(table.pricePerHour)}
-                  <span className="text-xs font-normal text-gray-500"> / giờ</span>
-                </p>
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={() => openEditTableModal(table)}
-                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                  >
-                    Sửa
-                  </button>
-                  <span className="text-gray-300">|</span>
-                  <button
-                    onClick={() => handleToggleMaintenance(table)}
-                    className={`text-sm font-medium ${
-                      table.status === "maintenance"
-                        ? "text-green-600 hover:text-green-700"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {table.status === "maintenance" ? "Khôi phục" : "Bảo trì"}
-                  </button>
-                  <span className="text-gray-300">|</span>
-                  <button
-                    onClick={() => openTableDeleteConfirm(table._id)}
-                    className="text-sm text-red-500 hover:text-red-700 font-medium"
-                  >
-                    Xóa
-                  </button>
+
+                <div className="p-4 space-y-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                      <span className="text-[11px] text-slate-500 block mb-1">Bàn Thường 9FT</span>
+                      <strong className="text-sm font-black text-slate-900 font-mono">
+                        {tier.prices.standard.toLocaleString("vi-VN")}đ
+                      </strong>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
+                      <span className="text-[11px] text-amber-800 block mb-1">Bàn VIP Bank Pool</span>
+                      <strong className="text-sm font-black text-amber-900 font-mono">
+                        {tier.prices.vip.toLocaleString("vi-VN")}đ
+                      </strong>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
+                      <span className="text-[11px] text-emerald-800 block mb-1">Match K-Steel</span>
+                      <strong className="text-sm font-black text-emerald-800 font-mono">
+                        {(tier.prices.vip + 10000).toLocaleString("vi-VN")}đ
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                    <span className="text-slate-500">
+                      Áp dụng: {tier.dayType === "weekend" ? "Thứ 7 & Chủ Nhật" : "Thứ 2 đến Thứ 6 hàng tuần"}
+                    </span>
+
+                    <Space size={6}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenEditPricing(tier)}
+                        leftIcon={<EditOutlined />}
+                        className="!h-7 !px-2.5 !rounded-lg !text-xs !border-slate-300"
+                      >
+                        Sửa Giá
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setDeleteTarget({ id: tier._id, type: "pricing", name: tier.name });
+                          setDeleteConfirmVisible(true);
+                        }}
+                        leftIcon={<DeleteOutlined />}
+                        className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-slate-300 !text-slate-400 hover:!text-rose-600 hover:!border-rose-300"
+                        title="Xóa khung giờ"
+                      />
+                    </Space>
+                  </div>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </div>
       )}
 
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-        <p className="text-xs text-gray-500 inline-flex items-center gap-1.5">
-          <LockOutlined /> Mọi thay đổi về đơn giá khung giờ sẽ lập tức áp dụng cho các bàn mở phiên chơi mới tiếp theo.
-        </p>
-        <div className="flex items-center gap-3">
-          <button className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition">
-            Hủy thay đổi
-          </button>
-          <button className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition inline-flex items-center gap-1.5">
-            <CheckOutlined /> Lưu Cấu Hình Bảng Giá
-          </button>
-        </div>
-      </div>
+      {/* ── 4. TAB 3: QUY TẮC TÍNH GIỜ & TỰ ĐỘNG HÓA (SMART RULES) ─────────── */}
+      {activeTab === "automation" && (
+        <div className="space-y-4">
+          <div>
+            <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0">
+              Quy Tắc Thu Ngân & Tự Động Hóa Thông Minh
+            </Title>
+            <Text className="!text-xs !text-slate-500">
+              Các thiết lập thuật toán tính tiền giờ, phân chia block và tích hợp rơ-le điều khiển thiết bị
+            </Text>
+          </div>
 
-      {/* ═══════════════ TABLE MODAL ═══════════════ */}
-      {showTableModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setShowTableModal(false)}
-          />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-[#1B365D]">
-                {editingTable ? "Chỉnh sửa Bàn" : "Thêm Bàn Mới"}
-              </h3>
-            </div>
-            <form onSubmit={handleTableSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mã Bàn *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tableForm.code}
-                    onChange={(e) => setTableForm({ ...tableForm, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                    placeholder="VD: B01"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên Bàn *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tableForm.name}
-                    onChange={(e) => setTableForm({ ...tableForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                    placeholder="VD: Bàn số 1"
-                  />
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
+              <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
+                <ClockCircleOutlined />
+                <span>Quy tắc Block 15 Phút Đầu Tiên</span>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Loại Bàn *</label>
-                  <select
-                    required
-                    value={tableForm.type}
-                    onChange={(e) => setTableForm({ ...tableForm, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                  >
-                    {tableTypeValues.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Khu vực *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tableForm.area}
-                    onChange={(e) => setTableForm({ ...tableForm, area: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                    placeholder="VD: Tầng 1"
-                  />
-                </div>
+              <p className="text-xs text-slate-600 leading-relaxed mb-0">
+                Khi mở bàn tính giờ, hệ thống áp dụng mức tính tối thiểu là 15 phút đầu tiên. Trường hợp khách chơi dưới 15 phút, bill tạm tính tự động làm tròn thành 15 phút để bảo toàn chi phí lau nỉ, bóng và phục vụ ban đầu.
+              </p>
+            </Card>
+
+            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
+              <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
+                <SettingOutlined />
+                <span>Tự Động Tính Tiền Lũy Tiến Sau 15 Phút</span>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tầng</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={tableForm.floor}
-                    onChange={(e) => setTableForm({ ...tableForm, floor: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Đơn Giá / Giờ (VND) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={tableForm.pricePerHour}
-                    onChange={(e) => setTableForm({ ...tableForm, pricePerHour: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                    placeholder="0"
-                  />
-                </div>
+              <p className="text-xs text-slate-600 leading-relaxed mb-0">
+                Từ phút thứ 16 trở đi, hệ thống tính chuẩn xác theo từng 1 phút (block 1 phút = Đơn giá giờ / 60). Cơ chế này tạo sự minh bạch tuyệt đối cho khách hàng, không làm tròn quá tay gây phàn nàn.
+              </p>
+            </Card>
+
+            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
+              <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
+                <BulbOutlined />
+                <span>Tích Hợp Rơ-Le Điều Khiển Đèn Bàn Tự Động (IoT Smart Relay)</span>
               </div>
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowTableModal(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={tableSubmitting}
-                  className="px-4 py-2 bg-[#059669] hover:bg-[#047857] text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-                >
-                  {tableSubmitting ? "Đang lưu..." : editingTable ? "Cập nhật" : "Thêm mới"}
-                </button>
+              <p className="text-xs text-slate-600 leading-relaxed mb-0">
+                Khi thu ngân bấm <strong>Bật Bàn Tính Giờ</strong> trên POS, rơ-le thông minh tự động bật sáng đèn chụp của bàn đó. Khi hoàn tất thanh toán, đèn duy trì 30 giây để cơ thủ dọn bao cơ rồi tự động tắt.
+              </p>
+            </Card>
+
+            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
+              <div className="flex items-center gap-2 text-purple-700 font-bold text-sm">
+                <SafetyCertificateOutlined />
+                <span>Cơ Chế Tự Động Chia Khung Giờ (Split Time Rate)</span>
               </div>
-            </form>
+              <p className="text-xs text-slate-600 leading-relaxed mb-0">
+                Khi phiên chơi của khách kéo dài vắt qua 2 khung giờ khác nhau (ví dụ: chơi từ 17:00 đến 19:30, đi qua mốc 18:00 Giờ Vàng), hệ thống tự động tách làm 2 khoảng giá: 60 phút giá Chiều và 90 phút giá Giờ Vàng.
+              </p>
+            </Card>
           </div>
         </div>
       )}
 
-      {/* ═══════════ TABLE DELETE CONFIRM ═══════════ */}
-      {showTableDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setShowTableDeleteConfirm(false)}
-          />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-lg font-bold text-[#1B365D] mb-2">Xác nhận xóa bàn</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Bạn có chắc chắn muốn xóa bàn này? Hành động này không thể hoàn tác.
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowTableDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleDeleteTable}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition"
-              >
-                Xóa
-              </button>
+      {/* ── MODAL 1: THÊM / CHỈNH SỬA BÀN BIDA ─────────────────────────────────── */}
+      <Modal
+        open={tableModalVisible}
+        onCancel={() => setTableModalVisible(false)}
+        footer={null}
+        title={
+          <Space align="center" size={8}>
+            <AppstoreOutlined className="text-emerald-600 text-lg" />
+            <span className="font-bold text-slate-900 text-base">
+              {editingTable ? `Chỉnh Sửa Thông Tin ${editingTable.name}` : "Thêm Bàn Bida Mới"}
+            </span>
+          </Space>
+        }
+      >
+        <div className="py-2 space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Mã bàn (Code):</label>
+              <Input
+                placeholder="T01, V09, M13..."
+                value={tableCode}
+                onChange={(e) => setTableCode(e.target.value)}
+                className="!h-9 !rounded-xl font-mono uppercase"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Tên hiển thị:</label>
+              <Input
+                placeholder="Bàn 01, Bàn VIP 09..."
+                value={tableName}
+                onChange={(e) => setTableName(e.target.value)}
+                className="!h-9 !rounded-xl"
+              />
             </div>
           </div>
-        </div>
-      )}
 
-      {/* ═══════════════ PRICING MODAL ═══════════════ */}
-      {showPricingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setShowPricingModal(false)}
-          />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-[#1B365D]">
-                {editingPricing ? "Chỉnh sửa Khung Giờ" : "Thêm Khung Giờ Mới"}
-              </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Phân loại bàn:</label>
+              <Select
+                value={tableType}
+                onChange={(val) => setTableType(val as TableType)}
+                className="!w-full !rounded-xl"
+                options={[
+                  { value: "standard_9ft", label: "Bàn Thường 9FT" },
+                  { value: "vip_bank_pool", label: "Bàn VIP Bank Pool" },
+                  { value: "match_ksteel", label: "Bàn Match K-Steel" },
+                ]}
+              />
             </div>
-            <form onSubmit={handlePricingSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tên Khung Giờ *</label>
-                <input
-                  type="text"
-                  required
-                  value={pricingForm.name}
-                  onChange={(e) => setPricingForm({ ...pricingForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                  placeholder="VD: Khung giờ cao điểm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Loại Ngày *</label>
-                <select
-                  required
-                  value={pricingForm.dayType}
-                  onChange={(e) => setPricingForm({ ...pricingForm, dayType: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                >
-                  <option value="weekday">{dayTypeLabels.weekday}</option>
-                  <option value="weekend">{dayTypeLabels.weekend}</option>
-                  <option value="peak">{dayTypeLabels.peak}</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giờ Bắt Đầu *</label>
-                  <input
-                    type="time"
-                    required
-                    value={pricingForm.startTime}
-                    onChange={(e) => setPricingForm({ ...pricingForm, startTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giờ Kết Thúc *</label>
-                  <input
-                    type="time"
-                    required
-                    value={pricingForm.endTime}
-                    onChange={(e) => setPricingForm({ ...pricingForm, endTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giá Bàn Thường (VND/h) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={pricingForm.standardPrice}
-                    onChange={(e) => setPricingForm({ ...pricingForm, standardPrice: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giá Bàn VIP (VND/h) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={pricingForm.vipPrice}
-                    onChange={(e) => setPricingForm({ ...pricingForm, vipPrice: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowPricingModal(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={pricingSubmitting}
-                  className="px-4 py-2 bg-[#059669] hover:bg-[#047857] text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-                >
-                  {pricingSubmitting ? "Đang lưu..." : editingPricing ? "Cập nhật" : "Thêm mới"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* ═══════════ PRICING DELETE CONFIRM ═══════════ */}
-      {showPricingDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setShowPricingDeleteConfirm(false)}
-          />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-lg font-bold text-[#1B365D] mb-2">Xác nhận xóa khung giờ</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Bạn có chắc chắn muốn xóa khung giờ này? Hành động này không thể hoàn tác.
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowPricingDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleDeletePricing}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition"
-              >
-                Xóa
-              </button>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Đơn giá giờ chuẩn (VNĐ):</label>
+              <Input
+                type="number"
+                value={tablePrice}
+                onChange={(e) => setTablePrice(Number(e.target.value))}
+                className="!h-9 !rounded-xl font-mono"
+              />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Khu vực đặt bàn:</label>
+              <Input
+                placeholder="Tầng 1 - Khu A, Tầng 2 - VIP..."
+                value={tableArea}
+                onChange={(e) => setTableArea(e.target.value)}
+                className="!h-9 !rounded-xl"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Tầng:</label>
+              <Select
+                value={tableFloor}
+                onChange={(val) => setTableFloor(Number(val))}
+                className="!w-full !rounded-xl"
+                options={[
+                  { value: 1, label: "Tầng 1 (Khu Sàn Chính)" },
+                  { value: 2, label: "Tầng 2 (Phòng VIP & Match)" },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
+            <span className="font-bold block">Chuẩn trang thiết bị mặc định:</span>
+            <span>• Nỉ thi đấu: Simonis 860 HR (Bỉ)</span>
+            <br />
+            <span>• Bi thi đấu: Aramith Tournament TV Pro Cup (Bỉ)</span>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setTableModalVisible(false)} className="!rounded-xl">
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveTable}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
+            >
+              Lưu Thông Tin Bàn
+            </Button>
+          </div>
         </div>
-      )}
+      </Modal>
+
+      {/* ── MODAL 2: THÊM / CHỈNH SỬA KHUNG GIỜ ───────────────────────────────── */}
+      <Modal
+        open={pricingModalVisible}
+        onCancel={() => setPricingModalVisible(false)}
+        footer={null}
+        title={
+          <Space align="center" size={8}>
+            <ClockCircleOutlined className="text-emerald-600 text-lg" />
+            <span className="font-bold text-slate-900 text-base">
+              {editingPricing ? `Cập Nhật Biểu Giá: ${editingPricing.name}` : "Thêm Khung Giờ Mới"}
+            </span>
+          </Space>
+        }
+      >
+        <div className="py-2 space-y-3.5 text-xs">
+          <div>
+            <label className="block text-slate-700 font-semibold mb-1">Tên khung giờ:</label>
+            <Input
+              placeholder="Khung Giờ Sáng, Giờ Vàng Tối..."
+              value={pricingName}
+              onChange={(e) => setPricingName(e.target.value)}
+              className="!h-9 !rounded-xl"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Loại ngày:</label>
+              <Select
+                value={pricingDayType}
+                onChange={(val) => setPricingDayType(val)}
+                className="!w-full !rounded-xl"
+                options={[
+                  { value: "weekday", label: "Ngày Thường" },
+                  { value: "peak", label: "Giờ Cao Điểm" },
+                  { value: "weekend", label: "Cuối Tuần" },
+                ]}
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Từ giờ:</label>
+              <Input
+                placeholder="08:00"
+                value={pricingStartTime}
+                onChange={(e) => setPricingStartTime(e.target.value)}
+                className="!h-9 !rounded-xl font-mono text-center"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Đến giờ:</label>
+              <Input
+                placeholder="14:00"
+                value={pricingEndTime}
+                onChange={(e) => setPricingEndTime(e.target.value)}
+                className="!h-9 !rounded-xl font-mono text-center"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Giá Bàn Thường 9FT (VNĐ/h):</label>
+              <Input
+                type="number"
+                value={pricingStandardPrice}
+                onChange={(e) => setPricingStandardPrice(Number(e.target.value))}
+                className="!h-9 !rounded-xl font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Giá Bàn VIP Bank Pool (VNĐ/h):</label>
+              <Input
+                type="number"
+                value={pricingVipPrice}
+                onChange={(e) => setPricingVipPrice(Number(e.target.value))}
+                className="!h-9 !rounded-xl font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setPricingModalVisible(false)} className="!rounded-xl">
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSavePricing}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
+            >
+              Lưu Biểu Giá
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL 3: XÁC NHẬN XÓA ────────────────────────────────────────────── */}
+      <Modal
+        open={deleteConfirmVisible}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        footer={null}
+        width={420}
+        title={
+          <Space align="center" size={8}>
+            <ExclamationCircleOutlined className="text-rose-600 text-lg" />
+            <span className="font-bold text-slate-900 text-base">Xác Nhận Xóa Dữ Liệu</span>
+          </Space>
+        }
+      >
+        <div className="py-2 space-y-4 text-xs">
+          <p className="text-slate-600 leading-relaxed mb-0">
+            Bạn có chắc chắn muốn xóa <strong>{deleteTarget?.name}</strong> khỏi hệ thống? Thao tác này không thể hoàn tác.
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmVisible(false)} className="!rounded-xl">
+              Hủy Bỏ
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleConfirmDelete}
+              className="!rounded-xl font-bold px-4"
+            >
+              Xác Nhận Xóa
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
