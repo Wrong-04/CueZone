@@ -127,11 +127,15 @@ const AdminLayout = () => {
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-navy-700">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-lg">CZ</span>
-            </div>
+            <img
+              src="/favicon.svg"
+              alt="CueZone"
+              className="w-10 h-10 rounded-xl flex-shrink-0 shadow-md shadow-emerald-950/50"
+            />
             {sidebarOpen && (
-              <span className="text-lg font-bold tracking-tight">CueZone</span>
+              <span className="text-lg font-bold tracking-tight">
+                CUE<span className="text-emerald-400">ZONE</span>
+              </span>
             )}
           </div>
           <button

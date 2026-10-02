@@ -697,7 +697,7 @@ const TablesManagementPage = () => {
                     required
                     value={tableForm.code}
                     onChange={(e) => setTableForm({ ...tableForm, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                     placeholder="VD: B01"
                   />
                 </div>
@@ -708,7 +708,7 @@ const TablesManagementPage = () => {
                     required
                     value={tableForm.name}
                     onChange={(e) => setTableForm({ ...tableForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                     placeholder="VD: Bàn số 1"
                   />
                 </div>
@@ -720,7 +720,7 @@ const TablesManagementPage = () => {
                     required
                     value={tableForm.type}
                     onChange={(e) => setTableForm({ ...tableForm, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                   >
                     {tableTypeValues.map((t) => (
                       <option key={t.value} value={t.value}>{t.label}</option>
@@ -734,7 +734,7 @@ const TablesManagementPage = () => {
                     required
                     value={tableForm.area}
                     onChange={(e) => setTableForm({ ...tableForm, area: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                     placeholder="VD: Tầng 1"
                   />
                 </div>
@@ -747,7 +747,7 @@ const TablesManagementPage = () => {
                     min="1"
                     value={tableForm.floor}
                     onChange={(e) => setTableForm({ ...tableForm, floor: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                   />
                 </div>
                 <div>
@@ -758,7 +758,7 @@ const TablesManagementPage = () => {
                     min="0"
                     value={tableForm.pricePerHour}
                     onChange={(e) => setTableForm({ ...tableForm, pricePerHour: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                     placeholder="0"
                   />
                 </div>
@@ -774,7 +774,7 @@ const TablesManagementPage = () => {
                 <button
                   type="submit"
                   disabled={tableSubmitting}
-                  className="px-4 py-2 bg-[#D96B27] hover:bg-[#c45f22] text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+                  className="px-4 py-2 bg-[#059669] hover:bg-[#047857] text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
                 >
                   {tableSubmitting ? "Đang lưu..." : editingTable ? "Cập nhật" : "Thêm mới"}
                 </button>
@@ -835,7 +835,7 @@ const TablesManagementPage = () => {
                   required
                   value={pricingForm.name}
                   onChange={(e) => setPricingForm({ ...pricingForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                   placeholder="VD: Khung giờ cao điểm"
                 />
               </div>
@@ -845,7 +845,7 @@ const TablesManagementPage = () => {
                   required
                   value={pricingForm.dayType}
                   onChange={(e) => setPricingForm({ ...pricingForm, dayType: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                 >
                   <option value="weekday">{dayTypeLabels.weekday}</option>
                   <option value="weekend">{dayTypeLabels.weekend}</option>
@@ -860,7 +860,7 @@ const TablesManagementPage = () => {
                     required
                     value={pricingForm.startTime}
                     onChange={(e) => setPricingForm({ ...pricingForm, startTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                   />
                 </div>
                 <div>
@@ -870,7 +870,7 @@ const TablesManagementPage = () => {
                     required
                     value={pricingForm.endTime}
                     onChange={(e) => setPricingForm({ ...pricingForm, endTime: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                   />
                 </div>
               </div>
@@ -883,7 +883,7 @@ const TablesManagementPage = () => {
                     min="0"
                     value={pricingForm.standardPrice}
                     onChange={(e) => setPricingForm({ ...pricingForm, standardPrice: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                     placeholder="0"
                   />
                 </div>
@@ -895,7 +895,7 @@ const TablesManagementPage = () => {
                     min="0"
                     value={pricingForm.vipPrice}
                     onChange={(e) => setPricingForm({ ...pricingForm, vipPrice: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D96B27]/30 focus:border-[#D96B27]"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#059669]/30 focus:border-[#059669]"
                     placeholder="0"
                   />
                 </div>
@@ -911,7 +911,7 @@ const TablesManagementPage = () => {
                 <button
                   type="submit"
                   disabled={pricingSubmitting}
-                  className="px-4 py-2 bg-[#D96B27] hover:bg-[#c45f22] text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+                  className="px-4 py-2 bg-[#059669] hover:bg-[#047857] text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
                 >
                   {pricingSubmitting ? "Đang lưu..." : editingPricing ? "Cập nhật" : "Thêm mới"}
                 </button>

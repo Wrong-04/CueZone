@@ -19,11 +19,15 @@ const CustomerLayout = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
-              <Link to="/customer" className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">CZ</span>
-                </div>
-                <span className="text-xl font-bold text-navy-800">CueZone</span>
+              <Link to="/customer" className="flex items-center gap-2.5">
+                <img
+                  src="/favicon.svg"
+                  alt="CueZone"
+                  className="w-10 h-10 rounded-xl flex-shrink-0 shadow-sm"
+                />
+                <span className="text-xl font-black text-navy-800 tracking-tight">
+                  CUE<span className="text-emerald-600">ZONE</span>
+                </span>
               </Link>
               <nav className="hidden md:flex items-center gap-1">
                 <Link

@@ -2,6 +2,272 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   DESIGN TOKENS & COLOR PALETTE
+   Toàn bộ mã màu chuẩn của hệ thống và từng component trong thư mục shared/ui
+   ========================================================================== */
+
+:root {
+  /* ── 1. Brand Colors (Màu nhận diện thương hiệu CueZone - Simonis Emerald) ── */
+  --brand: #059669;
+  --brand-hover: #047857;
+  --brand-active: #065f46;
+  --brand-dark: #064e3b;
+  --brand-light: #34d399;
+  --bg-brand-soft: #ecfdf5;
+  --brand-ring: rgba(5, 150, 105, 0.2);
+
+  /* ── 2. Navy Palette (Màu phụ trợ thanh điều hướng & sidebar) ── */
+  --navy-50: #f0f4f8;
+  --navy-100: #d9e2ec;
+  --navy-500: #627d98;
+  --navy-700: #334e68;
+  --navy-800: #1B365D;
+  --navy-900: #102a43;
+
+  /* ── 3. Neutral & Surface Palette (Màu nền & bề mặt) ── */
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --neutral-bg: #f1f5f9;
+  --bg-hover: #f1f5f9;
+
+  /* ── 4. Text Palette (Màu chữ chuẩn) ── */
+  --text-main: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+
+  /* ── 5. Border & Divider Palette (Màu đường viền & ngăn cách) ── */
+  --border-standard: #e2e8f0;
+  --border-divider: #f1f5f9;
+  --border-dark: #cbd5e1;
+
+  /* ── 6. Status Colors (Màu trạng thái nghiệp vụ) ── */
+  /* Danger / Lỗi / Hủy */
+  --status-danger: #ef4444;
+  --status-danger-hover: #dc2626;
+  --status-danger-bg: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-danger-text: #991b1b;
+
+  /* Warning / Cảnh báo / Chờ duyệt */
+  --status-warning: #f59e0b;
+  --status-warning-hover: #d97706;
+  --status-warning-bg: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-warning-text: #92400e;
+
+  /* Success / Thành công / Hoạt động */
+  --status-success: #10b981;
+  --status-success-hover: #059669;
+  --status-success-bg: #f0fdf4;
+  --status-success-border: #bbf7d0;
+  --status-success-text: #166534;
+
+  /* Info / Thông tin */
+  --status-info: #3b82f6;
+  --status-info-hover: #2563eb;
+  --status-info-bg: #eff6ff;
+  --status-info-border: #bfdbfe;
+  --status-info-text: #1e40af;
+
+  /* ==========================================================================
+     COMPONENT-SPECIFIC COLOR TOKENS
+     Mã màu riêng cho từng component trong src/shared/ui/
+     ========================================================================== */
+
+  /* [Button] */
+  --btn-primary-bg: var(--brand);
+  --btn-primary-hover-bg: var(--brand-hover);
+  --btn-primary-active-bg: var(--brand-active);
+  --btn-primary-text: #ffffff;
+  --btn-danger-bg: var(--status-danger);
+  --btn-danger-hover-bg: var(--status-danger-hover);
+  --btn-danger-text: #ffffff;
+  --btn-secondary-bg: var(--neutral-bg);
+  --btn-secondary-hover-bg: #e2e8f0;
+  --btn-secondary-text: var(--text-main);
+  --btn-outline-border: var(--border-standard);
+  --btn-outline-hover-border: var(--brand);
+  --btn-outline-hover-text: var(--brand);
+
+  /* [Input / FloatingInput] */
+  --input-bg: var(--bg-card);
+  --input-border: var(--border-standard);
+  --input-border-hover: var(--brand);
+  --input-border-focus: var(--brand);
+  --input-focus-shadow: 0 0 0 2px var(--brand-ring);
+  --input-error-border: var(--status-danger);
+  --input-error-shadow: 0 0 0 2px rgba(239, 68, 68, 0.16);
+  --input-warning-border: var(--status-warning);
+  --input-warning-shadow: 0 0 0 2px rgba(245, 158, 11, 0.16);
+  --input-disabled-bg: #f5f5f5;
+  --input-disabled-border: #d9d9d9;
+  --input-disabled-text: rgba(0, 0, 0, 0.25);
+  --input-placeholder: var(--text-muted);
+  --floating-label-text: var(--text-secondary);
+  --floating-label-bg: var(--bg-card);
+
+  /* [Table / DataTable (eclaim-data-table)] */
+  --table-header-bg: #f8fafc;
+  --table-header-text: var(--text-main);
+  --table-header-border: var(--border-divider);
+  --table-row-text: var(--text-main);
+  --table-row-border: var(--border-divider);
+  --table-row-hover-bg: var(--bg-app);
+  --table-row-selected-bg: var(--bg-brand-soft);
+  --table-summary-bg: #f8fafc;
+  --table-empty-placeholder-opacity: 0.35;
+
+  /* [Card] */
+  --card-bg: var(--bg-card);
+  --card-border: var(--border-divider);
+  --card-title-text: var(--text-main);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* [Dialog / Modal] */
+  --modal-bg: var(--bg-card);
+  --modal-header-border: var(--border-divider);
+  --modal-title-text: var(--text-main);
+  --modal-icon-color: var(--brand);
+  --modal-mask-bg: rgba(15, 23, 42, 0.45);
+
+  /* [Dropdown / ActionDropdown] */
+  --dropdown-btn-bg: #ffffff;
+  --dropdown-btn-border: var(--border-divider);
+  --dropdown-btn-text: var(--text-main);
+  --dropdown-btn-hover-bg: var(--bg-app);
+  --dropdown-menu-bg: var(--bg-card);
+  --dropdown-item-hover-bg: var(--bg-brand-soft);
+  --dropdown-item-hover-text: var(--brand);
+  --dropdown-danger-text: var(--status-danger);
+  --dropdown-danger-hover-bg: var(--status-danger-bg);
+
+  /* [ChoiceInput] */
+  --choice-input-bg: #ffffff;
+  --choice-input-border: var(--border-standard);
+  --choice-active-bg: var(--brand);
+  --choice-active-text: #ffffff;
+  --choice-inactive-text: var(--text-secondary);
+  --choice-inactive-hover-bg: var(--bg-brand-soft);
+  --choice-inactive-hover-text: var(--brand);
+
+  /* [SegmentedPillList] */
+  --pill-list-bg: var(--neutral-bg);
+  --pill-list-border: var(--border-divider);
+  --pill-active-bg: #ffffff;
+  --pill-active-text: var(--brand);
+  --pill-active-badge-bg: var(--bg-brand-soft);
+  --pill-active-badge-text: var(--brand);
+  --pill-inactive-text: var(--text-secondary);
+  --pill-inactive-hover-text: var(--text-main);
+
+  /* [SearchFilterInput] */
+  --search-input-border: var(--border-standard);
+  --search-filter-icon: var(--brand);
+  --search-filter-hover-bg: var(--bg-brand-soft);
+  --search-filter-hover-icon: var(--brand-dark);
+  --search-active-dot: var(--status-danger);
+
+  /* [Pagination] */
+  --pagination-active-bg: var(--brand);
+  --pagination-active-border: var(--brand);
+  --pagination-active-text: #ffffff;
+  --pagination-item-border: var(--border-standard);
+  --pagination-item-text: var(--text-secondary);
+  --pagination-item-hover-border: var(--brand);
+  --pagination-item-hover-text: var(--brand);
+
+  /* [Select / DatePicker / TreeSelect / TimePicker] */
+  --select-border: var(--border-standard);
+  --select-border-hover: var(--brand);
+  --select-border-focus: var(--brand);
+  --select-item-selected-bg: var(--bg-brand-soft);
+  --select-item-selected-text: var(--brand);
+  --select-item-hover-bg: var(--bg-app);
+
+  /* [Tabs] */
+  --tab-active-text: var(--brand);
+  --tab-ink-bar: var(--brand);
+  --tab-inactive-text: var(--text-secondary);
+  --tab-hover-text: var(--brand-hover);
+
+  /* [Tag] */
+  --tag-default-bg: var(--neutral-bg);
+  --tag-default-border: var(--border-standard);
+  --tag-default-text: var(--text-main);
+  --tag-primary-bg: var(--bg-brand-soft);
+  --tag-primary-border: var(--brand);
+  --tag-primary-text: var(--brand);
+
+  /* [Badge] */
+  --badge-color: var(--brand);
+  --badge-text: #ffffff;
+
+  /* [Breadcrumb] */
+  --breadcrumb-text: var(--text-secondary);
+  --breadcrumb-hover: var(--brand);
+  --breadcrumb-last-text: var(--text-main);
+  --breadcrumb-separator: var(--text-muted);
+
+  /* [Checkbox & Radio] */
+  --checkbox-color: var(--brand);
+  --checkbox-text: var(--text-secondary);
+  --radio-color: var(--brand);
+  --radio-text: var(--text-secondary);
+
+  /* [Alert] */
+  --alert-success-bg: var(--status-success-bg);
+  --alert-success-border: var(--status-success-border);
+  --alert-warning-bg: var(--status-warning-bg);
+  --alert-warning-border: var(--status-warning-border);
+  --alert-error-bg: var(--status-danger-bg);
+  --alert-error-border: var(--status-danger-border);
+  --alert-info-bg: var(--status-info-bg);
+  --alert-info-border: var(--status-info-border);
+
+  /* [Timeline] */
+  --timeline-node-color: var(--brand);
+  --timeline-tail-color: var(--border-divider);
+
+  /* [Spin] */
+  --spin-color: var(--brand);
+  --spin-text: var(--text-secondary);
+
+  /* [Tooltip & Popover] */
+  --tooltip-bg: #1e293b;
+  --tooltip-text: #ffffff;
+  --popover-bg: var(--bg-card);
+  --popover-border: var(--border-divider);
+
+  /* [Tree] */
+  --tree-node-selected-bg: var(--bg-brand-soft);
+  --tree-node-selected-text: var(--brand);
+  --tree-node-hover-bg: var(--bg-app);
+
+  /* [Typography] */
+  --typography-title: var(--text-main);
+  --typography-text: var(--text-secondary);
+  --typography-muted: var(--text-muted);
+  --typography-link: var(--brand);
+  --typography-link-hover: var(--brand-hover);
+
+  /* [Upload] */
+  --upload-dragger-bg: var(--neutral-bg);
+  --upload-dragger-border: var(--border-standard);
+  --upload-dragger-hover-border: var(--brand);
+  --upload-dragger-hover-bg: var(--bg-brand-soft);
+
+  /* [Message / Toast] */
+  --message-bg: var(--bg-card);
+  --message-text: var(--text-main);
+  --message-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================================================
+   GLOBAL RESET & BASE STYLES
+   ========================================================================== */
+
 * {
   margin: 0;
   padding: 0;
@@ -10,6 +276,8 @@
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg-app);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -18,7 +286,192 @@ body {
   min-height: 100vh;
 }
 
-/* ── Animations ──────────────────────────────────────── */
+/* ==========================================================================
+   ANT DESIGN COMPONENT STYLING & OVERRIDES
+   Tùy biến chi tiết từng component trong src/shared/ui/
+   ========================================================================== */
+
+/* ── 1. FloatingInput & Form Controls ─────────────────── */
+.floating-input-control .ant-input,
+.floating-input-control .ant-input-number,
+.floating-input-control .ant-select-selector,
+.floating-input-control .ant-picker {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding-left: 0 !important;
+}
+
+.floating-input-control .ant-input-number-input {
+  padding-left: 0 !important;
+}
+
+.floating-input-control .ant-select-selection-item,
+.floating-input-control .ant-select-selection-placeholder {
+  padding-left: 0 !important;
+}
+
+/* ── 2. DataTable & Table (.eclaim-data-table) ────────── */
+.eclaim-data-table .ant-table {
+  background: transparent;
+  color: var(--table-row-text);
+  font-size: 13px;
+}
+
+.eclaim-data-table .ant-table-thead > tr > th {
+  background: var(--table-header-bg) !important;
+  color: var(--table-header-text) !important;
+  font-weight: 600;
+  border-bottom: 1px solid var(--table-header-border) !important;
+  padding: 10px 12px !important;
+  font-size: 12.5px;
+}
+
+.eclaim-data-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--table-row-border) !important;
+  padding: 9px 12px !important;
+  color: var(--table-row-text);
+}
+
+.eclaim-data-table .ant-table-tbody > tr:hover > td {
+  background-color: var(--table-row-hover-bg) !important;
+}
+
+.eclaim-data-table .ant-table-tbody > tr.ant-table-row-selected > td {
+  background-color: var(--table-row-selected-bg) !important;
+}
+
+/* Empty placeholder row */
+.empty-placeholder-row > td {
+  height: 38px !important;
+  border-bottom: 1px solid var(--border-divider) !important;
+  background: transparent !important;
+}
+
+.empty-placeholder-row {
+  opacity: var(--table-empty-placeholder-opacity);
+}
+
+/* ── 3. Button Component ─────────────────────────────── */
+.ant-btn-primary:not(.ant-btn-dangerous) {
+  background-color: var(--btn-primary-bg) !important;
+  border-color: var(--btn-primary-bg) !important;
+  color: var(--btn-primary-text) !important;
+}
+
+.ant-btn-primary:not(.ant-btn-dangerous):hover {
+  background-color: var(--btn-primary-hover-bg) !important;
+  border-color: var(--btn-primary-hover-bg) !important;
+}
+
+.ant-btn-primary:not(.ant-btn-dangerous):active {
+  background-color: var(--btn-primary-active-bg) !important;
+  border-color: var(--btn-primary-active-bg) !important;
+}
+
+/* ── 4. Card Component ───────────────────────────────── */
+.ant-card {
+  border-color: var(--card-border);
+  background-color: var(--card-bg);
+}
+
+.ant-card .ant-card-head {
+  border-bottom: 1px solid var(--border-divider);
+  color: var(--card-title-text);
+}
+
+/* ── 5. Modal & Dialog ───────────────────────────────── */
+.ant-modal-content {
+  background-color: var(--modal-bg) !important;
+  border-radius: 12px !important;
+  padding: 20px !important;
+}
+
+.ant-modal-header {
+  background-color: var(--modal-bg) !important;
+  margin-bottom: 12px !important;
+}
+
+.ant-modal-title {
+  color: var(--modal-title-text) !important;
+  font-weight: 600 !important;
+}
+
+/* ── 6. Pagination ───────────────────────────────────── */
+.ant-pagination .ant-pagination-item-active {
+  border-color: var(--pagination-active-border) !important;
+  background-color: var(--pagination-active-bg) !important;
+}
+
+.ant-pagination .ant-pagination-item-active a {
+  color: var(--pagination-active-text) !important;
+}
+
+.ant-pagination .ant-pagination-item:hover:not(.ant-pagination-item-active) {
+  border-color: var(--pagination-item-hover-border) !important;
+}
+
+.ant-pagination .ant-pagination-item:hover:not(.ant-pagination-item-active) a {
+  color: var(--pagination-item-hover-text) !important;
+}
+
+/* ── 7. Tabs Component ───────────────────────────────── */
+.ant-tabs .ant-tabs-ink-bar {
+  background: var(--tab-ink-bar) !important;
+}
+
+.ant-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--tab-active-text) !important;
+  font-weight: 600;
+}
+
+.ant-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn {
+  color: var(--tab-hover-text) !important;
+}
+
+/* ── 8. Checkbox & Radio ─────────────────────────────── */
+.ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--checkbox-color) !important;
+  border-color: var(--checkbox-color) !important;
+}
+
+.ant-radio-checked .ant-radio-inner {
+  border-color: var(--radio-color) !important;
+  background-color: var(--radio-color) !important;
+}
+
+/* ── 9. Tag & Badge ──────────────────────────────────── */
+.ant-tag {
+  border-radius: 4px;
+}
+
+/* ── 10. Spin Loading ────────────────────────────────── */
+.ant-spin-dot-item {
+  background-color: var(--spin-color) !important;
+}
+
+/* ── 11. Timeline ────────────────────────────────────── */
+.ant-timeline .ant-timeline-item-head-blue {
+  border-color: var(--timeline-node-color) !important;
+  color: var(--timeline-node-color) !important;
+}
+
+.ant-timeline .ant-timeline-item-tail {
+  border-color: var(--timeline-tail-color) !important;
+}
+
+/* ── 12. Message Toast ───────────────────────────────── */
+.ant-message-notice-content {
+  background: var(--message-bg) !important;
+  color: var(--message-text) !important;
+  box-shadow: var(--message-shadow) !important;
+  border-radius: 8px !important;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   ANIMATIONS & KEYFRAMES
+   ========================================================================== */
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -50,8 +503,7 @@ body {
   to { opacity: 0; transform: translateY(-12px) scale(0.95); }
 }
 
-/* ── Utility classes ────────────────────────────────── */
-
+/* ── Animation utility classes ───────────────────────── */
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out both;
 }
@@ -76,7 +528,7 @@ body {
   animation: toastOut 0.25s ease-in both;
 }
 
-/* staggered children */
+/* Staggered children */
 .stagger-children > * {
   animation: slideUp 0.35s ease-out both;
 }
@@ -91,7 +543,6 @@ body {
 .stagger-children > *:nth-child(n+9) { animation-delay: 400ms; }
 
 /* ── Smooth transitions on interactive elements ─────── */
-
 button, a, input, select, textarea {
   transition: all 0.2s ease;
 }
@@ -100,8 +551,7 @@ tr {
   transition: background-color 0.15s ease;
 }
 
-/* ── Scrollbar ──────────────────────────────────────── */
-
+/* ── Custom Scrollbar ───────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -119,3 +569,4 @@ tr {
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
