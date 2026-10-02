@@ -570,58 +570,48 @@ tr {
   background: #9ca3af;
 }
 
-/* ── Dark mode input & Webkit autofill fix ───────────── */
-.auth-dark-container {
-  color-scheme: dark;
-}
-
-.auth-dark-container input,
-.auth-dark-container .ant-input,
-.auth-dark-container .ant-input-affix-wrapper {
-  color-scheme: dark !important;
-}
-
+/* ── Clean Form Input & Webkit Autofill Handling ─────── */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
 input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
-  box-shadow: 0 0 0 1000px #0b131e inset !important;
-  -webkit-text-fill-color: #f1f5f9 !important;
-  color: #f1f5f9 !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  color: #0f172a !important;
   transition: background-color 50000s ease-in-out 0s, color 50000s ease-in-out 0s !important;
-  caret-color: #ffffff !important;
+  caret-color: #0f172a !important;
 }
 
-input:-internal-autofill-selected {
-  -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
-  box-shadow: 0 0 0 1000px #0b131e inset !important;
-  -webkit-text-fill-color: #f1f5f9 !important;
-  color: #f1f5f9 !important;
-  transition: background-color 50000s ease-in-out 0s !important;
-}
-
+input:-internal-autofill-selected,
 input:-internal-autofill-previewed {
-  -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
-  box-shadow: 0 0 0 1000px #0b131e inset !important;
-  -webkit-text-fill-color: #f1f5f9 !important;
-  color: #f1f5f9 !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  color: #0f172a !important;
   transition: background-color 50000s ease-in-out 0s !important;
 }
 
+/* Ant Design Affix Wrapper & Inputs (Clean Luxury Light Theme) */
 .ant-input-affix-wrapper {
-  background-color: #0b131e !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 .ant-input-affix-wrapper input.ant-input,
 .ant-input-affix-wrapper input {
   background-color: transparent !important;
-  color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.ant-input-affix-wrapper input::placeholder {
+  color: #94a3b8 !important;
 }
 
 .ant-input-affix-wrapper-focused,
 .ant-input-affix-wrapper:focus-within {
-  background-color: #0b131e !important;
+  background-color: #ffffff !important;
   border-color: #059669 !important;
   box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2) !important;
 }
@@ -629,5 +619,46 @@ input:-internal-autofill-previewed {
 .ant-input-affix-wrapper-focused input.ant-input,
 .ant-input-affix-wrapper:focus-within input.ant-input {
   background-color: transparent !important;
+  color: #0f172a !important;
+}
+
+/* Explicit Dark Mode Overrides (Only if inside .dark or .auth-dark-container) */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover, 
+.dark input:-webkit-autofill:focus, 
+.dark input:-webkit-autofill:active,
+.auth-dark-container input:-webkit-autofill,
+.auth-dark-container input:-webkit-autofill:hover, 
+.auth-dark-container input:-webkit-autofill:focus, 
+.auth-dark-container input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0b131e inset !important;
+  box-shadow: 0 0 0 1000px #0b131e inset !important;
+  -webkit-text-fill-color: #f1f5f9 !important;
+  color: #f1f5f9 !important;
+  caret-color: #ffffff !important;
+}
+
+.dark .ant-input-affix-wrapper,
+.auth-dark-container .ant-input-affix-wrapper {
+  background-color: #0b131e !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .ant-input-affix-wrapper input.ant-input,
+.dark .ant-input-affix-wrapper input,
+.auth-dark-container .ant-input-affix-wrapper input.ant-input,
+.auth-dark-container .ant-input-affix-wrapper input {
+  background-color: transparent !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .ant-input-affix-wrapper-focused,
+.dark .ant-input-affix-wrapper:focus-within,
+.auth-dark-container .ant-input-affix-wrapper-focused,
+.auth-dark-container .ant-input-affix-wrapper:focus-within {
+  background-color: #0b131e !important;
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2) !important;
 }
 

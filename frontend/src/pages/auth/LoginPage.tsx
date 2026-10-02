@@ -129,17 +129,19 @@ const LoginPage: React.FC = () => {
   return (
     <ConfigProvider
       theme={{
-        algorithm: theme.darkAlgorithm,
+        algorithm: theme.defaultAlgorithm,
         token: {
           colorPrimary: "#059669",
-          colorBgContainer: "#0b131e",
-          colorBorder: "#1e293b",
-          borderRadius: 8,
+          colorBgContainer: "#ffffff",
+          colorBorder: "#e2e8f0",
+          colorText: "#0f172a",
+          colorTextPlaceholder: "#94a3b8",
+          borderRadius: 12,
           fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         },
       }}
     >
-      <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#070d14] text-slate-100 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
+      <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
         {/* =========================================================================
             CỘT TRÁI (52%): SHOWCASE ĐẶC QUYỀN HỘI VIÊN & THẺ THÀNH VIÊN VIP LOUNGE
             ========================================================================= */}
@@ -148,24 +150,24 @@ const LoginPage: React.FC = () => {
         {/* =========================================================================
             CỘT PHẢI (48%): PORTAL ĐĂNG NHẬP CHUẨN SHARED/UI (TABS KHÁCH HÀNG & NHÂN VIÊN)
             ========================================================================= */}
-        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-gradient-to-b from-[#080e18] via-[#09121d] to-[#060a10]">
+        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-white border-l border-slate-200/80">
           {/* Header Mobile */}
-          <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-200">
             <Space align="center" size={8}>
               <img
                 src="/cuezone-favicon.svg?v=2"
                 alt="CueZone Logo"
                 className="h-8 w-8 rounded-lg ring-1 ring-emerald-500/50 p-0.5 bg-slate-900"
               />
-              <Text className="!text-lg !font-black !text-white !mb-0">
-                CUE<span className="text-emerald-400">ZONE</span>
+              <Text className="!text-lg !font-black !text-slate-900 !mb-0">
+                CUE<span className="text-emerald-600">ZONE</span>
               </Text>
             </Space>
             <Button
               variant="outline"
               size="sm"
               to="/customer"
-              className="!text-xs !h-8 !px-3 !border-slate-800 !bg-slate-900 !text-slate-300"
+              className="!text-xs !h-8 !px-3 !border-slate-300 !bg-slate-50 !text-slate-700"
             >
               Cổng Khách
             </Button>
@@ -176,11 +178,11 @@ const LoginPage: React.FC = () => {
             {/* Header Form */}
             <div className="mb-5">
               <Space align="center" size={8} className="mb-1.5">
-                <Title level={2} className="!text-2xl !font-bold !text-white !tracking-tight !mb-0">
+                <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-0">
                   Chào Mừng Đến CueZone
                 </Title>
               </Space>
-              <Text className="!text-xs !text-slate-400 block">
+              <Text className="!text-xs !text-slate-500 block">
                 Hệ thống đặt bàn, quản lý hội viên và điều hành giải đấu billiards
               </Text>
             </div>
@@ -190,13 +192,13 @@ const LoginPage: React.FC = () => {
               <Tabs
                 activeKey={activeTab}
                 onChange={handleTabChange}
-                className="cuezone-login-tabs [&_.ant-tabs-nav]:!mb-4 [&_.ant-tabs-tab]:!text-xs [&_.ant-tabs-tab]:!py-2 [&_.ant-tabs-tab]:!text-slate-400 [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-emerald-400 [&_.ant-tabs-ink-bar]:!bg-emerald-500"
+                className="cuezone-login-tabs [&_.ant-tabs-nav]:!mb-4 [&_.ant-tabs-tab]:!text-xs [&_.ant-tabs-tab]:!font-bold [&_.ant-tabs-tab]:!py-2 [&_.ant-tabs-tab]:!text-slate-500 [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-emerald-700 [&_.ant-tabs-ink-bar]:!bg-emerald-600"
                 items={[
                   {
                     key: "customer",
                     label: (
                       <Space size={6} align="center">
-                        <User className="h-4 w-4 text-emerald-400" />
+                        <User className="h-4 w-4 text-emerald-600" />
                         <span className="font-semibold">Hội Viên / Khách Chơi</span>
                       </Space>
                     ),
@@ -205,7 +207,7 @@ const LoginPage: React.FC = () => {
                     key: "staff",
                     label: (
                       <Space size={6} align="center">
-                        <ShieldCheck className="h-4 w-4 text-slate-400" />
+                        <ShieldCheck className="h-4 w-4 text-slate-500" />
                         <span className="font-semibold">Nhân Viên & Quản Lý</span>
                       </Space>
                     ),
@@ -216,25 +218,25 @@ const LoginPage: React.FC = () => {
 
             {/* Thông báo bối cảnh của Tab được chọn */}
             {activeTab === "customer" ? (
-              <div className="mb-4 rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3 flex items-start gap-2.5">
-                <Sparkles className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div className="mb-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3.5 flex items-start gap-2.5">
+                <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <Text strong className="!text-xs !text-emerald-300 block">
+                  <Text strong className="!text-xs !text-emerald-900 block">
                     Đăng nhập tài khoản Hội Viên
                   </Text>
-                  <Text className="!text-[11px] !text-slate-400 leading-snug">
+                  <Text className="!text-[11px] !text-emerald-700 leading-snug">
                     Tích điểm cơ thủ, xem lịch sử đặt bàn và nhận ưu đãi giờ chơi.
                   </Text>
                 </div>
               </div>
             ) : (
-              <div className="mb-4 rounded-xl border border-slate-800/80 bg-slate-900/40 p-3 flex items-start gap-2.5">
-                <ShieldCheck className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="mb-4 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-3.5 flex items-start gap-2.5">
+                <ShieldCheck className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <Text strong className="!text-xs !text-slate-200 block">
+                  <Text strong className="!text-xs !text-amber-900 block">
                     Cổng Vận Hành & Quản Trị Hệ Thống
                   </Text>
-                  <Text className="!text-[11px] !text-slate-400 leading-snug">
+                  <Text className="!text-[11px] !text-amber-700 leading-snug">
                     Dành cho Thu ngân, Trọng tài, Nhân viên kho và Quản lý CLB.
                   </Text>
                 </div>
@@ -250,7 +252,7 @@ const LoginPage: React.FC = () => {
             >
               <Form.Item
                 label={
-                  <Text className="!text-xs !font-semibold !text-slate-300">
+                  <Text className="!text-xs !font-semibold !text-slate-700">
                     {activeTab === "customer" ? "Email hoặc Số điện thoại" : "Email tài khoản nội bộ"}
                   </Text>
                 }
@@ -274,14 +276,14 @@ const LoginPage: React.FC = () => {
                       : "admin@cuezone.com, staff@cuezone.com"
                   }
                   allowClear
-                  className="!h-11 !rounded-lg !border-slate-800 !bg-slate-950/80 !text-white text-xs placeholder:!text-slate-600 focus:!border-emerald-500"
+                  className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                 />
               </Form.Item>
 
               <Form.Item
                 label={
                   <div className="flex w-full items-center justify-between">
-                    <Text className="!text-xs !font-semibold !text-slate-300">Mật khẩu</Text>
+                    <Text className="!text-xs !font-semibold !text-slate-700">Mật khẩu</Text>
                     <Button
                       variant="link"
                       size="sm"
@@ -289,7 +291,7 @@ const LoginPage: React.FC = () => {
                         setForgotEmail(email || "customer@cuezone.com");
                         setShowForgotModal(true);
                       }}
-                      className="!p-0 !h-auto !text-[11px] !font-medium !text-emerald-400 hover:!text-emerald-300"
+                      className="!p-0 !h-auto !text-[11px] !font-medium !text-emerald-600 hover:!text-emerald-700"
                     >
                       Quên mật khẩu?
                     </Button>
@@ -303,16 +305,16 @@ const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="!h-11 !rounded-lg !border-slate-800 !bg-slate-950/80 !text-white text-xs placeholder:!text-slate-600 focus:!border-emerald-500"
+                  className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                 />
               </Form.Item>
 
-              <div className="flex items-center justify-between text-xs text-slate-400 pt-0.5">
+              <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
                 <Checkbox
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                 >
-                  <Text className="!text-xs !text-slate-300">Ghi nhớ đăng nhập trên thiết bị này</Text>
+                  <Text className="!text-xs !text-slate-600">Ghi nhớ đăng nhập trên thiết bị này</Text>
                 </Checkbox>
               </div>
 
@@ -322,7 +324,7 @@ const LoginPage: React.FC = () => {
                 size="large"
                 loading={loading}
                 rightIcon={!loading ? <ArrowRight className="h-4 w-4 ml-1.5" /> : undefined}
-                className="w-full !h-12 !text-sm !font-bold !rounded-xl shadow-lg shadow-emerald-600/25 transition-all hover:scale-[1.008] active:scale-[0.99] mt-2 !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600"
+                className="w-full !h-12 !text-sm !font-bold !rounded-xl shadow-md shadow-emerald-600/25 transition-all hover:scale-[1.008] active:scale-[0.99] mt-2 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white"
               >
                 {loading
                   ? "Đang xác thực thông tin..."
@@ -334,16 +336,16 @@ const LoginPage: React.FC = () => {
 
             {/* DÀNH CHO KHÁCH VÃNG LAI: KHÔNG CẦN TÀI KHOẢN VẪN TRA CỨU ĐƯỢC BÀN */}
             {activeTab === "customer" && (
-              <div className="mt-4 pt-3 border-t border-slate-800/80">
-                <div className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-3.5 flex items-center justify-between">
+              <div className="mt-4 pt-3 border-t border-slate-200">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 flex items-center justify-between shadow-2xs">
                   <div className="pr-3">
                     <Space align="center" size={6} className="mb-0.5">
-                      <Eye className="h-3.5 w-3.5 text-sky-400" />
-                      <Text strong className="!text-xs !text-white">
+                      <Eye className="h-3.5 w-3.5 text-emerald-600" />
+                      <Text strong className="!text-xs !text-slate-900">
                         Khách Vãng Lai (Không Cần Tài Khoản)
                       </Text>
                     </Space>
-                    <Text className="!text-[11px] !text-slate-400 block">
+                    <Text className="!text-[11px] !text-slate-500 block">
                       Xem danh sách bàn trống theo thời gian thực & đặt bàn nhanh
                     </Text>
                   </div>
@@ -351,19 +353,19 @@ const LoginPage: React.FC = () => {
                     variant="outline"
                     size="sm"
                     to="/customer"
-                    className="!text-xs !h-8 !px-3 !border-slate-700 !bg-slate-900/90 !text-sky-300 hover:!border-sky-500 hover:!text-white flex-shrink-0"
+                    className="!text-xs !h-8 !px-3 !border-slate-300 !bg-white !text-slate-700 hover:!border-emerald-600 hover:!text-emerald-700 flex-shrink-0"
                   >
                     Xem Ngay
                   </Button>
                 </div>
 
                 {/* Link Đăng Ký Hội Viên Mới */}
-                <div className="mt-3.5 text-center text-xs text-slate-400">
-                  <Text className="!text-xs !text-slate-400">Chưa có thẻ hội viên?</Text>{" "}
+                <div className="mt-3.5 text-center text-xs text-slate-500">
+                  <Text className="!text-xs !text-slate-500">Chưa có thẻ hội viên?</Text>{" "}
                   <Button
                     variant="link"
                     to="/register"
-                    className="!p-0 !h-auto !text-xs !font-bold !text-emerald-400 hover:!text-emerald-300 ml-1 inline-block"
+                    className="!p-0 !h-auto !text-xs !font-bold !text-emerald-600 hover:!text-emerald-700 ml-1 inline-block"
                   >
                     Đăng ký tài khoản miễn phí
                   </Button>
@@ -372,25 +374,25 @@ const LoginPage: React.FC = () => {
             )}
 
             {/* HỘP TEST TÀI KHOẢN MẪU (THU GỌN GỌN GÀNG, KHÔNG PHÁ HỎNG GIAO DIỆN) */}
-            <div className="mt-5 pt-3 border-t border-slate-800/60">
-              <div className="rounded-xl border border-emerald-950/60 bg-slate-950/40 p-3">
+            <div className="mt-5 pt-3 border-t border-slate-200">
+              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-3">
                 <div
                   className="flex items-center justify-between cursor-pointer select-none"
                   onClick={() => setShowDemoAccounts(!showDemoAccounts)}
                 >
                   <Space align="center" size={6}>
-                    <Zap className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400/20" />
-                    <Text strong className="!text-xs !text-emerald-400">
+                    <Zap className="h-3.5 w-3.5 text-emerald-600 fill-emerald-600/20" />
+                    <Text strong className="!text-xs !text-emerald-800">
                       Tài khoản thử nghiệm (1-Click Demo)
                     </Text>
                   </Space>
                   <Space align="center" size={4}>
-                    <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 !bg-emerald-500/10 !text-emerald-400">
+                    <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 !bg-emerald-100 !text-emerald-800 !font-bold">
                       3 Vai trò
                     </Tag>
                     <ChevronDown
                       className={clsx(
-                        "h-3.5 w-3.5 text-slate-400 transition-transform duration-200",
+                        "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
                         showDemoAccounts && "rotate-180"
                       )}
                     />
@@ -398,8 +400,8 @@ const LoginPage: React.FC = () => {
                 </div>
 
                 {showDemoAccounts && (
-                  <div className="mt-3 pt-2.5 border-t border-slate-800/70 space-y-2 animate-fade-in">
-                    <Text className="!text-[11px] !text-slate-400 block mb-1.5">
+                  <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-2 animate-fade-in">
+                    <Text className="!text-[11px] !text-slate-500 block mb-1.5">
                       Bấm vào vai trò bất kỳ để điền form hoặc bấm &quot;Vào ngay&quot; để đăng nhập tức thì:
                     </Text>
 
@@ -407,11 +409,11 @@ const LoginPage: React.FC = () => {
                       {SEED_ACCOUNTS.map((acc) => (
                         <div
                           key={acc.id}
-                          className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-2 hover:border-emerald-600/50 transition-all flex flex-col justify-between"
+                          className="rounded-xl border border-slate-200 bg-white p-2.5 hover:border-emerald-500 hover:shadow-sm transition-all flex flex-col justify-between"
                         >
                           <div>
                             <div className="flex items-center justify-between mb-1">
-                              <Text strong className="!text-[11px] !text-slate-200 truncate">
+                              <Text strong className="!text-[11px] !text-slate-900 truncate">
                                 {acc.role === UserRole.ADMIN
                                   ? "Admin (Chủ CLB)"
                                   : acc.role === UserRole.STAFF
@@ -419,17 +421,17 @@ const LoginPage: React.FC = () => {
                                   : "Hội Viên (Cơ Thủ)"}
                               </Text>
                             </div>
-                            <Text className="!text-[10px] !text-slate-400 truncate block">
+                            <Text className="!text-[10px] !text-slate-500 truncate block">
                               {acc.email}
                             </Text>
                           </div>
 
-                          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-800/80">
+                          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleSelectSeed(acc)}
-                              className="!p-0 !h-auto !text-[10px] !text-slate-400 hover:!text-white"
+                              className="!p-0 !h-auto !text-[10px] !text-slate-500 hover:!text-slate-900"
                             >
                               Điền form
                             </Button>
@@ -439,7 +441,7 @@ const LoginPage: React.FC = () => {
                               onClick={() => handleInstantSeedLogin(acc)}
                               disabled={loading}
                               rightIcon={<ArrowRight className="h-2.5 w-2.5" />}
-                              className="!p-0 !h-auto !text-[10px] !font-bold !text-emerald-400 hover:!text-emerald-300"
+                              className="!p-0 !h-auto !text-[10px] !font-bold !text-emerald-600 hover:!text-emerald-700"
                             >
                               Vào ngay
                             </Button>

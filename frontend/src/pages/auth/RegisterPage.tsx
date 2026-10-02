@@ -168,32 +168,20 @@ const RegisterPage: React.FC = () => {
   return (
     <ConfigProvider
       theme={{
-        algorithm: theme.darkAlgorithm,
+        algorithm: theme.defaultAlgorithm,
         token: {
           colorPrimary: "#059669",
-          colorBgContainer: "#0b131e",
-          colorBorder: "#1e293b",
-          colorText: "#f1f5f9",
-          colorTextPlaceholder: "#64748b",
-          borderRadius: 8,
+          colorBgContainer: "#ffffff",
+          colorBorder: "#e2e8f0",
+          colorText: "#0f172a",
+          colorTextPlaceholder: "#94a3b8",
+          borderRadius: 12,
           fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-        },
-        components: {
-          Input: {
-            colorBgContainer: "#0b131e",
-            colorBorder: "#1e293b",
-            activeBorderColor: "#059669",
-            hoverBorderColor: "#10b981",
-            activeShadow: "0 0 0 2px rgba(5, 150, 105, 0.2)",
-            colorText: "#f1f5f9",
-            colorTextPlaceholder: "#64748b",
-          },
         },
       }}
     >
       <div
-        className="auth-dark-container relative min-h-screen w-screen overflow-x-hidden bg-[#070d14] text-slate-100 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white"
-        style={{ colorScheme: "dark" }}
+        className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white"
       >
         {/* =========================================================================
             CỘT TRÁI (52%): THƯƠNG HIỆU & ĐẶC QUYỀN HỘI VIÊN (ĐỒNG BỘ VỚI FORM LOGIN)
@@ -208,24 +196,24 @@ const RegisterPage: React.FC = () => {
         {/* =========================================================================
             CỘT PHẢI (48%): PORTAL ĐĂNG KÝ & XÁC MINH OTP
             ========================================================================= */}
-        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-gradient-to-b from-[#080e18] via-[#09121d] to-[#060a10]">
+        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-white border-l border-slate-200/80">
           {/* Header Mobile */}
-          <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-200">
             <Space align="center" size={8}>
               <img
                 src="/cuezone-favicon.svg?v=2"
                 alt="CueZone Logo"
                 className="h-8 w-8 rounded-lg ring-1 ring-emerald-500/50 p-0.5 bg-slate-900"
               />
-              <Text className="!text-lg !font-black !text-white !mb-0">
-                CUE<span className="text-emerald-400">ZONE</span>
+              <Text className="!text-lg !font-black !text-slate-900 !mb-0">
+                CUE<span className="text-emerald-600">ZONE</span>
               </Text>
             </Space>
             <Button
               variant="outline"
               size="sm"
               to="/customer"
-              className="!text-xs !h-8 !px-3 !border-slate-800 !bg-slate-900 !text-slate-300"
+              className="!text-xs !h-8 !px-3 !border-slate-300 !bg-slate-50 !text-slate-700"
             >
               Cổng Khách
             </Button>
@@ -237,22 +225,22 @@ const RegisterPage: React.FC = () => {
               <>
                 {/* Header Form */}
                 <div className="mb-5">
-                  <Title level={2} className="!text-2xl !font-bold !text-white !tracking-tight !mb-1">
+                  <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1">
                     Đăng Ký Tài Khoản
                   </Title>
-                  <Text className="!text-xs !text-slate-400 block">
+                  <Text className="!text-xs !text-slate-500 block">
                     Tham gia hệ thống CueZone Billiards để nhận voucher và đặt bàn ưu tiên
                   </Text>
                 </div>
 
                 {/* Banner Ưu Đãi Tân Thủ */}
-                <div className="mb-5 rounded-xl border border-emerald-900/40 bg-emerald-950/25 p-3 flex items-start gap-2.5">
-                  <Sparkles className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                <div className="mb-5 rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3.5 flex items-start gap-2.5">
+                  <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <Text strong className="!text-xs !text-emerald-300 block">
+                    <Text strong className="!text-xs !text-emerald-900 block">
                       Ưu Đãi Hội Viên Mới
                     </Text>
-                    <Text className="!text-[11px] !text-slate-400 leading-snug">
+                    <Text className="!text-[11px] !text-emerald-700 leading-snug">
                       Nhận ngay voucher trải nghiệm 50.000đ trực tiếp vào tài khoản sau khi hoàn tất xác minh email.
                     </Text>
                   </div>
@@ -265,7 +253,7 @@ const RegisterPage: React.FC = () => {
                       type="error"
                       message={error}
                       showIcon
-                      className="!bg-rose-950/30 !border-rose-900/50 !text-rose-300 !text-xs !rounded-xl"
+                      className="!bg-rose-50 !border-rose-200 !text-rose-700 !text-xs !rounded-xl"
                     />
                   </div>
                 )}
@@ -273,7 +261,7 @@ const RegisterPage: React.FC = () => {
                 {/* Form Đăng ký */}
                 <form onSubmit={handleSendCode} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Họ và tên
                     </label>
                     <Input
@@ -281,13 +269,13 @@ const RegisterPage: React.FC = () => {
                       value={name}
                       autoComplete="name"
                       onChange={(e) => setName(e.target.value)}
-                      prefix={<UserOutlined className="text-slate-500 mr-1.5" />}
-                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
+                      prefix={<UserOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Email
                     </label>
                     <Input
@@ -296,14 +284,14 @@ const RegisterPage: React.FC = () => {
                       value={email}
                       autoComplete="username"
                       onChange={(e) => setEmail(e.target.value)}
-                      prefix={<MailOutlined className="text-slate-500 mr-1.5" />}
-                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
+                      prefix={<MailOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Số điện thoại <span className="text-slate-500 font-normal">(tùy chọn)</span>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Số điện thoại <span className="text-slate-400 font-normal">(tùy chọn)</span>
                     </label>
                     <Input
                       type="tel"
@@ -311,13 +299,13 @@ const RegisterPage: React.FC = () => {
                       value={phone}
                       autoComplete="tel"
                       onChange={(e) => setPhone(e.target.value)}
-                      prefix={<PhoneOutlined className="text-slate-500 mr-1.5" />}
-                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
+                      prefix={<PhoneOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Mật khẩu
                     </label>
                     <Input.Password
@@ -325,13 +313,13 @@ const RegisterPage: React.FC = () => {
                       value={password}
                       autoComplete="new-password"
                       onChange={(e) => setPassword(e.target.value)}
-                      prefix={<LockOutlined className="text-slate-500 mr-1.5" />}
-                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
+                      prefix={<LockOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Xác nhận mật khẩu
                     </label>
                     <Input.Password
@@ -339,8 +327,8 @@ const RegisterPage: React.FC = () => {
                       value={confirmPassword}
                       autoComplete="new-password"
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      prefix={<LockOutlined className="text-slate-500 mr-1.5" />}
-                      className="!bg-[#0b131e] !border-slate-800 hover:!border-slate-700 focus:!border-emerald-500 focus-within:!border-emerald-500 !text-slate-200 !h-11 !rounded-xl [&_input]:!bg-transparent [&_input]:!text-slate-100"
+                      prefix={<LockOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                     />
                   </div>
 
@@ -350,7 +338,7 @@ const RegisterPage: React.FC = () => {
                       htmlType="submit"
                       loading={loading || sendingRef.current}
                       rightIcon={<ArrowRight className="h-4 w-4" />}
-                      className="!w-full !h-11 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold text-sm shadow-lg shadow-emerald-950/50"
+                      className="!w-full !h-12 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-600/25"
                     >
                       {loading ? "Đang Gửi Mã Xác Thực..." : "Tiếp Tục & Nhận Mã OTP"}
                     </Button>
@@ -358,11 +346,11 @@ const RegisterPage: React.FC = () => {
                 </form>
 
                 {/* Footer Liên Kết Đăng Nhập */}
-                <div className="mt-6 pt-5 border-t border-slate-800/80 text-center text-xs text-slate-400">
+                <div className="mt-6 pt-5 border-t border-slate-200 text-center text-xs text-slate-500">
                   <span>Đã có tài khoản hội viên? </span>
                   <Link
                     to="/login"
-                    className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-4"
+                    className="text-emerald-600 hover:text-emerald-700 font-semibold underline underline-offset-4"
                   >
                     Đăng nhập ngay
                   </Link>
@@ -372,16 +360,16 @@ const RegisterPage: React.FC = () => {
               <>
                 {/* Header OTP */}
                 <div className="mb-5 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-3 shadow-lg shadow-emerald-950/50">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 mb-3 shadow-xs">
                     <SafetyCertificateOutlined className="text-2xl" />
                   </div>
-                  <Title level={2} className="!text-2xl !font-bold !text-white !tracking-tight !mb-1">
+                  <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1">
                     Xác Minh Email
                   </Title>
-                  <Text className="!text-xs !text-slate-400 block">
+                  <Text className="!text-xs !text-slate-500 block">
                     Nhập mã xác thực 4 chữ số đã được gửi đến:
                   </Text>
-                  <span className="font-semibold text-emerald-400 text-xs break-all mt-1 inline-block">
+                  <span className="font-semibold text-emerald-700 text-xs break-all mt-1 inline-block">
                     {email}
                   </span>
                 </div>
@@ -393,7 +381,7 @@ const RegisterPage: React.FC = () => {
                       type="error"
                       message={error}
                       showIcon
-                      className="!bg-rose-950/30 !border-rose-900/50 !text-rose-300 !text-xs !rounded-xl"
+                      className="!bg-rose-50 !border-rose-200 !text-rose-700 !text-xs !rounded-xl"
                     />
                   </div>
                 )}
@@ -401,7 +389,7 @@ const RegisterPage: React.FC = () => {
                 {/* Form Nhập OTP */}
                 <form onSubmit={handleVerify} className="space-y-6">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-3 text-center">
+                    <label className="block text-xs font-semibold text-slate-600 mb-3 text-center">
                       Nhập mã 4 chữ số (OTP)
                     </label>
                     <div className="flex justify-center gap-3.5" onPaste={handleOtpPaste}>
@@ -418,7 +406,7 @@ const RegisterPage: React.FC = () => {
                           value={digit}
                           onChange={(e) => handleOtpChange(index, e.target.value)}
                           onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                          className="w-13 h-14 text-center text-2xl font-bold bg-slate-900/80 text-white border border-slate-700/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner"
+                          className="w-13 h-14 text-center text-2xl font-bold bg-slate-50 text-slate-900 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner font-mono"
                           required
                         />
                       ))}
@@ -429,7 +417,7 @@ const RegisterPage: React.FC = () => {
                     variant="primary"
                     htmlType="submit"
                     loading={loading}
-                    className="!w-full !h-11 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold text-sm shadow-lg shadow-emerald-950/50"
+                    className="!w-full !h-12 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-600/25"
                   >
                     {loading ? "Đang Xác Minh..." : "Xác Minh & Kích Hoạt Tài Khoản"}
                   </Button>
@@ -444,7 +432,7 @@ const RegisterPage: React.FC = () => {
                         setOtp(Array(OTP_LENGTH).fill(""));
                       }}
                       leftIcon={<ArrowLeftOutlined />}
-                      className="!text-slate-400 hover:!text-slate-200 !p-0"
+                      className="!text-slate-500 hover:!text-slate-800 !p-0"
                     >
                       Quay lại sửa thông tin
                     </Button>
@@ -453,7 +441,7 @@ const RegisterPage: React.FC = () => {
                       size="sm"
                       onClick={handleResend}
                       disabled={resendCooldown > 0 || loading}
-                      className="!text-emerald-400 hover:!text-emerald-300 !p-0 disabled:!opacity-50"
+                      className="!text-emerald-600 hover:!text-emerald-700 !p-0 disabled:!opacity-50 font-semibold"
                     >
                       {resendCooldown > 0 ? `Gửi lại sau ${resendCooldown}s` : "Gửi lại mã OTP"}
                     </Button>
@@ -461,11 +449,11 @@ const RegisterPage: React.FC = () => {
                 </form>
 
                 {/* Footer Liên Kết Đăng Nhập */}
-                <div className="mt-8 pt-5 border-t border-slate-800/80 text-center text-xs text-slate-400">
+                <div className="mt-8 pt-5 border-t border-slate-200 text-center text-xs text-slate-500">
                   <span>Đã có tài khoản? </span>
                   <Link
                     to="/login"
-                    className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-4"
+                    className="text-emerald-600 hover:text-emerald-700 font-semibold underline underline-offset-4"
                   >
                     Đăng nhập ngay
                   </Link>
@@ -475,7 +463,7 @@ const RegisterPage: React.FC = () => {
           </div>
 
           {/* Footer Phải */}
-          <div className="text-center text-[11px] text-slate-500 py-3 border-t border-slate-900">
+          <div className="text-center text-[11px] text-slate-400 py-3 border-t border-slate-100">
             <span>CueZone Billiards Management & Bank Pool Tournament System • Phiên bản 2.0</span>
           </div>
         </div>

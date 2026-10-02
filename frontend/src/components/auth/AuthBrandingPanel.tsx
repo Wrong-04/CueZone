@@ -1,35 +1,35 @@
 import React from "react";
 import {
-  Trophy,
-  Sparkles,
-  Flame,
-  Award,
-  Star,
-  CheckCircle2,
-  ArrowRight,
-} from "lucide-react";
+  TrophyOutlined,
+  ThunderboltOutlined,
+  FireOutlined,
+  CrownOutlined,
+  StarFilled,
+  CheckCircleOutlined,
+  ArrowRightOutlined,
+} from "@ant-design/icons";
 import { Button, Tag, Space, Typography } from "../../shared/ui";
 
 const { Title, Text, Paragraph } = Typography;
 
 const MEMBER_PERKS = [
   {
-    icon: <Star className="h-4 w-4 text-emerald-400" />,
+    icon: <StarFilled className="text-amber-400" />,
     title: "Đặt Bàn Trước Chuẩn Thi Đấu",
     desc: "Giữ bàn chuẩn quốc tế (Min, Rasson, Aileex) trước 24h không cần đặt cọc",
   },
   {
-    icon: <Trophy className="h-4 w-4 text-amber-400" />,
+    icon: <TrophyOutlined className="text-amber-400" />,
     title: "Tích Điểm Tự Động & Đổi Quà",
     desc: "Hoàn 10% điểm tích lũy cho mỗi giờ chơi, đổi giờ miễn phí & voucher F&B",
   },
   {
-    icon: <Award className="h-4 w-4 text-sky-400" />,
+    icon: <CrownOutlined className="text-emerald-400" />,
     title: "Giải Đấu Bank Pool & Xếp Hạng ELO",
     desc: "Tham gia các giải nội bộ cuối tuần có trọng tài chấm điểm & vinh danh cơ thủ",
   },
   {
-    icon: <Sparkles className="h-4 w-4 text-teal-400" />,
+    icon: <ThunderboltOutlined className="text-teal-400" />,
     title: "Phục Vụ F&B Trực Tiếp Tại Bàn",
     desc: "Quét mã QR tại bàn gọi đồ uống, thức ăn nhẹ phục vụ tận nơi không ngắt quãng trận",
   },
@@ -49,7 +49,7 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
   description = "Đăng nhập hoặc đăng ký tài khoản để đặt bàn giữ chỗ ưu tiên, theo dõi bảng xếp hạng ELO giải đấu Bank Pool và nhận voucher chào mừng hội viên mới.",
 }) => {
   return (
-    <div className="relative hidden lg:flex lg:w-[52%] min-h-screen flex-col justify-between p-8 xl:p-12 overflow-hidden border-r border-emerald-950/60 bg-gradient-to-br from-[#061118] via-[#070d14] to-[#04080e]">
+    <div className="relative hidden lg:flex lg:w-[52%] min-h-screen flex-col justify-between p-8 xl:p-12 overflow-hidden border-r border-slate-200/90 bg-gradient-to-br from-[#041d16] via-[#05131b] to-[#030910]">
       {/* Background image & gradient overlay */}
       <div className="absolute inset-0 z-0">
         <img
@@ -57,8 +57,8 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
           alt="CueZone Billiards Club & Lounge"
           className="h-full w-full object-cover object-center filter brightness-[0.25] contrast-[1.2]"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#070d14] via-[#070d14]/70 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#070d14]/50 to-[#070d14]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#041d16] via-[#05131b]/80 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#05131b]/60 to-[#041d16]" />
         <div className="absolute inset-0 bg-emerald-950/20 mix-blend-color" />
       </div>
 
@@ -97,8 +97,8 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
           variant="outline"
           size="sm"
           to="/customer"
-          rightIcon={<ArrowRight className="h-3.5 w-3.5 text-emerald-400" />}
-          className="!border-slate-800 !bg-slate-900/70 !text-slate-300 hover:!border-emerald-500 hover:!text-emerald-300 backdrop-blur-md !text-xs !h-9 !px-3.5 shadow-sm"
+          rightIcon={<ArrowRightOutlined className="text-xs text-emerald-400" />}
+          className="!border-emerald-500/40 !bg-slate-900/80 !text-slate-200 hover:!border-emerald-400 hover:!text-white backdrop-blur-md !text-xs !h-9 !px-3.5 shadow-sm"
         >
           Cổng Khách Vãng Lai
         </Button>
@@ -111,7 +111,7 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
             color="green"
             className="!inline-flex !items-center !gap-1.5 !rounded-full !border-emerald-500/40 !bg-emerald-500/15 !px-3 !py-1 !text-xs !font-semibold !text-emerald-300 shadow-sm shadow-emerald-500/10 mb-3"
           >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+            <ThunderboltOutlined className="text-emerald-400" />
             <span>{badgeText}</span>
           </Tag>
 
@@ -139,7 +139,7 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
           <div className="flex items-center justify-between relative z-10 mb-6">
             <Space align="center" size={8}>
               <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
-                <Flame className="h-4 w-4 text-emerald-400 fill-emerald-400/30" />
+                <FireOutlined className="text-emerald-400" />
               </div>
               <div>
                 <Text strong className="!text-xs !tracking-widest !text-white uppercase block">
@@ -155,7 +155,7 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
               color="gold"
               className="!rounded-md !px-2.5 !py-0.5 !text-[11px] !font-bold !border-amber-500/40 !bg-amber-500/15 !text-amber-300 flex items-center gap-1"
             >
-              <Award className="h-3 w-3" />
+              <CrownOutlined />
               DIAMOND VIP
             </Tag>
           </div>
@@ -214,17 +214,17 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
           {MEMBER_PERKS.map((perk, idx) => (
             <div
               key={idx}
-              className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-3 backdrop-blur-md hover:border-emerald-800/50 transition-colors"
+              className="rounded-xl border border-emerald-950/70 bg-slate-950/60 p-3 backdrop-blur-md hover:border-emerald-700/60 transition-colors"
             >
               <Space align="center" size={8} className="mb-1">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 border border-slate-800">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-950/50 border border-emerald-800/40">
                   {perk.icon}
                 </span>
                 <Text strong className="!text-xs !text-white">
                   {perk.title}
                 </Text>
               </Space>
-              <Text className="!text-[11px] !text-slate-400 block leading-snug pl-9">
+              <Text className="!text-[11px] !text-slate-300 block leading-snug pl-9">
                 {perk.desc}
               </Text>
             </div>
@@ -233,7 +233,7 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
       </div>
 
       {/* Footer Trái: Realtime Club Status & Bảo mật */}
-      <div className="relative z-10 flex items-center justify-between border-t border-slate-800/80 pt-3.5 text-xs text-slate-400">
+      <div className="relative z-10 flex items-center justify-between border-t border-emerald-950/80 pt-3.5 text-xs text-slate-400">
         <Space align="center" size={8}>
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse ring-4 ring-emerald-500/20" />
           <Text className="!text-xs !text-slate-300">
@@ -241,7 +241,7 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
           </Text>
         </Space>
         <Space align="center" size={6}>
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+          <CheckCircleOutlined className="text-emerald-400 text-xs" />
           <Text className="!text-xs !text-slate-400">Kết nối mã hóa bảo mật 256-bit</Text>
         </Space>
       </div>
