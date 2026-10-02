@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  AppstoreOutlined,
   ClockCircleOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -541,25 +540,35 @@ export const PosTableFloorPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* ── TOP HEADER & STATS CARDS (SHARED UI CARD) ──────────────────────── */}
-      <Card className="!p-5 !rounded-2xl !border-slate-200 shadow-2xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      {/* ── TOP UNIFIED COMMAND BAR (TIÊU ĐỀ, BÁO CÁO NHANH & BỘ LỌC) ───────── */}
+      <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden">
+        {/* Row 1: Header, Revenue KPI & Test QR action */}
+        <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 bg-white">
           <div>
-            <Space align="center" size={8} className="mb-1">
-              <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
-              <Title level={3} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <Title level={3} className="!text-xl !font-black !text-slate-900 !mb-0 tracking-tight">
                 POS Sơ Đồ Bàn & Thu Ngân Trực Tiếp
               </Title>
-              <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold">
+              <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0">
                 SIMONIS FLOOR
               </Tag>
-            </Space>
+            </div>
             <Text className="!text-xs !text-slate-500 block">
               Điều hành mở bàn, đếm giờ tự động, gọi món tại bàn và thanh toán đa kênh theo chuẩn hệ thống
             </Text>
           </div>
 
-          <Space size={8}>
+          <div className="flex items-center gap-3 self-start md:self-center">
+            {/* Real-time temporary revenue badge */}
+            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-2 shadow-2xs">
+              <span className="text-[11px] font-semibold text-emerald-800">Tạm tính sàn:</span>
+              <span className="text-base font-black text-emerald-700 font-mono">
+                {stats.totalTempRevenue.toLocaleString("vi-VN")}đ
+              </span>
+            </div>
+
+            {/* Test QR Order Button */}
             <Button
               variant="outline"
               size="sm"
@@ -572,45 +581,45 @@ export const PosTableFloorPage: React.FC = () => {
                 }
               }}
               leftIcon={<BellOutlined className="text-amber-500" />}
-              className="!text-xs !rounded-xl !border-amber-300 !bg-amber-50/60 !text-amber-800 hover:!bg-amber-100"
+              className="!text-xs !h-9 !rounded-xl !border-amber-300 !bg-amber-50/60 !text-amber-800 hover:!bg-amber-100"
             >
-              Test Khách Quét QR Gọi Món
+              Test Quét QR Gọi Món
             </Button>
-          </Space>
+          </div>
         </div>
 
-        {/* 5 Harmonious Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-4">
-          <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 block mb-1">Tổng quy mô bàn</span>
-            <span className="text-2xl font-black text-slate-900 font-mono">{stats.total}</span>
+        {/* Row 2: Status Pills, Table Type Filter & Search Input */}
+        <div className="p-3 bg-slate-50/70 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Segmented Pill List for Status Filtering with live counts */}
+          <div className="overflow-x-auto pb-1 lg:pb-0">
+            <SegmentedPillList
+              items={statusPillItems}
+              activeKey={filterStatus}
+              onSelect={(key) => setFilterStatus(key)}
+            />
           </div>
 
-          <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-emerald-800 block mb-1">Đang chơi</span>
-            <span className="text-2xl font-black text-emerald-700 font-mono">{stats.playing} bàn</span>
-          </div>
+          <div className="flex items-center gap-2.5">
+            {/* Table type select */}
+            <Select
+              value={filterType}
+              onChange={(val) => setFilterType(val)}
+              className="!w-44 !rounded-lg"
+              options={[
+                { value: "all", label: "Tất cả loại bàn" },
+                { value: "standard", label: "Bàn Thường 9FT" },
+                { value: "vip", label: "Bàn VIP Bank Pool" },
+                { value: "match", label: "Bàn Match K-Steel" },
+              ]}
+            />
 
-          <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-amber-800 block mb-1">Tạm dừng</span>
-            <span className="text-2xl font-black text-amber-700 font-mono">{stats.paused} bàn</span>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-blue-800 block mb-1">Đã đặt trước</span>
-            <span className="text-2xl font-black text-blue-700 font-mono">{stats.booked} bàn</span>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-600 block mb-1">Bàn trống</span>
-            <span className="text-2xl font-black text-slate-700 font-mono">{stats.available} bàn</span>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-300 flex flex-col justify-between">
-            <span className="text-[11px] font-bold text-emerald-900 block mb-1">Doanh thu tạm tính</span>
-            <span className="text-lg font-black text-emerald-700 truncate font-mono">
-              {stats.totalTempRevenue.toLocaleString("vi-VN")}đ
-            </span>
+            {/* Shared UI Search Filter Input */}
+            <SearchFilterInput
+              value={searchQuery}
+              onChange={(val) => setSearchQuery(val)}
+              placeholder="Tìm bàn, số bàn, khách..."
+              width={240}
+            />
           </div>
         </div>
       </Card>
@@ -662,44 +671,7 @@ export const PosTableFloorPage: React.FC = () => {
         </Card>
       )}
 
-      {/* ── BỘ LỌC BÀN & TÌM KIẾM (SEGMENTED PILL LIST + SEARCHFILTERINPUT) ── */}
-      <Card className="!p-3.5 !rounded-2xl !border-slate-200 shadow-2xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Segmented Pill List for Status Filtering */}
-          <div className="overflow-x-auto pb-1 lg:pb-0">
-            <SegmentedPillList
-              items={statusPillItems}
-              activeKey={filterStatus}
-              onSelect={(key) => setFilterStatus(key)}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Lọc loại bàn */}
-            <Select
-              value={filterType}
-              onChange={(val) => setFilterType(val)}
-              className="!w-44 !rounded-lg"
-              options={[
-                { value: "all", label: "Tất cả loại bàn" },
-                { value: "standard", label: "Bàn Thường 9FT" },
-                { value: "vip", label: "Bàn VIP Bank Pool" },
-                { value: "match", label: "Bàn Match K-Steel" },
-              ]}
-            />
-
-            {/* Shared UI Search Filter Input */}
-            <SearchFilterInput
-              value={searchQuery}
-              onChange={(val) => setSearchQuery(val)}
-              placeholder="Tìm bàn, số bàn, khách..."
-              width={260}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* ── SƠ ĐỒ LƯỚI BÀN (TABLE GRID WITH SHARED UI CARD) ─────────────────── */}
+      {/* ── SƠ ĐỒ LƯỚI BÀN (ERGONOMIC TABLE CARDS GRID) ──────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredTables.map((table) => {
           const { cost, formattedTime } = calculatePlayingDetails(table);
@@ -718,160 +690,173 @@ export const PosTableFloorPage: React.FC = () => {
           return (
             <Card
               key={table.id}
-              className={`!rounded-2xl !border transition-all duration-200 flex flex-col justify-between overflow-hidden shadow-2xs hover:shadow-sm ${
+              styles={{ body: { padding: 0 } }}
+              className={`!rounded-2xl transition-all duration-200 overflow-hidden shadow-2xs hover:shadow-md flex flex-col justify-between ${
                 isPlaying
-                  ? "!border-emerald-500/80 !bg-white"
+                  ? "!border-emerald-500 !bg-white ring-1 ring-emerald-500/20"
                   : isPaused
-                  ? "!border-amber-300 !bg-amber-50/30"
+                  ? "!border-amber-400 !bg-white ring-1 ring-amber-400/20"
                   : isBooked
-                  ? "!border-blue-300 !bg-blue-50/20"
+                  ? "!border-blue-400 !bg-white ring-1 ring-blue-400/20"
                   : isMaintenance
-                  ? "!border-slate-200 !bg-slate-100/70 opacity-60"
+                  ? "!border-slate-200 !bg-slate-50 opacity-60"
                   : "!border-slate-200 !bg-white hover:!border-slate-300"
               }`}
             >
-              {/* Header Card */}
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <Space align="center" size={6}>
-                    <span className="font-mono text-xs font-bold text-slate-400">{table.code}</span>
-                    <Text strong className="!text-base !text-slate-900 !mb-0">
-                      {table.name}
-                    </Text>
-                  </Space>
-                  <Text className="!text-[11px] !text-slate-500 block mt-0.5">{table.typeName}</Text>
+              {/* 1. Header: Table code, name, type & status badge */}
+              <div className="px-3.5 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-mono text-[11px] font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                    {table.code}
+                  </span>
+                  <span className="font-black text-sm text-slate-900 tracking-tight truncate">
+                    {table.name}
+                  </span>
+                  <span className="text-[11px] text-slate-500 hidden sm:inline truncate">
+                    • {table.typeName}
+                  </span>
                 </div>
 
                 <div>
                   {isPlaying && (
-                    <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold">
+                    <Tag color="green" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0 inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       ĐANG CHƠI
                     </Tag>
                   )}
                   {isPaused && (
-                    <Tag color="orange" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold">
+                    <Tag color="orange" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0 inline-flex items-center gap-1">
+                      <PauseCircleOutlined className="text-[10px]" />
                       TẠM DỪNG
                     </Tag>
                   )}
                   {isBooked && (
-                    <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold">
-                      ĐÃ ĐẶT
+                    <Tag color="blue" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0">
+                      HẸN {table.bookedInfo?.time}
                     </Tag>
                   )}
                   {isAvailable && (
-                    <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !bg-slate-100 !text-slate-600">
+                    <Tag color="default" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-semibold !m-0 !bg-slate-100 !text-slate-600">
                       TRỐNG
                     </Tag>
                   )}
                   {isMaintenance && (
-                    <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold">
+                    <Tag color="error" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0">
                       BẢO TRÌ
                     </Tag>
                   )}
                 </div>
               </div>
 
-              {/* Body Card */}
-              <div className="p-4 flex-1">
+              {/* 2. Body: Compact information area (~100-110px) */}
+              <div className="p-3.5 flex-1 flex flex-col justify-between">
                 {isPlaying || isPaused ? (
-                  <div className="space-y-3">
-                    {/* Live Duration Display (Clean Light Styling, No Black Patches) */}
-                    <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <ClockCircleOutlined className="text-emerald-700 text-base" />
-                        <div>
-                          <span className="text-[10px] font-semibold text-emerald-800 uppercase tracking-wider block">
-                            Thời gian chơi
-                          </span>
-                          <span className="text-xs text-slate-500 font-mono">
-                            Từ {table.currentSession?.sessionStart}
-                          </span>
-                        </div>
+                  <div className="space-y-2">
+                    {/* Timer row */}
+                    <div className="flex items-baseline justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <ClockCircleOutlined className={isPaused ? "text-amber-500 text-sm" : "text-emerald-600 text-sm"} />
+                        <span className={`text-xl font-black font-mono tracking-wider ${isPaused ? "text-amber-600" : "text-slate-900"}`}>
+                          {formattedTime}
+                        </span>
                       </div>
-                      <span className="text-lg font-black text-emerald-800 font-mono tracking-wider">
-                        {formattedTime}
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Từ {table.currentSession?.sessionStart}
                       </span>
                     </div>
 
-                    {/* Customer & Order Metadata */}
-                    <div className="text-xs space-y-1.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200/70">
+                    {/* Customer & Breakdown */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Khách chơi:</span>
-                        <Space size={4} align="center">
-                          <UserOutlined className="text-slate-400 text-xs" />
-                          <span className="font-bold text-slate-900 truncate max-w-[130px]">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <UserOutlined className="text-slate-400 text-xs flex-shrink-0" />
+                          <span className="font-bold text-slate-800 truncate max-w-[120px]">
                             {table.currentSession?.customerName}
                           </span>
                           {table.currentSession?.isMember && (
-                            <Tag color="gold" className="!text-[9px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+                            <Tag color="gold" className="!text-[9px] !px-1 !py-0 !border-0 !m-0 !font-bold">
                               {table.currentSession.memberRank || "VIP"}
                             </Tag>
                           )}
-                        </Space>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Tiền giờ tạm tính:</span>
-                        <span className="font-mono font-semibold text-slate-800">
-                          {cost.toLocaleString("vi-VN")}đ
+                        </div>
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          Giờ: {cost.toLocaleString("vi-VN")}đ
                         </span>
                       </div>
 
-                      {table.currentSession?.orders && table.currentSession.orders.length > 0 && (
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
-                          <span className="text-slate-500">F&B ({table.currentSession.orders.length} món):</span>
-                          <span className="font-mono font-semibold text-emerald-700">
-                            {fnbTotal.toLocaleString("vi-VN")}đ
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-[11px]">
+                          F&B ({table.currentSession?.orders.length || 0} món):
+                        </span>
+                        <span className="text-emerald-700 font-mono font-medium text-[11px]">
+                          {fnbTotal.toLocaleString("vi-VN")}đ
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Grand Temporary Total */}
-                    <div className="flex items-center justify-between pt-1 px-1">
-                      <span className="text-xs font-semibold text-slate-600">Tổng tạm tính:</span>
+                    {/* Grand Total */}
+                    <div className="flex items-baseline justify-between pt-1.5 border-t border-dashed border-slate-200">
+                      <span className="text-[11px] font-semibold text-slate-600">Tạm tính:</span>
                       <span className="text-base font-black text-emerald-700 font-mono">
                         {totalTableBill.toLocaleString("vi-VN")}đ
                       </span>
                     </div>
                   </div>
                 ) : isBooked ? (
-                  <div className="space-y-3 py-1">
-                    <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-xs space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-blue-700 font-medium">Khách hẹn:</span>
-                        <span className="font-bold text-blue-950">{table.bookedInfo?.customerName}</span>
+                  <div className="space-y-2 py-0.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <UserOutlined className="text-blue-500 text-xs" />
+                        <span className="text-xs font-bold text-blue-950 truncate">
+                          {table.bookedInfo?.customerName}
+                        </span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-blue-700 font-medium">Liên hệ:</span>
-                        <span className="font-mono font-semibold text-blue-900">{table.bookedInfo?.phone}</span>
+                      <span className="text-xs font-mono font-semibold text-blue-800">
+                        {table.bookedInfo?.phone}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-blue-50/70 border border-blue-200/60 text-[11px] space-y-1">
+                      <div className="flex justify-between text-blue-900">
+                        <span>Giờ hẹn khách:</span>
+                        <span className="font-bold">{table.bookedInfo?.time} hôm nay</span>
                       </div>
-                      <div className="flex items-center justify-between pt-1 border-t border-blue-200/80">
-                        <span className="text-blue-700 font-medium">Khung giờ:</span>
-                        <span className="font-semibold text-blue-900">{table.bookedInfo?.time}</span>
+                      <div className="flex justify-between text-blue-800">
+                        <span>Tiền cọc giữ bàn:</span>
+                        <span className="font-mono font-bold text-emerald-700">100.000đ</span>
                       </div>
                     </div>
-                    <Text className="!text-[11px] !text-slate-500 block text-center">
-                      Khách đã đến quán? Bấm nút bên dưới để mở bàn đón khách.
-                    </Text>
+                    <span className="text-[10.5px] text-slate-400 block text-center">
+                      Khách đã đến? Bấm nhận bàn bên dưới
+                    </span>
                   </div>
                 ) : (
-                  <div className="py-6 text-center space-y-2">
-                    <div className="inline-flex p-3 rounded-2xl bg-slate-100 text-slate-400">
-                      <AppstoreOutlined className="text-2xl" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 block">Bàn Đang Trống</span>
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        {table.pricePerHour.toLocaleString("vi-VN")}đ / giờ
+                  <div className="py-1 space-y-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        Đơn giá bàn
                       </span>
+                      <span className="text-base font-black font-mono text-emerald-700">
+                        {table.pricePerHour.toLocaleString("vi-VN")}đ<span className="text-xs font-normal text-slate-400">/h</span>
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircleOutlined className="text-emerald-500 text-xs" />
+                        <span>Nỉ Simonis 860 • Bóng Aramith</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircleOutlined className="text-emerald-500 text-xs" />
+                        <span>Vệ sinh sạch sẽ, sẵn sàng đón khách</span>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Action Buttons Footer (100% Shared UI Buttons) */}
-              <div className="p-3 bg-slate-50/80 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+              {/* 3. Footer: Action Buttons (~44px, ALWAYS VISIBLE!) */}
+              <div className="px-3.5 py-2.5 bg-slate-50/80 border-t border-slate-100">
                 {isAvailable || isBooked ? (
                   <Button
                     variant="primary"
@@ -885,37 +870,48 @@ export const PosTableFloorPage: React.FC = () => {
                       setOpenModalVisible(true);
                     }}
                     leftIcon={<PlayCircleOutlined />}
-                    className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9"
+                    className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9 shadow-2xs"
                   >
-                    Bật Bàn Tính Giờ
+                    {isBooked ? "Khách Đến (Nhận Bàn)" : "Bật Bàn Tính Giờ"}
                   </Button>
                 ) : isPlaying || isPaused ? (
-                  <>
+                  <div className="flex items-center gap-1.5">
+                    {/* Primary checkout button */}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleOpenCheckout(table)}
+                      leftIcon={<DollarOutlined />}
+                      className="!flex-1 !rounded-lg !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-8 text-white shadow-2xs"
+                    >
+                      Thanh Toán
+                    </Button>
+
+                    {/* F&B button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenFnbModal(table)}
+                      leftIcon={<CoffeeOutlined />}
+                      className="!rounded-lg !text-xs !h-8 !px-2.5 !border-slate-300 !text-slate-700 hover:!border-emerald-600"
+                      title="Gọi món F&B"
+                    >
+                      Món ({table.currentSession?.orders.length || 0})
+                    </Button>
+
                     {/* Pause/Resume button */}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleTogglePause(table)}
                       leftIcon={isPaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
-                      className={`!flex-1 !rounded-xl !text-xs !h-8 ${
+                      className={`!rounded-lg !text-xs !h-8 !px-2.5 ${
                         isPaused
                           ? "!bg-amber-100 !border-amber-400 !text-amber-900"
                           : "!border-slate-300 !text-slate-700 hover:!border-emerald-600"
                       }`}
-                    >
-                      {isPaused ? "Tiếp tục" : "Tạm dừng"}
-                    </Button>
-
-                    {/* Order F&B button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenFnbModal(table)}
-                      leftIcon={<CoffeeOutlined />}
-                      className="!flex-1 !rounded-xl !text-xs !h-8 !border-emerald-300 !bg-emerald-50/50 !text-emerald-800 hover:!bg-emerald-100"
-                    >
-                      Món ({table.currentSession?.orders.length || 0})
-                    </Button>
+                      title={isPaused ? "Tiếp tục tính giờ" : "Tạm dừng"}
+                    />
 
                     {/* Transfer/Merge button */}
                     <Button
@@ -926,27 +922,16 @@ export const PosTableFloorPage: React.FC = () => {
                         setTransferModalVisible(true);
                       }}
                       leftIcon={<SwapOutlined />}
-                      className="!rounded-xl !text-xs !h-8 !px-2.5 !border-slate-300 !text-slate-700 hover:!border-emerald-600"
+                      className="!rounded-lg !text-xs !h-8 !w-8 !p-0 !min-w-0 !border-slate-300 !text-slate-700 hover:!border-emerald-600"
                       title="Đổi hoặc gộp bàn"
                     />
-
-                    {/* Checkout Button */}
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleOpenCheckout(table)}
-                      leftIcon={<DollarOutlined />}
-                      className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9 mt-1 text-white shadow-xs"
-                    >
-                      Thanh Toán ({totalTableBill.toLocaleString("vi-VN")}đ)
-                    </Button>
-                  </>
+                  </div>
                 ) : (
                   <Button
                     variant="outline"
                     size="sm"
                     disabled
-                    className="!w-full !rounded-xl !text-xs !h-8 !text-slate-400"
+                    className="!w-full !rounded-lg !text-xs !h-8 !text-slate-400"
                   >
                     Bàn đang bảo trì nỉ
                   </Button>
