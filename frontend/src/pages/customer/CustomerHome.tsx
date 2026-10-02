@@ -1,26 +1,27 @@
 import { Link } from "react-router-dom";
 import {
-  Trophy,
-  BookOpen,
-  Calendar,
-  ArrowRight,
-  Sparkles,
-  Clock,
-  ShieldCheck,
-  Flame,
-  Award,
-  Users,
-  ChevronRight,
-  Star,
-  Coffee,
-  Tv,
-} from "lucide-react";
+  TrophyOutlined,
+  ReadOutlined,
+  CalendarOutlined,
+  ArrowRightOutlined,
+  ClockCircleOutlined,
+  SafetyCertificateOutlined,
+  FireOutlined,
+  CrownOutlined,
+  TeamOutlined,
+  RightOutlined,
+  StarFilled,
+  CoffeeOutlined,
+  VideoCameraOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import {
   Button,
   Card,
   Tag,
   Typography,
 } from "../../shared/ui";
+import { useAuth } from "../../contexts/AuthContext";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -70,26 +71,28 @@ const PROMOTIONS = [
 ];
 
 const CLUB_AMENITIES = [
-  { icon: <ShieldCheck className="h-5 w-5 text-emerald-600" />, title: "Bàn Thi Đấu Tiêu Chuẩn", desc: "Vải Simonis 860 chính hãng, băng cao su Artemis và bi Aramith Pro TV Cup." },
-  { icon: <Tv className="h-5 w-5 text-emerald-600" />, title: "Camera VAR Góc Lỗ", desc: "Hệ thống quay chậm hỗ trợ trọng tài xác định bi chạm băng trong các trận thi đấu giải." },
-  { icon: <Coffee className="h-5 w-5 text-emerald-600" />, title: "Menu F&B Phục Vụ Tại Bàn", desc: "Cà phê pha máy, nước ép nguyên chất, thức ăn nóng phục vụ liên tục." },
-  { icon: <Users className="h-5 w-5 text-emerald-600" />, title: "Trọng Tài & Huấn Luyện Viên", desc: "Hỗ trợ xếp bi, bấm giờ và hướng dẫn kỹ thuật dội băng cho người mới." },
+  { icon: <SafetyCertificateOutlined className="text-xl text-emerald-600" />, title: "Bàn Thi Đấu Tiêu Chuẩn", desc: "Vải Simonis 860 chính hãng, băng cao su Artemis và bi Aramith Pro TV Cup." },
+  { icon: <VideoCameraOutlined className="text-xl text-emerald-600" />, title: "Camera VAR Góc Lỗ", desc: "Hệ thống quay chậm hỗ trợ trọng tài xác định bi chạm băng trong các trận thi đấu giải." },
+  { icon: <CoffeeOutlined className="text-xl text-emerald-600" />, title: "Menu F&B Phục Vụ Tại Bàn", desc: "Cà phê pha máy, nước ép nguyên chất, thức ăn nóng phục vụ liên tục." },
+  { icon: <TeamOutlined className="text-xl text-emerald-600" />, title: "Trọng Tài & Huấn Luyện Viên", desc: "Hỗ trợ xếp bi, bấm giờ và hướng dẫn kỹ thuật dội băng cho người mới." },
 ];
 
 const CustomerHome = () => {
+  const { user } = useAuth();
+
   return (
     <div className="space-y-12">
       {/* =========================================================================
           1. HERO SECTION SÁNG SỦA, SANG TRỌNG (LUXURY BILLIARDS LOUNGE)
           ========================================================================= */}
-      <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-white via-[#f0fdf4] to-[#ecfdf5] border border-emerald-100 shadow-sm p-8 sm:p-12 xl:p-16">
-        {/* Subtle decorative elements */}
+      <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-white via-[#f0fdf4] to-[#ecfdf5] border border-emerald-100 shadow-xs p-8 sm:p-12 xl:p-16">
+        {/* Subtle decorative glow */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-teal-300/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/80 border border-emerald-300/60 text-emerald-800 text-xs font-bold tracking-wide shadow-2xs">
-            <Sparkles className="h-4 w-4 text-emerald-600" />
+            <ThunderboltOutlined className="text-emerald-600" />
             <span>HỆ THỐNG CLB BIDA & GIẢI ĐẤU BANK POOL ĐẲNG CẤP</span>
           </div>
 
@@ -106,37 +109,49 @@ const CustomerHome = () => {
 
           {/* Social Proof */}
           <div className="flex items-center gap-3 pt-1 text-xs text-slate-500 font-medium">
-            <div className="flex items-center text-amber-500">
-              <Star className="h-4 w-4 fill-amber-400" />
-              <Star className="h-4 w-4 fill-amber-400" />
-              <Star className="h-4 w-4 fill-amber-400" />
-              <Star className="h-4 w-4 fill-amber-400" />
-              <Star className="h-4 w-4 fill-amber-400" />
+            <div className="flex items-center gap-0.5 text-amber-400">
+              <StarFilled />
+              <StarFilled />
+              <StarFilled />
+              <StarFilled />
+              <StarFilled />
             </div>
             <span className="font-bold text-slate-700">4.9/5.0</span>
             <span>• Được hơn 1,200+ cơ thủ phong trào & chuyên nghiệp tin chọn</span>
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons (Adaptive for Member vs Guest) */}
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <Button
               variant="primary"
               size="large"
               to="/customer/booking"
-              rightIcon={<Calendar className="h-4 w-4" />}
+              rightIcon={<CalendarOutlined />}
               className="!h-12 !px-6 !text-sm !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white shadow-lg shadow-emerald-600/25 !rounded-xl"
             >
               Đặt Bàn Trực Tuyến Ngay
             </Button>
-            <Button
-              variant="outline"
-              size="large"
-              to="/register"
-              rightIcon={<ArrowRight className="h-4 w-4 text-emerald-600" />}
-              className="!h-12 !px-6 !text-sm !font-bold !border-emerald-600/40 !bg-white hover:!bg-emerald-50 !text-emerald-800 !rounded-xl shadow-xs"
-            >
-              Đăng Ký Hội Viên (Nhận Ưu Đãi 20%)
-            </Button>
+            {user ? (
+              <Button
+                variant="outline"
+                size="large"
+                to="/customer/fnb"
+                rightIcon={<CoffeeOutlined className="text-emerald-600" />}
+                className="!h-12 !px-6 !text-sm !font-bold !border-emerald-600/40 !bg-white hover:!bg-emerald-50 !text-emerald-800 !rounded-xl shadow-xs"
+              >
+                Gọi Món F&B Tại Bàn
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="large"
+                to="/register"
+                rightIcon={<ArrowRightOutlined className="text-emerald-600" />}
+                className="!h-12 !px-6 !text-sm !font-bold !border-emerald-600/40 !bg-white hover:!bg-emerald-50 !text-emerald-800 !rounded-xl shadow-xs"
+              >
+                Đăng Ký Hội Viên (Nhận Ưu Đãi 20%)
+              </Button>
+            )}
           </div>
         </div>
 
@@ -144,7 +159,7 @@ const CustomerHome = () => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10 pt-8 border-t border-emerald-200/60 relative z-10">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
             <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold mb-1">
-              <Flame className="h-4 w-4" /> 20 BÀN THI ĐẤU
+              <FireOutlined /> 20 BÀN THI ĐẤU
             </div>
             <div className="text-2xl font-black text-slate-900">18 Sẵn Sàng</div>
             <div className="text-xs text-slate-500 mt-0.5">Vải Simonis 860 chính hãng</div>
@@ -152,7 +167,7 @@ const CustomerHome = () => {
 
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
             <div className="flex items-center gap-2 text-amber-600 text-xs font-bold mb-1">
-              <Trophy className="h-4 w-4" /> GIẢI BANK POOL
+              <TrophyOutlined /> GIẢI BANK POOL
             </div>
             <div className="text-2xl font-black text-slate-900">15.000.000đ</div>
             <div className="text-xs text-slate-500 mt-0.5">Tổng thưởng giải Q2 mở rộng</div>
@@ -160,7 +175,7 @@ const CustomerHome = () => {
 
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
             <div className="flex items-center gap-2 text-blue-600 text-xs font-bold mb-1">
-              <Clock className="h-4 w-4" /> GIỜ VÀNG ƯU ĐÃI
+              <ClockCircleOutlined /> GIỜ VÀNG ƯU ĐÃI
             </div>
             <div className="text-2xl font-black text-slate-900">Giảm 20%</div>
             <div className="text-xs text-slate-500 mt-0.5">Khung giờ 13:00 - 17:00</div>
@@ -168,7 +183,7 @@ const CustomerHome = () => {
 
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
             <div className="flex items-center gap-2 text-purple-600 text-xs font-bold mb-1">
-              <Award className="h-4 w-4" /> ĐẶC QUYỀN VIP
+              <CrownOutlined /> ĐẶC QUYỀN VIP
             </div>
             <div className="text-2xl font-black text-slate-900">Tích Điểm 10%</div>
             <div className="text-xs text-slate-500 mt-0.5">Đổi giờ chơi & voucher F&B</div>
@@ -207,7 +222,7 @@ const CustomerHome = () => {
               variant="outline"
               size="sm"
               to="/customer/booking"
-              rightIcon={<ChevronRight className="h-3.5 w-3.5" />}
+              rightIcon={<RightOutlined className="text-xs" />}
               className="!text-xs !font-bold !border-slate-300"
             >
               Vào Trang Đặt Bàn
@@ -289,8 +304,8 @@ const CustomerHome = () => {
             <Tag color="gold" className="!text-xs !font-bold !px-3 !py-1 !rounded-md uppercase">
               GIẢI ĐẤU NỔI BẬT Q2/2026
             </Tag>
-            <span className="text-xs text-amber-400 font-semibold flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" /> Khởi tranh ngày 15/10/2026
+            <span className="text-xs text-amber-400 font-semibold flex items-center gap-1.5">
+              <ClockCircleOutlined /> Khởi tranh ngày 15/10/2026
             </span>
           </div>
 
@@ -322,19 +337,30 @@ const CustomerHome = () => {
               variant="primary"
               size="large"
               to="/customer/tournaments"
-              rightIcon={<ArrowRight className="h-4 w-4" />}
+              rightIcon={<ArrowRightOutlined />}
               className="!h-11 !px-5 !text-xs !font-bold !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-600 shadow-md"
             >
               Xem Thể Lệ & Lệ Phí Chi Tiết
             </Button>
-            <Button
-              variant="outline"
-              size="large"
-              to="/register"
-              className="!h-11 !px-5 !text-xs !font-bold !border-slate-700 !bg-slate-800/80 !text-slate-200 hover:!border-emerald-500 hover:!text-white"
-            >
-              Đăng Ký Tài Khoản Thi Đấu
-            </Button>
+            {user ? (
+              <Button
+                variant="outline"
+                size="large"
+                to="/customer/tournaments"
+                className="!h-11 !px-5 !text-xs !font-bold !border-slate-700 !bg-slate-800/80 !text-slate-200 hover:!border-emerald-500 hover:!text-white"
+              >
+                Đăng Ký Tham Gia Ngay
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="large"
+                to="/register"
+                className="!h-11 !px-5 !text-xs !font-bold !border-slate-700 !bg-slate-800/80 !text-slate-200 hover:!border-emerald-500 hover:!text-white"
+              >
+                Đăng Ký Tài Khoản Thi Đấu
+              </Button>
+            )}
           </div>
         </div>
       </section>
@@ -345,7 +371,7 @@ const CustomerHome = () => {
       <section className="space-y-6">
         <div className="text-center max-w-xl mx-auto space-y-2">
           <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
-            <BookOpen className="h-3.5 w-3.5 text-emerald-600" />
+            <ReadOutlined className="text-emerald-600" />
             CẨM NANG THỂ THAO
           </div>
           <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
@@ -411,7 +437,7 @@ const CustomerHome = () => {
             variant="outline"
             size="large"
             to="/customer/rules"
-            rightIcon={<ArrowRight className="h-4 w-4" />}
+            rightIcon={<ArrowRightOutlined />}
             className="!h-11 !px-6 !text-xs !font-bold !border-slate-300 hover:!border-emerald-600 hover:!text-emerald-700 !rounded-xl"
           >
             Đọc Toàn Bộ Cẩm Nang & Tình Huống Luật Bank Pool
@@ -440,7 +466,7 @@ const CustomerHome = () => {
             variant="outline"
             size="sm"
             to="/customer/news"
-            rightIcon={<ChevronRight className="h-3.5 w-3.5" />}
+            rightIcon={<RightOutlined className="text-xs" />}
             className="!text-xs !font-bold !border-slate-300"
           >
             Xem Tất Cả Tin Tức & Khuyến Mãi
@@ -470,10 +496,10 @@ const CustomerHome = () => {
                   {promo.valid}
                 </span>
                 <Link
-                  to="/register"
+                  to={user ? "/customer/booking" : "/register"}
                   className="text-xs font-bold text-emerald-600 hover:text-emerald-800 inline-flex items-center gap-1"
                 >
-                  Nhận ưu đãi <ChevronRight className="h-3 w-3" />
+                  Nhận ưu đãi <RightOutlined className="text-[10px]" />
                 </Link>
               </div>
             </Card>
@@ -484,7 +510,7 @@ const CustomerHome = () => {
       {/* =========================================================================
           6. TIỆN ÍCH & DỊCH VỤ CLB CUEZONE
           ========================================================================= */}
-      <section className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-12 shadow-sm space-y-6">
+      <section className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-12 shadow-xs space-y-6">
         <div className="text-center max-w-lg mx-auto space-y-1.5">
           <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
             Tiện Ích Chuẩn Thi Đấu Tại CueZone
@@ -496,7 +522,7 @@ const CustomerHome = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
           {CLUB_AMENITIES.map((am, i) => (
-            <div key={i} className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div key={i} className="space-y-2 p-4 rounded-2xl bg-slate-50 border border-slate-100">
               <div className="h-10 w-10 rounded-xl bg-emerald-100/70 flex items-center justify-center">
                 {am.icon}
               </div>
@@ -526,18 +552,29 @@ const CustomerHome = () => {
             variant="outline"
             size="large"
             to="/customer/booking"
-            className="!h-11 !px-6 !text-xs !font-bold !bg-white !text-emerald-800 !border-white hover:!bg-emerald-50 !rounded-xl shadow-sm"
+            className="!h-11 !px-6 !text-xs !font-bold !bg-white !text-emerald-800 !border-white hover:!bg-emerald-50 !rounded-xl shadow-xs"
           >
             Đặt Bàn Ngay
           </Button>
-          <Button
-            variant="outline"
-            size="large"
-            to="/register"
-            className="!h-11 !px-6 !text-xs !font-bold !border-emerald-300/60 !bg-emerald-800/40 !text-white hover:!bg-emerald-800/60 !rounded-xl"
-          >
-            Đăng Ký Thẻ Hội Viên
-          </Button>
+          {user ? (
+            <Button
+              variant="outline"
+              size="large"
+              to="/customer/fnb"
+              className="!h-11 !px-6 !text-xs !font-bold !border-emerald-300/60 !bg-emerald-800/40 !text-white hover:!bg-emerald-800/60 !rounded-xl"
+            >
+              Gọi Món F&B Tại Bàn
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="large"
+              to="/register"
+              className="!h-11 !px-6 !text-xs !font-bold !border-emerald-300/60 !bg-emerald-800/40 !text-white hover:!bg-emerald-800/60 !rounded-xl"
+            >
+              Đăng Ký Thẻ Hội Viên
+            </Button>
+          )}
         </div>
       </section>
     </div>
