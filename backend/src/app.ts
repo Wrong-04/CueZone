@@ -5,12 +5,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import { appConfig } from "./config/app.config";
-import * as authController from "./modules/auth/auth.controller";
-import * as userController from "./modules/user/user.controller";
-import * as roleController from "./modules/role/role.controller";
-import * as tableController from "./modules/table/table.controller";
-import * as pricingController from "./modules/pricing/pricing.controller";
-import * as notificationController from "./modules/notification/notification.controller";
+import { publicRouter, protectedRouter } from "./routes";
 
 dotenv.config();
 
@@ -56,56 +51,8 @@ export class App {
   }
 
   private setupRoutes(): void {
-    const publicRouter = express.Router();
-    publicRouter.post("/auth/register", authController.register);
-    publicRouter.post("/auth/register/request", authController.sendVerificationCode);
-    publicRouter.post("/auth/register/verify", authController.verifyAndRegister);
-    publicRouter.post("/auth/login", authController.login);
-    publicRouter.post("/auth/refresh-token", authController.refreshToken);
     this.app.use("/api/v1", publicRouter);
-
     this.app.use("/api/v1", this.authMiddleware);
-
-    const protectedRouter = express.Router();
-    protectedRouter.get("/auth/profile", authController.getProfile);
-
-    protectedRouter.get("/users", userController.getAll);
-    protectedRouter.get("/users/stats", userController.getStats);
-    protectedRouter.get("/users/:id", userController.getById);
-    protectedRouter.post("/users", userController.create);
-    protectedRouter.put("/users/:id", userController.update);
-    protectedRouter.put("/users/:id/toggle-lock", userController.toggleLock);
-    protectedRouter.put("/users/:id/toggle-active", userController.toggleActive);
-    protectedRouter.delete("/users/:id", userController.delete_);
-
-    protectedRouter.get("/roles", roleController.getAll);
-    protectedRouter.get("/roles/:id", roleController.getById);
-    protectedRouter.post("/roles", roleController.create);
-    protectedRouter.put("/roles/:id", roleController.update);
-    protectedRouter.delete("/roles/:id", roleController.delete_);
-
-    protectedRouter.get("/tables", tableController.getAll);
-    protectedRouter.get("/tables/stats", tableController.getStats);
-    protectedRouter.get("/tables/:id", tableController.getById);
-    protectedRouter.post("/tables", tableController.create);
-    protectedRouter.put("/tables/:id", tableController.update);
-    protectedRouter.put("/tables/:id/status", tableController.updateStatus);
-    protectedRouter.delete("/tables/:id", tableController.delete_);
-
-    protectedRouter.get("/pricing", pricingController.getAll);
-    protectedRouter.get("/pricing/:id", pricingController.getById);
-    protectedRouter.post("/pricing", pricingController.create);
-    protectedRouter.put("/pricing/:id", pricingController.update);
-    protectedRouter.put("/pricing/:id/activate", pricingController.activate);
-    protectedRouter.delete("/pricing/:id", pricingController.delete_);
-
-    protectedRouter.get("/notifications", notificationController.getAll);
-    protectedRouter.get("/notifications/unread-count", notificationController.getUnreadCount);
-    protectedRouter.put("/notifications/:id/read", notificationController.markRead);
-    protectedRouter.put("/notifications/read-all", notificationController.markAllRead);
-    protectedRouter.delete("/notifications/:id", notificationController.delete_);
-    protectedRouter.delete("/notifications", notificationController.clearAll);
-
     this.app.use("/api/v1", protectedRouter);
 
     this.app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
