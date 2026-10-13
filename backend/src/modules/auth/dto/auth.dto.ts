@@ -24,15 +24,11 @@ export class RegisterDTO {
 }
 
 export class LoginDTO {
-  @IsNotEmpty({ message: "Email hoặc số điện thoại không được để trống" })
-  @IsString({ message: "Email hoặc số điện thoại phải là chuỗi ký tự" })
+  @IsEmail({}, { message: "Email không hợp lệ" })
+  @IsNotEmpty({ message: "Email không được để trống" })
   email!: string;
 
   @IsNotEmpty({ message: "Mật khẩu không được để trống" })
-  @IsString({ message: "Mật khẩu phải là chuỗi ký tự" })
-  password!: string;
-
-  @IsOptional()
   @IsString()
-  phone?: string;
+  password!: string;
 }

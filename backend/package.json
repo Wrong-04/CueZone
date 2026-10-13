@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
-    "check:pos": "node scripts/check-pos.cjs"
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",

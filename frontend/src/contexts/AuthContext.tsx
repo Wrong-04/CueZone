@@ -1,19 +1,11 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  type ReactNode,
-} from "react";
-import { type User } from "../types";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import type { User } from "../types";
 import { authService } from "../services/auth.service";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password?: string) => Promise<User>;
+  login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   sendVerificationCode: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   verifyAndRegister: (email: string, code: string) => Promise<void>;
@@ -33,71 +25,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let active = true;
-    localStorage.removeItem("cuezone_user");
-    if (!authService.getToken()) {
-      setLoading(false);
-      return;
-    }
-    authService.getProfile()
-      .then((profile) => { if (active) setUser(profile); })
-      .catch(() => { if (active) authService.logout(); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    setLoading(false);
   }, []);
 
-  /**
-   * Đăng nhập qua API Backend thực tế (/api/v1/auth/login)
-   */
-  const login = useCallback(async (email: string, password?: string): Promise<User> => {
-    const result = await authService.login(email, password || "");
+  const login = async (email: string, password: string) => {
+    const result = await authService.login(email, password);
     localStorage.setItem("accessToken", result.accessToken);
     localStorage.setItem("refreshToken", result.refreshToken);
-    localStorage.setItem("cuezone_user", JSON.stringify(result.user));
     setUser(result.user);
-    return result.user;
-  }, []);
+  };
 
-  const register = useCallback(async (name: string, email: string, password: string, phone?: string) => {
+  const register = async (name: string, email: string, password: string, phone?: string) => {
     const result = await authService.register(name, email, password, phone);
     localStorage.setItem("accessToken", result.accessToken);
     localStorage.setItem("refreshToken", result.refreshToken);
-    localStorage.setItem("cuezone_user", JSON.stringify(result.user));
     setUser(result.user);
-  }, []);
+  };
 
-  const sendVerificationCode = useCallback(async (name: string, email: string, password: string, phone?: string) => {
+  const sendVerificationCode = async (name: string, email: string, password: string, phone?: string) => {
     await authService.sendVerificationCode(name, email, password, phone);
-  }, []);
+  };
 
-  const verifyAndRegister = useCallback(async (email: string, code: string) => {
+  const verifyAndRegister = async (email: string, code: string) => {
     const result = await authService.verifyAndRegister(email, code);
     localStorage.setItem("accessToken", result.accessToken);
     localStorage.setItem("refreshToken", result.refreshToken);
-    localStorage.setItem("cuezone_user", JSON.stringify(result.user));
     setUser(result.user);
-  }, []);
+  };
 
-  const logout = useCallback(() => {
+  const logout = () => {
     authService.logout();
     setUser(null);
-  }, []);
-
-  const contextValue = useMemo(
-    () => ({
-      user,
-      loading,
-      login,
-      register,
-      sendVerificationCode,
-      verifyAndRegister,
-      logout,
-    }),
-    [user, loading, login, register, sendVerificationCode, verifyAndRegister, logout]
-  );
+  };
 
   return (
-    <AuthContext.Provider value={contextValue}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, sendVerificationCode, verifyAndRegister, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
