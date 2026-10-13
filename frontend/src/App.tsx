@@ -46,14 +46,20 @@ const ProtectedRoute = ({ children, roles }: { children: React.ReactNode; roles?
   return <>{children}</>;
 };
 
+const getDefaultRedirectPath = (role?: string): string => {
+  if (role === "customer") return "/customer";
+  if (role === "admin") return "/admin";
+  return "/admin/pos";
+};
+
 const AppRoutes = () => {
   const { user } = useAuth();
 
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/login" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin/pos"} replace /> : <LoginPage />} />
-      <Route path="/register" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin/pos"} replace /> : <RegisterPage />} />
+      <Route path="/login" element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <LoginPage />} />
+      <Route path="/register" element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <RegisterPage />} />
 
       {/* Admin routes */}
       <Route

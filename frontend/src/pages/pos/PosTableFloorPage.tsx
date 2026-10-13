@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { posService } from "../../services/pos.service";
+import type { PosTable, PosOrderItem, CheckoutReceipt } from "../../types/pos";
 import {
   ClockCircleOutlined,
   PlayCircleOutlined,
@@ -13,7 +16,6 @@ import {
   MinusOutlined,
   DollarOutlined,
   SafetyCertificateOutlined,
-  BellOutlined,
   PhoneOutlined,
 } from "@ant-design/icons";
 import {
@@ -26,44 +28,53 @@ import {
   message,
   Modal,
   Space,
-  Checkbox,
   SegmentedPillList,
   SearchFilterInput,
 } from "../../shared/ui";
-import {
-  INITIAL_POS_TABLES,
-  INITIAL_FNB_STOCK,
-  type PosTable,
-  type PosOrderItem,
-  type FnbStockItem,
-} from "../../mock/posData";
+import type { FnbStockItem } from "../../mock/posData";
 
 const { Title, Text } = Typography;
 
 export const PosTableFloorPage: React.FC = () => {
-  const [tables, setTables] = useState<PosTable[]>(() => {
-    const saved = localStorage.getItem("cuezone_pos_tables");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return INITIAL_POS_TABLES;
-  });
+  const [tables, setTables] = useState<PosTable[]>([]);
+  const [fnbStock, setFnbStock] = useState<FnbStockItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [fnbStock, setFnbStock] = useState<FnbStockItem[]>(() => {
-    const saved = localStorage.getItem("cuezone_fnb_stock");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
+  const loadTables = useCallback(async () => {
+    setLoading(true);
+    try {
+      setTables(await posService.getTables());
+      setLoadError("");
+    } catch (error: any) {
+      setLoadError(error.response?.data?.message || error.message || "Không thể tải sơ đồ bàn");
+    } finally {
+      setLoading(false);
     }
-    return INITIAL_FNB_STOCK;
-  });
+  }, []);
+
+  useEffect(() => { void loadTables(); }, [loadTables]);
+
+  const save = async (action: () => Promise<unknown>) => {
+    if (busy.current) return false;
+    busy.current = true;
+    setSaving(true);
+    try {
+      await action();
+      await loadTables();
+      return true;
+    } catch (error: any) {
+      message.error(error.response?.data?.message || error.message || "Không thể lưu thay đổi");
+      await loadTables();
+      return false;
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
+  };
 
   // Current clock ticker for live duration calculation
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
@@ -72,15 +83,6 @@ export const PosTableFloorPage: React.FC = () => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Save changes
-  useEffect(() => {
-    localStorage.setItem("cuezone_pos_tables", JSON.stringify(tables));
-  }, [tables]);
-
-  useEffect(() => {
-    localStorage.setItem("cuezone_fnb_stock", JSON.stringify(fnbStock));
-  }, [fnbStock]);
 
   // Filters
   const [filterType, setFilterType] = useState<string>("all");
@@ -94,7 +96,6 @@ export const PosTableFloorPage: React.FC = () => {
   const [openModalVisible, setOpenModalVisible] = useState<boolean>(false);
   const [customerName, setCustomerName] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string>("");
-  const [isMember, setIsMember] = useState<boolean>(true);
   const [sessionNote, setSessionNote] = useState<string>("");
 
   // 2. Transfer / Merge Table Modal
@@ -109,18 +110,25 @@ export const PosTableFloorPage: React.FC = () => {
 
   // 4. Checkout & Payment Modal
   const [checkoutModalVisible, setCheckoutModalVisible] = useState<boolean>(false);
-  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "cash" | "card" | "member_balance">("vnpay");
+  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "cash" | "card" | "member_balance">("cash");
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
-  const [paidSummary, setPaidSummary] = useState<any>(null);
+  const [paidSummary, setPaidSummary] = useState<CheckoutReceipt | null>(null);
 
-  // 5. Incoming Online Order Mock Alert
-  const [incomingOrderAlert, setIncomingOrderAlert] = useState<{
-    tableId: string;
-    tableName: string;
-    items: PosOrderItem[];
-  } | null>(null);
-
+  useEffect(() => {
+    const tableId = searchParams.get("tableId");
+    if (loading || loadError || !tableId) return;
+    const table = tables.find(item => item.id === tableId);
+    if (table?.status === "booked") {
+      setSelectedTable(table);
+      setCustomerName(table.bookedInfo?.customerName || "");
+      setCustomerPhone(table.bookedInfo?.phone || "");
+      setOpenModalVisible(true);
+    } else {
+      message.warning("Lịch đặt bàn đã thay đổi, vui lòng kiểm tra lại");
+    }
+    setSearchParams({}, { replace: true });
+  }, [tables, loading, loadError, searchParams, setSearchParams]);
   // Calculate live playing minutes and cost
   const calculatePlayingDetails = (table: PosTable) => {
     if (!table.currentSession) return { minutes: 0, cost: 0, formattedTime: "00:00:00" };
@@ -134,7 +142,7 @@ export const PosTableFloorPage: React.FC = () => {
     const secs = Math.floor((totalElapsedMs % 60000) / 1000);
 
     const formattedTime = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-    const playingCost = Math.round((totalMinutes / 60) * table.pricePerHour);
+    const playingCost = Math.round((totalMinutes / 60) * (session.pricePerHour ?? table.pricePerHour)) + (session.carriedCost || 0);
 
     return { minutes: totalMinutes, cost: playingCost, formattedTime };
   };
@@ -183,38 +191,18 @@ export const PosTableFloorPage: React.FC = () => {
   ];
 
   // Handler: Open Table & Start Session
-  const handleOpenTable = () => {
+  const handleOpenTable = async () => {
     if (!selectedTable) return;
     if (selectedTable.status !== "available" && selectedTable.status !== "booked") {
       message.warning("Bàn này không ở trạng thái sẵn sàng để mở!");
       return;
     }
 
-    const newSession = {
-      sessionStart: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-      startedAt: Date.now(),
-      isPaused: false,
-      totalPausedMs: 0,
-      customerName: customerName.trim() || "Khách Vãng Lai",
-      customerPhone: customerPhone.trim() || undefined,
-      isMember: isMember,
-      memberRank: isMember ? ("Gold" as const) : undefined,
-      orders: [],
-      note: sessionNote.trim() || undefined,
-    };
-
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === selectedTable.id
-          ? {
-              ...t,
-              status: "playing" as const,
-              bookedInfo: undefined,
-              currentSession: newSession,
-            }
-          : t
-      )
-    );
+    const saved = await save(() => posService.open(selectedTable.id, {
+      customerName: customerName.trim(), customerPhone: customerPhone.trim(), note: sessionNote.trim(),
+      bookingId: selectedTable.bookedInfo?.bookingId,
+    }));
+    if (!saved) return;
 
     message.success(`Đã mở ${selectedTable.name} & bắt đầu tính giờ thành công!`);
     setOpenModalVisible(false);
@@ -225,51 +213,15 @@ export const PosTableFloorPage: React.FC = () => {
   };
 
   // Handler: Pause / Resume Table
-  const handleTogglePause = (table: PosTable) => {
+  const handleTogglePause = async (table: PosTable) => {
     if (!table.currentSession) return;
-
-    const isCurrentlyPaused = table.currentSession.isPaused;
-    const updatedTables = tables.map((t) => {
-      if (t.id === table.id && t.currentSession) {
-        if (!isCurrentlyPaused) {
-          // Pause table
-          return {
-            ...t,
-            status: "paused" as const,
-            currentSession: {
-              ...t.currentSession,
-              isPaused: true,
-              pausedAt: Date.now(),
-            },
-          };
-        } else {
-          // Resume table
-          const pausedDuration = Date.now() - (t.currentSession.pausedAt || Date.now());
-          return {
-            ...t,
-            status: "playing" as const,
-            currentSession: {
-              ...t.currentSession,
-              isPaused: false,
-              pausedAt: undefined,
-              totalPausedMs: (t.currentSession.totalPausedMs || 0) + pausedDuration,
-            },
-          };
-        }
-      }
-      return t;
-    });
-
-    setTables(updatedTables);
-    if (!isCurrentlyPaused) {
-      message.info(`Đã tạm dừng tính giờ ${table.name}`);
-    } else {
-      message.success(`Đã tiếp tục tính giờ ${table.name}`);
+    if (await save(() => posService.pause(table))) {
+      message.success(table.currentSession.isPaused ? `Đã tiếp tục tính giờ ${table.name}` : `Đã tạm dừng tính giờ ${table.name}`);
     }
   };
 
   // Handler: Transfer / Merge Table
-  const handleTransferOrMerge = () => {
+  const handleTransferOrMerge = async () => {
     if (!selectedTable || !selectedTable.currentSession || !targetTableId) {
       message.warning("Vui lòng chọn bàn đích!");
       return;
@@ -278,61 +230,8 @@ export const PosTableFloorPage: React.FC = () => {
     const targetTable = tables.find((t) => t.id === targetTableId);
     if (!targetTable) return;
 
-    if (transferAction === "transfer") {
-      // Transfer to an available table
-      if (targetTable.status !== "available") {
-        message.error("Bàn đích phải là bàn đang trống để chuyển!");
-        return;
-      }
-
-      setTables((prev) =>
-        prev.map((t) => {
-          if (t.id === selectedTable.id) {
-            return { ...t, status: "available" as const, currentSession: undefined };
-          }
-          if (t.id === targetTable.id) {
-            return {
-              ...t,
-              status: "playing" as const,
-              currentSession: selectedTable.currentSession,
-            };
-          }
-          return t;
-        })
-      );
-      message.success(`Đã chuyển toàn bộ thời gian & món từ ${selectedTable.name} sang ${targetTable.name}!`);
-    } else {
-      // Merge table
-      if (!targetTable.currentSession) {
-        message.error("Bàn đích cũng phải đang có phiên chơi để gộp hóa đơn!");
-        return;
-      }
-
-      const mergedOrders = [
-        ...targetTable.currentSession.orders,
-        ...selectedTable.currentSession.orders,
-      ];
-
-      setTables((prev) =>
-        prev.map((t) => {
-          if (t.id === selectedTable.id) {
-            return { ...t, status: "available" as const, currentSession: undefined };
-          }
-          if (t.id === targetTable.id && t.currentSession) {
-            return {
-              ...t,
-              currentSession: {
-                ...t.currentSession,
-                orders: mergedOrders,
-                note: `${t.currentSession.note || ""} (Gộp từ ${selectedTable.name})`,
-              },
-            };
-          }
-          return t;
-        })
-      );
-      message.success(`Đã gộp hóa đơn của ${selectedTable.name} vào ${targetTable.name}!`);
-    }
+    if (!await save(() => posService.move(selectedTable, targetTableId, transferAction))) return;
+    message.success(`Đã ${transferAction === "transfer" ? "chuyển" : "gộp"} ${selectedTable.name} sang ${targetTable.name}!`);
 
     setTransferModalVisible(false);
     setSelectedTable(null);
@@ -403,139 +302,27 @@ export const PosTableFloorPage: React.FC = () => {
   };
 
   const handleConfirmFnbOrder = () => {
-    if (!selectedTable || !selectedTable.currentSession) return;
-
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === selectedTable.id && t.currentSession
-          ? {
-              ...t,
-              currentSession: {
-                ...t.currentSession,
-                orders: currentOrderList,
-              },
-            }
-          : t
-      )
-    );
-
-    message.success(`Đã cập nhật thực đơn và chuyển bếp cho ${selectedTable.name}!`);
-    setFnbModalVisible(false);
-  };
-
-  // Handler: Approve Online Order (from customer QR)
-  const handleApproveOnlineOrder = () => {
-    if (!incomingOrderAlert) return;
-    const { tableId, items } = incomingOrderAlert;
-
-    setTables((prev) =>
-      prev.map((t) => {
-        if (t.id === tableId && t.currentSession) {
-          return {
-            ...t,
-            currentSession: {
-              ...t.currentSession,
-              orders: [...t.currentSession.orders, ...items],
-            },
-          };
-        }
-        return t;
-      })
-    );
-
-    message.success(`Đã duyệt đơn gọi món online và cộng vào hóa đơn ${incomingOrderAlert.tableName}!`);
-    setIncomingOrderAlert(null);
-  };
-
-  // Handler: Trigger Mock Online Order for testing
-  const triggerMockOnlineOrder = (table: PosTable) => {
-    if (!table.currentSession) {
-      message.info("Chỉ có thể test gọi món trên bàn đang có khách chơi!");
-      return;
-    }
-    setIncomingOrderAlert({
-      tableId: table.id,
-      tableName: table.name,
-      items: [
-        {
-          id: "fnb-01",
-          name: "Cà Phê Muối CueZone Signature",
-          price: 35000,
-          quantity: 2,
-          category: "coffee",
-          orderTime: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-          status: "pending",
-        },
-        {
-          id: "fnb-09",
-          name: "Bò Khô Cháy Tỏi Chanh Ớt",
-          price: 65000,
-          quantity: 1,
-          category: "snack",
-          orderTime: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-          status: "pending",
-        },
-      ],
-    });
+    message.warning("Gọi món chưa được kết nối backend");
   };
 
   // Handler: Open Checkout Modal
   const handleOpenCheckout = (table: PosTable) => {
     setSelectedTable(table);
     setDiscountPercent(table.currentSession?.isMember ? 10 : 0);
-    setPaymentMethod("vnpay");
+    setPaymentMethod("cash");
     setCheckoutModalVisible(true);
   };
 
   // Handler: Confirm Checkout & Print Receipt
-  const handleConfirmCheckout = () => {
-    if (!selectedTable || !selectedTable.currentSession) return;
-
-    const { minutes, cost, formattedTime } = calculatePlayingDetails(selectedTable);
-    const fnbTotal = selectedTable.currentSession.orders.reduce(
-      (acc, cur) => acc + cur.price * cur.quantity,
-      0
-    );
-    const subtotal = cost + fnbTotal;
-    const discountAmount = Math.round((subtotal * discountPercent) / 100);
-    const finalAmount = Math.max(0, subtotal - discountAmount);
-
-    const summary = {
-      tableName: selectedTable.name,
-      typeName: selectedTable.typeName,
-      customerName: selectedTable.currentSession.customerName,
-      customerPhone: selectedTable.currentSession.customerPhone,
-      sessionStart: selectedTable.currentSession.sessionStart,
-      sessionEnd: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-      durationFormatted: formattedTime,
-      durationMinutes: minutes,
-      pricePerHour: selectedTable.pricePerHour,
-      playingCost: cost,
-      orders: selectedTable.currentSession.orders,
-      fnbTotal: fnbTotal,
-      subtotal: subtotal,
-      discountPercent: discountPercent,
-      discountAmount: discountAmount,
-      finalAmount: finalAmount,
-      paymentMethod: paymentMethod,
-      invoiceCode: `HD-${Math.floor(100000 + Math.random() * 900000)}`,
-      checkoutTime: new Date().toLocaleString("vi-VN"),
-    };
-
-    setPaidSummary(summary);
-
-    // Free the table
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === selectedTable.id
-          ? { ...t, status: "available" as const, currentSession: undefined }
-          : t
-      )
-    );
-
+  const handleConfirmCheckout = async () => {
+    if (!selectedTable?.currentSession) return;
+    const saved = await save(async () => {
+      setPaidSummary(await posService.checkout(selectedTable, discountPercent, paymentMethod));
+    });
+    if (!saved) return;
     setCheckoutModalVisible(false);
     setReceiptModalVisible(true);
-    message.success(`Thanh toán thành công ${finalAmount.toLocaleString("vi-VN")}đ cho ${selectedTable.name}!`);
+    message.success(`Đã lưu hóa đơn thanh toán tiền mặt cho ${selectedTable.name}!`);
   };
 
   return (
@@ -555,7 +342,7 @@ export const PosTableFloorPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs !text-slate-500 block">
-              Điều hành mở bàn, đếm giờ tự động, gọi món tại bàn và thanh toán đa kênh theo chuẩn hệ thống
+              Phiên chơi và hóa đơn tiền mặt được lưu trên máy chủ. Gọi món và thanh toán online chưa được kết nối.
             </Text>
           </div>
 
@@ -568,22 +355,8 @@ export const PosTableFloorPage: React.FC = () => {
               </span>
             </div>
 
-            {/* Test QR Order Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const playingTable = tables.find((t) => t.status === "playing");
-                if (playingTable) {
-                  triggerMockOnlineOrder(playingTable);
-                } else {
-                  message.info("Cần ít nhất 1 bàn đang chơi để giả lập khách gọi món!");
-                }
-              }}
-              leftIcon={<BellOutlined className="text-amber-500" />}
-              className="!text-xs !h-9 !rounded-xl !border-amber-300 !bg-amber-50/60 !text-amber-800 hover:!bg-amber-100"
-            >
-              Test Quét QR Gọi Món
+            <Button variant="outline" size="sm" onClick={loadTables} loading={loading} disabled={saving}>
+              Tải lại
             </Button>
           </div>
         </div>
@@ -624,52 +397,9 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* ── NOTIFICATION BANNER: KHÁCH QUÉT QR GỌI MÓN (Approve Online Order) ── */}
-      {incomingOrderAlert && (
-        <Card className="!p-4 !rounded-2xl !border-2 !border-emerald-500 !bg-emerald-50/90 shadow-sm animate-fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                <QrcodeOutlined className="text-xl" />
-              </div>
-              <div>
-                <Space align="center" size={8}>
-                  <Text strong className="!text-sm !text-emerald-950">
-                    Khách Gọi Món Tại Bàn: {incomingOrderAlert.tableName}
-                  </Text>
-                  <Tag color="green" className="!font-bold !text-[10px]">QR ONLINE</Tag>
-                </Space>
-                <div className="text-xs text-emerald-800 mt-1">
-                  Món yêu cầu:{" "}
-                  <strong>
-                    {incomingOrderAlert.items.map((i) => `${i.name} (x${i.quantity})`).join(", ")}
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            <Space size={8} className="self-end sm:self-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIncomingOrderAlert(null)}
-                className="!text-xs !rounded-xl !border-slate-300"
-              >
-                Bỏ qua
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleApproveOnlineOrder}
-                leftIcon={<CheckCircleOutlined />}
-                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl text-xs font-bold"
-              >
-                Duyệt & Thêm Vào Bill
-              </Button>
-            </Space>
-          </div>
-        </Card>
-      )}
+      {loadError && <Card><Text type="danger">{loadError}</Text><Button variant="link" onClick={loadTables}>Thử lại</Button></Card>}
+      {loading && <Text>Đang tải sơ đồ bàn từ máy chủ...</Text>}
+      {!loading && !loadError && filteredTables.length === 0 && <Card><Text>Không có bàn phù hợp trong database.</Text></Card>}
 
       {/* ── SƠ ĐỒ LƯỚI BÀN (ERGONOMIC TABLE CARDS GRID) ──────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -892,9 +622,10 @@ export const PosTableFloorPage: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenFnbModal(table)}
+                      disabled
                       leftIcon={<CoffeeOutlined />}
                       className="!rounded-lg !text-xs !h-8 !px-2.5 !border-slate-300 !text-slate-700 hover:!border-emerald-600"
-                      title="Gọi món F&B"
+                      title="Gọi món chưa được kết nối backend"
                     >
                       Món ({table.currentSession?.orders.length || 0})
                     </Button>
@@ -904,6 +635,7 @@ export const PosTableFloorPage: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleTogglePause(table)}
+                      disabled={saving || loading || !!loadError}
                       leftIcon={isPaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
                       className={`!rounded-lg !text-xs !h-8 !px-2.5 ${
                         isPaused
@@ -996,16 +728,7 @@ export const PosTableFloorPage: React.FC = () => {
             />
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-            <div>
-              <span className="text-xs font-bold text-slate-800 block">Quyền lợi Hội viên CueZone</span>
-              <span className="text-[11px] text-slate-500">Tích điểm ELO và giảm 10% tổng hóa đơn</span>
-            </div>
-            <Checkbox
-              checked={isMember}
-              onChange={(e) => setIsMember(e.target.checked)}
-            />
-          </div>
+          <Text type="secondary">Ưu đãi hội viên chưa được kết nối; thu ngân có thể chọn giảm giá khi thanh toán.</Text>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -1033,6 +756,8 @@ export const PosTableFloorPage: React.FC = () => {
               variant="primary"
               size="sm"
               onClick={handleOpenTable}
+              loading={saving}
+              disabled={loading || !!loadError}
               leftIcon={<PlayCircleOutlined />}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
             >
@@ -1132,6 +857,8 @@ export const PosTableFloorPage: React.FC = () => {
               variant="primary"
               size="sm"
               onClick={handleTransferOrMerge}
+              loading={saving}
+              disabled={loading || !!loadError}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
             >
               Xác Nhận Thao Tác
@@ -1362,20 +1089,19 @@ export const PosTableFloorPage: React.FC = () => {
                 />
               </div>
 
+              <Text>Tiền cọc đã nhận: {(selectedTable.currentSession.deposit || 0).toLocaleString("vi-VN")}đ</Text>
+              <Text type="secondary">Số tiền cuối cùng do máy chủ tính khi xác nhận. Tiền cọc dư phải hoàn lại cho khách.</Text>
               {/* Final Amount */}
               <div className="flex justify-between items-center pt-2 border-t-2 border-slate-200 font-bold text-sm text-slate-900">
                 <span>TỔNG CỘNG PHẢI THU:</span>
                 <span className="text-lg font-black text-emerald-700 font-mono">
                   {Math.max(
                     0,
-                    Math.round(
-                      (calculatePlayingDetails(selectedTable).cost +
-                        selectedTable.currentSession.orders.reduce(
-                          (acc, cur) => acc + cur.price * cur.quantity,
-                          0
-                        )) *
-                        (1 - discountPercent / 100)
-                    )
+                    calculatePlayingDetails(selectedTable).cost +
+                    selectedTable.currentSession.orders.reduce((sum, item) => sum + item.price * item.quantity, 0) -
+                    Math.round((calculatePlayingDetails(selectedTable).cost +
+                      selectedTable.currentSession.orders.reduce((sum, item) => sum + item.price * item.quantity, 0)) * discountPercent / 100) -
+                    (selectedTable.currentSession.deposit || 0)
                   ).toLocaleString("vi-VN")}
                   đ
                 </span>
@@ -1392,6 +1118,8 @@ export const PosTableFloorPage: React.FC = () => {
                   variant={paymentMethod === "vnpay" ? "primary" : "outline"}
                   size="sm"
                   onClick={() => setPaymentMethod("vnpay")}
+                  disabled
+                  title="Chưa tích hợp VNPay"
                   leftIcon={<QrcodeOutlined />}
                   className={`!h-12 !flex-col !gap-1 !rounded-xl ${
                     paymentMethod === "vnpay"
@@ -1420,6 +1148,8 @@ export const PosTableFloorPage: React.FC = () => {
                   variant={paymentMethod === "card" ? "primary" : "outline"}
                   size="sm"
                   onClick={() => setPaymentMethod("card")}
+                  disabled
+                  title="Chưa tích hợp thanh toán thẻ"
                   leftIcon={<SafetyCertificateOutlined />}
                   className={`!h-12 !flex-col !gap-1 !rounded-xl ${
                     paymentMethod === "card"
@@ -1434,6 +1164,8 @@ export const PosTableFloorPage: React.FC = () => {
                   variant={paymentMethod === "member_balance" ? "primary" : "outline"}
                   size="sm"
                   onClick={() => setPaymentMethod("member_balance")}
+                  disabled
+                  title="Chưa tích hợp ví hội viên"
                   leftIcon={<UserOutlined />}
                   className={`!h-12 !flex-col !gap-1 !rounded-xl ${
                     paymentMethod === "member_balance"
@@ -1474,6 +1206,8 @@ export const PosTableFloorPage: React.FC = () => {
                 variant="primary"
                 size="sm"
                 onClick={handleConfirmCheckout}
+                loading={saving}
+                disabled={loading || !!loadError}
                 leftIcon={<PrinterOutlined />}
                 className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
               >
@@ -1569,6 +1303,8 @@ export const PosTableFloorPage: React.FC = () => {
                   <span>-{paidSummary.discountAmount.toLocaleString("vi-VN")}đ</span>
                 </div>
               )}
+              <Text>Tiền cọc đã trừ: {paidSummary.deposit.toLocaleString("vi-VN")}đ</Text>
+              {paidSummary.refundAmount > 0 && <Text type="danger">Cần hoàn lại khách: {paidSummary.refundAmount.toLocaleString("vi-VN")}đ</Text>}
               <div className="flex justify-between font-black text-sm pt-1 border-t border-slate-200 text-slate-900">
                 <span>THANH TOÁN:</span>
                 <span className="text-emerald-700">{paidSummary.finalAmount.toLocaleString("vi-VN")}đ</span>

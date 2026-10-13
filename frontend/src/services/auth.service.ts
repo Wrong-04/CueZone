@@ -3,9 +3,15 @@ import type { User, AuthResponse, ApiResponse } from "../types";
 
 export const authService = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/login", { email, password });
-    if (!data.success) throw new Error(data.message);
-    return data.data!;
+    try {
+      const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/login", { email, password });
+      if (!data.success) throw new Error(data.message || "Đăng nhập thất bại");
+      if (!data.data) throw new Error("Không nhận được dữ liệu xác thực từ máy chủ");
+      return data.data;
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || "Đăng nhập thất bại";
+      throw new Error(message);
+    }
   },
 
   async register(name: string, email: string, password: string, phone?: string): Promise<AuthResponse> {
@@ -42,6 +48,7 @@ export const authService = {
   logout() {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
+    localStorage.removeItem("cuezone_user");
   },
 
   getToken(): string | null {

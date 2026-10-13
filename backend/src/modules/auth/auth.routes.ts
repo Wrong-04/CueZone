@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as authController from "./auth.controller";
+import { authMiddleware } from "../../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -11,6 +12,6 @@ router.post("/login", authController.login);
 router.post("/refresh-token", authController.refreshToken);
 
 // Protected routes
-router.get("/profile", authController.getProfile);
+router.get("/profile", authMiddleware, authController.getProfile);
 
 export default router;

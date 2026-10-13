@@ -1,32 +1,23 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ConfigProvider, theme } from "antd";
 import {
   Lock,
   Mail,
-  Zap,
   ArrowRight,
   Sparkles,
   ShieldCheck,
   User,
   Eye,
-  ChevronDown,
 } from "lucide-react";
-import clsx from "clsx";
 import { useAuth } from "../../contexts/AuthContext";
 import { UserRole } from "../../types";
-import {
-  SEED_ACCOUNTS,
-  type SeedAccount,
-  findSeedAccountByEmail,
-} from "../../mock/seedData";
 import {
   Button,
   Checkbox,
   Form,
   Input,
   Space,
-  Tag,
   Typography,
   Tabs,
   Modal,
@@ -36,95 +27,89 @@ import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
 
 const { Title, Text } = Typography;
 
+const getRoleNavigationPath = (role?: string): string => {
+  switch (role) {
+    case UserRole.CUSTOMER:
+      return "/customer";
+    case UserRole.STAFF:
+    case UserRole.CASHIER:
+    case UserRole.WAREHOUSE:
+    case UserRole.REFEREE:
+      return "/admin/pos";
+    case UserRole.ADMIN:
+      return "/admin";
+    default:
+      return "/customer";
+  }
+};
+
+const LOGIN_TABS = [
+  {
+    key: "customer",
+    label: (
+      <Space size={6} align="center">
+        <User className="h-4 w-4 text-emerald-600" />
+        <span className="font-semibold">Hội Viên / Khách Chơi</span>
+      </Space>
+    ),
+  },
+  {
+    key: "staff",
+    label: (
+      <Space size={6} align="center">
+        <ShieldCheck className="h-4 w-4 text-slate-500" />
+        <span className="font-semibold">Nhân Viên & Quản Lý</span>
+      </Space>
+    ),
+  },
+];
+
 const LoginPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>("customer");
-  const [email, setEmail] = useState<string>("customer@cuezone.com");
-  const [password, setPassword] = useState<string>("password123");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
-  const [showDemoAccounts, setShowDemoAccounts] = useState<boolean>(false);
 
   // Forgot password OTP flow
   const [showForgotModal, setShowForgotModal] = useState<boolean>(false);
-  const [forgotEmail, setForgotEmail] = useState<string>("customer@cuezone.com");
+  const [forgotEmail, setForgotEmail] = useState<string>("");
   const [forgotOtp, setForgotOtp] = useState<string>("");
   const [forgotNewPassword, setForgotNewPassword] = useState<string>("");
   const [forgotStep, setForgotStep] = useState<"email" | "otp">("email");
   const [isSendingOtp, setIsSendingOtp] = useState<boolean>(false);
   const [isResetting, setIsResetting] = useState<boolean>(false);
 
-  const { login, loginWithSeed } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleTabChange = (key: string) => {
+  const handleTabChange = useCallback((key: string) => {
     setActiveTab(key);
-    if (key === "customer") {
-      setEmail("customer@cuezone.com");
-      setPassword("password123");
-    } else {
-      setEmail("admin@cuezone.com");
-      setPassword("password123");
-    }
-  };
 
-  const handleSelectSeed = (seed: SeedAccount) => {
-    setEmail(seed.email);
-    setPassword(seed.password);
-    if (seed.role === UserRole.CUSTOMER) {
-      setActiveTab("customer");
-    } else {
-      setActiveTab("staff");
-    }
-    message.info(`Đã điền tài khoản: ${seed.name}`);
-  };
+  }, []);
 
-  const handleInstantSeedLogin = async (seed: SeedAccount) => {
-    handleSelectSeed(seed);
-    setLoading(true);
-    try {
-      loginWithSeed(seed);
-      message.success(`Đăng nhập thành công với vai trò: ${seed.roleTitle}`);
-      navigate(seed.targetPath);
-    } catch {
-      message.error("Đăng nhập thất bại. Vui lòng thử lại!");
-    } finally {
-      setLoading(false);
+  const handleFormSubmit = useCallback(async () => {
+    const trimmedIdentifier = email.trim();
+    if (!trimmedIdentifier) {
+      message.warning("Vui lòng nhập email hoặc số điện thoại đăng nhập!");
+      return;
     }
-  };
-
-  const handleFormSubmit = async () => {
-    if (!email) {
-      message.warning("Vui lòng nhập email hoặc tài khoản đăng nhập!");
+    if (!password) {
+      message.warning("Vui lòng nhập mật khẩu!");
       return;
     }
 
     setLoading(true);
     try {
-      await login(email, password);
-      const matchedSeed = findSeedAccountByEmail(email);
-      const targetRole =
-        matchedSeed?.role ||
-        (email.includes("admin")
-          ? UserRole.ADMIN
-          : email.includes("staff")
-          ? UserRole.STAFF
-          : UserRole.CUSTOMER);
-
-      const targetPath =
-        targetRole === UserRole.CUSTOMER
-          ? "/customer"
-          : targetRole === UserRole.STAFF
-          ? "/admin/tables"
-          : "/admin";
-
+      const loggedInUser = await login(trimmedIdentifier, password);
       message.success("Đăng nhập CueZone thành công!");
-      navigate(targetPath);
-    } catch {
-      message.error("Đăng nhập thất bại, vui lòng kiểm tra lại thông tin!");
+      navigate(getRoleNavigationPath(loggedInUser?.role));
+    } catch (err: any) {
+      message.error(err?.message || "Đăng nhập thất bại, vui lòng kiểm tra lại thông tin!");
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, login, navigate]);
 
   return (
     <ConfigProvider
@@ -193,26 +178,7 @@ const LoginPage: React.FC = () => {
                 activeKey={activeTab}
                 onChange={handleTabChange}
                 className="cuezone-login-tabs [&_.ant-tabs-nav]:!mb-4 [&_.ant-tabs-tab]:!text-xs [&_.ant-tabs-tab]:!font-bold [&_.ant-tabs-tab]:!py-2 [&_.ant-tabs-tab]:!text-slate-500 [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-emerald-700 [&_.ant-tabs-ink-bar]:!bg-emerald-600"
-                items={[
-                  {
-                    key: "customer",
-                    label: (
-                      <Space size={6} align="center">
-                        <User className="h-4 w-4 text-emerald-600" />
-                        <span className="font-semibold">Hội Viên / Khách Chơi</span>
-                      </Space>
-                    ),
-                  },
-                  {
-                    key: "staff",
-                    label: (
-                      <Space size={6} align="center">
-                        <ShieldCheck className="h-4 w-4 text-slate-500" />
-                        <span className="font-semibold">Nhân Viên & Quản Lý</span>
-                      </Space>
-                    ),
-                  },
-                ]}
+                items={LOGIN_TABS}
               />
             </div>
 
@@ -272,8 +238,8 @@ const LoginPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={
                     activeTab === "customer"
-                      ? "customer@cuezone.com hoặc 0912 345 678"
-                      : "admin@cuezone.com, staff@cuezone.com"
+                      ? "customer1@gmail.com hoặc 0988123456"
+                      : "admin@cuezone.com, staff1@cuezone.com"
                   }
                   allowClear
                   className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
@@ -287,8 +253,10 @@ const LoginPage: React.FC = () => {
                     <Button
                       variant="link"
                       size="sm"
+                      disabled
+                      title="Khôi phục mật khẩu chưa được kết nối backend"
                       onClick={() => {
-                        setForgotEmail(email || "customer@cuezone.com");
+                        setForgotEmail(email);
                         setShowForgotModal(true);
                       }}
                       className="!p-0 !h-auto !text-[11px] !font-medium !text-emerald-600 hover:!text-emerald-700"
@@ -373,86 +341,6 @@ const LoginPage: React.FC = () => {
               </div>
             )}
 
-            {/* HỘP TEST TÀI KHOẢN MẪU (THU GỌN GỌN GÀNG, KHÔNG PHÁ HỎNG GIAO DIỆN) */}
-            <div className="mt-5 pt-3 border-t border-slate-200">
-              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-3">
-                <div
-                  className="flex items-center justify-between cursor-pointer select-none"
-                  onClick={() => setShowDemoAccounts(!showDemoAccounts)}
-                >
-                  <Space align="center" size={6}>
-                    <Zap className="h-3.5 w-3.5 text-emerald-600 fill-emerald-600/20" />
-                    <Text strong className="!text-xs !text-emerald-800">
-                      Tài khoản thử nghiệm (1-Click Demo)
-                    </Text>
-                  </Space>
-                  <Space align="center" size={4}>
-                    <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 !bg-emerald-100 !text-emerald-800 !font-bold">
-                      3 Vai trò
-                    </Tag>
-                    <ChevronDown
-                      className={clsx(
-                        "h-3.5 w-3.5 text-slate-500 transition-transform duration-200",
-                        showDemoAccounts && "rotate-180"
-                      )}
-                    />
-                  </Space>
-                </div>
-
-                {showDemoAccounts && (
-                  <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-2 animate-fade-in">
-                    <Text className="!text-[11px] !text-slate-500 block mb-1.5">
-                      Bấm vào vai trò bất kỳ để điền form hoặc bấm &quot;Vào ngay&quot; để đăng nhập tức thì:
-                    </Text>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {SEED_ACCOUNTS.map((acc) => (
-                        <div
-                          key={acc.id}
-                          className="rounded-xl border border-slate-200 bg-white p-2.5 hover:border-emerald-500 hover:shadow-sm transition-all flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <Text strong className="!text-[11px] !text-slate-900 truncate">
-                                {acc.role === UserRole.ADMIN
-                                  ? "Admin (Chủ CLB)"
-                                  : acc.role === UserRole.STAFF
-                                  ? "Staff (Vận Hành)"
-                                  : "Hội Viên (Cơ Thủ)"}
-                              </Text>
-                            </div>
-                            <Text className="!text-[10px] !text-slate-500 truncate block">
-                              {acc.email}
-                            </Text>
-                          </div>
-
-                          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleSelectSeed(acc)}
-                              className="!p-0 !h-auto !text-[10px] !text-slate-500 hover:!text-slate-900"
-                            >
-                              Điền form
-                            </Button>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              onClick={() => handleInstantSeedLogin(acc)}
-                              disabled={loading}
-                              rightIcon={<ArrowRight className="h-2.5 w-2.5" />}
-                              className="!p-0 !h-auto !text-[10px] !font-bold !text-emerald-600 hover:!text-emerald-700"
-                            >
-                              Vào ngay
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Modal Quên mật khẩu qua OTP (Send OTP Reset Email -> Verify OTP) */}

@@ -47,6 +47,10 @@ export const login = async (req: Request, res: Response) => {
 export const getProfile = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
+    if (!user?.userId) {
+      res.status(401).json({ success: false, message: "Không có thông tin xác thực" });
+      return;
+    }
     const profile = await authService.getProfile(user.userId);
     res.json({ success: true, data: profile });
   } catch (error: any) {
@@ -59,6 +63,6 @@ export const refreshToken = async (req: Request, res: Response) => {
     const tokens = await authService.refreshToken(req.body.refreshToken);
     res.json({ success: true, data: tokens });
   } catch (error: any) {
-    res.json({ success: false, message: error.message });
+    res.status(401).json({ success: false, message: error.message });
   }
 };

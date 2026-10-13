@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { bookingService, posService } from "../../services/pos.service";
+import type { BookingRequest, PosTable } from "../../types/pos";
 import { useNavigate } from "react-router-dom";
 import {
   CalendarOutlined,
@@ -31,52 +33,52 @@ import {
   SearchFilterInput,
   message,
 } from "../../shared/ui";
-import {
-  INITIAL_BOOKING_REQUESTS,
-  INITIAL_POS_TABLES,
-  type BookingRequest,
-  type PosTable,
-} from "../../mock/posData";
 
 const { Title, Text } = Typography;
 
 export const BookingManagementPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // Load Bookings from localStorage or initial mock
-  const [bookings, setBookings] = useState<BookingRequest[]>(() => {
-    const saved = localStorage.getItem("cuezone_bookings");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
+  const [bookings, setBookings] = useState<BookingRequest[]>([]);
+  const [tables, setTables] = useState<PosTable[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [records, floor] = await Promise.all([bookingService.getAll(), posService.getTables()]);
+      setBookings(records);
+      setTables(floor);
+      setLoadError("");
+    } catch (error: any) {
+      setLoadError(error.response?.data?.message || error.message || "Không thể tải lịch đặt bàn");
+    } finally {
+      setLoading(false);
     }
-    return INITIAL_BOOKING_REQUESTS;
-  });
+  }, []);
 
-  // Load POS Tables for table assignment & status checking
-  const [tables, setTables] = useState<PosTable[]>(() => {
-    const saved = localStorage.getItem("cuezone_pos_tables");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
+  useEffect(() => { void loadData(); }, [loadData]);
+
+  const save = async (action: () => Promise<unknown>) => {
+    if (busy.current) return false;
+    busy.current = true;
+    setSaving(true);
+    try {
+      await action();
+      await loadData();
+      return true;
+    } catch (error: any) {
+      message.error(error.response?.data?.message || error.message || "Không thể lưu lịch đặt bàn");
+      await loadData();
+      return false;
+    } finally {
+      busy.current = false;
+      setSaving(false);
     }
-    return INITIAL_POS_TABLES;
-  });
-
-  // Save changes
-  useEffect(() => {
-    localStorage.setItem("cuezone_bookings", JSON.stringify(bookings));
-  }, [bookings]);
-
-  useEffect(() => {
-    localStorage.setItem("cuezone_pos_tables", JSON.stringify(tables));
-  }, [tables]);
+  };
 
   // View mode: 'cards' | 'table'
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
@@ -99,11 +101,11 @@ export const BookingManagementPage: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
   const [newName, setNewName] = useState<string>("");
   const [newPhone, setNewPhone] = useState<string>("");
-  const [newTableId, setNewTableId] = useState<string>("TB-02");
-  const [newDate, setNewDate] = useState<string>("Hôm nay");
+  const [newTableId, setNewTableId] = useState<string>("");
+  const [newDate, setNewDate] = useState<string>(() => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()));
   const [newTime, setNewTime] = useState<string>("19:00");
   const [newDuration, setNewDuration] = useState<number>(2);
-  const [newDeposit, setNewDeposit] = useState<number>(100000);
+  const [newDeposit, setNewDeposit] = useState<number>(0);
   const [newNote, setNewNote] = useState<string>("");
 
   // Metrics
@@ -112,7 +114,8 @@ export const BookingManagementPage: React.FC = () => {
     const pending = bookings.filter((b) => b.status === "pending").length;
     const approved = bookings.filter((b) => b.status === "approved").length;
     const rejected = bookings.filter((b) => b.status === "rejected").length;
-    return { total, pending, approved, rejected };
+    const checkedIn = bookings.filter((b) => b.status === "checked_in").length;
+    return { total, pending, approved, rejected, checkedIn };
   }, [bookings]);
 
   // Segmented Pill items with live counts
@@ -121,6 +124,7 @@ export const BookingManagementPage: React.FC = () => {
     { key: "pending", label: "Chờ duyệt", badge: metrics.pending, dotClassName: "bg-amber-500" },
     { key: "approved", label: "Đã phê duyệt", badge: metrics.approved, dotClassName: "bg-emerald-500" },
     { key: "rejected", label: "Đã từ chối", badge: metrics.rejected, dotClassName: "bg-rose-500" },
+    { key: "checked_in", label: "Đã nhận bàn", badge: metrics.checkedIn },
   ];
 
   // Filtered Bookings
@@ -144,44 +148,13 @@ export const BookingManagementPage: React.FC = () => {
     setApproveModalVisible(true);
   };
 
-  const handleConfirmApprove = () => {
+  const handleConfirmApprove = async () => {
     if (!bookingToApprove) return;
 
     const targetTable = tables.find((t) => t.id === assignedTableId);
     const targetTableName = targetTable ? `${targetTable.name} (${targetTable.typeName})` : bookingToApprove.tableName;
 
-    // Update booking state
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === bookingToApprove.id
-          ? {
-              ...b,
-              tableId: assignedTableId,
-              tableName: targetTableName,
-              status: "approved" as const,
-            }
-          : b
-      )
-    );
-
-    // Sync to POS floor: mark table as booked
-    setTables((prev) =>
-      prev.map((t) => {
-        if (t.id === assignedTableId) {
-          return {
-            ...t,
-            status: "booked" as const,
-            bookedInfo: {
-              customerName: bookingToApprove.customerName,
-              phone: bookingToApprove.phone,
-              time: `${bookingToApprove.time} (${bookingToApprove.date})`,
-              bookingId: bookingToApprove.id,
-            },
-          };
-        }
-        return t;
-      })
-    );
+    if (!await save(() => bookingService.update(bookingToApprove.id, { status: "approved", tableId: assignedTableId }))) return;
 
     message.success(
       `Đã phê duyệt đơn đặt bàn ${bookingToApprove.id} và giữ ${targetTableName} cho khách ${bookingToApprove.customerName}!`
@@ -193,113 +166,57 @@ export const BookingManagementPage: React.FC = () => {
   // ── Handler: Reject Booking ─────────────────────────────────────────────────
   const handleOpenReject = (booking: BookingRequest) => {
     setSelectedBooking(booking);
-    setRejectionReason("Trùng khung giờ thi đấu giải nội bộ CLB");
+    setRejectionReason("");
     setRejectModalVisible(true);
   };
 
-  const handleConfirmReject = () => {
+  const handleConfirmReject = async () => {
     if (!selectedBooking) return;
     if (!rejectionReason.trim()) {
       message.warning("Vui lòng nhập lý do từ chối đơn đặt bàn!");
       return;
     }
 
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === selectedBooking.id
-          ? {
-              ...b,
-              status: "rejected" as const,
-              rejectionReason: rejectionReason.trim(),
-            }
-          : b
-      )
-    );
-
-    // If the table was previously marked booked by this booking, free it
-    setTables((prev) =>
-      prev.map((t) => {
-        if (t.bookedInfo?.bookingId === selectedBooking.id) {
-          return { ...t, status: "available" as const, bookedInfo: undefined };
-        }
-        return t;
-      })
-    );
-
-    message.info(`Đã từ chối đơn đặt bàn ${selectedBooking.id} và gửi tin nhắn giải thích tới khách.`);
+    if (!await save(() => bookingService.update(selectedBooking.id, { status: "rejected", rejectionReason: rejectionReason.trim() }))) return;
+    message.info(`Đã từ chối đơn đặt bàn ${selectedBooking.id}.`);
     setRejectModalVisible(false);
     setSelectedBooking(null);
     setRejectionReason("");
   };
 
   // ── Handler: Reconsider / Re-open Rejected Booking ──────────────────────────
-  const handleReconsider = (booking: BookingRequest) => {
-    setBookings((prev) =>
-      prev.map((b) => (b.id === booking.id ? { ...b, status: "pending" as const, rejectionReason: undefined } : b))
-    );
-    message.success(`Đã khôi phục đơn đặt bàn ${booking.id} về trạng thái Chờ duyệt!`);
+  const handleReconsider = async (booking: BookingRequest) => {
+    if (await save(() => bookingService.update(booking.id, { status: "pending" }))) {
+      message.success(`Đã khôi phục đơn đặt bàn ${booking.id} về trạng thái Chờ duyệt!`);
+    }
   };
 
   // ── Handler: Direct Check-in to POS ─────────────────────────────────────────
   const handleCheckInNow = (booking: BookingRequest) => {
-    message.loading(`Đang chuyển sang màn hình POS để mở ${booking.tableName} cho ${booking.customerName}...`);
-    setTimeout(() => {
-      navigate("/admin/pos");
-    }, 350);
+    navigate(`/admin/pos?tableId=${encodeURIComponent(booking.tableId)}`);
   };
 
   // ── Handler: Create Booking via Hotline ─────────────────────────────────────
-  const handleCreateBooking = () => {
+  const handleCreateBooking = async () => {
     if (!newName.trim() || !newPhone.trim()) {
       message.warning("Vui lòng nhập họ tên và số điện thoại khách!");
       return;
     }
 
     const chosenTable = tables.find((t) => t.id === newTableId);
-    const chosenTableName = chosenTable ? `${chosenTable.name} (${chosenTable.typeName})` : "Bàn 02 (Bàn Thường 9FT)";
-    const rate = chosenTable?.pricePerHour || 50000;
-    const estCost = rate * newDuration;
-
-    const newBooking: BookingRequest = {
-      id: `BK-${Math.floor(100 + Math.random() * 900)}`,
-      customerName: newName.trim(),
-      phone: newPhone.trim(),
-      tableId: newTableId,
-      tableName: chosenTableName,
-      date: newDate,
-      time: newTime,
-      duration: newDuration,
-      estimatedCost: estCost,
-      status: "approved",
-      createdAt: "Vừa xong",
-    };
-
-    setBookings((prev) => [newBooking, ...prev]);
-
-    // Keep table reserved on POS floor
-    setTables((prev) =>
-      prev.map((t) => {
-        if (t.id === newTableId) {
-          return {
-            ...t,
-            status: "booked" as const,
-            bookedInfo: {
-              customerName: newName.trim(),
-              phone: newPhone.trim(),
-              time: `${newTime} (${newDate})`,
-              bookingId: newBooking.id,
-            },
-          };
-        }
-        return t;
-      })
-    );
-
-    message.success(`Đã tạo lịch đặt bàn thành công cho khách ${newName} tại ${chosenTableName}!`);
+    if (!chosenTable || chosenTable.status !== "available") {
+      message.warning("Vui lòng chọn bàn đang trống!");
+      return;
+    }
+    if (!await save(() => bookingService.create({ customerName: newName.trim(), phone: newPhone.trim(),
+      tableId: newTableId, date: newDate, time: newTime, duration: newDuration, deposit: newDeposit, note: newNote.trim() }))) return;
+    message.success(`Đã lưu lịch đặt bàn cho khách ${newName} tại ${chosenTable.name}!`);
     setCreateModalVisible(false);
     setNewName("");
     setNewPhone("");
     setNewNote("");
+    setNewDeposit(0);
+    setNewTableId("");
   };
 
   // ── Table View Columns ──────────────────────────────────────────────────────
@@ -340,7 +257,7 @@ export const BookingManagementPage: React.FC = () => {
           <span className="font-mono font-bold text-emerald-800 text-xs block">
             {record.time} ({record.date})
           </span>
-          <span className="text-[11px] text-slate-400">Gửi lúc: {record.createdAt}</span>
+          <span className="text-[11px] text-slate-400">Gửi lúc: {new Date(record.createdAt).toLocaleString("vi-VN")}</span>
         </div>
       ),
     },
@@ -370,6 +287,7 @@ export const BookingManagementPage: React.FC = () => {
               ĐÃ PHÊ DUYỆT
             </Tag>
           )}
+          {record.status === "checked_in" && <Tag color="green">ĐÃ NHẬN BÀN</Tag>}
           {record.status === "rejected" && (
             <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
               ĐÃ TỪ CHỐI
@@ -452,11 +370,12 @@ export const BookingManagementPage: React.FC = () => {
               )}
             </div>
             <Text className="!text-xs !text-slate-500 block">
-              Tiếp nhận, kiểm tra xung đột khung giờ và phê duyệt giữ bàn online tự động đồng bộ sang sơ đồ POS
+              Lịch đặt được lưu trên máy chủ và đồng bộ sang POS. Mỗi bàn giữ một lịch đặt cho đến khi nhận bàn hoặc hủy.
             </Text>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 self-start md:self-center">
+            <Button variant="outline" size="sm" onClick={loadData} loading={loading} disabled={saving}>Tải lại</Button>
             {/* Direct POS Link */}
             <Button
               variant="outline"
@@ -533,12 +452,14 @@ export const BookingManagementPage: React.FC = () => {
         </div>
       </Card>
 
+      {loadError && <Card><Text type="danger">{loadError}</Text><Button variant="link" onClick={loadData}>Thử lại</Button></Card>}
+      {loading && <Text>Đang tải lịch đặt bàn từ máy chủ...</Text>}
       {/* ── 2. MAIN CONTENT (CARDS GRID OR TABLE VIEW) ──────────────────────── */}
       {viewMode === "cards" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredBookings.length === 0 ? (
             <div className="col-span-full p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400">
-              Không tìm thấy yêu cầu đặt bàn nào phù hợp với bộ lọc.
+              <Text>{loading ? "Đang tải..." : loadError ? "Chưa thể tải lịch đặt bàn." : "Không tìm thấy yêu cầu đặt bàn nào phù hợp với bộ lọc."}</Text>
             </div>
           ) : (
             filteredBookings.map((booking) => {
@@ -580,6 +501,7 @@ export const BookingManagementPage: React.FC = () => {
                           ĐÃ DUYỆT
                         </Tag>
                       )}
+                      {booking.status === "checked_in" && <Tag color="green">ĐÃ NHẬN BÀN</Tag>}
                       {isRejected && (
                         <Tag color="error" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold">
                           ĐÃ TỪ CHỐI
@@ -634,7 +556,7 @@ export const BookingManagementPage: React.FC = () => {
 
                       <div className="flex items-center justify-between pt-1 border-t border-dashed border-slate-200">
                         <span className="text-slate-500">Tiền cọc giữ bàn:</span>
-                        <span className="font-mono font-bold text-emerald-700">100.000đ (Đã nhận)</span>
+                        <Text strong>{booking.deposit.toLocaleString("vi-VN")}đ</Text>
                       </div>
                     </div>
 
@@ -764,7 +686,7 @@ export const BookingManagementPage: React.FC = () => {
               value={assignedTableId}
               onChange={(val) => setAssignedTableId(val)}
               className="!w-full !rounded-xl"
-              options={tables.map((t) => ({
+              options={tables.filter(t => t.status === "available" || t.bookedInfo?.bookingId === bookingToApprove?.id).map((t) => ({
                 value: t.id,
                 label: `${t.name} (${t.typeName}) - ${t.pricePerHour.toLocaleString()}đ/h [${
                   t.status === "available"
@@ -775,15 +697,13 @@ export const BookingManagementPage: React.FC = () => {
                 }]`,
               }))}
             />
-            <span className="text-[11px] text-slate-400 block mt-1">
-              Hệ thống sẽ giữ bàn này trên sơ đồ POS và từ chối các phiên mở bàn trùng giờ.
-            </span>
+            <Text type="secondary">Bàn được giữ trên POS cho đến khi khách nhận bàn hoặc lịch bị từ chối.</Text>
           </div>
 
           <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center gap-2">
             <MessageOutlined className="text-emerald-600 text-base flex-shrink-0" />
             <span>
-              Tin nhắn SMS & Zalo xác nhận sẽ được gửi tự động tới SĐT <strong>{bookingToApprove?.phone}</strong> kèm mã QR nhận bàn.
+              Lịch đặt được lưu vào database. SMS, Zalo và mã QR chưa được tích hợp.
             </span>
           </div>
 
@@ -795,6 +715,8 @@ export const BookingManagementPage: React.FC = () => {
               variant="primary"
               size="sm"
               onClick={handleConfirmApprove}
+              loading={saving}
+              disabled={loading || !!loadError}
               leftIcon={<CheckCircleOutlined />}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
             >
@@ -865,6 +787,8 @@ export const BookingManagementPage: React.FC = () => {
               variant="danger"
               size="sm"
               onClick={handleConfirmReject}
+              loading={saving}
+              disabled={loading || !!loadError}
               className="!rounded-xl font-bold px-4"
             >
               Xác Nhận Từ Chối
@@ -916,7 +840,7 @@ export const BookingManagementPage: React.FC = () => {
                 value={newTableId}
                 onChange={(val) => setNewTableId(val)}
                 className="!w-full !rounded-xl"
-                options={tables.map((t) => ({
+                options={tables.filter(t => t.status === "available").map((t) => ({
                   value: t.id,
                   label: `${t.name} (${t.typeName}) - ${t.pricePerHour.toLocaleString()}đ/h`,
                 }))}
@@ -924,16 +848,7 @@ export const BookingManagementPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-slate-700 font-semibold mb-1">Ngày hẹn:</label>
-              <Select
-                value={newDate}
-                onChange={(val) => setNewDate(val)}
-                className="!w-full !rounded-xl"
-                options={[
-                  { value: "Hôm nay", label: "Hôm nay" },
-                  { value: "Ngày mai", label: "Ngày mai" },
-                  { value: "Cuối tuần", label: "Thứ 7 tuần này" },
-                ]}
-              />
+              <Input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} />
             </div>
           </div>
 
@@ -964,7 +879,7 @@ export const BookingManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-slate-700 font-semibold mb-1">Tiền cọc giữ bàn (VNĐ):</label>
+            <label className="block text-slate-700 font-semibold mb-1">Tiền cọc thực tế đã nhận (VNĐ):</label>
             <Input
               type="number"
               value={newDeposit}
@@ -993,6 +908,8 @@ export const BookingManagementPage: React.FC = () => {
               variant="primary"
               size="sm"
               onClick={handleCreateBooking}
+              loading={saving}
+              disabled={loading || !!loadError}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
             >
               Tạo & Giữ Bàn Ngay
