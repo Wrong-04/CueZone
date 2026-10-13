@@ -51,3 +51,9 @@ desktop.ini
 *.tsbuildinfo
 .agents
 .claude
+/docs/
+
+# Local task notes
+/task/
+/tasks/
+
