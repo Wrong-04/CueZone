@@ -30,6 +30,15 @@ const RegisterPage = () => {
   }, [step, resendCooldown]);
 
   const validateForm = (): string | null => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) return "Email không được để trống";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalizedEmail)) {
+      return "Email không hợp lệ";
+    }
+    const normalizedPhone = phone.trim();
+    if (normalizedPhone && !/^(0|\+84)[0-9]{9,10}$/.test(normalizedPhone)) {
+      return "Số điện thoại không hợp lệ";
+    }
     if (password !== confirmPassword) return "Mật khẩu xác nhận không khớp";
     if (password.length < 8) return "Mật khẩu phải có ít nhất 8 ký tự";
     if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {

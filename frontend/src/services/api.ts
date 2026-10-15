@@ -9,6 +9,26 @@ const api = axios.create({
   },
 });
 
+/**
+ * Dọn toàn bộ session local khi 401 không thể phục hồi
+ * (refresh thất bại, refresh trả success:false hoặc không có refresh token).
+ * Xóa cả cuezone_user và báo AuthContext qua event để setUser(null),
+ * tránh user vẫn "đăng nhập lỏng" sau khi redirect về /login.
+ */
+const endSession = () => {
+  const hadSession = Boolean(
+    localStorage.getItem("accessToken") || localStorage.getItem("refreshToken")
+  );
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("cuezone_user");
+  if (!hadSession) return;
+  window.dispatchEvent(new Event("auth:session-expired"));
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+};
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
   if (token) {
@@ -33,11 +53,14 @@ api.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
             return api(originalRequest);
           }
+          // Refresh token bị backend từ chối (success:false) → hết phiên
+          endSession();
         } catch {
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
-          window.location.href = "/login";
+          endSession();
         }
+      } else {
+        // 401 mà không có refresh token → không thể phục hồi phiên
+        endSession();
       }
     }
     return Promise.reject(error);
