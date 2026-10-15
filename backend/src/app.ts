@@ -62,12 +62,16 @@ export class App {
     publicRouter.post("/auth/register/verify", authController.verifyAndRegister);
     publicRouter.post("/auth/login", authController.login);
     publicRouter.post("/auth/refresh-token", authController.refreshToken);
+    publicRouter.post("/auth/forgot-password", authController.forgotPassword);
+    publicRouter.post("/auth/reset-password", authController.resetPassword);
     this.app.use("/api/v1", publicRouter);
 
     this.app.use("/api/v1", this.authMiddleware);
 
     const protectedRouter = express.Router();
     protectedRouter.get("/auth/profile", authController.getProfile);
+    protectedRouter.post("/auth/change-password/request", authController.requestChangePassword);
+    protectedRouter.post("/auth/change-password/verify", authController.verifyChangePassword);
 
     protectedRouter.get("/users", userController.getAll);
     protectedRouter.get("/users/stats", userController.getStats);

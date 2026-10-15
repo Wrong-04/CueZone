@@ -7,6 +7,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CustomerHome from "./pages/customer/CustomerHome";
+import CustomerProfile from "./pages/customer/CustomerProfile";
 import {
   TablesPage,
   BookingPage,
@@ -74,6 +75,7 @@ const AppRoutes = () => {
       {/* Customer routes */}
       <Route path="/customer" element={<CustomerLayout />}>
         <Route index element={<CustomerHome />} />
+        <Route path="profile" element={<CustomerProfile />} />
         <Route path="booking" element={<CustomerBooking />} />
         <Route path="tournaments" element={<CustomerTournaments />} />
         <Route path="news" element={<CustomerNews />} />

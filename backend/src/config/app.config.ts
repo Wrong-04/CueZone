@@ -6,6 +6,6 @@ export const appConfig = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   },
   bcrypt: {
-    saltRounds: 10,
+    saltRounds: Number(process.env.BCRYPT_SALT_ROUNDS) || 10,
   },
 };

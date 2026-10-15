@@ -3,7 +3,12 @@ import { User, IUser, UserRole } from "../user/user.model";
 import { RegisterDTO, LoginDTO } from "./dto/auth.dto";
 import { appConfig } from "../../config/app.config";
 import { EmailVerification } from "./emailVerification.model";
-import { sendVerificationEmail } from "./email.service";
+import { PasswordReset, ResetPurpose } from "./passwordReset.model";
+import {
+  sendVerificationEmail,
+  sendResetPasswordEmail,
+  sendPasswordChangeEmail,
+} from "./email.service";
 
 export interface TokenPayload {
   userId: string;
@@ -21,6 +26,7 @@ export class AuthService {
   private sendingLocks = new Set<string>();
 
   async register(dto: RegisterDTO): Promise<AuthResponse> {
+    dto.email = this.normalizeEmail(dto.email);
     if (!dto.password || dto.password.length < 8) {
       throw new Error("Mật khẩu phải có ít nhất 8 ký tự");
     }
@@ -32,16 +38,17 @@ export class AuthService {
     if (existingUser) {
       throw new Error("Email đã được sử dụng");
     }
+    await this.assertPhoneAvailable(dto.phone);
 
     const user = new User({
       name: dto.name,
       email: dto.email,
       password: dto.password,
-      phone: dto.phone,
+      phone: dto.phone?.trim() || undefined,
       role: dto.role || UserRole.CUSTOMER,
     });
 
-    await user.save();
+    await this.saveUser(user);
 
     const tokens = this.generateTokens(user);
     const userObj = user.toObject();
@@ -51,6 +58,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDTO): Promise<AuthResponse> {
+    dto.email = this.normalizeEmail(dto.email);
     const user = await User.findOne({ email: dto.email }).select("+password");
     if (!user) {
       throw new Error("Email hoặc mật khẩu không chính xác");
@@ -69,9 +77,6 @@ export class AuthService {
       isPasswordValid = await user.comparePassword(dto.password);
     } catch {
       isPasswordValid = false;
-    }
-    if (!isPasswordValid && user.password === dto.password) {
-      isPasswordValid = true;
     }
     if (!isPasswordValid) {
       throw new Error("Email hoặc mật khẩu không chính xác");
@@ -101,7 +106,53 @@ export class AuthService {
     }
   }
 
+  /** Chuẩn hóa email: bỏ khoảng trắng + viết thường (schema lưu lowercase). */
+  private normalizeEmail(email: string): string {
+    return (email || "").trim().toLowerCase();
+  }
+
+  /** Kiểm tra số điện thoại chưa được dùng (bỏ qua khi phone rỗng/không truyền). */
+  private async assertPhoneAvailable(phone?: string): Promise<void> {
+    const normalized = phone?.trim();
+    if (!normalized) return;
+    const existing = await User.findOne({ phone: normalized });
+    if (existing) {
+      throw new Error("Số điện thoại đã được sử dụng");
+    }
+  }
+
+  /** Lưu user và chuyển lỗi duplicate key (E11000) thành message thân thiện. */
+  private async saveUser(user: IUser): Promise<void> {
+    try {
+      await user.save();
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        throw new Error(
+          error.keyPattern?.phone
+            ? "Số điện thoại đã được sử dụng"
+            : "Email đã được sử dụng"
+        );
+      }
+      throw error;
+    }
+  }
+
+  private generateOtp(): string {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  /** Kiểm tra cooldown 60 giây giữa 2 lần gửi OTP. */
+  private assertResendCooldown(updatedAt: Date | undefined): void {
+    if (!updatedAt) return;
+    const elapsed = Date.now() - updatedAt.getTime();
+    if (elapsed < 60_000) {
+      const wait = Math.ceil((60_000 - elapsed) / 1000);
+      throw new Error(`Vui lòng chờ ${wait} giây trước khi yêu cầu mã mới`);
+    }
+  }
+
   async sendVerificationCode(dto: RegisterDTO): Promise<{ message: string }> {
+    dto.email = this.normalizeEmail(dto.email);
     this.validatePassword(dto.password);
 
     const lockKey = dto.email.toLowerCase();
@@ -115,6 +166,7 @@ export class AuthService {
       if (existingUser) {
         throw new Error("Email đã được sử dụng");
       }
+      await this.assertPhoneAvailable(dto.phone);
 
       const pending = await EmailVerification.findOne({ email: dto.email });
       if (pending) {
@@ -160,6 +212,7 @@ export class AuthService {
   }
 
   async verifyAndRegister(email: string, code: string): Promise<AuthResponse> {
+    email = this.normalizeEmail(email);
     const pending = await EmailVerification.findOne({ email });
     if (!pending) {
       throw new Error("Không tìm thấy yêu cầu xác minh. Vui lòng yêu cầu mã mới.");
@@ -187,15 +240,26 @@ export class AuthService {
       await EmailVerification.deleteOne({ email });
       throw new Error("Email đã được sử dụng");
     }
+    try {
+      await this.assertPhoneAvailable(pending.phone);
+    } catch (err) {
+      await EmailVerification.deleteOne({ email });
+      throw err;
+    }
 
     const user = new User({
       name: pending.name,
       email: pending.email,
       password: pending.password,
-      phone: pending.phone,
+      phone: pending.phone?.trim() || undefined,
       role: UserRole.CUSTOMER,
     });
-    await user.save();
+    try {
+      await this.saveUser(user);
+    } catch (err) {
+      await EmailVerification.deleteOne({ email });
+      throw err;
+    }
     await EmailVerification.deleteOne({ email });
 
     const tokens = this.generateTokens(user);
@@ -216,6 +280,222 @@ export class AuthService {
     } catch {
       throw new Error("Refresh token không hợp lệ hoặc đã hết hạn");
     }
+  }
+
+  /** UC: Quên mật khẩu — gửi OTP đặt lại mật khẩu về email. */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new Error("Email không được để trống");
+    }
+
+    const lockKey = `reset:${normalizedEmail}`;
+    if (this.sendingLocks.has(lockKey)) {
+      throw new Error("Đang xử lý yêu cầu gửi mã, vui lòng thử lại sau giây lát");
+    }
+    this.sendingLocks.add(lockKey);
+
+    try {
+      const user = await User.findOne({ email: normalizedEmail });
+      if (!user) {
+        throw new Error("Email chưa được đăng ký tài khoản");
+      }
+      if (!user.isActive) {
+        throw new Error("Tài khoản đã bị vô hiệu hóa");
+      }
+
+      const pending = await PasswordReset.findOne({
+        email: normalizedEmail,
+        purpose: ResetPurpose.RESET,
+      });
+      this.assertResendCooldown(pending?.updatedAt);
+
+      const code = this.generateOtp();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await PasswordReset.findOneAndUpdate(
+        { email: normalizedEmail, purpose: ResetPurpose.RESET },
+        { email: normalizedEmail, purpose: ResetPurpose.RESET, code, attempts: 0, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      try {
+        await sendResetPasswordEmail(normalizedEmail, code, user.name);
+      } catch (err) {
+        await PasswordReset.deleteOne({ email: normalizedEmail, purpose: ResetPurpose.RESET });
+        console.error("❌ Email send failed:", err);
+        throw new Error(
+          "Không thể gửi email xác minh. Vui lòng cấu hình App Password Gmail (SMTP_PASS) và thử lại."
+        );
+      }
+
+      console.log(`📧 Password reset code for ${normalizedEmail}: ${code}`);
+      return { message: "Mã xác thực đã được gửi đến email của bạn" };
+    } finally {
+      this.sendingLocks.delete(lockKey);
+    }
+  }
+
+  /** UC: Quên mật khẩu — xác thực OTP và đặt mật khẩu mới. */
+  async resetPassword(
+    email: string,
+    code: string,
+    newPassword: string
+  ): Promise<{ message: string }> {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new Error("Email không được để trống");
+    }
+    this.validatePassword(newPassword);
+
+    const pending = await PasswordReset.findOne({
+      email: normalizedEmail,
+      purpose: ResetPurpose.RESET,
+    });
+    if (!pending) {
+      throw new Error("Không tìm thấy yêu cầu đặt lại mật khẩu. Vui lòng yêu cầu mã mới.");
+    }
+
+    if (pending.expiresAt.getTime() < Date.now()) {
+      await PasswordReset.deleteOne({ email: normalizedEmail, purpose: ResetPurpose.RESET });
+      throw new Error("Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới.");
+    }
+
+    pending.attempts += 1;
+    if (pending.attempts > 5) {
+      await PasswordReset.deleteOne({ email: normalizedEmail, purpose: ResetPurpose.RESET });
+      throw new Error("Bạn đã nhập sai quá 5 lần. Vui lòng yêu cầu mã mới.");
+    }
+
+    if (pending.code !== String(code ?? "").trim()) {
+      await pending.save();
+      const remain = 5 - pending.attempts;
+      throw new Error(`Mã xác minh không chính xác. Còn ${remain} lần thử.`);
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      await PasswordReset.deleteOne({ email: normalizedEmail, purpose: ResetPurpose.RESET });
+      throw new Error("Email chưa được đăng ký tài khoản");
+    }
+
+    user.password = newPassword;
+    await this.saveUser(user);
+    await PasswordReset.deleteOne({ email: normalizedEmail, purpose: ResetPurpose.RESET });
+
+    return { message: "Đặt lại mật khẩu thành công" };
+  }
+
+  /** UC: Đổi mật khẩu (đã đăng nhập) — xác thực mật khẩu hiện tại rồi gửi OTP. */
+  async requestChangePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ message: string }> {
+    const user = await User.findById(userId).select("+password");
+    if (!user) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    if (!currentPassword) {
+      throw new Error("Vui lòng nhập mật khẩu hiện tại");
+    }
+
+    let isPasswordValid = false;
+    try {
+      isPasswordValid = await user.comparePassword(currentPassword);
+    } catch {
+      isPasswordValid = false;
+    }
+    if (!isPasswordValid) {
+      throw new Error("Mật khẩu hiện tại không chính xác");
+    }
+
+    this.validatePassword(newPassword);
+    if (currentPassword === newPassword) {
+      throw new Error("Mật khẩu mới phải khác mật khẩu hiện tại");
+    }
+
+    const lockKey = `change:${user.email.toLowerCase()}`;
+    if (this.sendingLocks.has(lockKey)) {
+      throw new Error("Đang xử lý yêu cầu gửi mã, vui lòng thử lại sau giây lát");
+    }
+    this.sendingLocks.add(lockKey);
+
+    try {
+      const pending = await PasswordReset.findOne({
+        email: user.email,
+        purpose: ResetPurpose.CHANGE,
+      });
+      this.assertResendCooldown(pending?.updatedAt);
+
+      const code = this.generateOtp();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await PasswordReset.findOneAndUpdate(
+        { email: user.email, purpose: ResetPurpose.CHANGE },
+        { email: user.email, purpose: ResetPurpose.CHANGE, code, attempts: 0, expiresAt },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      try {
+        await sendPasswordChangeEmail(user.email, code, user.name);
+      } catch (err) {
+        await PasswordReset.deleteOne({ email: user.email, purpose: ResetPurpose.CHANGE });
+        console.error("❌ Email send failed:", err);
+        throw new Error(
+          "Không thể gửi email xác minh. Vui lòng cấu hình App Password Gmail (SMTP_PASS) và thử lại."
+        );
+      }
+
+      console.log(`📧 Password change code for ${user.email}: ${code}`);
+      return { message: "Mã xác thực đã được gửi đến email của bạn" };
+    } finally {
+      this.sendingLocks.delete(lockKey);
+    }
+  }
+
+  /** UC: Đổi mật khẩu (đã đăng nhập) — xác thực OTP rồi lưu mật khẩu mới. */
+  async verifyChangePassword(
+    userId: string,
+    code: string,
+    newPassword: string
+  ): Promise<{ message: string }> {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error("Không tìm thấy người dùng");
+    }
+    this.validatePassword(newPassword);
+
+    const pending = await PasswordReset.findOne({
+      email: user.email,
+      purpose: ResetPurpose.CHANGE,
+    });
+    if (!pending) {
+      throw new Error("Không tìm thấy yêu cầu xác minh. Vui lòng yêu cầu mã mới.");
+    }
+
+    if (pending.expiresAt.getTime() < Date.now()) {
+      await PasswordReset.deleteOne({ email: user.email, purpose: ResetPurpose.CHANGE });
+      throw new Error("Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới.");
+    }
+
+    pending.attempts += 1;
+    if (pending.attempts > 5) {
+      await PasswordReset.deleteOne({ email: user.email, purpose: ResetPurpose.CHANGE });
+      throw new Error("Bạn đã nhập sai quá 5 lần. Vui lòng yêu cầu mã mới.");
+    }
+
+    if (pending.code !== String(code ?? "").trim()) {
+      await pending.save();
+      const remain = 5 - pending.attempts;
+      throw new Error(`Mã xác minh không chính xác. Còn ${remain} lần thử.`);
+    }
+
+    user.password = newPassword;
+    await this.saveUser(user);
+    await PasswordReset.deleteOne({ email: user.email, purpose: ResetPurpose.CHANGE });
+
+    return { message: "Đổi mật khẩu thành công" };
   }
 
   private generateTokens(user: IUser): { accessToken: string; refreshToken: string } {

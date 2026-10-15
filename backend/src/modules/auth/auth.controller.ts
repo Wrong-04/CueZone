@@ -62,3 +62,48 @@ export const refreshToken = async (req: Request, res: Response) => {
     res.json({ success: false, message: error.message });
   }
 };
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const result = await authService.forgotPassword(req.body.email);
+    res.json({ success: true, message: result.message, data: result });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    const result = await authService.resetPassword(email, code, newPassword);
+    res.json({ success: true, message: result.message, data: result });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+export const requestChangePassword = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { currentPassword, newPassword } = req.body;
+    const result = await authService.requestChangePassword(
+      user.userId,
+      currentPassword,
+      newPassword
+    );
+    res.json({ success: true, message: result.message, data: result });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+export const verifyChangePassword = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { code, newPassword } = req.body;
+    const result = await authService.verifyChangePassword(user.userId, code, newPassword);
+    res.json({ success: true, message: result.message, data: result });
+  } catch (error: any) {
+    res.json({ success: false, message: error.message });
+  }
+};
