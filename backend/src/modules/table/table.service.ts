@@ -24,7 +24,8 @@ export class TableService {
   async create(dto: CreateTableDTO): Promise<ITable> {
     const existing = await Table.findOne({ code: dto.code });
     if (existing) throw new Error("Mã bàn đã tồn tại");
-    const table = await Table.create(dto);
+    const { code, name, type, area, floor, pricePerHour } = dto;
+    const table = await Table.create({ code, name, type, area, floor, pricePerHour, status: TableStatus.AVAILABLE });
     notificationService.create({
       title: "Thêm bàn mới",
       message: `Đã thêm bàn "${table.name}" (Mã: ${table.code}) khu vực ${table.area}.`,
@@ -34,7 +35,9 @@ export class TableService {
   }
 
   async update(id: string, dto: UpdateTableDTO): Promise<ITable> {
-    const table = await Table.findByIdAndUpdate(id, dto, { new: true });
+    const { name, type, area, floor, pricePerHour, isActive } = dto;
+    const table = await Table.findOneAndUpdate({ _id: id, currentSession: { $exists: false }, bookedInfo: { $exists: false } },
+      { $set: { name, type, area, floor, pricePerHour, isActive } }, { new: true, runValidators: true });
     if (!table) throw new Error("Không tìm thấy bàn");
     notificationService.create({
       title: "Cập nhật bàn",
@@ -45,7 +48,11 @@ export class TableService {
   }
 
   async updateStatus(id: string, status: TableStatus): Promise<ITable> {
-    const table = await Table.findByIdAndUpdate(id, { status }, { new: true });
+    if (![TableStatus.AVAILABLE, TableStatus.MAINTENANCE].includes(status)) {
+      throw new Error("Hãy dùng API phiên chơi hoặc đặt bàn để thay đổi trạng thái này");
+    }
+    const table = await Table.findOneAndUpdate({ _id: id, currentSession: { $exists: false }, bookedInfo: { $exists: false } },
+      { status }, { new: true, runValidators: true });
     if (!table) throw new Error("Không tìm thấy bàn");
     const statusLabels: Record<string, string> = {
       available: "Trống",
@@ -64,8 +71,8 @@ export class TableService {
   async delete(id: string): Promise<void> {
     const table = await Table.findById(id);
     if (!table) throw new Error("Không tìm thấy bàn");
-    if (table.status === TableStatus.PLAYING) throw new Error("Không thể xóa bàn đang chơi");
-    await Table.findByIdAndDelete(id);
+    const deleted = await Table.findOneAndDelete({ _id: id, currentSession: { $exists: false }, bookedInfo: { $exists: false } });
+    if (!deleted) throw new Error("Không thể xóa bàn đang chơi hoặc đã được đặt");
     notificationService.create({
       title: "Xóa bàn",
       message: `Đã xóa bàn "${table.name}" (Mã: ${table.code}).`,
@@ -77,8 +84,9 @@ export class TableService {
     const total = await Table.countDocuments({ isActive: true });
     const available = await Table.countDocuments({ status: TableStatus.AVAILABLE, isActive: true });
     const playing = await Table.countDocuments({ status: TableStatus.PLAYING, isActive: true });
+    const paused = await Table.countDocuments({ status: TableStatus.PAUSED, isActive: true });
     const booked = await Table.countDocuments({ status: TableStatus.BOOKED, isActive: true });
     const maintenance = await Table.countDocuments({ status: TableStatus.MAINTENANCE, isActive: true });
-    return { total, available, playing, booked, maintenance };
+    return { total, available, playing, paused, booked, maintenance };
   }
 }

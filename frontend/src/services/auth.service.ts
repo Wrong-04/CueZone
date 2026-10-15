@@ -3,9 +3,15 @@ import type { User, AuthResponse, ApiResponse } from "../types";
 
 export const authService = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/login", { email, password });
-    if (!data.success) throw new Error(data.message);
-    return data.data!;
+    try {
+      const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/login", { email, password });
+      if (!data.success) throw new Error(data.message || "Đăng nhập thất bại");
+      if (!data.data) throw new Error("Không nhận được dữ liệu xác thực từ máy chủ");
+      return data.data;
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || "Đăng nhập thất bại";
+      throw new Error(message);
+    }
   },
 
   async register(name: string, email: string, password: string, phone?: string): Promise<AuthResponse> {
@@ -42,40 +48,7 @@ export const authService = {
   logout() {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
-  },
-
-  /** Quên mật khẩu — gửi OTP đặt lại mật khẩu về email. */
-  async forgotPassword(email: string): Promise<void> {
-    const { data } = await api.post<ApiResponse>("/auth/forgot-password", { email });
-    if (!data.success) throw new Error(data.message);
-  },
-
-  /** Quên mật khẩu — xác thực OTP và đặt mật khẩu mới. */
-  async resetPassword(email: string, code: string, newPassword: string): Promise<void> {
-    const { data } = await api.post<ApiResponse>("/auth/reset-password", {
-      email,
-      code,
-      newPassword,
-    });
-    if (!data.success) throw new Error(data.message);
-  },
-
-  /** Đổi mật khẩu (đã đăng nhập) — xác thực mật khẩu hiện tại rồi gửi OTP. */
-  async requestChangePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const { data } = await api.post<ApiResponse>("/auth/change-password/request", {
-      currentPassword,
-      newPassword,
-    });
-    if (!data.success) throw new Error(data.message);
-  },
-
-  /** Đổi mật khẩu (đã đăng nhập) — xác thực OTP rồi lưu mật khẩu mới. */
-  async verifyChangePassword(code: string, newPassword: string): Promise<void> {
-    const { data } = await api.post<ApiResponse>("/auth/change-password/verify", {
-      code,
-      newPassword,
-    });
-    if (!data.success) throw new Error(data.message);
+    localStorage.removeItem("cuezone_user");
   },
 
   getToken(): string | null {

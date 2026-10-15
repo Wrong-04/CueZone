@@ -49,3 +49,10 @@ desktop.ini
 # TypeScript
 # ==========================================
 *.tsbuildinfo
+.agents
+.claude
+/docs/
+
+# Local task notes
+/task/
+/tasks/

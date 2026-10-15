@@ -7,7 +7,15 @@ import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CustomerHome from "./pages/customer/CustomerHome";
+import CustomerBooking from "./pages/customer/CustomerBooking";
+import CustomerTournaments from "./pages/customer/CustomerTournaments";
+import CustomerRules from "./pages/customer/CustomerRules";
+import CustomerNews from "./pages/customer/CustomerNews";
+import CustomerFnB from "./pages/customer/CustomerFnB";
+import CustomerHistory from "./pages/customer/CustomerHistory";
+import CustomerWallet from "./pages/customer/CustomerWallet";
 import CustomerProfile from "./pages/customer/CustomerProfile";
+import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
 import {
   TablesPage,
   BookingPage,
@@ -19,9 +27,6 @@ import {
   EmployeesPage,
   NewsPage,
   SettingsPage,
-  CustomerBooking,
-  CustomerTournaments,
-  CustomerNews,
 } from "./pages/PlaceholderPage";
 
 const ProtectedRoute = ({ children, roles }: { children: React.ReactNode; roles?: string[] }) => {
@@ -41,14 +46,20 @@ const ProtectedRoute = ({ children, roles }: { children: React.ReactNode; roles?
   return <>{children}</>;
 };
 
+const getDefaultRedirectPath = (role?: string): string => {
+  if (role === "customer") return "/customer";
+  if (role === "admin") return "/admin";
+  return "/admin/pos";
+};
+
 const AppRoutes = () => {
   const { user } = useAuth();
 
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/login" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin"} replace /> : <LoginPage />} />
-      <Route path="/register" element={user ? <Navigate to={user.role === "customer" ? "/customer" : "/admin"} replace /> : <RegisterPage />} />
+      <Route path="/login" element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <LoginPage />} />
+      <Route path="/register" element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <RegisterPage />} />
 
       {/* Admin routes */}
       <Route
@@ -60,6 +71,7 @@ const AppRoutes = () => {
         }
       >
         <Route index element={<AdminDashboard />} />
+        <Route path="pos" element={<PosTableFloorPage />} />
         <Route path="tables" element={<TablesPage />} />
         <Route path="booking" element={<BookingPage />} />
         <Route path="tournaments" element={<TournamentsPage />} />
@@ -75,9 +87,13 @@ const AppRoutes = () => {
       {/* Customer routes */}
       <Route path="/customer" element={<CustomerLayout />}>
         <Route index element={<CustomerHome />} />
-        <Route path="profile" element={<CustomerProfile />} />
         <Route path="booking" element={<CustomerBooking />} />
+        <Route path="fnb" element={<CustomerFnB />} />
         <Route path="tournaments" element={<CustomerTournaments />} />
+        <Route path="history" element={<CustomerHistory />} />
+        <Route path="wallet" element={<CustomerWallet />} />
+        <Route path="profile" element={<CustomerProfile />} />
+        <Route path="rules" element={<CustomerRules />} />
         <Route path="news" element={<CustomerNews />} />
       </Route>
 

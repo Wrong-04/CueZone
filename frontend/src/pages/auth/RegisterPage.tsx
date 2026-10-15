@@ -1,11 +1,31 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { ConfigProvider, theme } from "antd";
+import {
+  ArrowLeftOutlined,
+  UserOutlined,
+  MailOutlined,
+  PhoneOutlined,
+  LockOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
+import { Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  Button,
+  Input,
+  Space,
+  Typography,
+  Alert,
+} from "../../shared/ui";
+import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
+
+const { Title, Text } = Typography;
 
 const OTP_LENGTH = 4;
 const RESEND_SECONDS = 60;
 
-const RegisterPage = () => {
+const RegisterPage: React.FC = () => {
   const [step, setStep] = useState<"form" | "otp">("form");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -30,15 +50,8 @@ const RegisterPage = () => {
   }, [step, resendCooldown]);
 
   const validateForm = (): string | null => {
-    const normalizedEmail = email.trim();
-    if (!normalizedEmail) return "Email không được để trống";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalizedEmail)) {
-      return "Email không hợp lệ";
-    }
-    const normalizedPhone = phone.trim();
-    if (normalizedPhone && !/^(0|\+84)[0-9]{9,10}$/.test(normalizedPhone)) {
-      return "Số điện thoại không hợp lệ";
-    }
+    if (!name.trim()) return "Vui lòng nhập họ và tên của bạn";
+    if (!email.trim()) return "Vui lòng nhập địa chỉ email hợp lệ";
     if (password !== confirmPassword) return "Mật khẩu xác nhận không khớp";
     if (password.length < 8) return "Mật khẩu phải có ít nhất 8 ký tự";
     if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
@@ -152,195 +165,310 @@ const RegisterPage = () => {
     }
   };
 
-  if (step === "otp") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-500 rounded-xl mb-4">
-              <span className="text-white text-2xl font-bold">CZ</span>
-            </div>
-            <h1 className="text-2xl font-bold text-navy-800">Xác minh email</h1>
-            <p className="text-gray-500 mt-1">
-              Nhập mã 4 chữ số đã gửi đến{" "}
-              <span className="font-medium text-gray-700 break-all">{email}</span>
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
-            <form onSubmit={handleVerify} className="space-y-5">
-              {error && (
-                <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-100">
-                  {error}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
-                  Mã xác minh
-                </label>
-                <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
-                  {otp.map((digit, index) => (
-                    <input
-                      key={index}
-                      ref={(el) => {
-                        otpRefs.current[index] = el;
-                      }}
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className="w-14 h-14 text-center text-2xl font-bold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                      required
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? "Đang xác minh..." : "Xác minh & tạo tài khoản"}
-              </button>
-
-              <div className="flex items-center justify-between text-sm">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep("form");
-                    setError("");
-                    setOtp(Array(OTP_LENGTH).fill(""));
-                  }}
-                  className="text-gray-500 hover:text-gray-700 transition"
-                >
-                  ← Quay lại
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResend}
-                  disabled={resendCooldown > 0 || loading}
-                  className="text-primary-500 hover:text-primary-600 font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {resendCooldown > 0 ? `Gửi lại sau ${resendCooldown}s` : "Gửi lại mã"}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="mt-6 text-center text-sm text-gray-500">
-            Đã có tài khoản?{" "}
-            <Link to="/login" className="text-primary-500 hover:text-primary-600 font-medium">
-              Đăng nhập
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-500 rounded-xl mb-4">
-            <span className="text-white text-2xl font-bold">CZ</span>
+    <ConfigProvider
+      theme={{
+        algorithm: theme.defaultAlgorithm,
+        token: {
+          colorPrimary: "#059669",
+          colorBgContainer: "#ffffff",
+          colorBorder: "#e2e8f0",
+          colorText: "#0f172a",
+          colorTextPlaceholder: "#94a3b8",
+          borderRadius: 12,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        },
+      }}
+    >
+      <div
+        className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white"
+      >
+        {/* =========================================================================
+            CỘT TRÁI (52%): THƯƠNG HIỆU & ĐẶC QUYỀN HỘI VIÊN (ĐỒNG BỘ VỚI FORM LOGIN)
+            ========================================================================= */}
+        <AuthBrandingPanel
+          badgeText="GIA NHẬP HỘI VIÊN CUEZONE CLUB"
+          titlePrefix="Khởi Đầu Đam Mê,"
+          titleHighlight="Đặc Quyền Hội Viên"
+          description="Đăng ký tài khoản ngay hôm nay để nhận voucher trải nghiệm 50.000đ, tham gia cộng đồng cơ thủ bida chuẩn quốc tế và tận hưởng quyền lợi độc quyền."
+        />
+
+        {/* =========================================================================
+            CỘT PHẢI (48%): PORTAL ĐĂNG KÝ & XÁC MINH OTP
+            ========================================================================= */}
+        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-white border-l border-slate-200/80">
+          {/* Header Mobile */}
+          <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-200">
+            <Space align="center" size={8}>
+              <img
+                src="/cuezone-favicon.svg?v=2"
+                alt="CueZone Logo"
+                className="h-8 w-8 rounded-lg ring-1 ring-emerald-500/50 p-0.5 bg-slate-900"
+              />
+              <Text className="!text-lg !font-black !text-slate-900 !mb-0">
+                CUE<span className="text-emerald-600">ZONE</span>
+              </Text>
+            </Space>
+            <Button
+              variant="outline"
+              size="sm"
+              to="/customer"
+              className="!text-xs !h-8 !px-3 !border-slate-300 !bg-slate-50 !text-slate-700"
+            >
+              Cổng Khách
+            </Button>
           </div>
-          <h1 className="text-2xl font-bold text-navy-800">Đăng ký tài khoản</h1>
-          <p className="text-gray-500 mt-1">Tham gia CueZone Billiards</p>
-        </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
-          <form onSubmit={handleSendCode} className="space-y-5">
-            {error && (
-              <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-100">
-                {error}
-              </div>
+          {/* Form Container Trung Tâm */}
+          <div className="my-auto w-full max-w-md mx-auto py-4">
+            {step === "form" ? (
+              <>
+                {/* Header Form */}
+                <div className="mb-5">
+                  <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1">
+                    Đăng Ký Tài Khoản
+                  </Title>
+                  <Text className="!text-xs !text-slate-500 block">
+                    Tham gia hệ thống CueZone Billiards để nhận voucher và đặt bàn ưu tiên
+                  </Text>
+                </div>
+
+                {/* Banner Ưu Đãi Tân Thủ */}
+                <div className="mb-5 rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3.5 flex items-start gap-2.5">
+                  <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <Text strong className="!text-xs !text-emerald-900 block">
+                      Ưu Đãi Hội Viên Mới
+                    </Text>
+                    <Text className="!text-[11px] !text-emerald-700 leading-snug">
+                      Nhận ngay voucher trải nghiệm 50.000đ trực tiếp vào tài khoản sau khi hoàn tất xác minh email.
+                    </Text>
+                  </div>
+                </div>
+
+                {/* Thông báo lỗi */}
+                {error && (
+                  <div className="mb-4">
+                    <Alert
+                      type="error"
+                      message={error}
+                      showIcon
+                      className="!bg-rose-50 !border-rose-200 !text-rose-700 !text-xs !rounded-xl"
+                    />
+                  </div>
+                )}
+
+                {/* Form Đăng ký */}
+                <form onSubmit={handleSendCode} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Họ và tên
+                    </label>
+                    <Input
+                      placeholder="Nguyễn Văn A"
+                      value={name}
+                      autoComplete="name"
+                      onChange={(e) => setName(e.target.value)}
+                      prefix={<UserOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Email
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder="email@example.com"
+                      value={email}
+                      autoComplete="username"
+                      onChange={(e) => setEmail(e.target.value)}
+                      prefix={<MailOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Số điện thoại <span className="text-slate-400 font-normal">(tùy chọn)</span>
+                    </label>
+                    <Input
+                      type="tel"
+                      placeholder="0912 345 678"
+                      value={phone}
+                      autoComplete="tel"
+                      onChange={(e) => setPhone(e.target.value)}
+                      prefix={<PhoneOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Mật khẩu
+                    </label>
+                    <Input.Password
+                      placeholder="Ít nhất 8 ký tự, gồm chữ và số"
+                      value={password}
+                      autoComplete="new-password"
+                      onChange={(e) => setPassword(e.target.value)}
+                      prefix={<LockOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Xác nhận mật khẩu
+                    </label>
+                    <Input.Password
+                      placeholder="Nhập lại mật khẩu"
+                      value={confirmPassword}
+                      autoComplete="new-password"
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      prefix={<LockOutlined className="text-slate-400 mr-1.5" />}
+                      className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      variant="primary"
+                      htmlType="submit"
+                      loading={loading || sendingRef.current}
+                      rightIcon={<ArrowRight className="h-4 w-4" />}
+                      className="!w-full !h-12 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-600/25"
+                    >
+                      {loading ? "Đang Gửi Mã Xác Thực..." : "Tiếp Tục & Nhận Mã OTP"}
+                    </Button>
+                  </div>
+                </form>
+
+                {/* Footer Liên Kết Đăng Nhập */}
+                <div className="mt-6 pt-5 border-t border-slate-200 text-center text-xs text-slate-500">
+                  <span>Đã có tài khoản hội viên? </span>
+                  <Link
+                    to="/login"
+                    className="text-emerald-600 hover:text-emerald-700 font-semibold underline underline-offset-4"
+                  >
+                    Đăng nhập ngay
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Header OTP */}
+                <div className="mb-5 text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 mb-3 shadow-xs">
+                    <SafetyCertificateOutlined className="text-2xl" />
+                  </div>
+                  <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1">
+                    Xác Minh Email
+                  </Title>
+                  <Text className="!text-xs !text-slate-500 block">
+                    Nhập mã xác thực 4 chữ số đã được gửi đến:
+                  </Text>
+                  <span className="font-semibold text-emerald-700 text-xs break-all mt-1 inline-block">
+                    {email}
+                  </span>
+                </div>
+
+                {/* Thông báo lỗi */}
+                {error && (
+                  <div className="mb-4">
+                    <Alert
+                      type="error"
+                      message={error}
+                      showIcon
+                      className="!bg-rose-50 !border-rose-200 !text-rose-700 !text-xs !rounded-xl"
+                    />
+                  </div>
+                )}
+
+                {/* Form Nhập OTP */}
+                <form onSubmit={handleVerify} className="space-y-6">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-3 text-center">
+                      Nhập mã 4 chữ số (OTP)
+                    </label>
+                    <div className="flex justify-center gap-3.5" onPaste={handleOtpPaste}>
+                      {otp.map((digit, index) => (
+                        <input
+                          key={index}
+                          ref={(el) => {
+                            otpRefs.current[index] = el;
+                          }}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                          className="w-13 h-14 text-center text-2xl font-bold bg-slate-50 text-slate-900 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner font-mono"
+                          required
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    htmlType="submit"
+                    loading={loading}
+                    className="!w-full !h-12 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-600/25"
+                  >
+                    {loading ? "Đang Xác Minh..." : "Xác Minh & Kích Hoạt Tài Khoản"}
+                  </Button>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setStep("form");
+                        setError("");
+                        setOtp(Array(OTP_LENGTH).fill(""));
+                      }}
+                      leftIcon={<ArrowLeftOutlined />}
+                      className="!text-slate-500 hover:!text-slate-800 !p-0"
+                    >
+                      Quay lại sửa thông tin
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleResend}
+                      disabled={resendCooldown > 0 || loading}
+                      className="!text-emerald-600 hover:!text-emerald-700 !p-0 disabled:!opacity-50 font-semibold"
+                    >
+                      {resendCooldown > 0 ? `Gửi lại sau ${resendCooldown}s` : "Gửi lại mã OTP"}
+                    </Button>
+                  </div>
+                </form>
+
+                {/* Footer Liên Kết Đăng Nhập */}
+                <div className="mt-8 pt-5 border-t border-slate-200 text-center text-xs text-slate-500">
+                  <span>Đã có tài khoản? </span>
+                  <Link
+                    to="/login"
+                    className="text-emerald-600 hover:text-emerald-700 font-semibold underline underline-offset-4"
+                  >
+                    Đăng nhập ngay
+                  </Link>
+                </div>
+              </>
             )}
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Họ và tên</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                placeholder="Nguyễn Văn A"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                placeholder="email@example.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Số điện thoại</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                placeholder="0912 345 678"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Mật khẩu</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                placeholder="Ít nhất 8 ký tự, gồm chữ và số"
-                minLength={8}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Xác nhận mật khẩu</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                placeholder="Nhập lại mật khẩu"
-                minLength={8}
-                required
-              />
-            </div>
-
-              <button
-                type="submit"
-                disabled={loading || sendingRef.current}
-                className="w-full bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? "Đang xử lý..." : "Đăng ký"}
-              </button>
-          </form>
-
-          <div className="mt-6 text-center text-sm text-gray-500">
-            Đã có tài khoản?{" "}
-            <Link to="/login" className="text-primary-500 hover:text-primary-600 font-medium">
-              Đăng nhập
-            </Link>
+          {/* Footer Phải */}
+          <div className="text-center text-[11px] text-slate-400 py-3 border-t border-slate-100">
+            <span>CueZone Billiards Management & Bank Pool Tournament System • Phiên bản 2.0</span>
           </div>
         </div>
       </div>
-    </div>
+    </ConfigProvider>
   );
 };
 

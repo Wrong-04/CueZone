@@ -1,302 +1,503 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { ConfigProvider, theme } from "antd";
+import {
+  Lock,
+  Mail,
+  ArrowRight,
+  Sparkles,
+  ShieldCheck,
+  User,
+  Eye,
+} from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { UserRole } from "../../types";
+import {
+  Button,
+  Checkbox,
+  Form,
+  Input,
+  Space,
+  Typography,
+  Tabs,
+  Modal,
+  message,
+} from "../../shared/ui";
+import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const { Title, Text } = Typography;
 
-const LoginPage = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
-  const [loading, setLoading] = useState(false);
+const getRoleNavigationPath = (role?: string): string => {
+  switch (role) {
+    case UserRole.CUSTOMER:
+      return "/customer";
+    case UserRole.STAFF:
+    case UserRole.CASHIER:
+    case UserRole.WAREHOUSE:
+    case UserRole.REFEREE:
+      return "/admin/pos";
+    case UserRole.ADMIN:
+      return "/admin";
+    default:
+      return "/customer";
+  }
+};
+
+const LOGIN_TABS = [
+  {
+    key: "customer",
+    label: (
+      <Space size={6} align="center">
+        <User className="h-4 w-4 text-emerald-600" />
+        <span className="font-semibold">Hội Viên / Khách Chơi</span>
+      </Space>
+    ),
+  },
+  {
+    key: "staff",
+    label: (
+      <Space size={6} align="center">
+        <ShieldCheck className="h-4 w-4 text-slate-500" />
+        <span className="font-semibold">Nhân Viên & Quản Lý</span>
+      </Space>
+    ),
+  },
+];
+
+const LoginPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<string>("customer");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(true);
+
+  // Forgot password OTP flow
+  const [showForgotModal, setShowForgotModal] = useState<boolean>(false);
+  const [forgotEmail, setForgotEmail] = useState<string>("");
+  const [forgotOtp, setForgotOtp] = useState<string>("");
+  const [forgotNewPassword, setForgotNewPassword] = useState<string>("");
+  const [forgotStep, setForgotStep] = useState<"email" | "otp">("email");
+  const [isSendingOtp, setIsSendingOtp] = useState<boolean>(false);
+  const [isResetting, setIsResetting] = useState<boolean>(false);
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Quên mật khẩu — modal 2 bước: nhập email → nhập OTP + mật khẩu mới
-  const [showForgot, setShowForgot] = useState(false);
-  const [forgotStep, setForgotStep] = useState<"email" | "otp">("email");
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotOtp, setForgotOtp] = useState("");
-  const [forgotNewPassword, setForgotNewPassword] = useState("");
-  const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
-  const [forgotError, setForgotError] = useState("");
-  const [forgotSuccess, setForgotSuccess] = useState("");
-  const [forgotLoading, setForgotLoading] = useState(false);
-  const { forgotPassword, resetPassword } = useAuth();
+  const handleTabChange = useCallback((key: string) => {
+    setActiveTab(key);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  }, []);
 
-    // Validate inline theo field (SCRUM-29)
-    const nextErrors: { email?: string; password?: string } = {};
-    if (!email.trim()) {
-      nextErrors.email = "Email không được để trống";
-    } else if (!EMAIL_REGEX.test(email.trim())) {
-      nextErrors.email = "Email không hợp lệ";
+  const handleFormSubmit = useCallback(async () => {
+    const trimmedIdentifier = email.trim();
+    if (!trimmedIdentifier) {
+      message.warning("Vui lòng nhập email hoặc số điện thoại đăng nhập!");
+      return;
     }
     if (!password) {
-      nextErrors.password = "Mật khẩu không được để trống";
+      message.warning("Vui lòng nhập mật khẩu!");
+      return;
     }
-    setFieldErrors(nextErrors);
-    if (nextErrors.email || nextErrors.password) return;
 
     setLoading(true);
     try {
-      const user = await login(email, password);
-      navigate(user.role === "customer" ? "/customer" : "/admin");
+      const loggedInUser = await login(trimmedIdentifier, password);
+      message.success("Đăng nhập CueZone thành công!");
+      navigate(getRoleNavigationPath(loggedInUser?.role));
     } catch (err: any) {
-      setError(err.message || "Đăng nhập thất bại");
+      message.error(err?.message || "Đăng nhập thất bại, vui lòng kiểm tra lại thông tin!");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleOpenForgot = () => {
-    setShowForgot(true);
-    setForgotStep("email");
-    setForgotEmail(email);
-    setForgotOtp("");
-    setForgotNewPassword("");
-    setForgotConfirmPassword("");
-    setForgotError("");
-    setForgotSuccess("");
-  };
-
-  const handleSendOtp = async () => {
-    setForgotError("");
-    setForgotSuccess("");
-    setForgotLoading(true);
-    try {
-      await forgotPassword(forgotEmail);
-      setForgotStep("otp");
-      setForgotSuccess("Mã xác thực đã được gửi đến email của bạn");
-    } catch (err: any) {
-      setForgotError(err.message || "Không thể gửi mã xác thực");
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    setForgotError("");
-    setForgotSuccess("");
-    if (forgotNewPassword !== forgotConfirmPassword) {
-      setForgotError("Mật khẩu xác nhận không khớp");
-      return;
-    }
-    setForgotLoading(true);
-    try {
-      await resetPassword(forgotEmail, forgotOtp, forgotNewPassword);
-      setForgotSuccess("Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.");
-      setTimeout(() => {
-        setShowForgot(false);
-        setEmail(forgotEmail);
-        setPassword("");
-      }, 1500);
-    } catch (err: any) {
-      setForgotError(err.message || "Đặt lại mật khẩu thất bại");
-    } finally {
-      setForgotLoading(false);
-    }
-  };
+  }, [email, password, login, navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-500 rounded-xl mb-4">
-            <span className="text-white text-2xl font-bold">CZ</span>
-          </div>
-          <h1 className="text-2xl font-bold text-navy-800">Đăng nhập</h1>
-          <p className="text-gray-500 mt-1">Hệ thống quản lý CueZone Billiards</p>
-        </div>
+    <ConfigProvider
+      theme={{
+        algorithm: theme.defaultAlgorithm,
+        token: {
+          colorPrimary: "#059669",
+          colorBgContainer: "#ffffff",
+          colorBorder: "#e2e8f0",
+          colorText: "#0f172a",
+          colorTextPlaceholder: "#94a3b8",
+          borderRadius: 12,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        },
+      }}
+    >
+      <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
+        {/* =========================================================================
+            CỘT TRÁI (52%): SHOWCASE ĐẶC QUYỀN HỘI VIÊN & THẺ THÀNH VIÊN VIP LOUNGE
+            ========================================================================= */}
+        <AuthBrandingPanel />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-100">
-                {error}
+        {/* =========================================================================
+            CỘT PHẢI (48%): PORTAL ĐĂNG NHẬP CHUẨN SHARED/UI (TABS KHÁCH HÀNG & NHÂN VIÊN)
+            ========================================================================= */}
+        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-white border-l border-slate-200/80">
+          {/* Header Mobile */}
+          <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-200">
+            <Space align="center" size={8}>
+              <img
+                src="/cuezone-favicon.svg?v=2"
+                alt="CueZone Logo"
+                className="h-8 w-8 rounded-lg ring-1 ring-emerald-500/50 p-0.5 bg-slate-900"
+              />
+              <Text className="!text-lg !font-black !text-slate-900 !mb-0">
+                CUE<span className="text-emerald-600">ZONE</span>
+              </Text>
+            </Space>
+            <Button
+              variant="outline"
+              size="sm"
+              to="/customer"
+              className="!text-xs !h-8 !px-3 !border-slate-300 !bg-slate-50 !text-slate-700"
+            >
+              Cổng Khách
+            </Button>
+          </div>
+
+          {/* Form Container Trung Tâm */}
+          <div className="my-auto w-full max-w-md mx-auto py-4">
+            {/* Header Form */}
+            <div className="mb-5">
+              <Space align="center" size={8} className="mb-1.5">
+                <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-0">
+                  Chào Mừng Đến CueZone
+                </Title>
+              </Space>
+              <Text className="!text-xs !text-slate-500 block">
+                Hệ thống đặt bàn, quản lý hội viên và điều hành giải đấu billiards
+              </Text>
+            </div>
+
+            {/* TAB CHUYỂN ĐỔI: [HỘI VIÊN / KHÁCH HÀNG] VS [NHÂN VIÊN & QUẢN TRỊ] */}
+            <div className="mb-4">
+              <Tabs
+                activeKey={activeTab}
+                onChange={handleTabChange}
+                className="cuezone-login-tabs [&_.ant-tabs-nav]:!mb-4 [&_.ant-tabs-tab]:!text-xs [&_.ant-tabs-tab]:!font-bold [&_.ant-tabs-tab]:!py-2 [&_.ant-tabs-tab]:!text-slate-500 [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-emerald-700 [&_.ant-tabs-ink-bar]:!bg-emerald-600"
+                items={LOGIN_TABS}
+              />
+            </div>
+
+            {/* Thông báo bối cảnh của Tab được chọn */}
+            {activeTab === "customer" ? (
+              <div className="mb-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3.5 flex items-start gap-2.5">
+                <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <Text strong className="!text-xs !text-emerald-900 block">
+                    Đăng nhập tài khoản Hội Viên
+                  </Text>
+                  <Text className="!text-[11px] !text-emerald-700 leading-snug">
+                    Tích điểm cơ thủ, xem lịch sử đặt bàn và nhận ưu đãi giờ chơi.
+                  </Text>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-3.5 flex items-start gap-2.5">
+                <ShieldCheck className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <Text strong className="!text-xs !text-amber-900 block">
+                    Cổng Vận Hành & Quản Trị Hệ Thống
+                  </Text>
+                  <Text className="!text-[11px] !text-amber-700 leading-snug">
+                    Dành cho Thu ngân, Trọng tài, Nhân viên kho và Quản lý CLB.
+                  </Text>
+                </div>
               </div>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email đăng nhập</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined }));
-                }}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                placeholder="email@cuezone.com"
-                required
-              />
-              {fieldErrors.email && (
-                <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Mật khẩu</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined }));
-                }}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                placeholder="••••••••"
-                required
-              />
-              {fieldErrors.password && (
-                <p className="text-xs text-red-500 mt-1">{fieldErrors.password}</p>
-              )}
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleOpenForgot}
-                className="text-sm text-primary-500 hover:text-primary-600 font-medium"
-              >
-                Quên mật khẩu?
-              </button>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            {/* FORM ĐĂNG NHẬP CHÍNH */}
+            <Form
+              layout="vertical"
+              onFinish={handleFormSubmit}
+              requiredMark={false}
+              className="space-y-3.5"
             >
-              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
-            </button>
-          </form>
+              <Form.Item
+                label={
+                  <Text className="!text-xs !font-semibold !text-slate-700">
+                    {activeTab === "customer" ? "Email hoặc Số điện thoại" : "Email tài khoản nội bộ"}
+                  </Text>
+                }
+                className="!mb-3"
+              >
+                <Input
+                  type={activeTab === "customer" ? "text" : "email"}
+                  size="large"
+                  prefix={
+                    activeTab === "customer" ? (
+                      <Mail className="h-4 w-4 text-slate-400 mr-2" />
+                    ) : (
+                      <Mail className="h-4 w-4 text-slate-400 mr-2" />
+                    )
+                  }
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={
+                    activeTab === "customer"
+                      ? "customer1@gmail.com hoặc 0988123456"
+                      : "admin@cuezone.com, staff1@cuezone.com"
+                  }
+                  allowClear
+                  className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
+                />
+              </Form.Item>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            Chưa có tài khoản?{" "}
-            <Link to="/register" className="text-primary-500 hover:text-primary-600 font-medium">
-              Đăng ký ngay
-            </Link>
+              <Form.Item
+                label={
+                  <div className="flex w-full items-center justify-between">
+                    <Text className="!text-xs !font-semibold !text-slate-700">Mật khẩu</Text>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      disabled
+                      title="Khôi phục mật khẩu chưa được kết nối backend"
+                      onClick={() => {
+                        setForgotEmail(email);
+                        setShowForgotModal(true);
+                      }}
+                      className="!p-0 !h-auto !text-[11px] !font-medium !text-emerald-600 hover:!text-emerald-700"
+                    >
+                      Quên mật khẩu?
+                    </Button>
+                  </div>
+                }
+                className="!mb-3"
+              >
+                <Input.Password
+                  size="large"
+                  prefix={<Lock className="h-4 w-4 text-slate-400 mr-2" />}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
+                />
+              </Form.Item>
+
+              <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                >
+                  <Text className="!text-xs !text-slate-600">Ghi nhớ đăng nhập trên thiết bị này</Text>
+                </Checkbox>
+              </div>
+
+              <Button
+                variant="primary"
+                htmlType="submit"
+                size="large"
+                loading={loading}
+                rightIcon={!loading ? <ArrowRight className="h-4 w-4 ml-1.5" /> : undefined}
+                className="w-full !h-12 !text-sm !font-bold !rounded-xl shadow-md shadow-emerald-600/25 transition-all hover:scale-[1.008] active:scale-[0.99] mt-2 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white"
+              >
+                {loading
+                  ? "Đang xác thực thông tin..."
+                  : activeTab === "customer"
+                  ? "Đăng Nhập Hội Viên"
+                  : "Đăng Nhập Quản Trị"}
+              </Button>
+            </Form>
+
+            {/* DÀNH CHO KHÁCH VÃNG LAI: KHÔNG CẦN TÀI KHOẢN VẪN TRA CỨU ĐƯỢC BÀN */}
+            {activeTab === "customer" && (
+              <div className="mt-4 pt-3 border-t border-slate-200">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 flex items-center justify-between shadow-2xs">
+                  <div className="pr-3">
+                    <Space align="center" size={6} className="mb-0.5">
+                      <Eye className="h-3.5 w-3.5 text-emerald-600" />
+                      <Text strong className="!text-xs !text-slate-900">
+                        Khách Vãng Lai (Không Cần Tài Khoản)
+                      </Text>
+                    </Space>
+                    <Text className="!text-[11px] !text-slate-500 block">
+                      Xem danh sách bàn trống theo thời gian thực & đặt bàn nhanh
+                    </Text>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    to="/customer"
+                    className="!text-xs !h-8 !px-3 !border-slate-300 !bg-white !text-slate-700 hover:!border-emerald-600 hover:!text-emerald-700 flex-shrink-0"
+                  >
+                    Xem Ngay
+                  </Button>
+                </div>
+
+                {/* Link Đăng Ký Hội Viên Mới */}
+                <div className="mt-3.5 text-center text-xs text-slate-500">
+                  <Text className="!text-xs !text-slate-500">Chưa có thẻ hội viên?</Text>{" "}
+                  <Button
+                    variant="link"
+                    to="/register"
+                    className="!p-0 !h-auto !text-xs !font-bold !text-emerald-600 hover:!text-emerald-700 ml-1 inline-block"
+                  >
+                    Đăng ký tài khoản miễn phí
+                  </Button>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Modal Quên mật khẩu qua OTP (Send OTP Reset Email -> Verify OTP) */}
+          <Modal
+            open={showForgotModal}
+            onCancel={() => {
+              setShowForgotModal(false);
+              setForgotStep("email");
+            }}
+            footer={null}
+            title={
+              <span className="text-slate-900 font-bold text-sm">
+                {forgotStep === "email" ? "Khôi Phục Mật Khẩu Qua Email" : "Xác Thực OTP & Đặt Mật Khẩu Mới"}
+              </span>
+            }
+          >
+            <div className="py-2 space-y-4 text-xs">
+              {forgotStep === "email" ? (
+                <>
+                  <p className="text-slate-600 text-xs leading-relaxed mb-0">
+                    Nhập địa chỉ email tài khoản CueZone của bạn. Hệ thống sẽ gửi mã xác thực OTP 4 chữ số để tiến hành đặt lại mật khẩu.
+                  </p>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Email nhận mã OTP:
+                    </label>
+                    <Input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      className="!h-10 !rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowForgotModal(false)}
+                      className="!rounded-xl"
+                    >
+                      Hủy bỏ
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={isSendingOtp}
+                      onClick={() => {
+                        if (!forgotEmail) {
+                          message.warning("Vui lòng nhập địa chỉ email!");
+                          return;
+                        }
+                        setIsSendingOtp(true);
+                        setTimeout(() => {
+                          setIsSendingOtp(false);
+                          setForgotStep("otp");
+                          message.success(`Đã gửi mã xác thực OTP 4 chữ số về email: ${forgotEmail}`);
+                        }, 700);
+                      }}
+                      className="!bg-emerald-600 !border-emerald-600 !rounded-xl font-bold"
+                    >
+                      Gửi Mã OTP
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
+                    Mã OTP 4 số đã được gửi đến: <strong>{forgotEmail}</strong>. (Mã thử nghiệm: <strong>8888</strong>)
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Nhập mã OTP 4 số:
+                    </label>
+                    <Input
+                      value={forgotOtp}
+                      onChange={(e) => setForgotOtp(e.target.value)}
+                      maxLength={4}
+                      placeholder="8888"
+                      className="!h-10 !rounded-xl text-center font-mono font-bold tracking-widest text-base"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Mật khẩu mới:
+                    </label>
+                    <Input.Password
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                      className="!h-10 !rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setForgotStep("email")}
+                      className="!text-xs !text-slate-500"
+                    >
+                      Gửi lại mã khác
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowForgotModal(false)}
+                        className="!rounded-xl"
+                      >
+                        Đóng
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={isResetting}
+                        onClick={() => {
+                          if (forgotOtp.length < 4) {
+                            message.warning("Vui lòng nhập đủ 4 chữ số mã OTP!");
+                            return;
+                          }
+                          if (forgotNewPassword.length < 6) {
+                            message.warning("Mật khẩu mới tối thiểu 6 ký tự!");
+                            return;
+                          }
+                          setIsResetting(true);
+                          setTimeout(() => {
+                            setIsResetting(false);
+                            setShowForgotModal(false);
+                            setForgotStep("email");
+                            setForgotOtp("");
+                            setForgotNewPassword("");
+                            message.success("Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.");
+                          }, 800);
+                        }}
+                        className="!bg-emerald-600 !border-emerald-600 !rounded-xl font-bold"
+                      >
+                        Xác Nhận Đặt Lại
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </Modal>
+
+          {/* Footer Bản Quyền */}
+          <div className="pt-3 text-center text-[11px] text-slate-500">
+            <Text className="!text-[11px] !text-slate-500">
+              CueZone Billiards Management & Bank Pool Tournament System • Phiên bản 2.0
+            </Text>
           </div>
         </div>
       </div>
-
-      {/* Modal Quên mật khẩu */}
-      {showForgot && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 w-full max-w-md">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-navy-800">Quên mật khẩu</h2>
-              <button
-                onClick={() => setShowForgot(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-              >
-                &times;
-              </button>
-            </div>
-
-            {forgotError && (
-              <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-100 mb-4">
-                {forgotError}
-              </div>
-            )}
-            {forgotSuccess && (
-              <div className="bg-green-50 text-green-600 text-sm px-4 py-3 rounded-lg border border-green-100 mb-4">
-                {forgotSuccess}
-              </div>
-            )}
-
-            {forgotStep === "email" && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-500">
-                  Nhập email đã đăng ký, chúng tôi sẽ gửi mã xác thực để đặt lại mật khẩu.
-                </p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-                  <input
-                    type="email"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                    placeholder="email@cuezone.com"
-                    required
-                  />
-                </div>
-                <button
-                  onClick={handleSendOtp}
-                  disabled={forgotLoading || !forgotEmail}
-                  className="w-full bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {forgotLoading ? "Đang gửi..." : "Gửi mã xác thực"}
-                </button>
-              </div>
-            )}
-
-            {forgotStep === "otp" && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-500">
-                  Nhập mã xác thực (4 chữ số) đã gửi đến <span className="font-medium">{forgotEmail}</span> và mật khẩu mới.
-                </p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Mã xác thực</label>
-                  <input
-                    type="text"
-                    value={forgotOtp}
-                    onChange={(e) => setForgotOtp(e.target.value)}
-                    maxLength={4}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition text-center text-lg tracking-widest"
-                    placeholder="••••"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Mật khẩu mới</label>
-                  <input
-                    type="password"
-                    value={forgotNewPassword}
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Xác nhận mật khẩu mới</label>
-                  <input
-                    type="password"
-                    value={forgotConfirmPassword}
-                    onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setForgotStep("email")}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-lg transition"
-                  >
-                    Quay lại
-                  </button>
-                  <button
-                    onClick={handleResetPassword}
-                    disabled={forgotLoading || !forgotOtp || !forgotNewPassword || !forgotConfirmPassword}
-                    className="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {forgotLoading ? "Đang xử lý..." : "Đặt lại mật khẩu"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+    </ConfigProvider>
   );
 };
 
 export default LoginPage;
+
+

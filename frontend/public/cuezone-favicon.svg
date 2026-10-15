@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Background Gradient: Simonis Emerald to Deep Obsidian -->
+    <linearGradient id="czBg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#021c16" />
+    </linearGradient>
+
+    <!-- Ring Gradient: Emerald Glow -->
+    <linearGradient id="czRing" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="50%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- 8-Ball 3D Shading -->
+    <radialGradient id="ballShade" cx="35%" cy="32%" r="65%">
+      <stop offset="0%" stop-color="#334155" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </radialGradient>
+
+    <!-- Billiard Table Felt Glow -->
+    <radialGradient id="feltGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="60%" stop-color="#059669" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#059669" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Cue Accent -->
+    <linearGradient id="cueDot" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6ee7b7" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#czBg)" stroke="url(#czRing)" stroke-width="2.5" />
+
+  <!-- Subtle Felt Texture / Glow -->
+  <circle cx="32" cy="32" r="26" fill="url(#feltGlow)" />
+
+  <!-- Billiards 8-Ball -->
+  <circle cx="32" cy="32" r="20" fill="url(#ballShade)" />
+
+  <!-- Outer Ring Accent on Ball -->
+  <circle cx="32" cy="32" r="20" stroke="#10b981" stroke-width="1.2" stroke-opacity="0.4" />
+
+  <!-- Ball Highlight / Specular Reflection -->
+  <ellipse cx="26" cy="22" rx="6.5" ry="3.2" transform="rotate(-30 26 22)" fill="#ffffff" fill-opacity="0.22" />
+
+  <!-- Inner White Disc -->
+  <circle cx="32" cy="32" r="10" fill="#ffffff" />
+
+  <!-- 8 Numeral -->
+  <text x="32" y="36.8" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif" font-size="13.5" font-weight="900" fill="#090d16">8</text>
+
+  <!-- Emerald Cue Dot / Accent Badge -->
+  <circle cx="50" cy="14" r="3.5" fill="url(#cueDot)" />
+</svg>

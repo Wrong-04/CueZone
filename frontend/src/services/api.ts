@@ -4,30 +4,11 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
-
-/**
- * Dọn toàn bộ session local khi 401 không thể phục hồi
- * (refresh thất bại, refresh trả success:false hoặc không có refresh token).
- * Xóa cả cuezone_user và báo AuthContext qua event để setUser(null),
- * tránh user vẫn "đăng nhập lỏng" sau khi redirect về /login.
- */
-const endSession = () => {
-  const hadSession = Boolean(
-    localStorage.getItem("accessToken") || localStorage.getItem("refreshToken")
-  );
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
-  localStorage.removeItem("cuezone_user");
-  if (!hadSession) return;
-  window.dispatchEvent(new Event("auth:session-expired"));
-  if (window.location.pathname !== "/login") {
-    window.location.href = "/login";
-  }
-};
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
@@ -41,26 +22,33 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isAuthEndpoint =
+      originalRequest?.url?.includes("/auth/login") ||
+      originalRequest?.url?.includes("/auth/refresh-token");
+
+    if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem("refreshToken");
       if (refreshToken) {
         try {
-          const { data } = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken });
-          if (data.success) {
+          const { data } = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken }, { timeout: 15000 });
+          if (data?.success && data?.data?.accessToken) {
             localStorage.setItem("accessToken", data.data.accessToken);
             localStorage.setItem("refreshToken", data.data.refreshToken);
             originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
             return api(originalRequest);
           }
-          // Refresh token bị backend từ chối (success:false) → hết phiên
-          endSession();
+          throw new Error(data?.message || "Refresh token không hợp lệ");
         } catch {
-          endSession();
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+          localStorage.removeItem("cuezone_user");
+          window.location.href = "/login";
         }
       } else {
-        // 401 mà không có refresh token → không thể phục hồi phiên
-        endSession();
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("cuezone_user");
       }
     }
     return Promise.reject(error);

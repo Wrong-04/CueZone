@@ -1,6 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcryptjs";
-import { appConfig } from "../../config/app.config";
 
 export enum UserRole {
   ADMIN = "admin",
@@ -37,14 +36,7 @@ const userSchema = new Schema<IUser>(
       enum: Object.values(UserRole),
       default: UserRole.CUSTOMER,
     },
-    phone: {
-      type: String,
-      trim: true,
-      // unique + sparse: nhiều user không có phone vẫn OK, chỉ cấm trùng khi có value
-      unique: true,
-      sparse: true,
-      set: (v: string) => (v === null || v === undefined || v === "" ? undefined : v),
-    },
+    phone: { type: String, trim: true },
     avatar: { type: String },
     isActive: { type: Boolean, default: true },
     isLocked: { type: Boolean, default: false },
@@ -56,7 +48,7 @@ const userSchema = new Schema<IUser>(
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, appConfig.bcrypt.saltRounds);
+  this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 

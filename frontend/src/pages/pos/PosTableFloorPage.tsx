@@ -1,0 +1,1330 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { posService } from "../../services/pos.service";
+import type { PosTable, PosOrderItem, CheckoutReceipt } from "../../types/pos";
+import {
+  ClockCircleOutlined,
+  PlayCircleOutlined,
+  PauseCircleOutlined,
+  SwapOutlined,
+  CoffeeOutlined,
+  CheckCircleOutlined,
+  PrinterOutlined,
+  QrcodeOutlined,
+  UserOutlined,
+  PlusOutlined,
+  MinusOutlined,
+  DollarOutlined,
+  SafetyCertificateOutlined,
+  PhoneOutlined,
+} from "@ant-design/icons";
+import {
+  Button,
+  Card,
+  Tag,
+  Input,
+  Select,
+  Typography,
+  message,
+  Modal,
+  Space,
+  SegmentedPillList,
+  SearchFilterInput,
+} from "../../shared/ui";
+import type { FnbStockItem } from "../../mock/posData";
+
+const { Title, Text } = Typography;
+
+export const PosTableFloorPage: React.FC = () => {
+  const [tables, setTables] = useState<PosTable[]>([]);
+  const [fnbStock, setFnbStock] = useState<FnbStockItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const loadTables = useCallback(async () => {
+    setLoading(true);
+    try {
+      setTables(await posService.getTables());
+      setLoadError("");
+    } catch (error: any) {
+      setLoadError(error.response?.data?.message || error.message || "Không thể tải sơ đồ bàn");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadTables(); }, [loadTables]);
+
+  const save = async (action: () => Promise<unknown>) => {
+    if (busy.current) return false;
+    busy.current = true;
+    setSaving(true);
+    try {
+      await action();
+      await loadTables();
+      return true;
+    } catch (error: any) {
+      message.error(error.response?.data?.message || error.message || "Không thể lưu thay đổi");
+      await loadTables();
+      return false;
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
+  };
+
+  // Current clock ticker for live duration calculation
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Filters
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Modals state
+  const [selectedTable, setSelectedTable] = useState<PosTable | null>(null);
+
+  // 1. Open Table Modal
+  const [openModalVisible, setOpenModalVisible] = useState<boolean>(false);
+  const [customerName, setCustomerName] = useState<string>("");
+  const [customerPhone, setCustomerPhone] = useState<string>("");
+  const [sessionNote, setSessionNote] = useState<string>("");
+
+  // 2. Transfer / Merge Table Modal
+  const [transferModalVisible, setTransferModalVisible] = useState<boolean>(false);
+  const [targetTableId, setTargetTableId] = useState<string>("");
+  const [transferAction, setTransferAction] = useState<"transfer" | "merge">("transfer");
+
+  // 3. F&B Order Modal
+  const [fnbModalVisible, setFnbModalVisible] = useState<boolean>(false);
+  const [fnbCategory, setFnbCategory] = useState<string>("all");
+  const [currentOrderList, setCurrentOrderList] = useState<PosOrderItem[]>([]);
+
+  // 4. Checkout & Payment Modal
+  const [checkoutModalVisible, setCheckoutModalVisible] = useState<boolean>(false);
+  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "cash" | "card" | "member_balance">("cash");
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
+  const [paidSummary, setPaidSummary] = useState<CheckoutReceipt | null>(null);
+
+  useEffect(() => {
+    const tableId = searchParams.get("tableId");
+    if (loading || loadError || !tableId) return;
+    const table = tables.find(item => item.id === tableId);
+    if (table?.status === "booked") {
+      setSelectedTable(table);
+      setCustomerName(table.bookedInfo?.customerName || "");
+      setCustomerPhone(table.bookedInfo?.phone || "");
+      setOpenModalVisible(true);
+    } else {
+      message.warning("Lịch đặt bàn đã thay đổi, vui lòng kiểm tra lại");
+    }
+    setSearchParams({}, { replace: true });
+  }, [tables, loading, loadError, searchParams, setSearchParams]);
+  // Calculate live playing minutes and cost
+  const calculatePlayingDetails = (table: PosTable) => {
+    if (!table.currentSession) return { minutes: 0, cost: 0, formattedTime: "00:00:00" };
+    const session = table.currentSession;
+    const effectiveNow = session.isPaused && session.pausedAt ? session.pausedAt : currentTime;
+    const totalElapsedMs = Math.max(0, effectiveNow - session.startedAt - (session.totalPausedMs || 0));
+    const totalMinutes = Math.max(1, Math.round(totalElapsedMs / 60000));
+
+    const hours = Math.floor(totalElapsedMs / 3600000);
+    const mins = Math.floor((totalElapsedMs % 3600000) / 60000);
+    const secs = Math.floor((totalElapsedMs % 60000) / 1000);
+
+    const formattedTime = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    const playingCost = Math.round((totalMinutes / 60) * (session.pricePerHour ?? table.pricePerHour)) + (session.carriedCost || 0);
+
+    return { minutes: totalMinutes, cost: playingCost, formattedTime };
+  };
+
+  // Filtered tables
+  const filteredTables = useMemo(() => {
+    return tables.filter((t) => {
+      const matchType = filterType === "all" || t.type === filterType;
+      const matchStatus = filterStatus === "all" || t.status === filterStatus;
+      const matchQuery =
+        !searchQuery ||
+        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.currentSession?.customerName.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchType && matchStatus && matchQuery;
+    });
+  }, [tables, filterType, filterStatus, searchQuery]);
+
+  // Statistics
+  const stats = useMemo(() => {
+    const total = tables.length;
+    const playing = tables.filter((t) => t.status === "playing").length;
+    const paused = tables.filter((t) => t.status === "paused").length;
+    const booked = tables.filter((t) => t.status === "booked").length;
+    const available = tables.filter((t) => t.status === "available").length;
+
+    let totalTempRevenue = 0;
+    tables.forEach((t) => {
+      if (t.currentSession) {
+        const { cost } = calculatePlayingDetails(t);
+        const fnbCost = t.currentSession.orders.reduce((acc, cur) => acc + cur.price * cur.quantity, 0);
+        totalTempRevenue += cost + fnbCost;
+      }
+    });
+
+    return { total, playing, paused, booked, available, totalTempRevenue };
+  }, [tables, currentTime]);
+
+  // Segmented Pill Items for status filtering
+  const statusPillItems = [
+    { key: "all", label: "Tất cả bàn", badge: stats.total },
+    { key: "playing", label: "Đang chơi", badge: stats.playing, dotClassName: "bg-emerald-500" },
+    { key: "paused", label: "Tạm dừng", badge: stats.paused, dotClassName: "bg-amber-500" },
+    { key: "booked", label: "Đã đặt", badge: stats.booked, dotClassName: "bg-blue-500" },
+    { key: "available", label: "Trống", badge: stats.available, dotClassName: "bg-slate-400" },
+  ];
+
+  // Handler: Open Table & Start Session
+  const handleOpenTable = async () => {
+    if (!selectedTable) return;
+    if (selectedTable.status !== "available" && selectedTable.status !== "booked") {
+      message.warning("Bàn này không ở trạng thái sẵn sàng để mở!");
+      return;
+    }
+
+    const saved = await save(() => posService.open(selectedTable.id, {
+      customerName: customerName.trim(), customerPhone: customerPhone.trim(), note: sessionNote.trim(),
+      bookingId: selectedTable.bookedInfo?.bookingId,
+    }));
+    if (!saved) return;
+
+    message.success(`Đã mở ${selectedTable.name} & bắt đầu tính giờ thành công!`);
+    setOpenModalVisible(false);
+    setSelectedTable(null);
+    setCustomerName("");
+    setCustomerPhone("");
+    setSessionNote("");
+  };
+
+  // Handler: Pause / Resume Table
+  const handleTogglePause = async (table: PosTable) => {
+    if (!table.currentSession) return;
+    if (await save(() => posService.pause(table))) {
+      message.success(table.currentSession.isPaused ? `Đã tiếp tục tính giờ ${table.name}` : `Đã tạm dừng tính giờ ${table.name}`);
+    }
+  };
+
+  // Handler: Transfer / Merge Table
+  const handleTransferOrMerge = async () => {
+    if (!selectedTable || !selectedTable.currentSession || !targetTableId) {
+      message.warning("Vui lòng chọn bàn đích!");
+      return;
+    }
+
+    const targetTable = tables.find((t) => t.id === targetTableId);
+    if (!targetTable) return;
+
+    if (!await save(() => posService.move(selectedTable, targetTableId, transferAction))) return;
+    message.success(`Đã ${transferAction === "transfer" ? "chuyển" : "gộp"} ${selectedTable.name} sang ${targetTable.name}!`);
+
+    setTransferModalVisible(false);
+    setSelectedTable(null);
+    setTargetTableId("");
+  };
+
+  // Handler: Manage F&B Order
+  const handleOpenFnbModal = (table: PosTable) => {
+    setSelectedTable(table);
+    setCurrentOrderList(table.currentSession?.orders || []);
+    setFnbModalVisible(true);
+  };
+
+  const handleAddFnbItem = (stockItem: FnbStockItem) => {
+    if (stockItem.stockQuantity <= 0) {
+      message.warning(`Món "${stockItem.name}" đã hết hàng trong kho!`);
+      return;
+    }
+
+    setCurrentOrderList((prev) => {
+      const existing = prev.find((o) => o.id === stockItem.id);
+      if (existing) {
+        return prev.map((o) =>
+          o.id === stockItem.id ? { ...o, quantity: o.quantity + 1 } : o
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: stockItem.id,
+          name: stockItem.name,
+          price: stockItem.price,
+          quantity: 1,
+          category: stockItem.category,
+          orderTime: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+          status: "served",
+        },
+      ];
+    });
+
+    // Reduce stock locally
+    setFnbStock((prev) =>
+      prev.map((item) =>
+        item.id === stockItem.id ? { ...item, stockQuantity: item.stockQuantity - 1 } : item
+      )
+    );
+  };
+
+  const handleUpdateOrderItemQty = (itemId: string, delta: number) => {
+    setCurrentOrderList((prev) => {
+      return prev
+        .map((item) => {
+          if (item.id === itemId) {
+            const nextQty = item.quantity + delta;
+            return nextQty > 0 ? { ...item, quantity: nextQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean) as PosOrderItem[];
+    });
+
+    // Restore or reduce stock
+    setFnbStock((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, stockQuantity: Math.max(0, item.stockQuantity - delta) } : item
+      )
+    );
+  };
+
+  const handleConfirmFnbOrder = () => {
+    message.warning("Gọi món chưa được kết nối backend");
+  };
+
+  // Handler: Open Checkout Modal
+  const handleOpenCheckout = (table: PosTable) => {
+    setSelectedTable(table);
+    setDiscountPercent(table.currentSession?.isMember ? 10 : 0);
+    setPaymentMethod("cash");
+    setCheckoutModalVisible(true);
+  };
+
+  // Handler: Confirm Checkout & Print Receipt
+  const handleConfirmCheckout = async () => {
+    if (!selectedTable?.currentSession) return;
+    const saved = await save(async () => {
+      setPaidSummary(await posService.checkout(selectedTable, discountPercent, paymentMethod));
+    });
+    if (!saved) return;
+    setCheckoutModalVisible(false);
+    setReceiptModalVisible(true);
+    message.success(`Đã lưu hóa đơn thanh toán tiền mặt cho ${selectedTable.name}!`);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* ── TOP UNIFIED COMMAND BAR (TIÊU ĐỀ, BÁO CÁO NHANH & BỘ LỌC) ───────── */}
+      <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden">
+        {/* Row 1: Header, Revenue KPI & Test QR action */}
+        <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 bg-white">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <Title level={3} className="!text-xl !font-black !text-slate-900 !mb-0 tracking-tight">
+                POS Sơ Đồ Bàn & Thu Ngân Trực Tiếp
+              </Title>
+              <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0">
+                SIMONIS FLOOR
+              </Tag>
+            </div>
+            <Text className="!text-xs !text-slate-500 block">
+              Phiên chơi và hóa đơn tiền mặt được lưu trên máy chủ. Gọi món và thanh toán online chưa được kết nối.
+            </Text>
+          </div>
+
+          <div className="flex items-center gap-3 self-start md:self-center">
+            {/* Real-time temporary revenue badge */}
+            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-2 shadow-2xs">
+              <span className="text-[11px] font-semibold text-emerald-800">Tạm tính sàn:</span>
+              <span className="text-base font-black text-emerald-700 font-mono">
+                {stats.totalTempRevenue.toLocaleString("vi-VN")}đ
+              </span>
+            </div>
+
+            <Button variant="outline" size="sm" onClick={loadTables} loading={loading} disabled={saving}>
+              Tải lại
+            </Button>
+          </div>
+        </div>
+
+        {/* Row 2: Status Pills, Table Type Filter & Search Input */}
+        <div className="p-3 bg-slate-50/70 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Segmented Pill List for Status Filtering with live counts */}
+          <div className="overflow-x-auto pb-1 lg:pb-0">
+            <SegmentedPillList
+              items={statusPillItems}
+              activeKey={filterStatus}
+              onSelect={(key) => setFilterStatus(key)}
+            />
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {/* Table type select */}
+            <Select
+              value={filterType}
+              onChange={(val) => setFilterType(val)}
+              className="!w-44 !rounded-lg"
+              options={[
+                { value: "all", label: "Tất cả loại bàn" },
+                { value: "standard", label: "Bàn Thường 9FT" },
+                { value: "vip", label: "Bàn VIP Bank Pool" },
+                { value: "match", label: "Bàn Match K-Steel" },
+              ]}
+            />
+
+            {/* Shared UI Search Filter Input */}
+            <SearchFilterInput
+              value={searchQuery}
+              onChange={(val) => setSearchQuery(val)}
+              placeholder="Tìm bàn, số bàn, khách..."
+              width={240}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {loadError && <Card><Text type="danger">{loadError}</Text><Button variant="link" onClick={loadTables}>Thử lại</Button></Card>}
+      {loading && <Text>Đang tải sơ đồ bàn từ máy chủ...</Text>}
+      {!loading && !loadError && filteredTables.length === 0 && <Card><Text>Không có bàn phù hợp trong database.</Text></Card>}
+
+      {/* ── SƠ ĐỒ LƯỚI BÀN (ERGONOMIC TABLE CARDS GRID) ──────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+        {filteredTables.map((table) => {
+          const { cost, formattedTime } = calculatePlayingDetails(table);
+          const fnbTotal = table.currentSession?.orders.reduce(
+            (acc, cur) => acc + cur.price * cur.quantity,
+            0
+          ) || 0;
+          const totalTableBill = cost + fnbTotal;
+
+          const isPlaying = table.status === "playing";
+          const isPaused = table.status === "paused";
+          const isBooked = table.status === "booked";
+          const isAvailable = table.status === "available";
+          const isMaintenance = table.status === "maintenance";
+
+          return (
+            <Card
+              key={table.id}
+              styles={{ body: { padding: 0 } }}
+              className={`!rounded-2xl transition-all duration-200 overflow-hidden shadow-2xs hover:shadow-md flex flex-col justify-between ${
+                isPlaying
+                  ? "!border-emerald-500 !bg-white ring-1 ring-emerald-500/20"
+                  : isPaused
+                  ? "!border-amber-400 !bg-white ring-1 ring-amber-400/20"
+                  : isBooked
+                  ? "!border-blue-400 !bg-white ring-1 ring-blue-400/20"
+                  : isMaintenance
+                  ? "!border-slate-200 !bg-slate-50 opacity-60"
+                  : "!border-slate-200 !bg-white hover:!border-slate-300"
+              }`}
+            >
+              {/* 1. Header: Table code, name, type & status badge */}
+              <div className="px-3.5 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-mono text-[11px] font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                    {table.code}
+                  </span>
+                  <span className="font-black text-sm text-slate-900 tracking-tight truncate">
+                    {table.name}
+                  </span>
+                  <span className="text-[11px] text-slate-500 hidden sm:inline truncate">
+                    • {table.typeName}
+                  </span>
+                </div>
+
+                <div>
+                  {isPlaying && (
+                    <Tag color="green" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0 inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      ĐANG CHƠI
+                    </Tag>
+                  )}
+                  {isPaused && (
+                    <Tag color="orange" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0 inline-flex items-center gap-1">
+                      <PauseCircleOutlined className="text-[10px]" />
+                      TẠM DỪNG
+                    </Tag>
+                  )}
+                  {isBooked && (
+                    <Tag color="blue" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0">
+                      HẸN {table.bookedInfo?.time}
+                    </Tag>
+                  )}
+                  {isAvailable && (
+                    <Tag color="default" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-semibold !m-0 !bg-slate-100 !text-slate-600">
+                      TRỐNG
+                    </Tag>
+                  )}
+                  {isMaintenance && (
+                    <Tag color="error" className="!rounded-full !px-2 !py-0.5 !text-[10.5px] !font-bold !m-0">
+                      BẢO TRÌ
+                    </Tag>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Body: Compact information area (~100-110px) */}
+              <div className="p-3.5 flex-1 flex flex-col justify-between">
+                {isPlaying || isPaused ? (
+                  <div className="space-y-2">
+                    {/* Timer row */}
+                    <div className="flex items-baseline justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <ClockCircleOutlined className={isPaused ? "text-amber-500 text-sm" : "text-emerald-600 text-sm"} />
+                        <span className={`text-xl font-black font-mono tracking-wider ${isPaused ? "text-amber-600" : "text-slate-900"}`}>
+                          {formattedTime}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Từ {table.currentSession?.sessionStart}
+                      </span>
+                    </div>
+
+                    {/* Customer & Breakdown */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <UserOutlined className="text-slate-400 text-xs flex-shrink-0" />
+                          <span className="font-bold text-slate-800 truncate max-w-[120px]">
+                            {table.currentSession?.customerName}
+                          </span>
+                          {table.currentSession?.isMember && (
+                            <Tag color="gold" className="!text-[9px] !px-1 !py-0 !border-0 !m-0 !font-bold">
+                              {table.currentSession.memberRank || "VIP"}
+                            </Tag>
+                          )}
+                        </div>
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          Giờ: {cost.toLocaleString("vi-VN")}đ
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-[11px]">
+                          F&B ({table.currentSession?.orders.length || 0} món):
+                        </span>
+                        <span className="text-emerald-700 font-mono font-medium text-[11px]">
+                          {fnbTotal.toLocaleString("vi-VN")}đ
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Grand Total */}
+                    <div className="flex items-baseline justify-between pt-1.5 border-t border-dashed border-slate-200">
+                      <span className="text-[11px] font-semibold text-slate-600">Tạm tính:</span>
+                      <span className="text-base font-black text-emerald-700 font-mono">
+                        {totalTableBill.toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+                  </div>
+                ) : isBooked ? (
+                  <div className="space-y-2 py-0.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <UserOutlined className="text-blue-500 text-xs" />
+                        <span className="text-xs font-bold text-blue-950 truncate">
+                          {table.bookedInfo?.customerName}
+                        </span>
+                      </div>
+                      <span className="text-xs font-mono font-semibold text-blue-800">
+                        {table.bookedInfo?.phone}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-blue-50/70 border border-blue-200/60 text-[11px] space-y-1">
+                      <div className="flex justify-between text-blue-900">
+                        <span>Giờ hẹn khách:</span>
+                        <span className="font-bold">{table.bookedInfo?.time} hôm nay</span>
+                      </div>
+                      <div className="flex justify-between text-blue-800">
+                        <span>Tiền cọc giữ bàn:</span>
+                        <span className="font-mono font-bold text-emerald-700">100.000đ</span>
+                      </div>
+                    </div>
+                    <span className="text-[10.5px] text-slate-400 block text-center">
+                      Khách đã đến? Bấm nhận bàn bên dưới
+                    </span>
+                  </div>
+                ) : (
+                  <div className="py-1 space-y-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        Đơn giá bàn
+                      </span>
+                      <span className="text-base font-black font-mono text-emerald-700">
+                        {table.pricePerHour.toLocaleString("vi-VN")}đ<span className="text-xs font-normal text-slate-400">/h</span>
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircleOutlined className="text-emerald-500 text-xs" />
+                        <span>Nỉ Simonis 860 • Bóng Aramith</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircleOutlined className="text-emerald-500 text-xs" />
+                        <span>Vệ sinh sạch sẽ, sẵn sàng đón khách</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Footer: Action Buttons (~44px, ALWAYS VISIBLE!) */}
+              <div className="px-3.5 py-2.5 bg-slate-50/80 border-t border-slate-100">
+                {isAvailable || isBooked ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedTable(table);
+                      if (table.bookedInfo) {
+                        setCustomerName(table.bookedInfo.customerName);
+                        setCustomerPhone(table.bookedInfo.phone);
+                      }
+                      setOpenModalVisible(true);
+                    }}
+                    leftIcon={<PlayCircleOutlined />}
+                    className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9 shadow-2xs"
+                  >
+                    {isBooked ? "Khách Đến (Nhận Bàn)" : "Bật Bàn Tính Giờ"}
+                  </Button>
+                ) : isPlaying || isPaused ? (
+                  <div className="flex items-center gap-1.5">
+                    {/* Primary checkout button */}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleOpenCheckout(table)}
+                      leftIcon={<DollarOutlined />}
+                      className="!flex-1 !rounded-lg !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-8 text-white shadow-2xs"
+                    >
+                      Thanh Toán
+                    </Button>
+
+                    {/* F&B button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenFnbModal(table)}
+                      disabled
+                      leftIcon={<CoffeeOutlined />}
+                      className="!rounded-lg !text-xs !h-8 !px-2.5 !border-slate-300 !text-slate-700 hover:!border-emerald-600"
+                      title="Gọi món chưa được kết nối backend"
+                    >
+                      Món ({table.currentSession?.orders.length || 0})
+                    </Button>
+
+                    {/* Pause/Resume button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTogglePause(table)}
+                      disabled={saving || loading || !!loadError}
+                      leftIcon={isPaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
+                      className={`!rounded-lg !text-xs !h-8 !px-2.5 ${
+                        isPaused
+                          ? "!bg-amber-100 !border-amber-400 !text-amber-900"
+                          : "!border-slate-300 !text-slate-700 hover:!border-emerald-600"
+                      }`}
+                      title={isPaused ? "Tiếp tục tính giờ" : "Tạm dừng"}
+                    />
+
+                    {/* Transfer/Merge button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTable(table);
+                        setTransferModalVisible(true);
+                      }}
+                      leftIcon={<SwapOutlined />}
+                      className="!rounded-lg !text-xs !h-8 !w-8 !p-0 !min-w-0 !border-slate-300 !text-slate-700 hover:!border-emerald-600"
+                      title="Đổi hoặc gộp bàn"
+                    />
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="!w-full !rounded-lg !text-xs !h-8 !text-slate-400"
+                  >
+                    Bàn đang bảo trì nỉ
+                  </Button>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* ── MODAL 1: MỞ BÀN TÍNH GIỜ (Open Table & Start Session) ────────────── */}
+      <Modal
+        open={openModalVisible}
+        onCancel={() => setOpenModalVisible(false)}
+        footer={null}
+        title={
+          <Space align="center" size={8}>
+            <PlayCircleOutlined className="text-emerald-600 text-lg" />
+            <span className="font-bold text-slate-900 text-base">
+              Bật Bàn & Bắt Đầu Phiên Chơi ({selectedTable?.name})
+            </span>
+          </Space>
+        }
+      >
+        <div className="py-3 space-y-4">
+          <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-950 space-y-1">
+            <div className="flex justify-between">
+              <span>Loại bàn:</span>
+              <strong className="font-bold">{selectedTable?.typeName}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span>Đơn giá giờ chơi:</span>
+              <strong className="font-bold text-emerald-700 font-mono">
+                {selectedTable?.pricePerHour.toLocaleString("vi-VN")}đ / giờ
+              </strong>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Họ tên khách hàng / Hội viên:
+            </label>
+            <Input
+              placeholder="Nhập tên khách hoặc quẹt thẻ hội viên..."
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              prefix={<UserOutlined className="text-slate-400" />}
+              className="!h-10 !rounded-xl"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Số điện thoại khách (tùy chọn):
+            </label>
+            <Input
+              placeholder="0912 345 678"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              prefix={<PhoneOutlined className="text-slate-400" />}
+              className="!h-10 !rounded-xl"
+            />
+          </div>
+
+          <Text type="secondary">Ưu đãi hội viên chưa được kết nối; thu ngân có thể chọn giảm giá khi thanh toán.</Text>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Ghi chú phiên chơi:
+            </label>
+            <Input.TextArea
+              rows={2}
+              placeholder="Mượn găng tay, cơ cá nhân, nước uống trước..."
+              value={sessionNote}
+              onChange={(e) => setSessionNote(e.target.value)}
+              className="!rounded-xl"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setOpenModalVisible(false)}
+              className="!rounded-xl"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenTable}
+              loading={saving}
+              disabled={loading || !!loadError}
+              leftIcon={<PlayCircleOutlined />}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
+            >
+              Bật Bàn Tính Giờ
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL 2: ĐỔI BÀN / GỘP BÀN (Transfer / Merge Table) ──────────────── */}
+      <Modal
+        open={transferModalVisible}
+        onCancel={() => setTransferModalVisible(false)}
+        footer={null}
+        title={
+          <Space align="center" size={8}>
+            <SwapOutlined className="text-emerald-600 text-lg" />
+            <span className="font-bold text-slate-900 text-base">
+              Chuyển Bàn hoặc Gộp Bàn ({selectedTable?.name})
+            </span>
+          </Space>
+        }
+      >
+        <div className="py-3 space-y-4">
+          <div className="flex rounded-xl bg-slate-100 p-1">
+            <Button
+              variant={transferAction === "transfer" ? "primary" : "ghost"}
+              size="sm"
+              onClick={() => setTransferAction("transfer")}
+              className={`!flex-1 !rounded-lg !text-xs !h-8 ${
+                transferAction === "transfer"
+                  ? "!bg-white !text-emerald-800 !border-0 shadow-2xs font-bold"
+                  : "!text-slate-500 hover:!text-slate-800"
+              }`}
+            >
+              Đổi Sang Bàn Mới (Chuyển Bàn)
+            </Button>
+            <Button
+              variant={transferAction === "merge" ? "primary" : "ghost"}
+              size="sm"
+              onClick={() => setTransferAction("merge")}
+              className={`!flex-1 !rounded-lg !text-xs !h-8 ${
+                transferAction === "merge"
+                  ? "!bg-white !text-emerald-800 !border-0 shadow-2xs font-bold"
+                  : "!text-slate-500 hover:!text-slate-800"
+              }`}
+            >
+              Gộp Hóa Đơn Vào Bàn Khác
+            </Button>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chọn bàn đích tiếp nhận:
+            </label>
+            <Select
+              placeholder="-- Chọn bàn đích --"
+              value={targetTableId}
+              onChange={(val) => setTargetTableId(val)}
+              className="!w-full !rounded-xl"
+              options={tables
+                .filter((t) => t.id !== selectedTable?.id)
+                .filter((t) =>
+                  transferAction === "transfer" ? t.status === "available" : t.status === "playing"
+                )
+                .map((t) => ({
+                  value: t.id,
+                  label: `${t.name} (${t.typeName}) - Trạng thái: ${
+                    t.status === "available" ? "Trống" : "Đang chơi"
+                  }`,
+                }))}
+            />
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+            {transferAction === "transfer" ? (
+              <p className="mb-0">
+                Khi đổi bàn, toàn bộ thời gian đã chơi và các món F&B đã gọi của <strong>{selectedTable?.name}</strong> sẽ được chuyển sang bàn đích. Bàn hiện tại sẽ trở về trạng thái Trống.
+              </p>
+            ) : (
+              <p className="mb-0">
+                Khi gộp bàn, danh sách món F&B của <strong>{selectedTable?.name}</strong> sẽ được dồn vào hóa đơn bàn đích. Bàn hiện tại sẽ đóng phiên và trở về trạng thái Trống.
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTransferModalVisible(false)}
+              className="!rounded-xl"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleTransferOrMerge}
+              loading={saving}
+              disabled={loading || !!loadError}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
+            >
+              Xác Nhận Thao Tác
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL 3: GỌI MÓN F&B TẠI BÀN (Manage F&B Order) ─────────────────── */}
+      <Modal
+        open={fnbModalVisible}
+        onCancel={() => setFnbModalVisible(false)}
+        footer={null}
+        width={780}
+        title={
+          <div className="flex items-center justify-between pr-4">
+            <Space align="center" size={8}>
+              <CoffeeOutlined className="text-emerald-600 text-lg" />
+              <span className="font-bold text-slate-900 text-base">
+                Gọi Món F&B Tại Bàn: {selectedTable?.name}
+              </span>
+            </Space>
+            <Tag color="green" className="!font-bold">
+              {currentOrderList.reduce((acc, cur) => acc + cur.quantity, 0)} món đã chọn
+            </Tag>
+          </div>
+        }
+      >
+        <div className="py-2 grid grid-cols-1 md:grid-cols-12 gap-4">
+          {/* Cột Trái (7 cols): Danh Mục Món & Tồn Kho */}
+          <div className="md:col-span-7 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800">Thực đơn & Tồn kho:</span>
+              <Select
+                value={fnbCategory}
+                onChange={(val) => setFnbCategory(val)}
+                className="!w-36 !rounded-lg !text-xs"
+                options={[
+                  { value: "all", label: "Tất cả món" },
+                  { value: "coffee", label: "Cà phê" },
+                  { value: "tea", label: "Trà" },
+                  { value: "beer", label: "Bia" },
+                  { value: "food", label: "Món ăn" },
+                  { value: "snack", label: "Ăn vặt" },
+                  { value: "equipment", label: "Phụ kiện" },
+                ]}
+              />
+            </div>
+
+            <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
+              {fnbStock
+                .filter((item) => fnbCategory === "all" || item.category === fnbCategory)
+                .map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-xl border border-slate-200 hover:border-emerald-500 bg-white flex items-center justify-between gap-3 transition-all"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-slate-900">{item.name}</span>
+                        {item.stockQuantity <= 0 ? (
+                          <Tag color="error" className="!text-[9px] !px-1.5 !py-0 !border-0">HẾT HÀNG</Tag>
+                        ) : item.stockQuantity < 10 ? (
+                          <Tag color="warning" className="!text-[9px] !px-1.5 !py-0 !border-0">CÒN {item.stockQuantity}</Tag>
+                        ) : (
+                          <Tag color="default" className="!text-[9px] !px-1.5 !py-0 !border-0 !bg-slate-100">Kho: {item.stockQuantity}</Tag>
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-emerald-600 block mt-0.5 font-mono">
+                        {item.price.toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={item.stockQuantity <= 0}
+                      onClick={() => handleAddFnbItem(item)}
+                      leftIcon={<PlusOutlined />}
+                      className="!text-xs !h-8 !px-3 !rounded-xl !border-emerald-300 !text-emerald-800 hover:!bg-emerald-50"
+                    >
+                      Thêm
+                    </Button>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Cột Phải (5 cols): Danh Sách Món Đang Chọn */}
+          <div className="md:col-span-5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
+                <span className="text-xs font-bold text-slate-800">Món của bàn này:</span>
+                <span className="text-xs font-mono text-slate-500">
+                  {currentOrderList.length} loại
+                </span>
+              </div>
+
+              <div className="max-h-[260px] overflow-y-auto space-y-2 pr-1">
+                {currentOrderList.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    Chưa có món nào được gọi. Hãy bấm &quot;Thêm&quot; bên trái.
+                  </div>
+                ) : (
+                  currentOrderList.map((order) => (
+                    <div
+                      key={order.id}
+                      className="p-2.5 rounded-xl bg-white border border-slate-200/80 text-xs flex items-center justify-between"
+                    >
+                      <div className="pr-2 max-w-[130px]">
+                        <span className="font-semibold text-slate-800 block truncate">{order.name}</span>
+                        <span className="text-[11px] text-emerald-700 font-bold font-mono">
+                          {(order.price * order.quantity).toLocaleString("vi-VN")}đ
+                        </span>
+                      </div>
+
+                      <Space size={4} align="center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUpdateOrderItemQty(order.id, -1)}
+                          className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-slate-300 !text-slate-700"
+                        >
+                          <MinusOutlined className="text-xs" />
+                        </Button>
+                        <span className="font-bold text-xs w-5 text-center font-mono">{order.quantity}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUpdateOrderItemQty(order.id, 1)}
+                          className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-emerald-300 !bg-emerald-50/50 !text-emerald-800"
+                        >
+                          <PlusOutlined className="text-xs" />
+                        </Button>
+                      </Space>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Total & Submit */}
+            <div className="pt-3 border-t border-slate-200 mt-3 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-600">Tổng tiền F&B:</span>
+                <span className="text-base text-emerald-700 font-black font-mono">
+                  {currentOrderList
+                    .reduce((acc, cur) => acc + cur.price * cur.quantity, 0)
+                    .toLocaleString("vi-VN")}
+                  đ
+                </span>
+              </div>
+
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmFnbOrder}
+                className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold text-xs !h-9 shadow-xs"
+              >
+                Xác Nhận & Chuyển Quầy Pha Chế
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL 4: THANH TOÁN (Checkout & Process Payment) ────────────────── */}
+      <Modal
+        open={checkoutModalVisible}
+        onCancel={() => setCheckoutModalVisible(false)}
+        footer={null}
+        width={560}
+        title={
+          <Space align="center" size={8}>
+            <DollarOutlined className="text-emerald-600 text-lg" />
+            <span className="font-bold text-slate-900 text-base">
+              Thanh Toán & Chốt Hóa Đơn ({selectedTable?.name})
+            </span>
+          </Space>
+        }
+      >
+        {selectedTable && selectedTable.currentSession && (
+          <div className="py-2 space-y-4 text-xs">
+            {/* Breakdown Bill Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="font-bold text-slate-800 text-sm">{selectedTable.name}</span>
+                <span className="font-mono text-emerald-700 font-bold">
+                  {calculatePlayingDetails(selectedTable).formattedTime}
+                </span>
+              </div>
+
+              <div className="flex justify-between text-slate-600">
+                <span>Khách hàng:</span>
+                <strong className="text-slate-900">{selectedTable.currentSession.customerName}</strong>
+              </div>
+
+              <div className="flex justify-between text-slate-600">
+                <span>Tiền giờ chơi ({calculatePlayingDetails(selectedTable).minutes} phút):</span>
+                <strong className="text-slate-900 font-mono">
+                  {calculatePlayingDetails(selectedTable).cost.toLocaleString("vi-VN")}đ
+                </strong>
+              </div>
+
+              <div className="flex justify-between text-slate-600">
+                <span>Tiền F&B ({selectedTable.currentSession.orders.length} món):</span>
+                <strong className="text-slate-900 font-mono">
+                  {selectedTable.currentSession.orders
+                    .reduce((acc, cur) => acc + cur.price * cur.quantity, 0)
+                    .toLocaleString("vi-VN")}
+                  đ
+                </strong>
+              </div>
+
+              {/* Discount selection */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                <span className="text-slate-600">Chiết khấu / Giảm giá:</span>
+                <Select
+                  value={discountPercent}
+                  onChange={(val) => setDiscountPercent(val)}
+                  className="!w-36 !rounded-lg !text-xs"
+                  options={[
+                    { value: 0, label: "0% (Không)" },
+                    { value: 5, label: "5% (Ưu đãi)" },
+                    { value: 10, label: "10% (Hội viên VIP)" },
+                    { value: 20, label: "20% (Giờ Vàng)" },
+                  ]}
+                />
+              </div>
+
+              <Text>Tiền cọc đã nhận: {(selectedTable.currentSession.deposit || 0).toLocaleString("vi-VN")}đ</Text>
+              <Text type="secondary">Số tiền cuối cùng do máy chủ tính khi xác nhận. Tiền cọc dư phải hoàn lại cho khách.</Text>
+              {/* Final Amount */}
+              <div className="flex justify-between items-center pt-2 border-t-2 border-slate-200 font-bold text-sm text-slate-900">
+                <span>TỔNG CỘNG PHẢI THU:</span>
+                <span className="text-lg font-black text-emerald-700 font-mono">
+                  {Math.max(
+                    0,
+                    calculatePlayingDetails(selectedTable).cost +
+                    selectedTable.currentSession.orders.reduce((sum, item) => sum + item.price * item.quantity, 0) -
+                    Math.round((calculatePlayingDetails(selectedTable).cost +
+                      selectedTable.currentSession.orders.reduce((sum, item) => sum + item.price * item.quantity, 0)) * discountPercent / 100) -
+                    (selectedTable.currentSession.deposit || 0)
+                  ).toLocaleString("vi-VN")}
+                  đ
+                </span>
+              </div>
+            </div>
+
+            {/* Payment Method Selector */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-2">
+                Phương thức thanh toán:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <Button
+                  variant={paymentMethod === "vnpay" ? "primary" : "outline"}
+                  size="sm"
+                  onClick={() => setPaymentMethod("vnpay")}
+                  disabled
+                  title="Chưa tích hợp VNPay"
+                  leftIcon={<QrcodeOutlined />}
+                  className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                    paymentMethod === "vnpay"
+                      ? "!bg-emerald-600 !border-emerald-600 text-white"
+                      : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                  }`}
+                >
+                  <span className="text-[11px] font-bold">VNPay QR</span>
+                </Button>
+
+                <Button
+                  variant={paymentMethod === "cash" ? "primary" : "outline"}
+                  size="sm"
+                  onClick={() => setPaymentMethod("cash")}
+                  leftIcon={<DollarOutlined />}
+                  className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                    paymentMethod === "cash"
+                      ? "!bg-emerald-600 !border-emerald-600 text-white"
+                      : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                  }`}
+                >
+                  <span className="text-[11px] font-bold">Tiền Mặt</span>
+                </Button>
+
+                <Button
+                  variant={paymentMethod === "card" ? "primary" : "outline"}
+                  size="sm"
+                  onClick={() => setPaymentMethod("card")}
+                  disabled
+                  title="Chưa tích hợp thanh toán thẻ"
+                  leftIcon={<SafetyCertificateOutlined />}
+                  className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                    paymentMethod === "card"
+                      ? "!bg-emerald-600 !border-emerald-600 text-white"
+                      : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                  }`}
+                >
+                  <span className="text-[11px] font-bold">Quẹt Thẻ</span>
+                </Button>
+
+                <Button
+                  variant={paymentMethod === "member_balance" ? "primary" : "outline"}
+                  size="sm"
+                  onClick={() => setPaymentMethod("member_balance")}
+                  disabled
+                  title="Chưa tích hợp ví hội viên"
+                  leftIcon={<UserOutlined />}
+                  className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                    paymentMethod === "member_balance"
+                      ? "!bg-emerald-600 !border-emerald-600 text-white"
+                      : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                  }`}
+                >
+                  <span className="text-[11px] font-bold">Ví Hội Viên</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* VNPay Mock Display */}
+            {paymentMethod === "vnpay" && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex items-center gap-3">
+                <div className="h-16 w-16 bg-white rounded-xl p-1 shadow-2xs border border-emerald-200 flex items-center justify-center">
+                  <QrcodeOutlined className="text-4xl text-slate-800" />
+                </div>
+                <div>
+                  <span className="font-bold text-xs text-emerald-950 block">Mã QR VNPay Động</span>
+                  <span className="text-[11px] text-emerald-800 block">
+                    Khách mở App Ngân Hàng hoặc Ví VNPay quét để thanh toán tự động xác nhận sau 2s.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCheckoutModalVisible(false)}
+                className="!rounded-xl"
+              >
+                Đóng
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmCheckout}
+                loading={saving}
+                disabled={loading || !!loadError}
+                leftIcon={<PrinterOutlined />}
+                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
+              >
+                Xác Nhận & In Hóa Đơn
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── MODAL 5: PHIẾU HÓA ĐƠN IN NHIỆT (Print Receipt) ─────────────────── */}
+      <Modal
+        open={receiptModalVisible}
+        onCancel={() => setReceiptModalVisible(false)}
+        footer={null}
+        width={420}
+        title={
+          <div className="flex items-center justify-between pr-4">
+            <span className="font-bold text-slate-900 text-sm">Phiếu Hóa Đơn Bán Lẻ</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.print();
+                message.success("Đang gửi lệnh in tới máy in nhiệt quầy thu ngân...");
+              }}
+              leftIcon={<PrinterOutlined />}
+              className="!text-xs !h-8 !rounded-xl"
+            >
+              In Phiếu (Print)
+            </Button>
+          </div>
+        }
+      >
+        {paidSummary && (
+          <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 font-mono text-xs space-y-3">
+            <div className="text-center pb-2 border-b border-slate-200">
+              <span className="text-sm font-black text-slate-900 block">CUEZONE BILLIARDS LOUNGE</span>
+              <span className="text-[10px] text-slate-500 block">123 Nguyễn Thị Minh Khai, Q.3, TP.HCM</span>
+              <span className="text-[10px] text-slate-500 block">Hotline: 1900 6868</span>
+              <span className="text-[11px] font-bold text-slate-800 block mt-1">
+                HÓA ĐƠN THANH TOÁN ({paidSummary.invoiceCode})
+              </span>
+            </div>
+
+            <div className="space-y-1 text-[11px]">
+              <div className="flex justify-between">
+                <span>Bàn thi đấu:</span>
+                <strong>{paidSummary.tableName}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Khách hàng:</span>
+                <strong>{paidSummary.customerName}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Thời gian chơi:</span>
+                <strong>{paidSummary.sessionStart} - {paidSummary.sessionEnd} ({paidSummary.durationFormatted})</strong>
+              </div>
+              <div className="flex justify-between">
+                <span>Đơn giá giờ:</span>
+                <span>{paidSummary.pricePerHour.toLocaleString("vi-VN")}đ/h</span>
+              </div>
+              <div className="flex justify-between font-bold pt-1 border-t border-slate-100">
+                <span>Tiền giờ chơi:</span>
+                <span>{paidSummary.playingCost.toLocaleString("vi-VN")}đ</span>
+              </div>
+            </div>
+
+            {paidSummary.orders && paidSummary.orders.length > 0 && (
+              <div className="pt-2 border-t border-slate-200 text-[11px] space-y-1">
+                <span className="font-bold block mb-1">MÓN F&B ĐÃ DÙNG:</span>
+                {paidSummary.orders.map((item: PosOrderItem, idx: number) => (
+                  <div key={idx} className="flex justify-between">
+                    <span>{item.name} x{item.quantity}</span>
+                    <span>{(item.price * item.quantity).toLocaleString("vi-VN")}đ</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-bold pt-1 border-t border-slate-100">
+                  <span>Tổng F&B:</span>
+                  <span>{paidSummary.fnbTotal.toLocaleString("vi-VN")}đ</span>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 border-t-2 border-slate-200 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span>Tổng tiền hàng:</span>
+                <span>{paidSummary.subtotal.toLocaleString("vi-VN")}đ</span>
+              </div>
+              {paidSummary.discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-700">
+                  <span>Giảm giá ({paidSummary.discountPercent}%):</span>
+                  <span>-{paidSummary.discountAmount.toLocaleString("vi-VN")}đ</span>
+                </div>
+              )}
+              <Text>Tiền cọc đã trừ: {paidSummary.deposit.toLocaleString("vi-VN")}đ</Text>
+              {paidSummary.refundAmount > 0 && <Text type="danger">Cần hoàn lại khách: {paidSummary.refundAmount.toLocaleString("vi-VN")}đ</Text>}
+              <div className="flex justify-between font-black text-sm pt-1 border-t border-slate-200 text-slate-900">
+                <span>THANH TOÁN:</span>
+                <span className="text-emerald-700">{paidSummary.finalAmount.toLocaleString("vi-VN")}đ</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
+                <span>Hình thức:</span>
+                <span className="uppercase">{paidSummary.paymentMethod}</span>
+              </div>
+            </div>
+
+            <div className="text-center pt-3 border-t border-slate-200 text-[10px] text-slate-400">
+              Cảm ơn quý cơ thủ đã thi đấu tại CueZone!
+              <br />
+              Hẹn gặp lại quý khách!
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+};
+
+export default PosTableFloorPage;
