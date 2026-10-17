@@ -1,3 +1,4 @@
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   TrophyOutlined,
@@ -14,6 +15,7 @@ import {
   CoffeeOutlined,
   VideoCameraOutlined,
   ThunderboltOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -22,26 +24,10 @@ import {
   Typography,
 } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
+import { posService } from "../../services/pos.service";
+import { getSocket } from "../../services/socket.service";
 
 const { Title, Text, Paragraph } = Typography;
-
-// Mock 20 bàn bida realtime cho khách theo dõi
-const REALTIME_TABLES = [
-  { id: "TB-01", name: "Bàn 01", type: "Standard 9FT", status: "playing", time: "45p", price: "50.000đ/h", brand: "Min Table" },
-  { id: "TB-02", name: "Bàn 02", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Min Table" },
-  { id: "TB-03", name: "Bàn 03", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Min Table" },
-  { id: "TB-04", name: "Bàn 04", type: "Standard 9FT", status: "playing", time: "1h 15p", price: "50.000đ/h", brand: "Min Table" },
-  { id: "TB-05", name: "Bàn 05", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Aileex Crown" },
-  { id: "TB-06", name: "Bàn 06", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Aileex Crown" },
-  { id: "TB-07", name: "Bàn 07", type: "Standard 9FT", status: "playing", time: "20p", price: "50.000đ/h", brand: "Aileex Crown" },
-  { id: "TB-08", name: "Bàn 08", type: "Standard 9FT", status: "available", price: "50.000đ/h", brand: "Aileex Crown" },
-  { id: "TB-09", name: "Bàn 09", type: "VIP Lounge", status: "available", price: "70.000đ/h", brand: "Rasson Ox" },
-  { id: "TB-10", name: "Bàn 10", type: "VIP Lounge", status: "available", price: "70.000đ/h", brand: "Rasson Ox" },
-  { id: "TB-11", name: "Bàn 11", type: "VIP Lounge", status: "playing", time: "30p", price: "70.000đ/h", brand: "Rasson Ox" },
-  { id: "TB-12", name: "Bàn 12", type: "VIP Lounge", status: "available", price: "70.000đ/h", brand: "Rasson Ox" },
-  { id: "TB-13", name: "Bàn 13", type: "Match Arena", status: "available", price: "80.000đ/h", brand: "K-Steel Pro (VAR)" },
-  { id: "TB-14", name: "Bàn 14", type: "Match Arena", status: "available", price: "80.000đ/h", brand: "K-Steel Pro (VAR)" },
-];
 
 const PROMOTIONS = [
   {
@@ -79,6 +65,83 @@ const CLUB_AMENITIES = [
 
 const CustomerHome = () => {
   const { user } = useAuth();
+  const [tables, setTables] = useState<any[]>([]);
+  const [loadingTables, setLoadingTables] = useState<boolean>(true);
+  const [filterType, setFilterType] = useState<string>("all");
+  const [socketConnected, setSocketConnected] = useState<boolean>(true);
+
+  const fetchTables = useCallback(async () => {
+    try {
+      const data = await posService.getPublicTables();
+      setTables(data);
+    } catch (err) {
+      console.error("Lỗi tải sơ đồ bàn trực tuyến:", err);
+    } finally {
+      setLoadingTables(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTables();
+
+    const socket = getSocket();
+    setSocketConnected(socket.connected);
+    const onConnect = () => setSocketConnected(true);
+    const onDisconnect = () => setSocketConnected(false);
+    const handleUpdate = () => {
+      fetchTables();
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("table:public_status_changed", handleUpdate);
+    socket.on("table:guest_status_changed", handleUpdate);
+    socket.on("table:status_changed", handleUpdate);
+    socket.on("table:timer_started", handleUpdate);
+
+    const interval = setInterval(fetchTables, 15000);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("table:public_status_changed", handleUpdate);
+      socket.off("table:guest_status_changed", handleUpdate);
+      socket.off("table:status_changed", handleUpdate);
+      socket.off("table:timer_started", handleUpdate);
+      clearInterval(interval);
+    };
+  }, [fetchTables]);
+
+  const stats = useMemo(() => {
+    const total = tables.length;
+    let available = 0;
+    let playing = 0;
+    let booked = 0;
+    let pool = 0;
+    let carom = 0;
+    let snooker = 0;
+    for (const t of tables) {
+      if (t.status === "available") available++;
+      else if (t.status === "playing" || t.status === "paused") playing++;
+      else if (t.status === "booked") booked++;
+
+      const isPool = t.type === "pool" || t.typeName?.includes("Lỗ") || t.typeName?.includes("Pool");
+      const isCarom = t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng");
+      const isSnooker = t.type === "snooker" || t.typeName?.includes("Snooker");
+      if (isPool) pool++;
+      else if (isCarom) carom++;
+      else if (isSnooker) snooker++;
+    }
+    return { total, available, playing, booked, pool, carom, snooker };
+  }, [tables]);
+
+  const filteredTables = useMemo(() => {
+    return tables.filter((t) => {
+      if (filterType === "all") return true;
+      if (filterType === "available") return t.status === "available";
+      return t.type === filterType;
+    });
+  }, [tables, filterType]);
 
   return (
     <div className="space-y-12">
@@ -104,7 +167,7 @@ const CustomerHome = () => {
           </Title>
 
           <Paragraph className="!text-base !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
-            CueZone mang đến 20 bàn bida thi đấu quốc tế (Min, Rasson, K-Steel), hệ thống giải đấu Bank Pool hàng tuần có trọng tài chuyên nghiệp, và công nghệ đặt bàn realtime không cần cọc.
+            CueZone sở hữu hệ thống {stats.total > 0 ? stats.total : 27} bàn bida thi đấu quốc tế (Pool, Carom 3 băng, Snooker), hệ thống giải đấu Bank Pool hàng tuần có trọng tài chuyên nghiệp, và công nghệ đặt bàn realtime không cần cọc.
           </Paragraph>
 
           {/* Social Proof */}
@@ -159,9 +222,11 @@ const CustomerHome = () => {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10 pt-8 border-t border-emerald-200/60 relative z-10">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
             <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold mb-1">
-              <FireOutlined /> 20 BÀN THI ĐẤU
+              <FireOutlined /> {stats.total > 0 ? `${stats.total} BÀN THI ĐẤU` : "27 BÀN THI ĐẤU"}
             </div>
-            <div className="text-2xl font-black text-slate-900">18 Sẵn Sàng</div>
+            <div className="text-2xl font-black text-slate-900">
+              {stats.total > 0 ? `${stats.available} Sẵn Sàng` : "Sẵn Sàng"}
+            </div>
             <div className="text-xs text-slate-500 mt-0.5">Vải Simonis 860 chính hãng</div>
           </div>
 
@@ -170,7 +235,7 @@ const CustomerHome = () => {
               <TrophyOutlined /> GIẢI BANK POOL
             </div>
             <div className="text-2xl font-black text-slate-900">15.000.000đ</div>
-            <div className="text-xs text-slate-500 mt-0.5">Tổng thưởng giải Q2 mở rộng</div>
+            <div className="text-xs text-slate-500 mt-0.5">Tổng thưởng giải Q4 mở rộng</div>
           </div>
 
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
@@ -192,99 +257,215 @@ const CustomerHome = () => {
       </section>
 
       {/* =========================================================================
-          2. SƠ ĐỒ & BẢNG TRẠNG THÁI 20 BÀN REALTIME (LIVE TABLE MAP)
+          2. SƠ ĐỒ & BẢNG TRẠNG THÁI BÀN REALTIME (LIVE TABLE MAP - SCRUM-103 & SCRUM-106)
+          ========================================================================= */}
+      {/* =========================================================================
+          2. SƠ ĐỒ & BẢNG TRẠNG THÁI BÀN REALTIME (LIVE TABLE MAP - SCRUM-103 & SCRUM-106)
           ========================================================================= */}
       <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-          <div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md mb-1.5">
+        {/* Header: Tiêu đề bên trái, Trạng thái Socket + Nút Đặt Bàn bên phải */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              THỜI GIAN THỰC (REALTIME)
+              THEO DÕI THỜI GIAN THỰC
             </div>
-            <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
-              Tình Trạng Bàn Đang Hoạt Động
+            <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              Sơ Đồ Bàn Trực Tuyến
             </Title>
-            <Text className="!text-xs !text-slate-500">
-              Kiểm tra nhanh bàn trống, loại bàn và giá giờ để chọn vị trí chơi ưng ý nhất
+            <Text className="!text-xs sm:!text-sm !text-slate-500 block">
+              Xem bàn trống và thời gian thực trực tiếp tại CLB. Chọn bàn ưa thích và đặt trước nhanh chóng để không phải chờ đợi.
             </Text>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <span className="h-3 w-3 rounded-full bg-emerald-500" />
-              <span className="text-slate-700">Trống (Sẵn sàng)</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <span className="h-3 w-3 rounded-full bg-rose-500" />
-              <span className="text-slate-700">Đang chơi</span>
-            </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {socketConnected ? (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-xs font-bold shadow-2xs">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                </span>
+                <span>Trực tiếp (Live)</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 text-xs font-bold shadow-2xs">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>Đang kết nối lại...</span>
+              </div>
+            )}
             <Button
-              variant="outline"
-              size="sm"
+              variant="primary"
               to="/customer/booking"
-              rightIcon={<RightOutlined className="text-xs" />}
-              className="!text-xs !font-bold !border-slate-300"
+              rightIcon={<ArrowRightOutlined className="text-xs" />}
+              className="!text-xs !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white !h-9 !px-4 !rounded-xl shadow-sm shadow-emerald-600/20"
             >
-              Vào Trang Đặt Bàn
+              Đặt Bàn Ngay
             </Button>
           </div>
         </div>
 
-        {/* Lưới hiển thị các bàn */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {REALTIME_TABLES.map((table) => {
-            const isAvail = table.status === "available";
-            return (
-              <div
-                key={table.id}
-                className={`p-3.5 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
-                  isAvail
-                    ? "bg-white border-slate-200/90 hover:border-emerald-500 hover:shadow-md cursor-pointer group"
-                    : "bg-slate-50 border-slate-200/60 opacity-85"
+        {/* Thanh công cụ tích hợp (Integrated Control Bar): Bộ lọc loại bàn bên trái + Chú thích trạng thái bên phải */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-2 sm:p-2.5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Nhóm nút lọc loại bàn */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { key: "all", label: `Tất cả (${stats.total})` },
+              { key: "available", label: `Bàn trống (${stats.available})`, highlight: true },
+              { key: "pool", label: `Bida Lỗ - Pool (${stats.pool})` },
+              { key: "carom", label: `Carom - Phăng (${stats.carom})` },
+              { key: "snooker", label: `Snooker (${stats.snooker})` },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setFilterType(item.key)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  filterType === item.key
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : item.highlight
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                    : "bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-black text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
-                      {table.name}
-                    </span>
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        isAvail ? "bg-emerald-500 ring-2 ring-emerald-200" : "bg-rose-500"
-                      }`}
-                    />
-                  </div>
+                {item.highlight && filterType !== item.key && (
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                )}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
 
-                  <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 block w-fit mb-1.5">
-                    {table.type}
-                  </span>
-
-                  <div className="text-[11px] text-slate-500 font-medium">
-                    {table.brand}
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-700">
-                    {table.price}
-                  </span>
-                  {isAvail ? (
-                    <Link
-                      to={`/customer/booking?table=${table.id}`}
-                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800"
-                    >
-                      Đặt ngay
-                    </Link>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {table.time}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {/* Chú thích màu sắc & Thống kê nhanh (Legend) */}
+          <div className="flex items-center gap-3.5 sm:gap-4 text-xs font-medium text-slate-600 px-2 border-t md:border-t-0 pt-2 md:pt-0 border-slate-100">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+              <span><strong className="text-slate-900 font-bold">{stats.available}</strong> Trống</span>
+            </span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+              <span><strong className="text-slate-900 font-bold">{stats.playing}</strong> Đang chơi</span>
+            </span>
+            {stats.booked > 0 && (
+              <span className="flex items-center gap-1.5 whitespace-nowrap">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                <span><strong className="text-slate-900 font-bold">{stats.booked}</strong> Đã đặt</span>
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Lưới hiển thị các bàn */}
+        {loadingTables && tables.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-2 bg-white rounded-2xl border border-slate-200">
+            <SyncOutlined spin className="text-emerald-600 text-2xl" />
+            <span className="text-xs text-slate-500">Đang đồng bộ sơ đồ bàn từ CLB...</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
+            {filteredTables.map((table) => {
+              const isAvail = table.status === "available";
+              const isPlaying = table.status === "playing" || table.status === "paused";
+              const isBooked = table.status === "booked";
+              const cleanTableName = (table.name || "").split("•")[0].split("-")[0].trim();
+              
+              const formatTableType = (name?: string, type?: string) => {
+                const raw = (name || type || "").toLowerCase();
+                if (raw.includes("snooker")) return "Bida Snooker";
+                if (raw.includes("carom") || raw.includes("phăng")) return "Carom (Phăng)";
+                return "Bida Lỗ (Pool)";
+              };
+
+              const formatBookedTime = (timeStr?: string) => {
+                if (!timeStr) return "Đã đặt trước";
+                const clean = timeStr.replace(/\(.*?\)/g, "").trim();
+                return clean.startsWith("Đặt lúc") ? clean.replace("Đặt lúc", "Hẹn").trim() : `Hẹn ${clean}`;
+              };
+
+              return (
+                <div
+                  key={table.id}
+                  className={`p-3.5 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
+                    isAvail
+                      ? "bg-white border-emerald-200/90 hover:border-emerald-500 hover:shadow-md ring-1 ring-emerald-500/10 cursor-pointer group"
+                      : isPlaying
+                      ? table.isPaused
+                        ? "bg-amber-50/40 border-amber-200/80"
+                        : "bg-slate-50/80 border-slate-200/90 hover:border-slate-300"
+                      : isBooked
+                      ? "bg-blue-50/40 border-blue-200/80 hover:border-blue-300"
+                      : "bg-slate-100/60 border-slate-200/60 opacity-80"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
+                          {table.code}
+                        </span>
+                        <span className={`font-bold text-sm whitespace-nowrap truncate ${isAvail ? "text-slate-900 group-hover:text-emerald-700" : "text-slate-800"} transition-colors`}>
+                          {cleanTableName}
+                        </span>
+                      </div>
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full shrink-0 ml-1.5 ${
+                          isAvail
+                            ? "bg-emerald-500 ring-2 ring-emerald-200"
+                            : isPlaying
+                            ? table.isPaused
+                              ? "bg-amber-500 ring-2 ring-amber-200"
+                              : "bg-rose-500 ring-2 ring-rose-200 animate-pulse"
+                            : isBooked
+                            ? "bg-blue-500 ring-2 ring-blue-200"
+                            : "bg-slate-400"
+                        }`}
+                      />
+                    </div>
+
+                    <span className="text-[11px] font-medium text-slate-500 block mb-1">
+                      {formatTableType(table.typeName, table.type)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                    <span className="text-xs font-black text-emerald-700 shrink-0">
+                      {table.pricePerHour ? `${table.pricePerHour.toLocaleString("vi-VN")}đ/h` : "60.000đ/h"}
+                    </span>
+                    {isAvail ? (
+                      <Link
+                        to={`/customer/booking?table=${table.id}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-2xs whitespace-nowrap shrink-0"
+                      >
+                        <span>Đặt ngay</span>
+                        <span>→</span>
+                      </Link>
+                    ) : isPlaying ? (
+                      <div className={`text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap ${table.isPaused ? "text-amber-700" : "text-slate-600"}`}>
+                        <ClockCircleOutlined className="text-[10px]" />
+                        <span>{table.isPaused ? `Tạm dừng • ${table.durationFormatted || '0p'}` : `Chơi ${table.durationFormatted || '0p'}`}</span>
+                      </div>
+                    ) : isBooked ? (
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-[11px] text-blue-700 font-bold block whitespace-nowrap">
+                          {formatBookedTime(table.bookedTime)}
+                        </span>
+                        <Link
+                          to={`/customer/booking?table=${table.id}`}
+                          className="text-[10px] font-semibold text-slate-500 hover:text-blue-700 underline block whitespace-nowrap"
+                        >
+                          Đặt giờ khác →
+                        </Link>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 font-semibold">
+                        Bảo trì
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* =========================================================================
@@ -302,7 +483,7 @@ const CustomerHome = () => {
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="flex items-center gap-2">
             <Tag color="gold" className="!text-xs !font-bold !px-3 !py-1 !rounded-md uppercase">
-              GIẢI ĐẤU NỔI BẬT Q2/2026
+              GIẢI ĐẤU NỔI BẬT Q4/2026
             </Tag>
             <span className="text-xs text-amber-400 font-semibold flex items-center gap-1.5">
               <ClockCircleOutlined /> Khởi tranh ngày 15/10/2026

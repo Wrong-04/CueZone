@@ -65,3 +65,32 @@ export const delete_ = async (req: Request, res: Response) => {
     return res.json({ success: false, message: error.message });
   }
 };
+
+export const cancelBooking = async (req: Request, res: Response) => {
+  try {
+    const table = await tableService.cancelBooking(req.params.id);
+    return res.json({ success: true, message: "Hủy giữ bàn thành công", data: table });
+  } catch (error: any) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const findAvailable = async (req: Request, res: Response) => {
+  try {
+    const result = await tableService.findAvailableByType(req.query.type as string);
+    return res.json({ success: true, data: result });
+  } catch (error: any) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const getPublicTables = async (req: Request, res: Response) => {
+  try {
+    const tables = await tableService.getPublicTables(req.query);
+    return res.json({ success: true, data: tables });
+  } catch (error: any) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+

@@ -9,6 +9,7 @@ export interface IPricingTier extends Document {
   prices: {
     standard: number;
     vip: number;
+    match?: number;
   };
   isActive: boolean;
   isCurrentlyActive: boolean;
@@ -26,6 +27,7 @@ const pricingTierSchema = new Schema<IPricingTier>(
     prices: {
       standard: { type: Number, required: true, min: 0 },
       vip: { type: Number, required: true, min: 0 },
+      match: { type: Number, default: 100000 },
     },
     isActive: { type: Boolean, default: true },
     isCurrentlyActive: { type: Boolean, default: false },

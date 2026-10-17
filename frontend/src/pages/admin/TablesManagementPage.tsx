@@ -38,8 +38,8 @@ const DEFAULT_TABLES: BilliardTable[] = [
     _id: "TB-01",
     code: "T01",
     name: "Bàn 01",
-    type: "standard_9ft",
-    area: "Tầng 1 - Khu A (Standard Floor)",
+    type: "pool",
+    area: "Tầng 1 - Khu A (Pool Floor)",
     floor: 1,
     pricePerHour: 50000,
     status: "playing",
@@ -51,8 +51,8 @@ const DEFAULT_TABLES: BilliardTable[] = [
     _id: "TB-02",
     code: "T02",
     name: "Bàn 02",
-    type: "standard_9ft",
-    area: "Tầng 1 - Khu A (Standard Floor)",
+    type: "pool",
+    area: "Tầng 1 - Khu A (Pool Floor)",
     floor: 1,
     pricePerHour: 50000,
     status: "available",
@@ -64,8 +64,8 @@ const DEFAULT_TABLES: BilliardTable[] = [
     _id: "TB-03",
     code: "T03",
     name: "Bàn 03",
-    type: "standard_9ft",
-    area: "Tầng 1 - Khu A (Standard Floor)",
+    type: "pool",
+    area: "Tầng 1 - Khu A (Pool Floor)",
     floor: 1,
     pricePerHour: 50000,
     status: "playing",
@@ -77,8 +77,8 @@ const DEFAULT_TABLES: BilliardTable[] = [
     _id: "TB-05",
     code: "T05",
     name: "Bàn 05",
-    type: "standard_9ft",
-    area: "Tầng 1 - Khu B (Standard Floor)",
+    type: "pool",
+    area: "Tầng 1 - Khu B (Pool Floor)",
     floor: 1,
     pricePerHour: 50000,
     status: "available",
@@ -90,8 +90,8 @@ const DEFAULT_TABLES: BilliardTable[] = [
     _id: "TB-06",
     code: "T06",
     name: "Bàn 06",
-    type: "standard_9ft",
-    area: "Tầng 1 - Khu B (Standard Floor)",
+    type: "pool",
+    area: "Tầng 1 - Khu B (Pool Floor)",
     floor: 1,
     pricePerHour: 50000,
     status: "booked",
@@ -103,8 +103,8 @@ const DEFAULT_TABLES: BilliardTable[] = [
     _id: "TB-08",
     code: "T08",
     name: "Bàn 08",
-    type: "standard_9ft",
-    area: "Tầng 1 - Khu B (Standard Floor)",
+    type: "pool",
+    area: "Tầng 1 - Khu B (Pool Floor)",
     floor: 1,
     pricePerHour: 50000,
     status: "maintenance",
@@ -115,9 +115,9 @@ const DEFAULT_TABLES: BilliardTable[] = [
   {
     _id: "TB-09",
     code: "V09",
-    name: "Bàn VIP 09",
-    type: "vip_bank_pool",
-    area: "Tầng 2 - Phòng VIP Lounge",
+    name: "Bàn Carom 09",
+    type: "carom",
+    area: "Tầng 2 - Phòng Carom Lounge",
     floor: 2,
     pricePerHour: 70000,
     status: "playing",
@@ -128,9 +128,9 @@ const DEFAULT_TABLES: BilliardTable[] = [
   {
     _id: "TB-10",
     code: "V10",
-    name: "Bàn VIP 10",
-    type: "vip_bank_pool",
-    area: "Tầng 2 - Phòng VIP Lounge",
+    name: "Bàn Carom 10",
+    type: "carom",
+    area: "Tầng 2 - Phòng Carom Lounge",
     floor: 2,
     pricePerHour: 70000,
     status: "available",
@@ -141,9 +141,9 @@ const DEFAULT_TABLES: BilliardTable[] = [
   {
     _id: "TB-12",
     code: "V12",
-    name: "Bàn VIP 12",
-    type: "vip_bank_pool",
-    area: "Tầng 2 - Phòng VIP Lounge",
+    name: "Bàn Carom 12",
+    type: "carom",
+    area: "Tầng 2 - Phòng Carom Lounge",
     floor: 2,
     pricePerHour: 70000,
     status: "available",
@@ -154,9 +154,9 @@ const DEFAULT_TABLES: BilliardTable[] = [
   {
     _id: "TB-13",
     code: "M13",
-    name: "Bàn Match 13",
-    type: "match_ksteel",
-    area: "Tầng 2 - Khán Đài Thi Đấu K-Steel VAR",
+    name: "Bàn Snooker 13",
+    type: "snooker",
+    area: "Tầng 2 - Khu Thi Đấu Snooker",
     floor: 2,
     pricePerHour: 80000,
     status: "playing",
@@ -167,9 +167,9 @@ const DEFAULT_TABLES: BilliardTable[] = [
   {
     _id: "TB-14",
     code: "M14",
-    name: "Bàn Match 14",
-    type: "match_ksteel",
-    area: "Tầng 2 - Khán Đài Thi Đấu K-Steel VAR",
+    name: "Bàn Snooker 14",
+    type: "snooker",
+    area: "Tầng 2 - Khu Thi Đấu Snooker",
     floor: 2,
     pricePerHour: 80000,
     status: "available",
@@ -294,13 +294,13 @@ export const TablesManagementPage: React.FC = () => {
             id: t._id,
             name: t.name,
             code: t.code,
-            type: t.type === "standard_9ft" ? "standard" : t.type === "vip_bank_pool" ? "vip" : "match",
+            type: t.type === "carom" ? "carom" : t.type === "snooker" ? "snooker" : "pool",
             typeName:
-              t.type === "standard_9ft"
-                ? "Bàn Thường 9FT"
-                : t.type === "vip_bank_pool"
-                ? "Bàn VIP Bank Pool"
-                : "Bàn Match K-Steel (VAR)",
+              t.type === "carom"
+                ? "Bàn Bida Carom (Phăng)"
+                : t.type === "snooker"
+                ? "Bàn Bida Snooker"
+                : "Bàn Bida Lỗ (Pool)",
             pricePerHour: t.pricePerHour,
             status: t.status === "maintenance" ? "maintenance" : existing?.status || "available",
             currentSession: existing?.currentSession,
@@ -329,7 +329,7 @@ export const TablesManagementPage: React.FC = () => {
   const [editingTable, setEditingTable] = useState<BilliardTable | null>(null);
   const [tableCode, setTableCode] = useState<string>("");
   const [tableName, setTableName] = useState<string>("");
-  const [tableType, setTableType] = useState<TableType>("standard_9ft");
+  const [tableType, setTableType] = useState<TableType>("pool");
   const [tableArea, setTableArea] = useState<string>("Tầng 1 - Khu A");
   const [tableFloor, setTableFloor] = useState<number>(1);
   const [tablePrice, setTablePrice] = useState<number>(50000);
@@ -351,11 +351,11 @@ export const TablesManagementPage: React.FC = () => {
   // Statistics
   const stats = useMemo(() => {
     const total = tables.length;
-    const standard = tables.filter((t) => t.type === "standard_9ft").length;
-    const vip = tables.filter((t) => t.type === "vip_bank_pool").length;
-    const match = tables.filter((t) => t.type === "match_ksteel").length;
+    const pool = tables.filter((t) => t.type === "pool").length;
+    const carom = tables.filter((t) => t.type === "carom").length;
+    const snooker = tables.filter((t) => t.type === "snooker").length;
     const maintenance = tables.filter((t) => t.status === "maintenance").length;
-    return { total, standard, vip, match, maintenance };
+    return { total, pool, carom, snooker, maintenance };
   }, [tables]);
 
   // Filtered Tables
@@ -386,7 +386,7 @@ export const TablesManagementPage: React.FC = () => {
     setEditingTable(null);
     setTableCode(`T${tables.length + 1 < 10 ? "0" + (tables.length + 1) : tables.length + 1}`);
     setTableName(`Bàn ${tables.length + 1 < 10 ? "0" + (tables.length + 1) : tables.length + 1}`);
-    setTableType("standard_9ft");
+    setTableType("pool");
     setTableArea("Tầng 1 - Khu C");
     setTableFloor(1);
     setTablePrice(50000);
@@ -570,19 +570,19 @@ export const TablesManagementPage: React.FC = () => {
       key: "type",
       render: (_: any, record: BilliardTable) => (
         <div>
-          {record.type === "standard_9ft" && (
-            <Tag color="default" className="!font-bold !bg-slate-100 !text-slate-700">
-              BÀN THƯỜNG 9FT
+          {record.type === "pool" && (
+            <Tag color="cyan" className="!font-bold !bg-cyan-50 !text-cyan-800 !border-cyan-200">
+              BÀN BIDA LỖ (POOL)
             </Tag>
           )}
-          {record.type === "vip_bank_pool" && (
-            <Tag color="gold" className="!font-bold">
-              VIP BANK POOL
+          {record.type === "carom" && (
+            <Tag color="gold" className="!font-bold !bg-amber-50 !text-amber-800 !border-amber-200">
+              BÀN BIDA CAROM (PHĂNG)
             </Tag>
           )}
-          {record.type === "match_ksteel" && (
-            <Tag color="green" className="!font-bold">
-              MATCH K-STEEL (VAR)
+          {record.type === "snooker" && (
+            <Tag color="purple" className="!font-bold !bg-purple-50 !text-purple-800 !border-purple-200">
+              BÀN SNOOKER
             </Tag>
           )}
         </div>
@@ -610,11 +610,11 @@ export const TablesManagementPage: React.FC = () => {
         <div className="text-[11px] text-slate-500 space-y-0.5">
           <div className="flex items-center gap-1">
             <CheckCircleOutlined className="text-emerald-500 text-xs" />
-            <span>{record.type === "standard_9ft" ? "Nỉ Simonis 860 tiêu chuẩn" : "Nỉ Simonis 860 HR Competition"}</span>
+            <span>{record.type === "snooker" ? "Nỉ Strachan 6811 Gold Tournament" : "Nỉ Simonis 860 HR Competition"}</span>
           </div>
           <div className="flex items-center gap-1">
             <CheckCircleOutlined className="text-emerald-500 text-xs" />
-            <span>{record.type === "match_ksteel" ? "Bóng Aramith Tournament TV Pro" : "Bóng Aramith Pro Cup"}</span>
+            <span>{record.type === "snooker" ? "Bóng Aramith Tournament Champion" : "Bóng Aramith Pro Cup TV"}</span>
           </div>
         </div>
       ),
@@ -715,7 +715,7 @@ export const TablesManagementPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate("/admin/pos")}
+              onClick={() => navigate("/pos")}
               leftIcon={<ThunderboltOutlined />}
               className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs"
             >
@@ -753,17 +753,17 @@ export const TablesManagementPage: React.FC = () => {
               <span className="text-xs font-semibold text-slate-500 mb-1">Tổng quy mô sàn</span>
               <span className="text-2xl font-black text-slate-900 font-mono">{stats.total} Bàn</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between shadow-2xs">
-              <span className="text-xs font-semibold text-slate-500 mb-1">Bàn Thường 9FT</span>
-              <span className="text-2xl font-black text-slate-800 font-mono">{stats.standard} Bàn</span>
+            <div className="p-3.5 rounded-xl bg-cyan-50/60 border border-cyan-200/80 flex flex-col justify-between shadow-2xs">
+              <span className="text-xs font-semibold text-cyan-800 mb-1">Bàn Bida Lỗ (Pool)</span>
+              <span className="text-2xl font-black text-cyan-800 font-mono">{stats.pool} Bàn</span>
             </div>
             <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 flex flex-col justify-between shadow-2xs">
-              <span className="text-xs font-semibold text-amber-800 mb-1">Bàn VIP Bank Pool</span>
-              <span className="text-2xl font-black text-amber-800 font-mono">{stats.vip} Bàn</span>
+              <span className="text-xs font-semibold text-amber-800 mb-1">Bàn Bida Carom</span>
+              <span className="text-2xl font-black text-amber-800 font-mono">{stats.carom} Bàn</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col justify-between shadow-2xs">
-              <span className="text-xs font-semibold text-emerald-800 mb-1">Bàn Match K-Steel</span>
-              <span className="text-2xl font-black text-emerald-700 font-mono">{stats.match} Bàn</span>
+            <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 flex flex-col justify-between shadow-2xs">
+              <span className="text-xs font-semibold text-purple-800 mb-1">Bàn Snooker</span>
+              <span className="text-2xl font-black text-purple-700 font-mono">{stats.snooker} Bàn</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between shadow-2xs col-span-2 sm:col-span-1">
               <span className="text-xs font-semibold text-slate-500 mb-1">Đang bảo trì nỉ</span>
@@ -781,9 +781,9 @@ export const TablesManagementPage: React.FC = () => {
                   className="!w-44 !rounded-lg !text-xs"
                   options={[
                     { value: "all", label: "Tất cả loại bàn" },
-                    { value: "standard_9ft", label: "Bàn Thường 9FT" },
-                    { value: "vip_bank_pool", label: "Bàn VIP Bank Pool" },
-                    { value: "match_ksteel", label: "Bàn Match K-Steel" },
+                    { value: "pool", label: "Bàn Bida Lỗ (Pool)" },
+                    { value: "carom", label: "Bàn Bida Carom (Phăng)" },
+                    { value: "snooker", label: "Bàn Bida Snooker" },
                   ]}
                 />
 
@@ -1043,9 +1043,9 @@ export const TablesManagementPage: React.FC = () => {
                 onChange={(val) => setTableType(val as TableType)}
                 className="!w-full !rounded-xl"
                 options={[
-                  { value: "standard_9ft", label: "Bàn Thường 9FT" },
-                  { value: "vip_bank_pool", label: "Bàn VIP Bank Pool" },
-                  { value: "match_ksteel", label: "Bàn Match K-Steel" },
+                  { value: "pool", label: "Bàn Bida Lỗ (Pool)" },
+                  { value: "carom", label: "Bàn Bida Carom (Phăng)" },
+                  { value: "snooker", label: "Bàn Bida Snooker" },
                 ]}
               />
             </div>

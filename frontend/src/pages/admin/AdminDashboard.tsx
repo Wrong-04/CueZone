@@ -199,7 +199,7 @@ export const AdminDashboard: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => navigate("/admin/pos")}
+              onClick={() => navigate("/pos")}
               leftIcon={<ThunderboltOutlined />}
               className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
             >
@@ -209,7 +209,7 @@ export const AdminDashboard: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate("/admin/booking")}
+              onClick={() => navigate("/booking")}
               leftIcon={<CalendarOutlined />}
               className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs"
             >
@@ -372,7 +372,7 @@ export const AdminDashboard: React.FC = () => {
               <Button
                 variant="link"
                 size="sm"
-                onClick={() => navigate("/admin/pos")}
+                onClick={() => navigate("/pos")}
                 rightIcon={<RightOutlined />}
                 className="!text-xs !font-bold !text-emerald-700 hover:!text-emerald-800 !p-0"
               >
@@ -393,7 +393,7 @@ export const AdminDashboard: React.FC = () => {
                 return (
                   <div
                     key={table.id}
-                    onClick={() => navigate("/admin/pos")}
+                    onClick={() => navigate("/pos")}
                     className="p-3.5 sm:p-4 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -488,7 +488,7 @@ export const AdminDashboard: React.FC = () => {
               <Button
                 variant="link"
                 size="sm"
-                onClick={() => navigate("/admin/pos")}
+                onClick={() => navigate("/pos")}
                 className="!text-xs !font-bold !text-emerald-700 hover:!text-emerald-800 !p-0"
               >
                 Mở Bàn Mới Ngay
@@ -516,7 +516,7 @@ export const AdminDashboard: React.FC = () => {
               <Button
                 variant="link"
                 size="sm"
-                onClick={() => navigate("/admin/booking")}
+                onClick={() => navigate("/booking")}
                 rightIcon={<RightOutlined />}
                 className="!text-xs !font-bold !text-blue-700 hover:!text-blue-800 !p-0"
               >
@@ -693,7 +693,7 @@ export const AdminDashboard: React.FC = () => {
                   <Button
                     variant="link"
                     size="sm"
-                    onClick={() => navigate("/admin/tournaments")}
+                    onClick={() => navigate("/tournaments")}
                     className="!text-xs !font-bold !text-emerald-700 hover:!text-emerald-800 !p-0"
                   >
                     Mở Bảng Chấm Điểm Điện Tử &rarr;
@@ -714,7 +714,7 @@ export const AdminDashboard: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate("/admin/fnb")}
+                  onClick={() => navigate("/fnb")}
                   className="!text-xs !h-7 !rounded-lg !border-amber-300 !bg-white !text-amber-900 hover:!bg-amber-100"
                 >
                   Nhập Kho

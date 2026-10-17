@@ -1,6 +1,8 @@
 // Run from backend: pnpm exec node scripts/check-pos.cjs
 // Uses a disposable database on the configured MongoDB server, never the app database.
 require('dotenv/config');
+const dns = require('dns');
+try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
 require('ts-node/register/transpile-only');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
@@ -41,9 +43,9 @@ async function main() {
     const customer = await ok('/auth/login', 'POST', { email: 'customer@check.invalid', password: 'CheckPassword123' });
     assert.equal((await request('/bookings', 'GET', undefined, customer.accessToken)).success, false);
     assert.equal((await request('/bookings')).success, false);
-    const table = await ok('/tables', 'POST', { code: 'CHECK1', name: 'Check table', type: 'standard_9ft', area: 'Check', pricePerHour: 60000, status: 'playing' }, token);
+    const table = await ok('/tables', 'POST', { code: 'CHECK1', name: 'Check table', type: 'pool', area: 'Check', pricePerHour: 60000, status: 'playing' }, token);
     assert.equal(table.status, 'available');
-    const second = await ok('/tables', 'POST', { code: 'CHECK2', name: 'Second table', type: 'vip_bank_pool', area: 'Check', pricePerHour: 120000 }, token);
+    const second = await ok('/tables', 'POST', { code: 'CHECK2', name: 'Second table', type: 'carom', area: 'Check', pricePerHour: 120000 }, token);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     assert.throws(() => bookingInput({ customerName: 'Name', phone: '0901234567', tableId: table._id, date: '2099-02-30', time: '19:00', duration: 2, deposit: 0 }));
     const bookingDto = { customerName: 'Check guest', phone: '0901234567', tableId: table._id, date: tomorrow, time: '19:00', duration: 2, deposit: 100, note: 'Check note' };
@@ -75,7 +77,7 @@ async function main() {
     const another = await ok(`/tables/${table._id}/session`, 'POST', { customerName: 'Second guest' }, token);
     await ok(`/tables/${table._id}/session/move`, 'POST', { sessionId: another.currentSession.sessionId, targetTableId: second._id, action: 'merge' }, token);
     assert.equal((await Table.findById(second._id)).currentSession.carriedCost, 1000);
-    assert.equal((await request(`/tables/${second._id}/session/checkout`, 'POST', { sessionId, discountPercent: 0, paymentMethod: 'vnpay' }, token)).success, false);
+    assert.equal((await request(`/tables/${second._id}/session/checkout`, 'POST', { sessionId, discountPercent: 0, paymentMethod: 'invalid_method' }, token)).success, false);
     const pay = { sessionId, discountPercent: 10, paymentMethod: 'cash' };
     const receipt = await ok(`/tables/${second._id}/session/checkout`, 'POST', pay, token);
     assert.equal(receipt.subtotal, 2000);
@@ -85,7 +87,36 @@ async function main() {
     assert.equal((await Table.findById(second._id)).status, 'available');
     assert.equal((await ok('/bookings', 'GET', undefined, token)).length, 1);
     assert.equal((await ok('/tables?isActive=true', 'GET', undefined, token)).length, 2);
-    console.log('PASS: database auth, permissions, reservation conflicts, reassignment, check-in, pause, move/merge, persisted and retry-safe cash invoice');
+
+    // SCRUM-94: Test luồng walk-in mở bàn & fallback waitlist
+    const poolAvailBefore = await ok('/tables/available?type=pool', 'GET', undefined, token);
+    assert.equal(poolAvailBefore.waitlistSuggested, false, 'Pool table should be available before walk-in');
+    assert.equal(poolAvailBefore.availableCount >= 1, true);
+
+    const walkInSession = await ok(`/tables/${table._id}/session/open`, 'POST', { customerName: 'Khách Walk-in', customerPhone: '0912345678' }, token);
+    assert.equal(walkInSession.status, 'playing');
+    assert.equal(walkInSession.currentSession.customerName, 'Khách Walk-in');
+
+    const poolAvailAfter = await ok('/tables/available?type=pool', 'GET', undefined, token);
+    assert.equal(poolAvailAfter.waitlistSuggested, true, 'Waitlist should be suggested when pool tables are full');
+    assert.equal(poolAvailAfter.availableCount, 0);
+
+    // SCRUM-107: Test xem sơ đồ bàn realtime cho Guest & ẩn dữ liệu cá nhân
+    const publicTables = await ok('/public/tables', 'GET', undefined, undefined);
+    assert.equal(Array.isArray(publicTables), true);
+    assert.equal(publicTables.length >= 2, true);
+    for (const pt of publicTables) {
+      assert.equal(pt.customerName, undefined, 'Guest table data must NOT expose customerName');
+      assert.equal(pt.customerPhone, undefined, 'Guest table data must NOT expose customerPhone');
+      assert.equal(pt.deposit, undefined, 'Guest table data must NOT expose deposit');
+      assert.equal(pt.orders, undefined, 'Guest table data must NOT expose orders');
+      assert.equal(pt.note, undefined, 'Guest table data must NOT expose note');
+    }
+    const publicPlaying = publicTables.find(t => t.code === 'CHECK1');
+    assert.equal(publicPlaying.status, 'playing');
+    assert.equal(typeof publicPlaying.durationMinutes, 'number');
+
+    console.log('PASS: database auth, permissions, reservation conflicts, reassignment, check-in, pause, move/merge, walk-in & waitlist, public guest floor without sensitive data');
   } finally {
     if (server) {
       server.closeAllConnections();
@@ -101,5 +132,6 @@ async function main() {
 main().catch(error => {
   const safeMessage = String(error.message).replace(/mongodb(?:\+srv)?:\/\/\S+/g, '<REDACTED>');
   console.error('FAIL:', error.name, safeMessage);
+  console.error(error.stack);
   process.exit(1);
 });

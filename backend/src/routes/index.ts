@@ -7,10 +7,13 @@ import pricingRouter from "../modules/pricing/pricing.routes";
 import notificationRouter from "../modules/notification/notification.routes";
 import bookingRouter from "../modules/booking/booking.routes";
 import sessionRouter from "../modules/session/session.routes";
+import { getPublicTables } from "../modules/table/table.controller";
 
 // Public routes (no auth middleware)
 export const publicRouter = Router();
 publicRouter.use("/auth", authRouter);
+publicRouter.get("/public/tables", getPublicTables);
+publicRouter.get("/tables/public", getPublicTables);
 
 // Protected routes (auth middleware applied in app.ts)
 export const protectedRouter = Router();

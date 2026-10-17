@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import { Booking } from "./booking.model";
 import { Table, TableStatus } from "../table/table.model";
+import { User } from "../user/user.model";
+import { emitTableStatusChanged } from "../../utils/socketHolder";
 
 export function bookingInput(input: any) {
   if (typeof input.customerName !== "string" || !input.customerName.trim() || input.customerName.length > 120 ||
@@ -24,22 +26,42 @@ export function bookingInput(input: any) {
 
 export class BookingService {
   async getAll() {
-    return Booking.find().sort({ createdAt: -1 });
+    const list = await Booking.find().populate("customer").populate("table").sort({ createdAt: -1 });
+    return list.map((b: any) => {
+      const obj = b.toObject ? b.toObject() : b;
+      const cust = obj.customer;
+      const tbl = obj.table;
+      return {
+        ...obj,
+        customerName: obj.customerName || (cust && cust.name ? cust.name : "Khách đặt trước"),
+        phone: obj.phone || (cust && cust.phone ? cust.phone : "0900000000"),
+        tableId: obj.tableId || (tbl ? String(tbl._id) : (obj.table ? String(obj.table) : "")),
+        tableName: obj.tableName || (tbl ? tbl.name : "Bàn bida"),
+        date: obj.date || (obj.bookingDate ? new Date(obj.bookingDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+        time: obj.time || obj.startTime || "19:00",
+        duration: obj.duration || 2,
+        estimatedCost: obj.estimatedCost || (tbl ? tbl.pricePerHour * 2 : 120000),
+        deposit: obj.deposit || 0,
+        status: obj.status === "confirmed" ? "approved" : obj.status,
+      };
+    });
   }
 
   async create(input: any) {
     const dto = bookingInput(input);
     // ponytail: one held reservation per table; add interval scheduling when multiple future slots are needed.
-    return mongoose.connection.transaction(async (session) => {
+    const result = await mongoose.connection.transaction(async (session) => {
       const table = await Table.findOne({ _id: dto.tableId, isActive: true, status: TableStatus.AVAILABLE }).session(session);
       if (!table) throw new Error("Bàn không còn trống, vui lòng tải lại");
       const [booking] = await Booking.create([{ ...dto, tableName: table.name, estimatedCost: table.pricePerHour * dto.duration, status: "approved" }], { session });
       table.status = TableStatus.BOOKED;
-      table.bookedInfo = { customerName: booking.customerName, phone: booking.phone,
+      table.bookedInfo = { customerName: booking.customerName || "Khách đặt trước", phone: booking.phone || "0900000000",
         time: `${booking.time} (${booking.date})`, bookingId: String(booking._id) };
       await table.save({ session });
-      return booking;
+      return { booking, table };
     });
+    emitTableStatusChanged({ tableId: String(result.table._id), status: result.table.status, table: result.table });
+    return result.booking;
   }
 
   async update(id: string, input: any) {
@@ -50,36 +72,53 @@ export class BookingService {
         !input.rejectionReason.trim() || input.rejectionReason.length > 1000)) {
       throw new Error("Vui lòng nhập lý do từ chối (tối đa 1000 ký tự)");
     }
-    return mongoose.connection.transaction(async (session) => {
+    const result = await mongoose.connection.transaction(async (session) => {
       const booking = await Booking.findById(id).session(session);
       if (!booking) throw new Error("Không tìm thấy đơn đặt bàn");
-      const allowed: Record<string, string[]> = { pending: ["approved", "rejected"], approved: ["approved", "rejected"], rejected: ["pending"] };
+      const allowed: Record<string, string[]> = {
+        pending: ["approved", "rejected"],
+        approved: ["approved", "rejected"],
+        confirmed: ["approved", "rejected"],
+        rejected: ["pending"],
+      };
       if (!allowed[booking.status]?.includes(input.status)) throw new Error("Trạng thái đơn đã thay đổi, vui lòng tải lại");
+      let affectedTableId: string | undefined;
       if (input.status === "approved") {
         if (!mongoose.isValidObjectId(input.tableId)) throw new Error("Vui lòng chọn bàn hợp lệ");
         const table = await Table.findOne({ _id: input.tableId, isActive: true, $or: [
           { status: TableStatus.AVAILABLE }, { status: TableStatus.BOOKED, "bookedInfo.bookingId": id },
         ] }).session(session);
         if (!table) throw new Error("Bàn không còn trống");
-        if (String(booking.tableId) !== input.tableId && booking.status === "approved") {
+        if (String(booking.tableId) !== input.tableId && (booking.status === "approved" || booking.status === "confirmed")) {
           await Table.updateOne({ _id: booking.tableId, "bookedInfo.bookingId": id, status: TableStatus.BOOKED },
             { $set: { status: TableStatus.AVAILABLE }, $unset: { bookedInfo: 1 } }, { session });
         }
+        const custUser = booking.customer ? await User.findById(booking.customer).session(session) : null;
+        const resolvedName: string = String(booking.customerName || custUser?.name || "Khách đặt trước");
+        const resolvedPhone: string = String(booking.phone || custUser?.phone || "0900000000");
+        booking.customerName = resolvedName;
+        booking.phone = resolvedPhone;
         booking.tableId = table._id;
         booking.tableName = table.name;
-        booking.estimatedCost = table.pricePerHour * booking.duration;
+        booking.estimatedCost = table.pricePerHour * (booking.duration || 2);
         table.status = TableStatus.BOOKED;
-        table.bookedInfo = { customerName: booking.customerName, phone: booking.phone,
-          time: `${booking.time} (${booking.date})`, bookingId: id };
+        table.bookedInfo = { customerName: resolvedName, phone: resolvedPhone,
+          time: `${booking.time || "19:00"} (${booking.date || new Date().toISOString().slice(0, 10)})`, bookingId: id };
         await table.save({ session });
-      } else if (booking.status === "approved") {
+        affectedTableId = String(table._id);
+      } else if (booking.status === "approved" || booking.status === "confirmed") {
         await Table.updateOne({ _id: booking.tableId, "bookedInfo.bookingId": id, status: TableStatus.BOOKED },
           { $set: { status: TableStatus.AVAILABLE }, $unset: { bookedInfo: 1 } }, { session });
+        affectedTableId = String(booking.tableId);
       }
       booking.status = input.status;
       booking.rejectionReason = input.status === "rejected" ? input.rejectionReason.trim() : undefined;
       await booking.save({ session });
-      return booking;
+      return { booking, affectedTableId };
     });
+    if (result.affectedTableId) {
+      emitTableStatusChanged({ tableId: result.affectedTableId });
+    }
+    return result.booking;
   }
 }

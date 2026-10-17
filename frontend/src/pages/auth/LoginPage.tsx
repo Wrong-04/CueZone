@@ -32,12 +32,9 @@ const getRoleNavigationPath = (role?: string): string => {
     case UserRole.CUSTOMER:
       return "/customer";
     case UserRole.STAFF:
-    case UserRole.CASHIER:
-    case UserRole.WAREHOUSE:
-    case UserRole.REFEREE:
-      return "/admin/pos";
+      return "/pos";
     case UserRole.ADMIN:
-      return "/admin";
+      return "/dashboard";
     default:
       return "/customer";
   }

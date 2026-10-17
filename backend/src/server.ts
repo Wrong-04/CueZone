@@ -5,6 +5,7 @@ import { setIO } from "./utils/socketHolder";
 import { connectDatabase } from "./config/database";
 import { Booking } from "./modules/booking/booking.model";
 import { Invoice } from "./modules/invoice/invoice.model";
+import { Table } from "./modules/table/table.model";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
@@ -32,14 +33,20 @@ io.on("connection", (socket) => {
 
 async function start() {
   await connectDatabase();
-  await Promise.all([Booking.init(), Invoice.init()]);
+  try {
+    await Promise.all([Booking.init(), Invoice.init(), Table.init()]);
+    console.log("✅ Database indexes verified");
+  } catch (err: any) {
+    console.warn("⚠️ Cảnh báo khởi tạo index (bỏ qua để tiếp tục khởi động server):", err?.message || err);
+  }
+
   httpServer.listen(PORT, () => {
     console.log(`🚀 API Server is running on http://localhost:${PORT}`);
     console.log(`📡 Socket.io is ready`);
   });
 }
 
-start().catch(() => {
-  console.error("Không thể khởi động API hoặc tạo chỉ mục database");
+start().catch((err) => {
+  console.error("Không thể khởi động API Server:", err);
   process.exit(1);
 });

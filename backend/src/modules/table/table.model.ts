@@ -1,10 +1,23 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export enum TableType {
-  STANDARD_9FT = "standard_9ft",
-  VIP_BANK_POOL = "vip_bank_pool",
-  MATCH_KSTEEL = "match_ksteel",
+  POOL = "pool",
+  CAROM = "carom",
+  SNOOKER = "snooker",
 }
+
+export const LEGACY_TABLE_TYPE_MAP: Record<string, TableType> = {
+  standard_9ft: TableType.POOL,
+  standard: TableType.POOL,
+  nine_ball: TableType.POOL,
+  full_ball: TableType.POOL,
+  vip_bank_pool: TableType.CAROM,
+  vip: TableType.CAROM,
+  libre: TableType.CAROM,
+  three_cushion: TableType.CAROM,
+  match_ksteel: TableType.SNOOKER,
+  match: TableType.SNOOKER,
+};
 
 export enum TableStatus {
   AVAILABLE = "available",
@@ -84,5 +97,26 @@ const tableSchema = new Schema<ITable>(
   },
   { timestamps: true }
 );
+
+// Tự động chuẩn hóa loại bàn cũ sang 3 loại chuẩn (pool, carom, snooker)
+tableSchema.pre("validate", function (next) {
+  if (this.type && LEGACY_TABLE_TYPE_MAP[this.type]) {
+    this.type = LEGACY_TABLE_TYPE_MAP[this.type];
+  }
+  next();
+});
+
+tableSchema.pre("findOneAndUpdate", function (next) {
+  const update = this.getUpdate() as any;
+  if (update) {
+    if (update.type && LEGACY_TABLE_TYPE_MAP[update.type]) {
+      update.type = LEGACY_TABLE_TYPE_MAP[update.type];
+    }
+    if (update.$set?.type && LEGACY_TABLE_TYPE_MAP[update.$set.type]) {
+      update.$set.type = LEGACY_TABLE_TYPE_MAP[update.$set.type];
+    }
+  }
+  next();
+});
 
 export const Table = mongoose.model<ITable>("Table", tableSchema);

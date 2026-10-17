@@ -7,7 +7,7 @@ export async function requirePosStaff(req: Request, res: Response, next: NextFun
     if (!user || !user.isActive || user.isLocked) {
       return res.status(401).json({ success: false, message: "Phiên đăng nhập không còn hợp lệ" });
     }
-    if (![UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER].includes(user.role)) {
+    if (![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
       return res.status(403).json({ success: false, message: "Bạn không có quyền điều hành bàn" });
     }
     next();

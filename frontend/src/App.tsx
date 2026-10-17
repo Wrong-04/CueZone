@@ -48,8 +48,8 @@ const ProtectedRoute = ({ children, roles }: { children: React.ReactNode; roles?
 
 const getDefaultRedirectPath = (role?: string): string => {
   if (role === "customer") return "/customer";
-  if (role === "admin") return "/admin";
-  return "/admin/pos";
+  if (role === "admin") return "/dashboard";
+  return "/pos";
 };
 
 const AppRoutes = () => {
@@ -61,28 +61,41 @@ const AppRoutes = () => {
       <Route path="/login" element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <RegisterPage />} />
 
-      {/* Admin routes */}
+      {/* Management / POS / Staff routes (Clean direct paths: /pos, /booking, /tables, /dashboard...) */}
       <Route
-        path="/admin"
         element={
-          <ProtectedRoute roles={["admin", "staff", "cashier", "warehouse", "referee"]}>
+          <ProtectedRoute roles={["admin", "staff"]}>
             <AdminLayout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<AdminDashboard />} />
-        <Route path="pos" element={<PosTableFloorPage />} />
-        <Route path="tables" element={<TablesPage />} />
-        <Route path="booking" element={<BookingPage />} />
-        <Route path="tournaments" element={<TournamentsPage />} />
-        <Route path="fnb" element={<FnBPage />} />
-        <Route path="inventory" element={<InventoryPage />} />
-        <Route path="invoices" element={<InvoicesPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="employees" element={<EmployeesPage />} />
-        <Route path="news" element={<NewsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route path="/dashboard" element={<ProtectedRoute roles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/pos" element={<ProtectedRoute roles={["admin", "staff"]}><PosTableFloorPage /></ProtectedRoute>} />
+        <Route path="/tables" element={<ProtectedRoute roles={["admin"]}><TablesPage /></ProtectedRoute>} />
+        <Route path="/booking" element={<ProtectedRoute roles={["admin", "staff"]}><BookingPage /></ProtectedRoute>} />
+        <Route path="/tournaments" element={<ProtectedRoute roles={["admin", "staff"]}><TournamentsPage /></ProtectedRoute>} />
+        <Route path="/fnb" element={<ProtectedRoute roles={["admin", "staff"]}><FnBPage /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute roles={["admin", "staff"]}><InventoryPage /></ProtectedRoute>} />
+        <Route path="/invoices" element={<ProtectedRoute roles={["admin", "staff"]}><InvoicesPage /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute roles={["admin"]}><ReportsPage /></ProtectedRoute>} />
+        <Route path="/employees" element={<ProtectedRoute roles={["admin"]}><EmployeesPage /></ProtectedRoute>} />
+        <Route path="/news" element={<ProtectedRoute roles={["admin"]}><NewsPage /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute roles={["admin"]}><SettingsPage /></ProtectedRoute>} />
       </Route>
+
+      {/* Legacy /admin redirects */}
+      <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/admin/pos" element={<Navigate to="/pos" replace />} />
+      <Route path="/admin/tables" element={<Navigate to="/tables" replace />} />
+      <Route path="/admin/booking" element={<Navigate to="/booking" replace />} />
+      <Route path="/admin/tournaments" element={<Navigate to="/tournaments" replace />} />
+      <Route path="/admin/fnb" element={<Navigate to="/fnb" replace />} />
+      <Route path="/admin/inventory" element={<Navigate to="/inventory" replace />} />
+      <Route path="/admin/invoices" element={<Navigate to="/invoices" replace />} />
+      <Route path="/admin/reports" element={<Navigate to="/reports" replace />} />
+      <Route path="/admin/employees" element={<Navigate to="/employees" replace />} />
+      <Route path="/admin/news" element={<Navigate to="/news" replace />} />
+      <Route path="/admin/settings" element={<Navigate to="/settings" replace />} />
 
       {/* Customer routes */}
       <Route path="/customer" element={<CustomerLayout />}>
@@ -98,7 +111,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Default redirect */}
-      <Route path="*" element={<Navigate to={user?.role === "customer" ? "/customer" : "/admin"} replace />} />
+      <Route path="*" element={<Navigate to={getDefaultRedirectPath(user?.role)} replace />} />
     </Routes>
   );
 };
