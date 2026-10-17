@@ -8,12 +8,23 @@ import notificationRouter from "../modules/notification/notification.routes";
 import bookingRouter from "../modules/booking/booking.routes";
 import sessionRouter from "../modules/session/session.routes";
 import { getPublicTables } from "../modules/table/table.controller";
+import { BookingService } from "../modules/booking/booking.service";
+
+const bookingService = new BookingService();
 
 // Public routes (no auth middleware)
 export const publicRouter = Router();
 publicRouter.use("/auth", authRouter);
 publicRouter.get("/public/tables", getPublicTables);
 publicRouter.get("/tables/public", getPublicTables);
+publicRouter.post("/public/bookings", async (req, res, next) => {
+  try {
+    const booking = await bookingService.create(req.body);
+    res.status(201).json({ success: true, message: "Đặt bàn thành công", data: booking });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Protected routes (auth middleware applied in app.ts)
 export const protectedRouter = Router();

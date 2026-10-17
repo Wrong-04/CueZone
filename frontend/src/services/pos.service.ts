@@ -110,6 +110,13 @@ export const bookingService = {
     const { data } = await api.post<ApiResponse<any>>("/bookings", input);
     return result(data);
   },
+  async createPublic(input: { customerName: string; phone: string; tableId: string; date: string; time: string; duration: number; deposit?: number; note?: string }) {
+    const { data } = await api.post<ApiResponse<any>>("/public/bookings", {
+      ...input,
+      deposit: input.deposit ?? 0,
+    });
+    return result(data);
+  },
   async update(id: string, input: { status: "approved" | "rejected" | "pending"; tableId?: string; rejectionReason?: string }) {
     const { data } = await api.patch<ApiResponse<any>>(`/bookings/${id}`, input);
     return result(data);

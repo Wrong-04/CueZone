@@ -63,6 +63,19 @@ const CLUB_AMENITIES = [
   { icon: <TeamOutlined className="text-xl text-emerald-600" />, title: "Trọng Tài & Huấn Luyện Viên", desc: "Hỗ trợ xếp bi, bấm giờ và hướng dẫn kỹ thuật dội băng cho người mới." },
 ];
 
+const formatTableType = (name?: string, type?: string) => {
+  const raw = (name || type || "").toLowerCase();
+  if (raw.includes("snooker")) return "Bida Snooker";
+  if (raw.includes("carom") || raw.includes("phăng")) return "Carom (Phăng)";
+  return "Bida Lỗ (Pool)";
+};
+
+const formatBookedTime = (timeStr?: string) => {
+  if (!timeStr) return "Đã đặt trước";
+  const clean = timeStr.replace(/\(.*?\)/g, "").trim();
+  return clean.startsWith("Đặt lúc") ? clean.replace("Đặt lúc", "Hẹn").trim() : `Hẹn ${clean}`;
+};
+
 const CustomerHome = () => {
   const { user } = useAuth();
   const [tables, setTables] = useState<any[]>([]);
@@ -368,19 +381,6 @@ const CustomerHome = () => {
               const isBooked = table.status === "booked";
               const cleanTableName = (table.name || "").split("•")[0].split("-")[0].trim();
               
-              const formatTableType = (name?: string, type?: string) => {
-                const raw = (name || type || "").toLowerCase();
-                if (raw.includes("snooker")) return "Bida Snooker";
-                if (raw.includes("carom") || raw.includes("phăng")) return "Carom (Phăng)";
-                return "Bida Lỗ (Pool)";
-              };
-
-              const formatBookedTime = (timeStr?: string) => {
-                if (!timeStr) return "Đã đặt trước";
-                const clean = timeStr.replace(/\(.*?\)/g, "").trim();
-                return clean.startsWith("Đặt lúc") ? clean.replace("Đặt lúc", "Hẹn").trim() : `Hẹn ${clean}`;
-              };
-
               return (
                 <div
                   key={table.id}
