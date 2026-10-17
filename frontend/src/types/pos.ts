@@ -30,9 +30,11 @@ export interface PosTable {
   id: string;
   name: string;
   code: string;
-  type: "standard" | "vip" | "match";
+  type: "pool" | "carom" | "snooker";
   typeName: string;
   pricePerHour: number;
+  area?: string;
+  floor?: number;
   status: "available" | "playing" | "paused" | "booked" | "maintenance";
   bookedInfo?: { customerName: string; phone: string; time: string; bookingId: string };
   currentSession?: PosTableSession;
@@ -55,6 +57,15 @@ export interface BookingRequest {
   createdAt: string;
 }
 
+export interface SplitTimeSlot {
+  tierName: string;
+  startTime: string;
+  endTime: string;
+  minutes: number;
+  pricePerHour: number;
+  cost: number;
+}
+
 export interface CheckoutReceipt {
   tableName: string;
   typeName: string;
@@ -66,6 +77,7 @@ export interface CheckoutReceipt {
   durationMinutes: number;
   pricePerHour: number;
   playingCost: number;
+  timeSlots?: SplitTimeSlot[];
   orders: PosOrderItem[];
   fnbTotal: number;
   subtotal: number;

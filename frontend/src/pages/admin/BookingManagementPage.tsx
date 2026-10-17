@@ -131,12 +131,17 @@ export const BookingManagementPage: React.FC = () => {
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
       const matchStatus = statusFilter === "all" || b.status === statusFilter;
+      const cName = b.customerName || "";
+      const phone = b.phone || "";
+      const tName = b.tableName || "";
+      const id = b.id || "";
+      const query = (searchQuery || "").toLowerCase();
       const matchQuery =
-        !searchQuery ||
-        b.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.phone.includes(searchQuery) ||
-        b.tableName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.id.toLowerCase().includes(searchQuery.toLowerCase());
+        !query ||
+        cName.toLowerCase().includes(query) ||
+        phone.includes(query) ||
+        tName.toLowerCase().includes(query) ||
+        id.toLowerCase().includes(query);
       return matchStatus && matchQuery;
     });
   }, [bookings, statusFilter, searchQuery]);
@@ -144,7 +149,9 @@ export const BookingManagementPage: React.FC = () => {
   // ── Handler: Open Approve Modal ─────────────────────────────────────────────
   const handleOpenApprove = (booking: BookingRequest) => {
     setBookingToApprove(booking);
-    setAssignedTableId(booking.tableId);
+    const tableMatches = tables.find((t) => t.id === booking.tableId && (t.status === "available" || t.bookedInfo?.bookingId === booking.id));
+    const firstAvail = tables.find((t) => t.status === "available");
+    setAssignedTableId(tableMatches ? tableMatches.id : (firstAvail ? firstAvail.id : booking.tableId || ""));
     setApproveModalVisible(true);
   };
 
@@ -193,7 +200,7 @@ export const BookingManagementPage: React.FC = () => {
 
   // ── Handler: Direct Check-in to POS ─────────────────────────────────────────
   const handleCheckInNow = (booking: BookingRequest) => {
-    navigate(`/admin/pos?tableId=${encodeURIComponent(booking.tableId)}`);
+    navigate(`/pos?tableId=${encodeURIComponent(booking.tableId)}`);
   };
 
   // ── Handler: Create Booking via Hotline ─────────────────────────────────────
@@ -257,7 +264,9 @@ export const BookingManagementPage: React.FC = () => {
           <span className="font-mono font-bold text-emerald-800 text-xs block">
             {record.time} ({record.date})
           </span>
-          <span className="text-[11px] text-slate-400">Gửi lúc: {new Date(record.createdAt).toLocaleString("vi-VN")}</span>
+          <span className="text-[11px] text-slate-400">
+            Gửi lúc: {record.createdAt ? new Date(record.createdAt).toLocaleString("vi-VN") : "Hôm nay"}
+          </span>
         </div>
       ),
     },
@@ -266,7 +275,7 @@ export const BookingManagementPage: React.FC = () => {
       key: "cost",
       render: (_: any, record: BookingRequest) => (
         <span className="font-mono font-bold text-slate-900 text-sm">
-          {record.estimatedCost.toLocaleString("vi-VN")}đ
+          {(record.estimatedCost || 0).toLocaleString("vi-VN")}đ
         </span>
       ),
     },
@@ -380,7 +389,7 @@ export const BookingManagementPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate("/admin/pos")}
+              onClick={() => navigate("/pos")}
               leftIcon={<ThunderboltOutlined />}
               className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs"
             >
@@ -550,13 +559,13 @@ export const BookingManagementPage: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <span className="text-slate-500">Tạm tính dự kiến:</span>
                         <span className="font-mono font-bold text-slate-900">
-                          {booking.estimatedCost.toLocaleString("vi-VN")}đ
+                          {(booking.estimatedCost || 0).toLocaleString("vi-VN")}đ
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between pt-1 border-t border-dashed border-slate-200">
                         <span className="text-slate-500">Tiền cọc giữ bàn:</span>
-                        <Text strong>{booking.deposit.toLocaleString("vi-VN")}đ</Text>
+                        <Text strong>{(booking.deposit || 0).toLocaleString("vi-VN")}đ</Text>
                       </div>
                     </div>
 

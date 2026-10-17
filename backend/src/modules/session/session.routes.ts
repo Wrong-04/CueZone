@@ -16,6 +16,9 @@ router.use((req, res, next) => {
 router.post("/", async (req, res, next) => {
   try { res.status(201).json({ success: true, data: await service.open((req.params as { id: string }).id, req.body) }); } catch (error) { next(error); }
 });
+router.post("/open", async (req, res, next) => {
+  try { res.status(201).json({ success: true, data: await service.open((req.params as { id: string }).id, req.body) }); } catch (error) { next(error); }
+});
 router.patch("/pause", async (req, res, next) => {
   try { res.json({ success: true, data: await service.pause((req.params as { id: string }).id, req.body) }); } catch (error) { next(error); }
 });
@@ -24,5 +27,8 @@ router.post("/move", async (req, res, next) => {
 });
 router.post("/checkout", async (req, res, next) => {
   try { res.json({ success: true, data: await service.checkout((req.params as { id: string }).id, req.body) }); } catch (error) { next(error); }
+});
+router.post("/orders", async (req, res, next) => {
+  try { res.json({ success: true, data: await service.updateOrders((req.params as { id: string }).id, req.body) }); } catch (error) { next(error); }
 });
 export default router;

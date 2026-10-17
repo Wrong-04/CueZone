@@ -28,20 +28,33 @@ import { notificationService, type Notification } from "../../services/notificat
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
-const menuItems: { path: string; label: string; icon: ReactNode }[] = [
-  { path: "/admin/pos", label: "POS Sơ Đồ Bàn", icon: <ThunderboltOutlined /> },
-  { path: "/admin", label: "Tổng quan", icon: <DashboardOutlined /> },
-  { path: "/admin/tables", label: "Quản lý Bàn", icon: <AppstoreOutlined /> },
-  { path: "/admin/booking", label: "Duyệt Đặt Bàn", icon: <CalendarOutlined /> },
-  { path: "/admin/fnb", label: "Thực đơn F&B", icon: <CoffeeOutlined /> },
-  { path: "/admin/tournaments", label: "Giải đấu & Trọng tài", icon: <TrophyOutlined /> },
-  { path: "/admin/inventory", label: "Kho hàng", icon: <InboxOutlined /> },
-  { path: "/admin/invoices", label: "Hóa đơn", icon: <FileTextOutlined /> },
-  { path: "/admin/reports", label: "Báo cáo", icon: <LineChartOutlined /> },
-  { path: "/admin/employees", label: "Nhân sự", icon: <TeamOutlined /> },
-  { path: "/admin/news", label: "Tin tức", icon: <ReadOutlined /> },
-  { path: "/admin/settings", label: "Cài đặt", icon: <SettingOutlined /> },
+interface MenuItemConfig {
+  path: string;
+  label: string;
+  icon: ReactNode;
+  roles?: string[];
+}
+
+const menuItems: MenuItemConfig[] = [
+  { path: "/pos", label: "POS Sơ Đồ Bàn", icon: <ThunderboltOutlined />, roles: ["admin", "staff"] },
+  { path: "/dashboard", label: "Tổng quan", icon: <DashboardOutlined />, roles: ["admin"] },
+  { path: "/tables", label: "Quản lý Bàn", icon: <AppstoreOutlined />, roles: ["admin"] },
+  { path: "/booking", label: "Duyệt Đặt Bàn", icon: <CalendarOutlined />, roles: ["admin", "staff"] },
+  { path: "/fnb", label: "Thực đơn F&B", icon: <CoffeeOutlined />, roles: ["admin", "staff"] },
+  { path: "/tournaments", label: "Giải đấu & Trọng tài", icon: <TrophyOutlined />, roles: ["admin", "staff"] },
+  { path: "/inventory", label: "Kho hàng", icon: <InboxOutlined />, roles: ["admin", "staff"] },
+  { path: "/invoices", label: "Hóa đơn", icon: <FileTextOutlined />, roles: ["admin", "staff"] },
+  { path: "/reports", label: "Báo cáo", icon: <LineChartOutlined />, roles: ["admin"] },
+  { path: "/employees", label: "Nhân sự", icon: <TeamOutlined />, roles: ["admin"] },
+  { path: "/news", label: "Tin tức", icon: <ReadOutlined />, roles: ["admin"] },
+  { path: "/settings", label: "Cài đặt", icon: <SettingOutlined />, roles: ["admin"] },
 ];
+
+const roleLabels: Record<string, string> = {
+  admin: "Quản Trị Viên",
+  staff: "Nhân Viên Vận Hành & Thu Ngân",
+  customer: "Hội Viên",
+};
 
 const typeIcons: Record<string, ReactNode> = {
   user: <UserOutlined />,
@@ -170,46 +183,51 @@ const AdminLayout = () => {
 
         {/* Navigation */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${
-                  isActive
-                    ? "bg-primary-500 text-white"
-                    : "text-gray-300 hover:bg-navy-700 hover:text-white"
-                }`}
-              >
-                <span className="text-lg flex-shrink-0">{item.icon}</span>
-                {sidebarOpen && (
-                  <span className="text-sm font-medium">{item.label}</span>
-                )}
-              </Link>
-            );
-          })}
+          {menuItems
+            .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role)))
+            .map((item) => {
+              const isActive =
+                location.pathname === item.path ||
+                (item.path === "/pos" && location.pathname === "/admin/pos") ||
+                (item.path === "/dashboard" && location.pathname === "/admin");
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${
+                    isActive
+                      ? "bg-primary-500 text-white shadow-xs font-semibold"
+                      : "text-gray-300 hover:bg-navy-700 hover:text-white"
+                  }`}
+                >
+                  <span className="text-lg flex-shrink-0">{item.icon}</span>
+                  {sidebarOpen && (
+                    <span className="text-sm font-medium">{item.label}</span>
+                  )}
+                </Link>
+              );
+            })}
         </nav>
 
         {/* User section */}
         <div className="border-t border-navy-700 p-3">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-9 h-9 bg-primary-500 rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-sm">
+          <div className="flex items-center gap-3 px-2 py-1.5">
+            <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-xs">
+              <span className="text-white font-bold text-xs">
                 {user?.name?.charAt(0) || "U"}
               </span>
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{user?.name}</p>
-                <p className="text-xs text-gray-400 truncate">{user?.role}</p>
+                <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
+                <p className="text-[11px] text-gray-400 truncate">{roleLabels[user?.role || ""] || user?.role}</p>
               </div>
             )}
           </div>
           {sidebarOpen && (
             <button
               onClick={handleLogout}
-              className="w-full mt-2 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-navy-700 rounded-lg transition text-left"
+              className="w-full mt-1.5 px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-navy-700 rounded-lg transition text-left"
             >
               Đăng xuất
             </button>
@@ -318,14 +336,14 @@ const AdminLayout = () => {
             </div>
 
             <div className="flex items-center gap-2 pl-4 border-l border-gray-200">
-              <div className="w-9 h-9 bg-primary-500 rounded-full flex items-center justify-center">
+              <div className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center shadow-xs">
                 <span className="text-white font-bold text-sm">
                   {user?.name?.charAt(0) || "U"}
                 </span>
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-medium text-gray-800">{user?.name}</p>
-                <p className="text-xs text-gray-500">{user?.role}</p>
+                <p className="text-sm font-semibold text-gray-800 leading-tight">{user?.name}</p>
+                <p className="text-xs text-gray-500 leading-tight">{roleLabels[user?.role || ""] || user?.role}</p>
               </div>
             </div>
           </div>

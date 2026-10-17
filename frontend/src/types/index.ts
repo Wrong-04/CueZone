@@ -44,9 +44,9 @@ export const TableStatus = {
 export type TableStatus = (typeof TableStatus)[keyof typeof TableStatus];
 
 export const TableType = {
-  STANDARD_9FT: "standard_9ft",
-  VIP_BANK_POOL: "vip_bank_pool",
-  MATCH_KSTEEL: "match_ksteel",
+  POOL: "pool",
+  CAROM: "carom",
+  SNOOKER: "snooker",
 } as const;
 export type TableType = (typeof TableType)[keyof typeof TableType];
 
@@ -75,6 +75,7 @@ export interface PricingTier {
   prices: {
     standard: number;
     vip: number;
+    match?: number;
   };
   isActive: boolean;
   isCurrentlyActive?: boolean;
