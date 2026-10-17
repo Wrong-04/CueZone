@@ -24,27 +24,41 @@ import {
   Modal,
   Space,
 } from "../../shared/ui";
+import { posService } from "../../services/pos.service";
 
 const { Title, Paragraph } = Typography;
 
-const TABLES_LIST = [
-  { id: "TB-01", name: "Bàn 01", type: "standard", typeName: "Bàn Thường 9FT", price: 50000, priceFormatted: "50.000đ/h" },
-  { id: "TB-02", name: "Bàn 02", type: "standard", typeName: "Bàn Thường 9FT", price: 50000, priceFormatted: "50.000đ/h" },
-  { id: "TB-03", name: "Bàn 03", type: "standard", typeName: "Bàn Thường 9FT", price: 50000, priceFormatted: "50.000đ/h" },
-  { id: "TB-05", name: "Bàn 05", type: "standard", typeName: "Bàn Thường 9FT", price: 50000, priceFormatted: "50.000đ/h" },
-  { id: "TB-06", name: "Bàn 06", type: "standard", typeName: "Bàn Thường 9FT", price: 50000, priceFormatted: "50.000đ/h" },
-  { id: "TB-08", name: "Bàn 08", type: "standard", typeName: "Bàn Thường 9FT", price: 50000, priceFormatted: "50.000đ/h" },
-  { id: "TB-09", name: "Bàn 09", type: "vip", typeName: "Bàn VIP Bank Pool", price: 70000, priceFormatted: "70.000đ/h" },
-  { id: "TB-10", name: "Bàn 10", type: "vip", typeName: "Bàn VIP Bank Pool", price: 70000, priceFormatted: "70.000đ/h" },
-  { id: "TB-12", name: "Bàn 12", type: "vip", typeName: "Bàn VIP Bank Pool", price: 70000, priceFormatted: "70.000đ/h" },
-  { id: "TB-13", name: "Bàn 13", type: "match", typeName: "Bàn Match K-Steel (VAR)", price: 80000, priceFormatted: "80.000đ/h" },
-  { id: "TB-14", name: "Bàn 14", type: "match", typeName: "Bàn Match K-Steel (VAR)", price: 80000, priceFormatted: "80.000đ/h" },
+interface BookingTableItem {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  typeName: string;
+  price: number;
+  priceFormatted: string;
+  status?: string;
+  bookedTime?: string;
+}
+
+const FALLBACK_TABLES: BookingTableItem[] = [
+  { id: "TB-01", code: "STD-01", name: "Bàn 01", type: "pool", typeName: "Bàn Bida Lỗ (Pool)", price: 60000, priceFormatted: "60.000đ/h" },
+  { id: "TB-02", code: "STD-02", name: "Bàn 02", type: "pool", typeName: "Bàn Bida Lỗ (Pool)", price: 60000, priceFormatted: "60.000đ/h" },
+  { id: "TB-03", code: "STD-03", name: "Bàn 03", type: "pool", typeName: "Bàn Bida Lỗ (Pool)", price: 60000, priceFormatted: "60.000đ/h" },
+  { id: "TB-05", code: "STD-05", name: "Bàn 05", type: "pool", typeName: "Bàn Bida Lỗ (Pool)", price: 60000, priceFormatted: "60.000đ/h" },
+  { id: "TB-06", code: "STD-06", name: "Bàn 06", type: "pool", typeName: "Bàn Bida Lỗ (Pool)", price: 60000, priceFormatted: "60.000đ/h" },
+  { id: "TB-08", code: "STD-08", name: "Bàn 08", type: "pool", typeName: "Bàn Bida Lỗ (Pool)", price: 60000, priceFormatted: "60.000đ/h" },
+  { id: "TB-09", code: "CAR-01", name: "Bàn 09", type: "carom", typeName: "Bàn Bida Carom (Phăng)", price: 120000, priceFormatted: "120.000đ/h" },
+  { id: "TB-10", code: "CAR-02", name: "Bàn 10", type: "carom", typeName: "Bàn Bida Carom (Phăng)", price: 120000, priceFormatted: "120.000đ/h" },
+  { id: "TB-12", code: "CAR-04", name: "Bàn 12", type: "carom", typeName: "Bàn Bida Carom (Phăng)", price: 120000, priceFormatted: "120.000đ/h" },
+  { id: "TB-13", code: "SNK-01", name: "Bàn 13", type: "snooker", typeName: "Bàn Bida Snooker", price: 100000, priceFormatted: "100.000đ/h" },
+  { id: "TB-14", code: "SNK-02", name: "Bàn 14", type: "snooker", typeName: "Bàn Bida Snooker", price: 100000, priceFormatted: "100.000đ/h" },
 ];
 
 const CustomerBooking = () => {
   const [searchParams] = useSearchParams();
-  const preSelectedTable = searchParams.get("table") || "TB-02";
+  const preSelectedTable = searchParams.get("table") || "STD-02";
 
+  const [tablesList, setTablesList] = useState<BookingTableItem[]>(FALLBACK_TABLES);
   const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedTable);
   const [name, setName] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
@@ -56,12 +70,53 @@ const CustomerBooking = () => {
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
 
   useEffect(() => {
+    let isMounted = true;
+    const fetchTables = async () => {
+      try {
+        const data = await posService.getPublicTables();
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          const mapped: BookingTableItem[] = data.map((t) => {
+            const cleanName = (t.name || "").split("•")[0].split("-")[0].trim();
+            return {
+              id: t.id,
+              code: t.code,
+              name: cleanName,
+              type: t.type,
+              typeName:
+                t.typeName ||
+                (t.type === "carom"
+                  ? "Bàn Bida Carom (Phăng)"
+                  : t.type === "snooker"
+                  ? "Bàn Bida Snooker"
+                  : "Bàn Bida Lỗ (Pool)"),
+              price: t.pricePerHour || 60000,
+              priceFormatted: `${(t.pricePerHour || 60000).toLocaleString("vi-VN")}đ/h`,
+              status: t.status,
+              bookedTime: t.bookedTime,
+            };
+          });
+          setTablesList(mapped);
+        }
+      } catch {
+        // Fallback silently
+      }
+    };
+    fetchTables();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (searchParams.get("table")) {
       setSelectedTableId(searchParams.get("table")!);
     }
   }, [searchParams]);
 
-  const selectedTable = TABLES_LIST.find((t) => t.id === selectedTableId) || TABLES_LIST[0];
+  const selectedTable =
+    tablesList.find((t) => t.id === selectedTableId || t.code === selectedTableId) ||
+    tablesList[0] ||
+    FALLBACK_TABLES[0];
   const totalCost = selectedTable.price * duration;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -104,40 +159,66 @@ const CustomerBooking = () => {
           <Card className="!rounded-3xl !border-slate-200 !bg-white p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0">
-                1. Chọn Bàn Bida Trống
+                1. Chọn Bàn Bida
               </Title>
               <Tag color="green" className="!text-xs !font-bold">
-                {TABLES_LIST.length} BÀN SẴN SÀNG
+                {tablesList.length} BÀN SẴN SÀNG
               </Tag>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {TABLES_LIST.map((t) => {
-                const isSelected = t.id === selectedTableId;
+              {tablesList.map((t) => {
+                const isSelected = t.id === selectedTableId || t.code === selectedTableId;
+                const isBooked = t.status === "booked";
+                const isPlaying = t.status === "playing" || t.status === "paused";
+
                 return (
                   <div
                     key={t.id}
                     onClick={() => setSelectedTableId(t.id)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 ${
+                    className={`p-3 rounded-2xl border cursor-pointer transition-all duration-200 flex flex-col justify-between ${
                       isSelected
-                        ? "bg-emerald-50/70 border-emerald-600 ring-2 ring-emerald-500/20 shadow-xs"
+                        ? "bg-emerald-50/80 border-emerald-600 ring-2 ring-emerald-500/20 shadow-xs"
                         : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className={`font-black text-sm ${isSelected ? "text-emerald-800" : "text-slate-800"}`}>
-                        {t.name}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
+                            {t.code}
+                          </span>
+                          <span className={`font-black text-sm whitespace-nowrap truncate ${isSelected ? "text-emerald-800" : "text-slate-800"}`}>
+                            {t.name}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 ml-1" />
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase block mb-1 truncate">
+                        {t.typeName}
                       </span>
-                      {isSelected && (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    </div>
+
+                    <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="font-bold text-emerald-700">
+                        {t.priceFormatted}
+                      </span>
+                      {isBooked ? (
+                        <span className="text-[10px] text-blue-600 font-semibold whitespace-nowrap">
+                          {t.bookedTime ? `Đặt ${t.bookedTime}` : "Đã đặt"}
+                        </span>
+                      ) : isPlaying ? (
+                        <span className="text-[10px] text-rose-500 font-semibold whitespace-nowrap">
+                          Đang chơi
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-emerald-600 font-semibold whitespace-nowrap">
+                          Trống
+                        </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-500 font-semibold uppercase block mb-1">
-                      {t.typeName}
-                    </span>
-                    <span className="text-xs font-bold text-emerald-700">
-                      {t.priceFormatted}
-                    </span>
                   </div>
                 );
               })}
