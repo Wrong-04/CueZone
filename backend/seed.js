@@ -7,6 +7,10 @@
  */
 
 require("dotenv").config();
+const dns = require("dns");
+try {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch (e) {}
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
@@ -14,10 +18,7 @@ const MONGO_URI =
   process.env.MONGO_URI || "mongodb://localhost:27017/cuezone_db";
 
 // ==============================================================================
-// 1. SCHEMAS ĐỒNG BỘ CHUẨN XÁC VỚI TS MODELS TRONG BACKEND & SRS v4.1
-// ==============================================================================
-
-// 1.1 RBAC Permissions & Role Schema (module: role)
+// 1.1 Role Schema (module: role - RBAC)
 const PermissionSchema = new mongoose.Schema(
   {
     module: { type: String, required: true },
@@ -82,6 +83,10 @@ const UserSchema = new mongoose.Schema(
       enum: ["admin", "staff", "customer"],
       default: "customer",
     },
+    roleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Role",
+    },
     phone: { type: String, trim: true },
     avatar: { type: String },
     isActive: { type: Boolean, default: true },
@@ -101,7 +106,7 @@ const TableSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     type: {
       type: String,
-      enum: ["standard_9ft", "vip_bank_pool", "match_ksteel"],
+      enum: ["pool", "carom", "snooker"],
       required: true,
     },
     area: { type: String, required: true, trim: true },
@@ -114,18 +119,34 @@ const TableSchema = new mongoose.Schema(
     },
     isActive: { type: Boolean, default: true },
     pricingTier: { type: mongoose.Schema.Types.ObjectId, ref: "PricingTier" },
+    currentSession: { type: Object, default: undefined },
+    bookedInfo: { type: Object, default: undefined },
   },
   { timestamps: true },
 );
 
-// 1.5 Notification Schema (module: notification)
+// 1.5 Notification Schema (module: notification - UC05)
 const NotificationSchema = new mongoose.Schema(
   {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     title: { type: String, required: true, trim: true },
     message: { type: String, required: true, trim: true },
     type: {
       type: String,
-      enum: ["user", "table", "pricing", "role", "system"],
+      enum: [
+        "user",
+        "table",
+        "pricing",
+        "role",
+        "system",
+        "order",
+        "booking",
+        "wallet",
+      ],
       default: "system",
     },
     isRead: { type: Boolean, default: false },
@@ -133,18 +154,24 @@ const NotificationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// 1.6 Inventory Product Schema (module: inventory / product)
+// 1.6 Product & F&B Catalog Schema (Hợp nhất Kho hàng + Menu gọi món POS thành 1 nguồn duy nhất)
 const ProductSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     sku: { type: String, required: true, unique: true },
-    category: { type: String, required: true },
+    category: {
+      type: String,
+      enum: ["accessory", "drink", "food", "snack", "ingredient"],
+      required: true,
+    },
     unit: { type: String, required: true },
     costPrice: { type: Number, default: 0 },
     salePrice: { type: Number, default: 0 },
     stock: { type: Number, default: 0 },
     minStock: { type: Number, default: 10 },
     imageUrl: { type: String },
+    description: { type: String },
+    isForSale: { type: Boolean, default: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },
@@ -163,20 +190,27 @@ const SupplierSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// 1.8 F&B MenuItem Schema (module: fnb)
-const MenuItemSchema = new mongoose.Schema(
+// 1.9 Tournament Player SubSchema (nhúng trực tiếp vào Tournament theo chuẩn NoSQL)
+const TournamentPlayerSubSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    category: { type: String, required: true },
-    price: { type: Number, required: true },
-    imageUrl: { type: String },
-    description: { type: String },
-    isAvailable: { type: Boolean, default: true },
+    player: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    registrationStatus: {
+      type: String,
+      enum: ["pending", "confirmed", "cancelled"],
+      default: "confirmed",
+    },
+    seed: { type: Number },
+    feePaid: { type: Boolean, default: true },
+    registeredAt: { type: Date, default: Date.now },
   },
-  { timestamps: true },
+  { _id: false },
 );
 
-// 1.9 Tournament Schema (module: tournament)
+// Tournament Schema (module: tournament)
 const TournamentSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -204,31 +238,7 @@ const TournamentSchema = new mongoose.Schema(
     format: { type: String, default: "Single Elimination" },
     raceToScore: { type: Number, default: 5 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  },
-  { timestamps: true },
-);
-
-// 1.10 Tournament Player Schema (module: tournament)
-const TournamentPlayerSchema = new mongoose.Schema(
-  {
-    tournament: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Tournament",
-      required: true,
-    },
-    player: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    registrationStatus: {
-      type: String,
-      enum: ["pending", "confirmed", "cancelled"],
-      default: "confirmed",
-    },
-    seed: { type: Number },
-    feePaid: { type: Boolean, default: true },
-    registeredAt: { type: Date, default: Date.now },
+    players: [TournamentPlayerSubSchema],
   },
   { timestamps: true },
 );
@@ -309,6 +319,7 @@ const BookingSchema = new mongoose.Schema(
       type: String,
       enum: [
         "pending",
+        "approved",
         "confirmed",
         "checked_in",
         "completed",
@@ -318,6 +329,15 @@ const BookingSchema = new mongoose.Schema(
       ],
       default: "pending",
     },
+    customerName: { type: String },
+    phone: { type: String },
+    tableId: { type: mongoose.Schema.Types.ObjectId, ref: "Table" },
+    tableName: { type: String },
+    date: { type: String },
+    time: { type: String },
+    duration: { type: Number, default: 2 },
+    estimatedCost: { type: Number, default: 0 },
+    deposit: { type: Number, default: 0 },
     note: { type: String },
     confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -336,6 +356,16 @@ const SessionPauseSchema = new mongoose.Schema(
     pauseStart: { type: Date, required: true },
     pauseEnd: { type: Date },
     duration: { type: Number },
+  },
+  { _id: false },
+);
+
+// Session Review SubSchema (Gộp Đánh giá dịch vụ trực tiếp vào phiên chơi theo chuẩn NoSQL 1-1)
+const SessionReviewSchema = new mongoose.Schema(
+  {
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    comment: { type: String },
+    reviewedAt: { type: Date, default: Date.now },
   },
   { _id: false },
 );
@@ -368,6 +398,64 @@ const TableSessionSchema = new mongoose.Schema(
       pricePerHour: { type: Number },
       tierName: { type: String },
     },
+    review: SessionReviewSchema,
+    notes: { type: String },
+  },
+  { timestamps: true },
+);
+
+// 1.15b Order Schema (module: fnb / order - UC10, UC23-UC25, UC34)
+const OrderItemSchema = new mongoose.Schema(
+  {
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+    },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    unitPrice: { type: Number, required: true, min: 0 },
+    totalPrice: { type: Number, required: true, min: 0 },
+    note: { type: String },
+  },
+  { _id: false },
+);
+
+const OrderSchema = new mongoose.Schema(
+  {
+    orderCode: { type: String, required: true, unique: true, trim: true },
+    session: { type: mongoose.Schema.Types.ObjectId, ref: "TableSession" },
+    table: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Table",
+      required: true,
+    },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    orderType: {
+      type: String,
+      enum: ["table_order", "pos_takeaway", "online_portal"],
+      default: "table_order",
+    },
+    items: [OrderItemSchema],
+    subtotal: { type: Number, required: true },
+    status: {
+      type: String,
+      enum: [
+        "pending",
+        "confirmed",
+        "preparing",
+        "ready",
+        "served",
+        "paid",
+        "cancelled",
+      ],
+      default: "pending",
+    },
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    confirmedAt: { type: Date },
+    servedAt: { type: Date },
+    cancelledAt: { type: Date },
+    cancelReason: { type: String },
     notes: { type: String },
   },
   { timestamps: true },
@@ -382,6 +470,32 @@ const InvoiceItemSchema = new mongoose.Schema(
     unitPrice: { type: Number, required: true },
     amount: { type: Number, required: true },
     reference: { type: mongoose.Schema.Types.ObjectId },
+  },
+  { _id: false },
+);
+
+// 1.16 Payment SubSchema (nhúng trực tiếp vào Invoice để hợp nhất luồng Checkout/Thanh toán)
+const PaymentSubSchema = new mongoose.Schema(
+  {
+    method: {
+      type: String,
+      enum: ["cash", "wallet", "bank_transfer", "vnpay", "mixed"],
+      required: true,
+    },
+    amount: { type: Number, required: true },
+    walletAmount: { type: Number, default: 0 },
+    cashAmount: { type: Number, default: 0 },
+    transferAmount: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["pending", "completed", "failed", "refunded"],
+      default: "completed",
+    },
+    idempotencyKey: { type: String },
+    transactionRef: { type: String },
+    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    paidAt: { type: Date },
+    note: { type: String },
   },
   { _id: false },
 );
@@ -423,61 +537,11 @@ const InvoiceSchema = new mongoose.Schema(
       playingMinutes: { type: Number },
     },
     paidAt: { type: Date },
+    payment: PaymentSubSchema,
     voidedAt: { type: Date },
     voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     voidReason: { type: String },
     note: { type: String },
-  },
-  { timestamps: true },
-);
-
-// 1.17 Payment Schema (module: payment)
-const PaymentSchema = new mongoose.Schema(
-  {
-    invoice: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Invoice",
-      required: true,
-    },
-    customer: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    processedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    method: {
-      type: String,
-      enum: ["cash", "wallet", "bank_transfer", "mixed"],
-      required: true,
-    },
-    amount: { type: Number, required: true },
-    walletAmount: { type: Number },
-    cashAmount: { type: Number },
-    transferAmount: { type: Number },
-    status: {
-      type: String,
-      enum: ["pending", "completed", "failed", "refunded"],
-      default: "completed",
-    },
-    idempotencyKey: { type: String },
-    transactionRef: { type: String },
-    note: { type: String },
-  },
-  { timestamps: true },
-);
-
-// 1.18 Review Schema (module: review)
-const ReviewSchema = new mongoose.Schema(
-  {
-    customer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    session: { type: mongoose.Schema.Types.ObjectId, ref: "TableSession" },
-    invoice: { type: mongoose.Schema.Types.ObjectId, ref: "Invoice" },
-    rating: { type: Number, required: true, min: 1, max: 5 },
-    comment: { type: String },
   },
   { timestamps: true },
 );
@@ -601,16 +665,14 @@ const AuditLogSchema = new mongoose.Schema(
 // 1.23. Integrity indexes (phòng duplicate/idempotency ở tầng DB)
 // Lưu ý: index không thay thế business-service transaction/concurrency check.
 // ==============================================================================
-RoleSchema.index({ name: 1 }, { unique: true });
 UserSchema.index({ email: 1 }, { unique: true });
 TableSchema.index({ code: 1 }, { unique: true });
-TournamentPlayerSchema.index({ tournament: 1, player: 1 }, { unique: true });
-PaymentSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 WalletTransactionSchema.index(
   { idempotencyKey: 1 },
   { unique: true, sparse: true },
 );
 InvoiceSchema.index({ invoiceNumber: 1 }, { unique: true });
+OrderSchema.index({ orderCode: 1 }, { unique: true });
 ImportReceiptSchema.index({ receiptNumber: 1 }, { unique: true });
 MatchSchema.index(
   { tournament: 1, round: 1, matchNumber: 1 },
@@ -631,13 +693,8 @@ const Product =
   mongoose.models.Product || mongoose.model("Product", ProductSchema);
 const Supplier =
   mongoose.models.Supplier || mongoose.model("Supplier", SupplierSchema);
-const MenuItem =
-  mongoose.models.MenuItem || mongoose.model("MenuItem", MenuItemSchema);
 const Tournament =
   mongoose.models.Tournament || mongoose.model("Tournament", TournamentSchema);
-const TournamentPlayer =
-  mongoose.models.TournamentPlayer ||
-  mongoose.model("TournamentPlayer", TournamentPlayerSchema);
 const Match = mongoose.models.Match || mongoose.model("Match", MatchSchema);
 const News = mongoose.models.News || mongoose.model("News", NewsSchema);
 const Voucher =
@@ -647,11 +704,9 @@ const Booking =
 const TableSession =
   mongoose.models.TableSession ||
   mongoose.model("TableSession", TableSessionSchema);
+const Order = mongoose.models.Order || mongoose.model("Order", OrderSchema);
 const Invoice =
   mongoose.models.Invoice || mongoose.model("Invoice", InvoiceSchema);
-const Payment =
-  mongoose.models.Payment || mongoose.model("Payment", PaymentSchema);
-const Review = mongoose.models.Review || mongoose.model("Review", ReviewSchema);
 const WalletTransaction =
   mongoose.models.WalletTransaction ||
   mongoose.model("WalletTransaction", WalletTransactionSchema);
@@ -668,98 +723,6 @@ const AuditLog =
 // 2. SEED DATA DEFINITIONS
 // ==============================================================================
 
-// 2.1. Phân quyền RBAC (SRS v4.1 Mục VI)
-const rolesData = [
-  {
-    name: "admin",
-    displayName: "Quản trị viên & Kho",
-    description:
-      "Toàn quyền quản trị hệ thống, kho, bàn, tài khoản, cấu hình giá và giải đấu",
-    permissions: [
-      { module: "users", actions: ["create", "read", "update", "delete"] },
-      { module: "roles", actions: ["create", "read", "update", "delete"] },
-      { module: "tables", actions: ["create", "read", "update", "delete"] },
-      { module: "pricing", actions: ["create", "read", "update", "delete"] },
-      {
-        module: "bookings",
-        actions: ["create", "read", "update", "delete", "approve", "reject"],
-      },
-      {
-        module: "fnb",
-        actions: ["create", "read", "update", "delete", "order"],
-      },
-      {
-        module: "inventory",
-        actions: [
-          "create",
-          "read",
-          "update",
-          "delete",
-          "import",
-          "export",
-          "stocktake",
-          "adjust",
-        ],
-      },
-      { module: "suppliers", actions: ["create", "read", "update", "delete"] },
-      { module: "wallet", actions: ["create", "read", "update", "topup"] },
-      {
-        module: "tournaments",
-        actions: ["create", "read", "update", "delete", "bracket", "score"],
-      },
-      { module: "news", actions: ["create", "read", "update", "delete"] },
-      { module: "vouchers", actions: ["create", "read", "update", "delete"] },
-      { module: "reports", actions: ["read", "export"] },
-      { module: "audit", actions: ["read"] },
-      { module: "notifications", actions: ["create", "read", "delete"] },
-    ],
-    isDefault: false,
-  },
-  {
-    name: "staff",
-    displayName: "Nhân viên phục vụ / Thu ngân POS",
-    description:
-      "Thao tác quầy POS: mở/dừng bàn, bấm giờ, order F&B, duyệt đơn online, thanh toán, in hóa đơn, cập nhật tỉ số",
-    permissions: [
-      {
-        module: "tables",
-        actions: [
-          "read",
-          "update",
-          "open",
-          "pause",
-          "resume",
-          "transfer",
-          "checkout",
-        ],
-      },
-      { module: "bookings", actions: ["read", "approve", "reject"] },
-      { module: "fnb", actions: ["read", "order", "approve", "cancel"] },
-      { module: "wallet", actions: ["read", "topup", "pay"] },
-      { module: "vouchers", actions: ["read", "apply"] },
-      { module: "tournaments", actions: ["read", "score"] },
-      { module: "reports", actions: ["read_pos"] },
-    ],
-    isDefault: false,
-  },
-  {
-    name: "customer",
-    displayName: "Khách hàng / Hội viên",
-    description:
-      "Xem sơ đồ bàn trực tuyến, đặt bàn trước, gọi món tại bàn, ví trả trước, đăng ký giải đấu",
-    permissions: [
-      { module: "tables", actions: ["read_available"] },
-      { module: "bookings", actions: ["create", "read_own", "cancel_own"] },
-      { module: "fnb", actions: ["read", "order_own"] },
-      { module: "wallet", actions: ["read_own", "pay_own"] },
-      { module: "tournaments", actions: ["read", "register"] },
-      { module: "news", actions: ["read"] },
-      { module: "reviews", actions: ["create", "read"] },
-    ],
-    isDefault: true,
-  },
-];
-
 // 2.2. Bảng giá theo khung giờ (SRS v4.1 UC44 & TablesManagementPage)
 const pricingTiersData = [
   {
@@ -768,7 +731,7 @@ const pricingTiersData = [
     startTime: "08:00",
     endTime: "17:00",
     daysOfWeek: [1, 2, 3, 4, 5],
-    prices: { standard: 60000, vip: 120000 },
+    prices: { standard: 60000, vip: 120000, match: 100000 },
     isActive: true,
     isCurrentlyActive: true,
   },
@@ -778,7 +741,7 @@ const pricingTiersData = [
     startTime: "17:00",
     endTime: "24:00",
     daysOfWeek: [1, 2, 3, 4, 5],
-    prices: { standard: 80000, vip: 140000 },
+    prices: { standard: 80000, vip: 140000, match: 120000 },
     isActive: true,
     isCurrentlyActive: false,
   },
@@ -788,14 +751,24 @@ const pricingTiersData = [
     startTime: "08:00",
     endTime: "24:00",
     daysOfWeek: [0, 6],
-    prices: { standard: 80000, vip: 150000 },
+    prices: { standard: 90000, vip: 150000, match: 130000 },
+    isActive: true,
+    isCurrentlyActive: false,
+  },
+  {
+    name: "Khung Giờ Đêm Khuya (Sau 00:00)",
+    dayType: "weekday",
+    startTime: "00:00",
+    endTime: "08:00",
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    prices: { standard: 70000, vip: 130000, match: 110000 },
     isActive: true,
     isCurrentlyActive: false,
   },
 ];
 
-// 2.3. Tài khoản người dùng (Mật khẩu test chuẩn: Cuezone@2026)
-const defaultHashedPassword = bcrypt.hashSync("Cuezone@2026", 10);
+// 2.3. Tài khoản người dùng (Mật khẩu test chuẩn: admin123)
+const defaultHashedPassword = bcrypt.hashSync("admin123", 10);
 
 const usersData = [
   {
@@ -844,108 +817,304 @@ const usersData = [
     wallet: 0,
   },
   {
-    name: "Trần Quốc Đạt",
+    name: "Trần Hoàng Nam",
     email: "customer1@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
-    phone: "0988123456",
-    avatar:
-      "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150",
+    phone: "0912345671",
+    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150",
     isActive: true,
     isLocked: false,
     points: 3400,
     wallet: 1310000,
   },
   {
-    name: "Hoàng Nam",
+    name: "Lê Văn Tuấn",
     email: "customer2@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
-    phone: "0906789012",
-    avatar:
-      "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150",
+    phone: "0912345672",
+    avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150",
     isActive: true,
     isLocked: false,
     points: 2150,
     wallet: 850000,
   },
   {
-    name: "Lê Minh Quân",
+    name: "Phạm Minh Đức",
     email: "customer3@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
-    phone: "0907890123",
-    avatar:
-      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+    phone: "0912345673",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
     isActive: true,
     isLocked: false,
     points: 850,
     wallet: 350000,
   },
   {
-    name: "Trần Tuấn Hưng",
+    name: "Vũ Đình Trọng",
     email: "customer4@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
-    phone: "0908901234",
-    avatar:
-      "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150",
+    phone: "0912345674",
+    avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150",
     isActive: true,
     isLocked: false,
     points: 520,
     wallet: 200000,
   },
   {
-    name: "Vũ Hải Nam",
+    name: "Đặng Quang Huy",
     email: "customer5@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
-    phone: "0909012345",
-    avatar:
-      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+    phone: "0912345675",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
     isActive: true,
     isLocked: false,
     points: 1200,
     wallet: 500000,
   },
   {
-    name: "Đặng Minh Trí",
+    name: "Hoàng Gia Bảo",
     email: "customer6@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
-    phone: "0910123456",
-    avatar:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
+    phone: "0912345676",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
     isActive: true,
     isLocked: false,
     points: 640,
     wallet: 300000,
   },
   {
-    name: "Phạm Thành Trung",
+    name: "Nguyễn Tuấn Kiệt",
     email: "customer7@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
-    phone: "0911234567",
-    avatar:
-      "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150",
+    phone: "0912345677",
+    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150",
     isActive: true,
     isLocked: false,
     points: 410,
     wallet: 150000,
   },
   {
-    name: "Bùi Anh Tuấn",
+    name: "Bùi Anh Quân",
     email: "customer8@gmail.com",
     password: defaultHashedPassword,
     role: "customer",
     phone: "0912345678",
-    avatar:
-      "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150",
+    avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150",
     isActive: true,
     isLocked: false,
     points: 980,
     wallet: 600000,
+  },
+  {
+    name: "Mai Trọng Tấn",
+    email: "customer9@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345679",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 1500,
+    wallet: 700000,
+  },
+  {
+    name: "Phan Thành Long",
+    email: "customer10@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345680",
+    avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 320,
+    wallet: 100000,
+  },
+  {
+    name: "Dương Quốc Hoàng",
+    email: "customer11@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345681",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 4500,
+    wallet: 2000000,
+  },
+  {
+    name: "Lương Chí Dũng",
+    email: "customer12@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345682",
+    avatar: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 890,
+    wallet: 400000,
+  },
+  {
+    name: "Đỗ Thế Kiên",
+    email: "customer13@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345683",
+    avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 1100,
+    wallet: 500000,
+  },
+  {
+    name: "Nguyễn Anh Tuấn",
+    email: "customer14@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345684",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 2400,
+    wallet: 900000,
+  },
+  {
+    name: "Tạ Văn Linh",
+    email: "customer15@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345685",
+    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 750,
+    wallet: 250000,
+  },
+  {
+    name: "Nguyễn Bích Trâm",
+    email: "customer16@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345686",
+    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 1800,
+    wallet: 800000,
+  },
+  {
+    name: "Vũ Thị Lan Anh",
+    email: "customer17@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345687",
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 310,
+    wallet: 150000,
+  },
+  {
+    name: "Trịnh Văn Quyết",
+    email: "customer18@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345688",
+    avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 950,
+    wallet: 450000,
+  },
+  {
+    name: "Hà Tuấn Kiệt",
+    email: "customer19@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345689",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 1350,
+    wallet: 600000,
+  },
+  {
+    name: "Đoàn Quốc Cường",
+    email: "customer20@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0912345690",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 600,
+    wallet: 200000,
+  },
+  {
+    name: "Nguyễn Tuấn Anh",
+    email: "customer21@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0988112233",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 450,
+    wallet: 150000,
+  },
+  {
+    name: "Đỗ Thành Đạt",
+    email: "customer22@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0977334455",
+    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 720,
+    wallet: 300000,
+  },
+  {
+    name: "Trương Hải Đăng",
+    email: "customer23@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0909556677",
+    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 1600,
+    wallet: 800000,
+  },
+  {
+    name: "Lê Quốc Bảo",
+    email: "customer24@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0901223344",
+    avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 2100,
+    wallet: 1000000,
+  },
+  {
+    name: "Ngô Kiến Huy",
+    email: "customer25@gmail.com",
+    password: defaultHashedPassword,
+    role: "customer",
+    phone: "0909887766",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    isActive: true,
+    isLocked: false,
+    points: 840,
+    wallet: 400000,
   },
 ];
 
@@ -955,7 +1124,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-01",
     name: "BÀN 01 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
     pricePerHour: 120000,
@@ -966,7 +1135,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-02",
     name: "BÀN 02 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
     pricePerHour: 120000,
@@ -977,7 +1146,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-03",
     name: "BÀN 03 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
     pricePerHour: 120000,
@@ -988,7 +1157,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-04",
     name: "BÀN 04 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
     pricePerHour: 120000,
@@ -999,10 +1168,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-05",
     name: "BÀN 05 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
-    pricePerHour: 140000,
+    pricePerHour: 120000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1010,10 +1179,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-06",
     name: "BÀN 06 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
-    pricePerHour: 140000,
+    pricePerHour: 120000,
     status: "paused",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1021,10 +1190,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-07",
     name: "BÀN 07 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
-    pricePerHour: 140000,
+    pricePerHour: 120000,
     status: "available",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1032,10 +1201,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "VIP-08",
     name: "BÀN 08 • VIP",
-    type: "vip_bank_pool",
+    type: "carom",
     area: "Khu VIP",
     floor: 2,
-    pricePerHour: 140000,
+    pricePerHour: 120000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1045,7 +1214,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-01",
     name: "BÀN 01 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
     pricePerHour: 60000,
@@ -1056,7 +1225,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-02",
     name: "BÀN 02 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
     pricePerHour: 60000,
@@ -1067,7 +1236,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-03",
     name: "BÀN 03 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
     pricePerHour: 60000,
@@ -1078,7 +1247,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-04",
     name: "BÀN 04 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
     pricePerHour: 60000,
@@ -1089,10 +1258,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-05",
     name: "BÀN 05 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 70000,
+    pricePerHour: 60000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1100,10 +1269,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-06",
     name: "BÀN 06 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 70000,
+    pricePerHour: 60000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1111,10 +1280,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-07",
     name: "BÀN 07 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 70000,
+    pricePerHour: 60000,
     status: "available",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1122,10 +1291,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-08",
     name: "BÀN 08 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 70000,
+    pricePerHour: 60000,
     status: "booked",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1133,10 +1302,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-09",
     name: "BÀN 09 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 70000,
+    pricePerHour: 60000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1144,10 +1313,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-10",
     name: "BÀN 10 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 70000,
+    pricePerHour: 60000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1155,10 +1324,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-11",
     name: "BÀN 11 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 80000,
+    pricePerHour: 60000,
     status: "paused",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1166,10 +1335,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-12",
     name: "BÀN 12 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 80000,
+    pricePerHour: 60000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1177,10 +1346,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-13",
     name: "BÀN 13 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 80000,
+    pricePerHour: 60000,
     status: "booked",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1188,10 +1357,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-14",
     name: "BÀN 14 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 80000,
+    pricePerHour: 60000,
     status: "available",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1199,10 +1368,10 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "STD-15",
     name: "BÀN 15 • PHỔ THÔNG",
-    type: "standard_9ft",
+    type: "pool",
     area: "Phổ thông",
     floor: 1,
-    pricePerHour: 80000,
+    pricePerHour: 60000,
     status: "playing",
     isActive: true,
     pricingTier: pricingTierId,
@@ -1212,7 +1381,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "MTCH-01",
     name: "BÀN 01 • THI ĐẤU",
-    type: "match_ksteel",
+    type: "snooker",
     area: "Thi đấu",
     floor: 1,
     pricePerHour: 100000,
@@ -1223,7 +1392,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "MTCH-02",
     name: "BÀN 02 • THI ĐẤU",
-    type: "match_ksteel",
+    type: "snooker",
     area: "Thi đấu",
     floor: 1,
     pricePerHour: 100000,
@@ -1234,7 +1403,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "MTCH-03",
     name: "BÀN 03 • THI ĐẤU",
-    type: "match_ksteel",
+    type: "snooker",
     area: "Thi đấu",
     floor: 1,
     pricePerHour: 100000,
@@ -1245,7 +1414,7 @@ const buildTablesData = (pricingTierId) => [
   {
     code: "MTCH-04",
     name: "BÀN 04 • THI ĐẤU",
-    type: "match_ksteel",
+    type: "snooker",
     area: "Thi đấu",
     floor: 1,
     pricePerHour: 100000,
@@ -1255,47 +1424,72 @@ const buildTablesData = (pricingTierId) => [
   },
 ];
 
-// 2.5. Thông báo hệ thống (Notification)
-const notificationsData = [
-  {
-    title: "Bàn chuyển sang tạm dừng",
-    message:
-      'Bàn "BÀN 06 • VIP" (Mã: VIP-06) vừa chuyển sang trạng thái Tạm dừng theo yêu cầu của khách.',
-    type: "table",
-    isRead: false,
-  },
-  {
-    title: "Yêu cầu đặt bàn trực tuyến mới",
-    message:
-      "Khách hàng Trần Quốc Đạt vừa gửi yêu cầu đặt BÀN 03 • VIP lúc 19:30 tối nay.",
-    type: "system",
-    isRead: false,
-  },
-  {
-    title: "Cảnh báo tồn kho tối thiểu",
-    message:
-      'Mặt hàng "Lơ bida Master Blue" hiện chỉ còn 5 viên trong kho (dưới mức an toàn 20 viên). Vui lòng nhập thêm!',
-    type: "system",
-    isRead: false,
-  },
-  {
-    title: "Kích hoạt khung giờ giá mới",
-    message:
-      "Khung giờ tiêu chuẩn ban ngày (T2-T6) đã được kích hoạt thành công trên toàn hệ thống.",
-    type: "pricing",
-    isRead: true,
-  },
-  {
-    title: "Giải đấu Bank Pool 2026",
-    message:
-      "Đã có 16 cơ thủ hoàn tất đăng ký Giải Bank Pool Mở Rộng CueZone Cup 2026. Nhánh đấu đã sẵn sàng!",
-    type: "system",
-    isRead: true,
-  },
-];
+// 2.5. Thông báo hệ thống (Notification - SRS v4.2 UC05 hỗ trợ cả thông báo cá nhân & public)
+function buildNotificationsData(adminUser, staff1User, staff2User, customers) {
+  return [
+    {
+      user: staff1User._id,
+      title: "Bàn chuyển sang tạm dừng",
+      message:
+        'Bàn "BÀN 06 • VIP" (Mã: VIP-06) vừa chuyển sang trạng thái Tạm dừng theo yêu cầu của khách.',
+      type: "table",
+      isRead: false,
+    },
+    {
+      user: staff2User._id,
+      title: "Yêu cầu đặt bàn trực tuyến mới",
+      message:
+        "Khách hàng Trần Quốc Đạt vừa gửi yêu cầu đặt BÀN 03 • VIP lúc 19:30 tối nay.",
+      type: "booking",
+      isRead: false,
+    },
+    {
+      user: adminUser._id,
+      title: "Cảnh báo tồn kho tối thiểu",
+      message:
+        'Mặt hàng "Lơ bida Master Blue" hiện chỉ còn 5 viên trong kho (dưới mức an toàn 20 viên). Vui lòng nhập thêm!',
+      type: "system",
+      isRead: false,
+    },
+    {
+      user: customers[0] ? customers[0]._id : null,
+      title: "Xác nhận đặt bàn thành công",
+      message:
+        "Yêu cầu đặt BÀN 01 • VIP của bạn đã được xác nhận. Hẹn gặp bạn tại CueZone Club!",
+      type: "booking",
+      isRead: true,
+    },
+    {
+      user: customers[1] ? customers[1]._id : null,
+      title: "Biến động số dư ví CueZone",
+      message:
+        "Ví của bạn vừa được nạp thành công 500.000 VNĐ qua Chuyển khoản ngân hàng. Số dư hiện tại: 840.000 VNĐ.",
+      type: "wallet",
+      isRead: true,
+    },
+    {
+      user: null, // Broadcast / Public
+      title: "Kích hoạt khung giờ giá mới",
+      message:
+        "Khung giờ tiêu chuẩn ban ngày (T2-T6) đã được kích hoạt thành công trên toàn hệ thống.",
+      type: "pricing",
+      isRead: true,
+    },
+    {
+      user: null, // Broadcast / Public
+      title: "Giải đấu Bank Pool 2026",
+      message:
+        "Đã có 16 cơ thủ hoàn tất đăng ký Giải Bank Pool Mở Rộng CueZone Cup 2026. Nhánh đấu đã sẵn sàng!",
+      type: "system",
+      isRead: true,
+    },
+  ];
+}
 
 // 2.6. Kho hàng & Phụ kiện bida (SRS v4.1 UC31, UC32, UC37)
+// 2.6. Kho hàng & F&B Menu Catalog (Hợp nhất 100% Phụ kiện, Đồ uống, Đồ ăn & Nguyên liệu)
 const productsData = [
+  // --- 1. Phụ kiện bida & dịch vụ bàn ---
   {
     name: "Lơ bida Master Blue",
     sku: "ACC-002",
@@ -1307,6 +1501,8 @@ const productsData = [
     minStock: 20,
     imageUrl:
       "https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?w=150",
+    description: "Lơ bida nhập khẩu bám bi tốt, tăng ma sát cho đầu cơ",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1320,6 +1516,8 @@ const productsData = [
     minStock: 10,
     imageUrl:
       "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=150",
+    description: "Đầu cơ bida da nhiều lớp Kamui Nhật Bản chuẩn thi đấu",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1332,6 +1530,8 @@ const productsData = [
     stock: 18,
     minStock: 8,
     imageUrl: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=150",
+    description: "Găng tay bida co giãn thoáng khí tay trái",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1345,6 +1545,8 @@ const productsData = [
     minStock: 5,
     imageUrl:
       "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=150",
+    description: "Khăn chuyên dụng vệ sinh mặt vải nỉ bàn bida",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1357,8 +1559,12 @@ const productsData = [
     stock: 4,
     minStock: 2,
     imageUrl: "https://images.unsplash.com/photo-1563245372-f21724e3856d?w=150",
+    description: "Bộ bi bida Bỉ chấm đỏ tiêu chuẩn truyền hình quốc tế",
+    isForSale: true,
     isActive: true,
   },
+
+  // --- 2. Đồ uống đóng chai / lon ---
   {
     name: "Nước tăng lực RedBull lon 250ml",
     sku: "DRK-001",
@@ -1370,6 +1576,8 @@ const productsData = [
     minStock: 36,
     imageUrl:
       "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=150",
+    description: "Lon 250ml ướp lạnh kèm ly đá",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1382,6 +1590,8 @@ const productsData = [
     stock: 150,
     minStock: 30,
     imageUrl: "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=150",
+    description: "Lon 330ml kèm ly đá chanh",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1395,6 +1605,8 @@ const productsData = [
     minStock: 24,
     imageUrl:
       "https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=150",
+    description: "Nước ngọt có ga vị chanh mát lạnh",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1407,6 +1619,8 @@ const productsData = [
     stock: 240,
     minStock: 48,
     imageUrl: "https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=150",
+    description: "Nước tinh khiết đóng chai 500ml",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1420,6 +1634,8 @@ const productsData = [
     minStock: 48,
     imageUrl:
       "https://images.unsplash.com/photo-1608270192802-990ff5b090bc?w=150",
+    description: "Lon 330ml ướp lạnh sâu",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1433,6 +1649,8 @@ const productsData = [
     minStock: 48,
     imageUrl:
       "https://images.unsplash.com/photo-1618886614638-80e3c15cd819?w=150",
+    description: "Lon 330ml êm đằm dễ uống",
+    isForSale: true,
     isActive: true,
   },
   {
@@ -1446,8 +1664,151 @@ const productsData = [
     minStock: 48,
     imageUrl:
       "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=150",
+    description: "Chai thủy tinh 330ml ướp xô đá",
+    isForSale: true,
     isActive: true,
   },
+
+  // --- 3. Đồ uống pha chế (Coffee & Tea) ---
+  {
+    name: "Cà phê muối đặc biệt",
+    sku: "DRK-008",
+    category: "drink",
+    unit: "ly",
+    costPrice: 12000,
+    salePrice: 35000,
+    stock: 50,
+    minStock: 10,
+    imageUrl:
+      "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=150",
+    description: "Cà phê phin đậm vị kết hợp lớp kem muối béo ngậy",
+    isForSale: true,
+    isActive: true,
+  },
+  {
+    name: "Cà phê đen đá",
+    sku: "DRK-009",
+    category: "drink",
+    unit: "ly",
+    costPrice: 8000,
+    salePrice: 25000,
+    stock: 50,
+    minStock: 10,
+    imageUrl:
+      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=150",
+    description: "Robusta nguyên chất đậm vị truyền thống",
+    isForSale: true,
+    isActive: true,
+  },
+  {
+    name: "Cà phê sữa đá",
+    sku: "DRK-010",
+    category: "drink",
+    unit: "ly",
+    costPrice: 10000,
+    salePrice: 30000,
+    stock: 50,
+    minStock: 10,
+    imageUrl: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=150",
+    description: "Cà phê Robusta pha sữa đặc ngọt dịu",
+    isForSale: true,
+    isActive: true,
+  },
+  {
+    name: "Trà đào cam sả",
+    sku: "DRK-011",
+    category: "drink",
+    unit: "ly",
+    costPrice: 12000,
+    salePrice: 35000,
+    stock: 40,
+    minStock: 10,
+    imageUrl: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=150",
+    description: "Trà đào thơm mát miếng đào giòn ngọt",
+    isForSale: true,
+    isActive: true,
+  },
+
+  // --- 4. Món ăn chế biến (Food) ---
+  {
+    name: "Mì bò trứng xúc xích",
+    sku: "FOD-001",
+    category: "food",
+    unit: "tô",
+    costPrice: 20000,
+    salePrice: 45000,
+    stock: 35,
+    minStock: 10,
+    imageUrl:
+      "https://images.unsplash.com/photo-1612927601601-6638404737ce?w=150",
+    description: "Mì tôm thơm ngon kèm bò viên, trứng ốp la và xúc xích nướng",
+    isForSale: true,
+    isActive: true,
+  },
+  {
+    name: "Bánh mì nướng bơ phô mai",
+    sku: "FOD-002",
+    category: "food",
+    unit: "phần",
+    costPrice: 10000,
+    salePrice: 25000,
+    stock: 30,
+    minStock: 10,
+    imageUrl:
+      "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=150",
+    description: "2 lát bánh mì giòn rụm béo thơm",
+    isForSale: true,
+    isActive: true,
+  },
+  {
+    name: "Khoai tây chiên lắc phô mai",
+    sku: "FOD-003",
+    category: "food",
+    unit: "đĩa",
+    costPrice: 15000,
+    salePrice: 35000,
+    stock: 30,
+    minStock: 10,
+    imageUrl:
+      "https://images.unsplash.com/photo-1576107232684-1279f3908594?w=150",
+    description: "Khoai tây vàng giòn kèm sốt tương cà tương ớt",
+    isForSale: true,
+    isActive: true,
+  },
+
+  // --- 5. Đồ ăn vặt (Snacks) ---
+  {
+    name: "Hạt hướng dương rang muối",
+    sku: "SNK-001",
+    category: "snack",
+    unit: "gói",
+    costPrice: 12000,
+    salePrice: 25000,
+    stock: 60,
+    minStock: 15,
+    imageUrl:
+      "https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=150",
+    description: "Gói 200g thơm ngon nhâm nhi khi chơi",
+    isForSale: true,
+    isActive: true,
+  },
+  {
+    name: "Hạt điều Bình Phước rang muối",
+    sku: "SNK-002",
+    category: "snack",
+    unit: "gói",
+    costPrice: 22000,
+    salePrice: 40000,
+    stock: 40,
+    minStock: 10,
+    imageUrl:
+      "https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=150",
+    description: "Hạt điều nguyên hạt giòn béo ngậy gói 150g",
+    isForSale: true,
+    isActive: true,
+  },
+
+  // --- 6. Nguyên liệu thô (Internal Ingredients - Không hiển thị bán lẻ) ---
   {
     name: "Cà phê hạt Robusta rang xay 1kg",
     sku: "ING-001",
@@ -1458,6 +1819,8 @@ const productsData = [
     stock: 8,
     minStock: 3,
     imageUrl: "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=150",
+    description: "Nguyên liệu pha chế cà phê hạt Robusta mộc",
+    isForSale: false,
     isActive: true,
   },
   {
@@ -1471,6 +1834,8 @@ const productsData = [
     minStock: 12,
     imageUrl:
       "https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?w=150",
+    description: "Nguyên liệu sữa đặc pha chế",
+    isForSale: false,
     isActive: true,
   },
   {
@@ -1483,6 +1848,8 @@ const productsData = [
     stock: 15,
     minStock: 6,
     imageUrl: "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=150",
+    description: "Kem béo thực vật làm kem muối và trà sữa",
+    isForSale: false,
     isActive: true,
   },
 ];
@@ -1520,132 +1887,6 @@ const suppliersData = [
     email: "caphenguyenchat.hn@gmail.com",
     address: "22 Lý Thường Kiệt, Hoàn Kiếm, Hà Nội",
     note: "Giao cà phê rang mộc mới mỗi đầu tháng",
-  },
-];
-
-// 2.8. Menu đồ ăn/uống (F&B) phục vụ tại bàn & POS (UC09, UC23)
-const menuItemsData = [
-  {
-    name: "Cà phê muối đặc biệt",
-    category: "drink",
-    price: 35000,
-    description: "Cà phê phin đậm vị kết hợp lớp kem muối béo ngậy",
-    imageUrl:
-      "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Cà phê đen đá",
-    category: "drink",
-    price: 25000,
-    description: "Robusta nguyên chất đậm vị truyền thống",
-    imageUrl:
-      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Cà phê sữa đá",
-    category: "drink",
-    price: 30000,
-    description: "Cà phê Robusta pha sữa đặc ngọt dịu",
-    imageUrl: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Nước tăng lực RedBull",
-    category: "drink",
-    price: 20000,
-    description: "Lon 250ml ướp lạnh kèm ly đá",
-    imageUrl:
-      "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Pepsi / 7UP lon",
-    category: "drink",
-    price: 15000,
-    description: "Lon 330ml kèm ly đá chanh",
-    imageUrl: "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Bia Tiger bạc lon",
-    category: "drink",
-    price: 25000,
-    description: "Lon 330ml ướp lạnh sâu",
-    imageUrl:
-      "https://images.unsplash.com/photo-1608270192802-990ff5b090bc?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Bia Heineken Silver",
-    category: "drink",
-    price: 30000,
-    description: "Lon 330ml êm đằm dễ uống",
-    imageUrl:
-      "https://images.unsplash.com/photo-1618886614638-80e3c15cd819?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Nước suối Aquafina 500ml",
-    category: "drink",
-    price: 10000,
-    description: "Nước tinh khiết đóng chai",
-    imageUrl: "https://images.unsplash.com/photo-1550572017-edd951aa8f72?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Trà đào cam sả",
-    category: "drink",
-    price: 35000,
-    description: "Trà đào thơm mát miếng đào giòn ngọt",
-    imageUrl: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Mì bò trứng xúc xích",
-    category: "food",
-    price: 45000,
-    description: "Mì tôm thơm ngon kèm bò viên, trứng ốp la và xúc xích nướng",
-    imageUrl:
-      "https://images.unsplash.com/photo-1612927601601-6638404737ce?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Bánh mì nướng bơ phô mai",
-    category: "food",
-    price: 25000,
-    description: "2 lát bánh mì giòn rụm béo thơm",
-    imageUrl:
-      "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Khoai tây chiên lắc phô mai",
-    category: "food",
-    price: 35000,
-    description: "Khoai tây vàng giòn kèm sốt tương cà tương ớt",
-    imageUrl:
-      "https://images.unsplash.com/photo-1576107232684-1279f3908594?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Hạt hướng dương rang muối",
-    category: "snack",
-    price: 25000,
-    description: "Gói 200g thơm ngon nhâm nhi khi chơi",
-    imageUrl:
-      "https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=150",
-    isAvailable: true,
-  },
-  {
-    name: "Hạt điều Bình Phước rang muối",
-    category: "snack",
-    price: 40000,
-    description: "Hạt điều nguyên hạt giòn béo ngậy gói 150g",
-    imageUrl:
-      "https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=150",
-    isAvailable: true,
   },
 ];
 
@@ -1793,12 +2034,10 @@ function assertSeedIntegrity({
   bookings,
   sessions,
   invoices,
-  payments,
   vouchers,
   walletTxs,
   products,
   inventoryTxs,
-  tournamentPlayers,
   tournaments,
   matches,
 }) {
@@ -1832,7 +2071,7 @@ function assertSeedIntegrity({
     }
   });
 
-  const liveStatuses = new Set(["pending", "confirmed", "checked_in"]);
+  const liveStatuses = new Set(["pending", "confirmed", "approved", "checked_in"]);
   const bookingGroups = new Map();
   bookings.forEach((b) => {
     if (
@@ -1879,21 +2118,23 @@ function assertSeedIntegrity({
       fail(`Invoice ${inv.invoiceNumber}: total != subtotal-discount+tax`);
     if (inv.paidAmount < 0 || inv.paidAmount > inv.totalAmount)
       fail(`Invoice ${inv.invoiceNumber}: invalid paidAmount`);
-    if (inv.status === "paid" && inv.paidAmount !== inv.totalAmount)
-      fail(`Invoice ${inv.invoiceNumber}: PAID but paidAmount != totalAmount`);
-  });
-
-  const paymentsByInvoice = new Map();
-  payments.forEach((p) => {
-    if (p.amount <= 0) fail(`Payment amount must be > 0`);
-    if (p.method === "wallet" && Number(p.walletAmount || 0) !== p.amount)
-      fail(`Wallet payment amount mismatch: ${p.transactionRef || p.invoice}`);
-    const key = String(p.invoice);
-    paymentsByInvoice.set(key, (paymentsByInvoice.get(key) || 0) + p.amount);
-  });
-  invoices.forEach((inv) => {
-    if ((paymentsByInvoice.get(String(inv._id)) || 0) !== inv.paidAmount)
-      fail(`Invoice ${inv.invoiceNumber}: payment sum != paidAmount`);
+    if (inv.status === "paid") {
+      if (inv.paidAmount !== inv.totalAmount)
+        fail(
+          `Invoice ${inv.invoiceNumber}: PAID but paidAmount != totalAmount`,
+        );
+      if (!inv.payment)
+        fail(
+          `Invoice ${inv.invoiceNumber}: PAID but missing embedded payment info`,
+        );
+      if (inv.payment.amount !== inv.paidAmount)
+        fail(`Invoice ${inv.invoiceNumber}: payment.amount != paidAmount`);
+      if (
+        inv.payment.method === "wallet" &&
+        Number(inv.payment.walletAmount || 0) !== inv.paidAmount
+      )
+        fail(`Wallet payment amount mismatch on invoice ${inv.invoiceNumber}`);
+    }
   });
 
   vouchers.forEach((v) => {
@@ -1957,18 +2198,16 @@ function assertSeedIntegrity({
     if (p.stock < 0) fail(`Negative stock for ${p.sku}`);
   });
 
-  const registrations = new Map();
-  tournamentPlayers.forEach((p) => {
-    const key = String(p.tournament);
-    registrations.set(
-      key,
-      (registrations.get(key) || 0) +
-        (p.registrationStatus !== "cancelled" ? 1 : 0),
-    );
-  });
   tournaments.forEach((t) => {
-    if ((registrations.get(String(t._id)) || 0) > t.maxPlayers)
+    const activePlayers = (t.players || []).filter(
+      (p) => p.registrationStatus !== "cancelled",
+    );
+    if (activePlayers.length > t.maxPlayers)
       fail(`Tournament ${t.name}: player count exceeds maxPlayers`);
+    (t.players || []).forEach((p) => {
+      if (p.seed && (p.seed < 1 || p.seed > 16))
+        fail(`Tournament player seed out of bounds: ${p.seed}`);
+    });
     if (new Date(t.registrationDeadline) > new Date(t.startDate))
       fail(`Tournament ${t.name}: registrationDeadline after startDate`);
     if (
@@ -2004,51 +2243,184 @@ async function runSeed() {
     await mongoose.connect(MONGO_URI);
     console.log("✅ MongoDB connected successfully!\n");
 
-    // 1. Dọn dẹp tất cả 22 collections cũ
-    console.log("🗑️  Cleaning up previous data across all 22 collections...");
+    // 1. Dọn dẹp tất cả các collections cũ (NGOẠI TRỪ BẢNG USERS)
+    console.log(
+      "🗑️  Cleaning up previous data across all collections (PRESERVING USERS)...",
+    );
     await Promise.all([
-      Role.deleteMany({}),
       PricingTier.deleteMany({}),
-      User.deleteMany({}),
+      // User.deleteMany({}) -> GIỮ NGUYÊN BẢNG USERS THEO YÊU CẦU!
       Table.deleteMany({}),
       Notification.deleteMany({}),
       Product.deleteMany({}),
       Supplier.deleteMany({}),
-      MenuItem.deleteMany({}),
       Tournament.deleteMany({}),
-      TournamentPlayer.deleteMany({}),
       Match.deleteMany({}),
       News.deleteMany({}),
       Voucher.deleteMany({}),
       Booking.deleteMany({}),
       TableSession.deleteMany({}),
+      Order.deleteMany({}),
       Invoice.deleteMany({}),
-      Payment.deleteMany({}),
-      Review.deleteMany({}),
       WalletTransaction.deleteMany({}),
       InventoryTransaction.deleteMany({}),
       ImportReceipt.deleteMany({}),
       AuditLog.deleteMany({}),
+      Role.deleteMany({}),
+      mongoose.connection.db
+        .collection("reviews")
+        .drop()
+        .catch(() => {}),
+      mongoose.connection.db
+        .collection("stocktakes")
+        .drop()
+        .catch(() => {}),
+      mongoose.connection.db
+        .collection("menuitems")
+        .drop()
+        .catch(() => {}),
+      mongoose.connection.db
+        .collection("emailverifications")
+        .drop()
+        .catch(() => {}),
+      mongoose.connection.db
+        .collection("payments")
+        .drop()
+        .catch(() => {}),
+      mongoose.connection.db
+        .collection("tournamentplayers")
+        .drop()
+        .catch(() => {}),
+      mongoose.connection.db
+        .collection("passwordresets")
+        .drop()
+        .catch(() => {}),
     ]);
-    console.log("✅ All old collections cleared.\n");
+    console.log(
+      "✅ All old operational collections cleared (Users preserved).\n",
+    );
 
-    // 2. Seed Roles (RBAC)
-    console.log("🌱 1/22. Seeding Roles (RBAC)...");
+    // 1.5 Seed Roles
+    console.log("🌱 1/23. Seeding Roles (RBAC)...");
+    const rolesData = [
+      {
+        name: "admin",
+        displayName: "Quản trị viên",
+        description:
+          "Toàn quyền quản trị hệ thống, nhân sự, tài chính, báo cáo",
+        permissions: [
+          { module: "users", actions: ["create", "read", "update", "delete"] },
+          { module: "tables", actions: ["create", "read", "update", "delete"] },
+          { module: "orders", actions: ["create", "read", "update", "delete"] },
+          {
+            module: "invoices",
+            actions: ["create", "read", "update", "delete"],
+          },
+          {
+            module: "inventory",
+            actions: ["create", "read", "update", "delete"],
+          },
+          {
+            module: "tournaments",
+            actions: ["create", "read", "update", "delete"],
+          },
+          { module: "reports", actions: ["read", "export"] },
+          { module: "roles", actions: ["create", "read", "update", "delete"] },
+        ],
+        isDefault: true,
+      },
+      {
+        name: "manager",
+        displayName: "Quản lý câu lạc bộ",
+        description:
+          "Quản lý ca làm việc, điều hành bàn, kho hàng, phê duyệt phiếu nhập và giải đấu",
+        permissions: [
+          { module: "users", actions: ["read"] },
+          { module: "tables", actions: ["create", "read", "update"] },
+          { module: "orders", actions: ["create", "read", "update"] },
+          { module: "invoices", actions: ["create", "read", "update"] },
+          { module: "inventory", actions: ["create", "read", "update"] },
+          { module: "tournaments", actions: ["create", "read", "update"] },
+          { module: "reports", actions: ["read"] },
+        ],
+        isDefault: true,
+      },
+      {
+        name: "staff",
+        displayName: "Nhân viên phục vụ & Thu ngân",
+        description:
+          "Vận hành phiên bàn, tiếp nhận gọi món F&B, lập hóa đơn thanh toán",
+        permissions: [
+          { module: "tables", actions: ["read", "update"] },
+          { module: "orders", actions: ["create", "read", "update"] },
+          { module: "invoices", actions: ["create", "read"] },
+          { module: "bookings", actions: ["read", "update"] },
+        ],
+        isDefault: true,
+      },
+      {
+        name: "customer",
+        displayName: "Khách hàng / Hội viên",
+        description:
+          "Đặt bàn trực tuyến, gọi món tại bàn qua QR, nạp ví, đăng ký giải đấu",
+        permissions: [
+          { module: "tables", actions: ["read"] },
+          { module: "bookings", actions: ["create", "read"] },
+          { module: "orders", actions: ["create", "read"] },
+          { module: "wallet", actions: ["create", "read"] },
+          { module: "tournaments", actions: ["read", "update"] },
+        ],
+        isDefault: true,
+      },
+    ];
     const createdRoles = await Role.insertMany(rolesData);
+    const roleMap = {};
+    for (const r of createdRoles) {
+      roleMap[r.name] = r._id;
+    }
     console.log(`   ✅ Roles seeded: ${createdRoles.length} records`);
 
-    // 3. Seed Pricing Tiers
-    console.log("🌱 2/22. Seeding Pricing Tiers...");
+    // 2. Seed Pricing Tiers
+    console.log("🌱 2/23. Seeding Pricing Tiers...");
     const createdPricingTiers = await PricingTier.insertMany(pricingTiersData);
     console.log(
       `   ✅ Pricing Tiers seeded: ${createdPricingTiers.length} records`,
     );
     const defaultTierId = createdPricingTiers[0]._id;
 
-    // 4. Seed Users
-    console.log("🌱 3/22. Seeding Users (with bcrypt hashed passwords)...");
-    const createdUsers = await User.insertMany(usersData);
-    console.log(`   ✅ Users seeded: ${createdUsers.length} records`);
+    // 3. Seed Users: GIỮ NGUYÊN TẤT CẢ USER HIỆN CÓ TRÊN MONGODB, CHỈ ĐỒNG BỘ CÁC USER MẪU NẾU CẦN
+    console.log(
+      "🌱 3/23. Synchronizing Users (Preserving existing user accounts)...",
+    );
+    const createdUsers = [];
+    for (const u of usersData) {
+      let existing = await User.findOne({ email: u.email.toLowerCase() });
+      const targetRoleId = roleMap[u.role] || roleMap["customer"];
+      if (!existing) {
+        existing = await User.create({ ...u, roleId: targetRoleId });
+      } else {
+        // Đồng bộ số dư ví và điểm để khớp với sổ cái ledger trong seed
+        existing.wallet = u.wallet;
+        existing.points = u.points;
+        if (!existing.role) existing.role = u.role;
+        existing.roleId = targetRoleId;
+        existing.isActive = true;
+        existing.isLocked = false;
+        await existing.save();
+      }
+      createdUsers.push(existing);
+    }
+    const allUsersInDb = await User.find({});
+    for (const u of allUsersInDb) {
+      const targetRoleId = roleMap[u.role] || roleMap["customer"];
+      if (!u.roleId || String(u.roleId) !== String(targetRoleId)) {
+        u.roleId = targetRoleId;
+        await u.save();
+      }
+    }
+    console.log(
+      `   ✅ Users preserved & synchronized: ${allUsersInDb.length} total accounts in DB (${createdUsers.length} seed accounts matched)`,
+    );
 
     const adminUser = createdUsers.find((u) => u.role === "admin");
     const staff1User = createdUsers.find(
@@ -2069,6 +2441,12 @@ async function runSeed() {
 
     // 6. Seed Notifications
     console.log("🌱 5/22. Seeding Notifications...");
+    const notificationsData = buildNotificationsData(
+      adminUser,
+      staff1User,
+      staff2User,
+      customers,
+    );
     const createdNotifications =
       await Notification.insertMany(notificationsData);
     console.log(
@@ -2087,43 +2465,39 @@ async function runSeed() {
     const createdSuppliers = await Supplier.insertMany(suppliersData);
     console.log(`   ✅ Suppliers seeded: ${createdSuppliers.length} records`);
 
-    // 9. Seed MenuItems (F&B)
-    console.log("🌱 8/22. Seeding F&B MenuItems...");
-    const createdMenuItems = await MenuItem.insertMany(menuItemsData);
-    console.log(`   ✅ MenuItems seeded: ${createdMenuItems.length} records`);
-
     // 10. Seed Tournaments
-    console.log("🌱 9/22. Seeding Tournaments (Bank Pool)...");
-    const tournamentsDataWithCreator = tournamentsData.map((t) => ({
-      ...t,
-      createdBy: adminUser._id,
-    }));
-    const createdTournaments = await Tournament.insertMany(
-      tournamentsDataWithCreator,
-    );
     console.log(
-      `   ✅ Tournaments seeded: ${createdTournaments.length} records`,
+      "🌱 9/20. Seeding Tournaments (Bank Pool with embedded players)...",
     );
-
-    const activeTournament = createdTournaments[0]; // CueZone Cup (registration_open)
-    const completedTournament = createdTournaments[1]; // Mùa Thu 2026 (completed)
-
-    // 11. Seed TournamentPlayers
-    console.log("🌱 10/22. Seeding Tournament Players...");
     const tournamentPlayersData = customers.slice(0, 8).map((cust, idx) => ({
-      tournament: completedTournament._id,
       player: cust._id,
       registrationStatus: "confirmed",
       seed: idx + 1,
       feePaid: true,
       registeredAt: new Date("2026-10-01"),
     }));
-    const createdTournamentPlayers = await TournamentPlayer.insertMany(
-      tournamentPlayersData,
+
+    const tournamentsDataWithCreator = [
+      {
+        ...tournamentsData[0],
+        createdBy: adminUser._id,
+        players: [],
+      },
+      {
+        ...tournamentsData[1],
+        createdBy: adminUser._id,
+        players: tournamentPlayersData,
+      },
+    ];
+    const createdTournaments = await Tournament.insertMany(
+      tournamentsDataWithCreator,
     );
     console.log(
-      `   ✅ Tournament Players seeded: ${createdTournamentPlayers.length} records`,
+      `   ✅ Tournaments seeded: ${createdTournaments.length} records (with embedded players)`,
     );
+
+    const activeTournament = createdTournaments[0]; // CueZone Cup (registration_open)
+    const completedTournament = createdTournaments[1]; // Mùa Thu 2026 (completed)
 
     // 12. Seed Matches (Bracket Rounds)
     console.log("🌱 11/22. Seeding Tournament Matches (Bracket)...");
@@ -2248,78 +2622,153 @@ async function runSeed() {
     const tableStd13 = createdTables.find((t) => t.code === "STD-13");
     const tableVip7 = createdTables.find((t) => t.code === "VIP-07");
 
+    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+    const tomorrowStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(Date.now() + 86400000));
+    const yesterdayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(Date.now() - 86400000));
+
     const bookingsData = [
       {
-        customer: customers[0]._id,
+        customer: customers[20]._id,
+        customerName: customers[20].name,
+        phone: customers[20].phone,
         table: tableVip3._id,
-        tableType: "vip_bank_pool",
+        tableId: tableVip3._id,
+        tableName: tableVip3.name,
+        tableType: "carom",
         bookingDate: new Date(),
+        date: todayStr,
         startTime: "19:30",
-        endTime: "22:00",
+        endTime: "21:30",
+        time: "19:30",
+        duration: 2,
         numberOfGuests: 4,
-        status: "confirmed",
+        estimatedCost: tableVip3.pricePerHour * 2,
+        deposit: 0,
+        status: "approved",
         note: "Đặt trước bàn VIP sinh nhật bạn",
         confirmedBy: staff1User._id,
       },
       {
-        customer: customers[1]._id,
+        customer: customers[21]._id,
+        customerName: customers[21].name,
+        phone: customers[21].phone,
         table: tableStd8._id,
-        tableType: "standard_9ft",
+        tableId: tableStd8._id,
+        tableName: tableStd8.name,
+        tableType: "pool",
         bookingDate: new Date(),
+        date: todayStr,
         startTime: "20:00",
         endTime: "22:00",
+        time: "20:00",
+        duration: 2,
         numberOfGuests: 2,
-        status: "confirmed",
+        estimatedCost: tableStd8.pricePerHour * 2,
+        deposit: 0,
+        status: "approved",
         note: "Góc thoáng mát",
         confirmedBy: staff2User._id,
       },
       {
-        customer: customers[2]._id,
+        customer: customers[22]._id,
+        customerName: customers[22].name,
+        phone: customers[22].phone,
         table: tableStd13._id,
-        tableType: "standard_9ft",
+        tableId: tableStd13._id,
+        tableName: tableStd13.name,
+        tableType: "pool",
         bookingDate: new Date(Date.now() + 86400000),
+        date: tomorrowStr,
         startTime: "18:30",
         endTime: "20:30",
+        time: "18:30",
+        duration: 2,
         numberOfGuests: 2,
+        estimatedCost: tableStd13.pricePerHour * 2,
+        deposit: 0,
         status: "pending",
         note: "Yêu cầu bàn gần quầy nước",
       },
       {
-        customer: customers[3]._id,
+        customer: customers[23]._id,
+        customerName: customers[23].name,
+        phone: customers[23].phone,
         table: tableVip7._id,
-        tableType: "vip_bank_pool",
+        tableId: tableVip7._id,
+        tableName: tableVip7.name,
+        tableType: "carom",
         bookingDate: new Date(Date.now() - 86400000),
+        date: yesterdayStr,
         startTime: "15:00",
         endTime: "17:00",
+        time: "15:00",
+        duration: 2,
         numberOfGuests: 3,
-        status: "completed",
+        estimatedCost: tableVip7.pricePerHour * 2,
+        deposit: 0,
+        status: "checked_in",
         checkedInAt: new Date(Date.now() - 86400000),
       },
       {
         customer: customers[4]._id,
-        tableType: "standard_9ft",
+        customerName: customers[4].name,
+        phone: customers[4].phone,
+        tableType: "pool",
         bookingDate: new Date(),
+        date: todayStr,
         startTime: "19:00",
         endTime: "21:00",
+        time: "19:00",
+        duration: 2,
         numberOfGuests: 2,
+        estimatedCost: 120000,
+        deposit: 0,
         status: "rejected",
         rejectedBy: staff1User._id,
         rejectionReason: "Khung giờ cao điểm đã kín hết bàn",
       },
       {
         customer: customers[5]._id,
-        tableType: "standard_9ft",
+        customerName: customers[5].name,
+        phone: customers[5].phone,
+        tableType: "pool",
         bookingDate: new Date(),
+        date: todayStr,
         startTime: "14:00",
         endTime: "16:00",
+        time: "14:00",
+        duration: 2,
         numberOfGuests: 2,
-        status: "cancelled",
-        cancelledAt: new Date(),
-        cancelReason: "Bận việc đột xuất",
+        estimatedCost: 120000,
+        deposit: 0,
+        status: "rejected",
+        rejectedBy: staff1User._id,
+        rejectionReason: "Bận việc đột xuất",
       },
     ];
     const createdBookings = await Booking.insertMany(bookingsData);
     console.log(`   ✅ Bookings seeded: ${createdBookings.length} records`);
+
+    // Đồng bộ bookedInfo vào tài liệu Table tương ứng trong MongoDB
+    for (const b of createdBookings) {
+      if (b.table && (b.status === "confirmed" || b.status === "approved")) {
+        const cust = customers.find((c) => String(c._id) === String(b.customer));
+        await Table.updateOne(
+          { _id: b.table },
+          {
+            $set: {
+              status: "booked",
+              bookedInfo: {
+                customerName: cust ? cust.name : (b.customerName || "Khách đặt trước"),
+                phone: cust ? cust.phone : (b.phone || "0900000000"),
+                time: `${b.time || b.startTime} (Hôm nay)`,
+                bookingId: String(b._id),
+              },
+            },
+          }
+        );
+      }
+    }
 
     // 16. Seed TableSessions
     console.log(
@@ -2348,10 +2797,10 @@ async function runSeed() {
     });
 
     // Paused Sessions cho 2 bàn paused
-    pausedTables.forEach((tbl) => {
+    pausedTables.forEach((tbl, idx) => {
       sessionsData.push({
         table: tbl._id,
-        customer: customers[0]._id,
+        customer: customers[14 + idx]._id,
         openedBy: staff1User._id,
         startTime: new Date(Date.now() - 90 * 60000),
         status: "paused",
@@ -2381,6 +2830,12 @@ async function runSeed() {
           pricePerHour: 120000,
           tierName: "Khung Giờ Tiêu Chuẩn",
         },
+        review: {
+          rating: 5,
+          comment:
+            "Bàn VIP 01 rất êm, điều hoà mát lạnh và nhân viên phục vụ cực kỳ tận tình!",
+          reviewedAt: new Date(Date.now() - 3600000),
+        },
       },
       {
         table: createdTables[8]._id,
@@ -2395,6 +2850,12 @@ async function runSeed() {
         pricingSnapshot: {
           pricePerHour: 60000,
           tierName: "Khung Giờ Tiêu Chuẩn",
+        },
+        review: {
+          rating: 5,
+          comment:
+            "Giá tiền hợp lý, nước uống lạnh ngon. Sẽ quay lại thường xuyên!",
+          reviewedAt: new Date(Date.now() - 3600000),
         },
       },
       {
@@ -2411,6 +2872,11 @@ async function runSeed() {
           pricePerHour: 60000,
           tierName: "Khung Giờ Tiêu Chuẩn",
         },
+        review: {
+          rating: 4,
+          comment: "CLB bida đẹp nhất khu vực, bóng Aramith chuẩn thi đấu.",
+          reviewedAt: new Date(Date.now() - 7200000),
+        },
       },
       {
         table: createdTables[23]._id,
@@ -2426,6 +2892,12 @@ async function runSeed() {
           pricePerHour: 100000,
           tierName: "Khung Giờ Tiêu Chuẩn",
         },
+        review: {
+          rating: 5,
+          comment:
+            "Giải Bank Pool tổ chức rất chuyên nghiệp. Rất hào hứng cho vòng tiếp theo.",
+          reviewedAt: new Date(Date.now() - 10800000),
+        },
       },
     ];
 
@@ -2435,6 +2907,253 @@ async function runSeed() {
     ]);
     console.log(
       `   ✅ Table Sessions seeded: ${createdSessions.length} records`,
+    );
+
+    // Đồng bộ currentSession vào tài liệu Table tương ứng trong MongoDB theo chuẩn POS
+    for (let idx = 0; idx < playingTables.length; idx++) {
+      const tbl = playingTables[idx];
+      const s = sessionsData.find((sd) => String(sd.table) === String(tbl._id) && sd.status === "active");
+      const cust = customers.find((c) => String(c._id) === String(s.customer)) || customers[0];
+      const startedAt = s.startTime.getTime();
+      await Table.updateOne(
+        { _id: tbl._id },
+        {
+          $set: {
+            currentSession: {
+              sessionId: new mongoose.Types.ObjectId().toString(),
+              sessionStart: new Date(startedAt).toLocaleTimeString("vi-VN", {
+                timeZone: "Asia/Ho_Chi_Minh",
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              startedAt,
+              pricePerHour: tbl.pricePerHour,
+              isPaused: false,
+              totalPausedMs: 0,
+              carriedCost: 0,
+              customerName: cust.name,
+              customerPhone: cust.phone,
+              isMember: (cust.points || 0) > 500,
+              orders: [
+                {
+                  id: `item-${idx}-1`,
+                  name: "Nước tăng lực Redbull",
+                  price: 25000,
+                  quantity: (idx % 3) + 1,
+                  category: "Đồ uống",
+                  orderTime: new Date(startedAt + 10 * 60000).toLocaleTimeString("vi-VN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                  status: "served",
+                },
+              ],
+              deposit: 0,
+            },
+          },
+        }
+      );
+    }
+
+    for (let idx = 0; idx < pausedTables.length; idx++) {
+      const tbl = pausedTables[idx];
+      const s = sessionsData.find((sd) => String(sd.table) === String(tbl._id) && sd.status === "paused");
+      const cust = customers.find((c) => String(c._id) === String(s.customer)) || customers[0];
+      const startedAt = s.startTime.getTime();
+      const pausedAt = s.pauses[0].pauseStart.getTime();
+      await Table.updateOne(
+        { _id: tbl._id },
+        {
+          $set: {
+            currentSession: {
+              sessionId: new mongoose.Types.ObjectId().toString(),
+              sessionStart: new Date(startedAt).toLocaleTimeString("vi-VN", {
+                timeZone: "Asia/Ho_Chi_Minh",
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              startedAt,
+              pricePerHour: tbl.pricePerHour,
+              isPaused: true,
+              pausedAt,
+              totalPausedMs: 15 * 60000,
+              carriedCost: 0,
+              customerName: cust.name,
+              customerPhone: cust.phone,
+              isMember: true,
+              orders: [
+                {
+                  id: `item-paused-${idx}`,
+                  name: "Trà đào cam sả",
+                  price: 35000,
+                  quantity: 1,
+                  category: "Đồ uống",
+                  orderTime: new Date(startedAt + 10 * 60000).toLocaleTimeString("vi-VN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                  status: "served",
+                },
+              ],
+              deposit: 0,
+            },
+          },
+        }
+      );
+    }
+
+    // 16. Seed Orders (F&B State Machine - UC10, UC23-UC25, UC34)
+    console.log("🌱 13/20. Seeding F&B Orders (Order State Machine)...");
+    const pRedbull =
+      createdProducts.find((p) => p.sku === "DRK-REDBULL") ||
+      createdProducts[0];
+    const pNoodle =
+      createdProducts.find((p) => p.sku === "FOD-NOODLE") || createdProducts[1];
+    const pTiger =
+      createdProducts.find((p) => p.sku === "DRK-TIGER") || createdProducts[2];
+    const pSausage =
+      createdProducts.find((p) => p.sku === "FOD-SAUSAGE") ||
+      createdProducts[3];
+    const pCoffee =
+      createdProducts.find((p) => p.sku === "DRK-COFFEE-M") ||
+      createdProducts[4];
+    const pChips =
+      createdProducts.find((p) => p.sku === "SNK-CHIPS") || createdProducts[5];
+
+    const ordersData = [
+      {
+        orderCode: "ORD-2026-0001",
+        session: createdSessions[0]._id,
+        table: createdSessions[0].table,
+        customer: customers[0]._id,
+        orderType: "online_portal",
+        items: [
+          {
+            product: pRedbull._id,
+            productName: pRedbull.name,
+            quantity: 2,
+            unitPrice: pRedbull.salePrice,
+            totalPrice: pRedbull.salePrice * 2,
+            note: "Mang thêm 2 ly đá to",
+          },
+        ],
+        subtotal: pRedbull.salePrice * 2,
+        status: "served",
+        confirmedBy: staff1User._id,
+        confirmedAt: new Date(Date.now() - 40 * 60 * 1000),
+        servedAt: new Date(Date.now() - 35 * 60 * 1000),
+        notes: "Khách gọi trực tuyến tại bàn VIP 01",
+      },
+      {
+        orderCode: "ORD-2026-0002",
+        session: createdSessions[0]._id,
+        table: createdSessions[0].table,
+        customer: customers[0]._id,
+        orderType: "table_order",
+        items: [
+          {
+            product: pNoodle._id,
+            productName: pNoodle.name,
+            quantity: 1,
+            unitPrice: pNoodle.salePrice,
+            totalPrice: pNoodle.salePrice,
+            note: "Trứng lòng đào, ít hành",
+          },
+        ],
+        subtotal: pNoodle.salePrice,
+        status: "preparing",
+        confirmedBy: staff1User._id,
+        confirmedAt: new Date(Date.now() - 10 * 60 * 1000),
+        notes: "Bếp đang nấu mì",
+      },
+      {
+        orderCode: "ORD-2026-0003",
+        session: createdSessions[1]._id,
+        table: createdSessions[1].table,
+        customer: customers[1]._id,
+        orderType: "online_portal",
+        items: [
+          {
+            product: pTiger._id,
+            productName: pTiger.name,
+            quantity: 4,
+            unitPrice: pTiger.salePrice,
+            totalPrice: pTiger.salePrice * 4,
+            note: "Ướp lạnh, khui sẵn nắp",
+          },
+        ],
+        subtotal: pTiger.salePrice * 4,
+        status: "pending", // Đang chờ nhân viên duyệt (Test UC25)
+        notes: "Chờ nhân viên quầy POS xác nhận",
+      },
+      {
+        orderCode: "ORD-2026-0004",
+        session: createdSessions[2]._id,
+        table: createdSessions[2].table,
+        customer: customers[2]._id,
+        orderType: "table_order",
+        items: [
+          {
+            product: pSausage._id,
+            productName: pSausage.name,
+            quantity: 2,
+            unitPrice: pSausage.salePrice,
+            totalPrice: pSausage.salePrice * 2,
+          },
+        ],
+        subtotal: pSausage.salePrice * 2,
+        status: "confirmed", // Đã duyệt, đã kích hoạt trừ kho (Test UC34)
+        confirmedBy: staff2User._id,
+        confirmedAt: new Date(Date.now() - 5 * 60 * 1000),
+        notes: "Đã trừ tồn kho theo UC34",
+      },
+      {
+        orderCode: "ORD-2026-0005",
+        session: createdSessions[3]._id,
+        table: createdSessions[3].table,
+        customer: customers[3]._id,
+        orderType: "table_order",
+        items: [
+          {
+            product: pCoffee._id,
+            productName: pCoffee.name,
+            quantity: 2,
+            unitPrice: pCoffee.salePrice,
+            totalPrice: pCoffee.salePrice * 2,
+          },
+        ],
+        subtotal: pCoffee.salePrice * 2,
+        status: "paid",
+        confirmedBy: staff1User._id,
+        confirmedAt: new Date(Date.now() - 120 * 60 * 1000),
+        servedAt: new Date(Date.now() - 110 * 60 * 1000),
+        notes: "Đã gộp vào hóa đơn thanh toán hoàn tất",
+      },
+      {
+        orderCode: "ORD-2026-0006",
+        session: createdSessions[1]._id,
+        table: createdSessions[1].table,
+        customer: customers[1]._id,
+        orderType: "online_portal",
+        items: [
+          {
+            product: pChips._id,
+            productName: pChips.name,
+            quantity: 1,
+            unitPrice: pChips.salePrice,
+            totalPrice: pChips.salePrice,
+          },
+        ],
+        subtotal: pChips.salePrice,
+        status: "cancelled", // Test UC24 (Hủy món)
+        cancelledAt: new Date(Date.now() - 15 * 60 * 1000),
+        cancelReason: "Khách đổi ý muốn dùng xúc xích thay vì snack",
+      },
+    ];
+
+    const createdOrders = await Order.insertMany(ordersData);
+    console.log(
+      `   ✅ Orders seeded: ${createdOrders.length} records (Order State Machine: Pending, Confirmed, Preparing, Served, Paid, Cancelled)`,
     );
 
     // 17. Seed Invoices & Invoice Items
@@ -2544,6 +3263,16 @@ async function runSeed() {
         paidAmount: 190000,
         status: "paid",
         paidAt: new Date(Date.now() - 3600000),
+        payment: {
+          method: "wallet",
+          amount: 190000,
+          walletAmount: 190000,
+          status: "completed",
+          transactionRef: "WAL-PAY-20261001-001",
+          processedBy: staff1User._id,
+          paidAt: new Date(Date.now() - 3600000),
+          note: "Thanh toán thành công qua ví trả trước",
+        },
       },
       {
         invoiceNumber: "INV-2026-0004",
@@ -2573,74 +3302,23 @@ async function runSeed() {
         paidAmount: 165000,
         status: "paid",
         paidAt: new Date(Date.now() - 3600000),
+        payment: {
+          method: "cash",
+          amount: 165000,
+          cashAmount: 165000,
+          status: "completed",
+          transactionRef: "CASH-20261001-002",
+          processedBy: staff2User._id,
+          paidAt: new Date(Date.now() - 3600000),
+          note: "Thanh toán tiền mặt tại quầy POS",
+        },
       },
     ];
 
     const createdInvoices = await Invoice.insertMany(invoicesData);
-    console.log(`   ✅ Invoices seeded: ${createdInvoices.length} records`);
-
-    // 18. Seed Payments
-    console.log("🌱 17/22. Seeding Sample Payments...");
-    const paymentsData = [
-      {
-        invoice: createdInvoices[2]._id,
-        customer: customers[0]._id,
-        processedBy: staff1User._id,
-        method: "wallet",
-        amount: 190000,
-        walletAmount: 190000,
-        status: "completed",
-        transactionRef: "WAL-PAY-20261001-001",
-        note: "Thanh toán thành công qua ví trả trước",
-      },
-      {
-        invoice: createdInvoices[3]._id,
-        customer: customers[1]._id,
-        processedBy: staff2User._id,
-        method: "cash",
-        amount: 165000,
-        cashAmount: 165000,
-        status: "completed",
-        transactionRef: "CASH-20261001-002",
-        note: "Thanh toán tiền mặt tại quầy POS",
-      },
-    ];
-    const createdPayments = await Payment.insertMany(paymentsData);
-    console.log(`   ✅ Payments seeded: ${createdPayments.length} records`);
-
-    // 19. Seed Reviews
-    console.log("🌱 18/22. Seeding Service Reviews...");
-    const reviewsData = [
-      {
-        customer: customers[0]._id,
-        session: createdSessions[16]._id,
-        invoice: createdInvoices[2]._id,
-        rating: 5,
-        comment:
-          "Bàn VIP 01 rất êm, điều hoà mát lạnh và nhân viên phục vụ cực kỳ tận tình!",
-      },
-      {
-        customer: customers[1]._id,
-        session: createdSessions[17]._id,
-        invoice: createdInvoices[3]._id,
-        rating: 5,
-        comment:
-          "Giá tiền hợp lý, nước uống lạnh ngon. Sẽ quay lại thường xuyên!",
-      },
-      {
-        customer: customers[2]._id,
-        rating: 4,
-        comment: "CLB bida đẹp nhất khu vực, bóng Aramith chuẩn thi đấu.",
-      },
-      {
-        customer: customers[3]._id,
-        rating: 5,
-        comment:
-          "Giải Bank Pool tổ chức rất chuyên nghiệp. Rất hào hứng cho vòng tiếp theo.",
-      },
-    ];
-    const createdReviews = await Review.insertMany(reviewsData);
-    console.log(`   ✅ Reviews seeded: ${createdReviews.length} records`);
+    console.log(
+      `   ✅ Invoices seeded: ${createdInvoices.length} records (Payment merged into Invoices)`,
+    );
 
     // 20. Seed Wallet Transactions
     console.log("🌱 19/22. Seeding Wallet Ledger Transactions...");
@@ -2809,12 +3487,10 @@ async function runSeed() {
       bookings: createdBookings,
       sessions: createdSessions,
       invoices: createdInvoices,
-      payments: createdPayments,
       vouchers: createdVouchers,
       walletTxs: createdWalletTxs,
       products: createdProducts,
       inventoryTxs: createdInvTxs,
-      tournamentPlayers: createdTournamentPlayers,
       tournaments: createdTournaments,
       matches: createdMatches,
     });
@@ -2888,66 +3564,58 @@ async function runSeed() {
       "   • Customers:  customer1@gmail.com -> customer8@gmail.com (8 Hội viên)",
     );
     console.log("--------------------------------------------------");
-    console.log("🎱 SEEDED COLLECTIONS OVERVIEW (Total: 22 Collections):");
-    console.log(`   1. Roles:                  ${createdRoles.length} records`);
     console.log(
-      `   2. PricingTiers:           ${createdPricingTiers.length} records`,
-    );
-    console.log(`   3. Users:                  ${createdUsers.length} records`);
-    console.log(
-      `   4. Tables:                 ${createdTables.length} records (27 bàn 3x3 layout)`,
+      "🎱 SEEDED COLLECTIONS OVERVIEW (Total: 18 Seeded Collections):",
     );
     console.log(
-      `   5. Notifications:          ${createdNotifications.length} records`,
+      `   1. PricingTiers:           ${createdPricingTiers.length} records`,
+    );
+    console.log(`   2. Users:                  ${createdUsers.length} records`);
+    console.log(
+      `   3. Tables:                 ${createdTables.length} records (27 bàn 3x3 layout)`,
     );
     console.log(
-      `   6. Products:               ${createdProducts.length} records`,
+      `   4. Notifications:          ${createdNotifications.length} records (User-linked & Public)`,
     );
     console.log(
-      `   7. Suppliers:              ${createdSuppliers.length} records`,
+      `   5. Products:               ${createdProducts.length} records (Unified Inventory & F&B Menu)`,
     );
     console.log(
-      `   8. MenuItems:              ${createdMenuItems.length} records`,
+      `   6. Suppliers:              ${createdSuppliers.length} records`,
     );
     console.log(
-      `   9. Tournaments:            ${createdTournaments.length} records`,
+      `   7. Tournaments:            ${createdTournaments.length} records (embedded players)`,
     );
     console.log(
-      `   10. TournamentPlayers:     ${createdTournamentPlayers.length} records`,
+      `   8. Matches:                ${createdMatches.length} records`,
+    );
+    console.log(`   9. News:                   ${createdNews.length} records`);
+    console.log(
+      `   10. Vouchers:              ${createdVouchers.length} records`,
     );
     console.log(
-      `   11. Matches:               ${createdMatches.length} records`,
-    );
-    console.log(`   12. News:                  ${createdNews.length} records`);
-    console.log(
-      `   13. Vouchers:              ${createdVouchers.length} records`,
+      `   11. Bookings:              ${createdBookings.length} records`,
     );
     console.log(
-      `   14. Bookings:              ${createdBookings.length} records`,
+      `   12. TableSessions:         ${createdSessions.length} records (Active/Paused/Completed + Reviews embedded)`,
     );
     console.log(
-      `   15. TableSessions:         ${createdSessions.length} records (Active/Paused/Completed)`,
+      `   13. Orders:                ${createdOrders.length} records (F&B State Machine UC10, UC23-UC25, UC34)`,
     );
     console.log(
-      `   16. Invoices:              ${createdInvoices.length} records (Open/Paid)`,
+      `   14. Invoices:              ${createdInvoices.length} records (Payment merged in invoice)`,
     );
     console.log(
-      `   17. Payments:              ${createdPayments.length} records`,
+      `   15. WalletTransactions:    ${createdWalletTxs.length} records`,
     );
     console.log(
-      `   18. Reviews:               ${createdReviews.length} records`,
+      `   16. InventoryTransactions: ${createdInvTxs.length} records`,
     );
     console.log(
-      `   19. WalletTransactions:    ${createdWalletTxs.length} records`,
+      `   17. ImportReceipts:        ${createdImportReceipts.length} records`,
     );
     console.log(
-      `   20. InventoryTransactions: ${createdInvTxs.length} records`,
-    );
-    console.log(
-      `   21. ImportReceipts:        ${createdImportReceipts.length} records`,
-    );
-    console.log(
-      `   22. AuditLogs:             ${createdAuditLogs.length} records`,
+      `   18. AuditLogs:             ${createdAuditLogs.length} records`,
     );
     console.log("==================================================");
   } catch (error) {
