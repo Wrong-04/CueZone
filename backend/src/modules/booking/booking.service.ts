@@ -5,13 +5,14 @@ import { User } from "../user/user.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
 
 export function bookingInput(input: any) {
+  const deposit = input.deposit ?? 0;
   if (typeof input.customerName !== "string" || !input.customerName.trim() || input.customerName.length > 120 ||
       typeof input.phone !== "string" || !/^[+\d\s().-]{8,30}$/.test(input.phone) ||
       !mongoose.isValidObjectId(input.tableId) ||
       typeof input.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(input.date) ||
       typeof input.time !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.time) ||
       !Number.isInteger(input.duration) || input.duration < 1 || input.duration > 24 ||
-      !Number.isSafeInteger(input.deposit) || input.deposit < 0 ||
+      !Number.isSafeInteger(deposit) || deposit < 0 ||
       (input.note !== undefined && (typeof input.note !== "string" || input.note.length > 1000))) {
     throw new Error("Thông tin đặt bàn không hợp lệ");
   }
@@ -21,7 +22,7 @@ export function bookingInput(input: any) {
     throw new Error("Ngày giờ đặt bàn phải hợp lệ và ở tương lai (giờ Việt Nam)");
   }
   return { customerName: input.customerName.trim(), phone: input.phone.trim(), tableId: input.tableId,
-    date: input.date, time: input.time, duration: input.duration, deposit: input.deposit, note: input.note };
+    date: input.date, time: input.time, duration: input.duration, deposit, note: input.note };
 }
 
 export class BookingService {
