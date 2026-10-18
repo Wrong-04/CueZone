@@ -122,3 +122,74 @@ export const bookingService = {
     return result(data);
   },
 };
+
+export const tableAdminService = {
+  async getAll(): Promise<BilliardTable[]> {
+    const { data } = await api.get<ApiResponse<any[]>>("/tables");
+    return result(data).map((t) => ({
+      _id: String(t._id),
+      code: t.code,
+      name: t.name,
+      type: t.type,
+      area: t.area,
+      floor: t.floor,
+      pricePerHour: t.pricePerHour,
+      status: t.status,
+      isActive: t.isActive !== false,
+      createdAt: t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : "2026-01-01",
+      updatedAt: t.updatedAt ? new Date(t.updatedAt).toISOString().split("T")[0] : "2026-01-01",
+    }));
+  },
+  async create(table: Partial<BilliardTable>): Promise<any> {
+    const { data } = await api.post<ApiResponse<any>>("/tables", table);
+    return result(data);
+  },
+  async update(id: string, table: Partial<BilliardTable>): Promise<any> {
+    const { data } = await api.put<ApiResponse<any>>(`/tables/${id}`, table);
+    return result(data);
+  },
+  async updateStatus(id: string, status: "available" | "maintenance"): Promise<any> {
+    const { data } = await api.put<ApiResponse<any>>(`/tables/${id}/status`, { status });
+    return result(data);
+  },
+  async delete(id: string): Promise<any> {
+    const { data } = await api.delete<ApiResponse<any>>(`/tables/${id}`);
+    return result(data);
+  },
+};
+
+export const pricingAdminService = {
+  async getAll(): Promise<PricingTier[]> {
+    const { data } = await api.get<ApiResponse<any[]>>("/pricing");
+    return result(data).map((p) => ({
+      _id: String(p._id),
+      name: p.name,
+      dayType: p.dayType,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      daysOfWeek: p.daysOfWeek || [1, 2, 3, 4, 5],
+      prices: p.prices || { standard: 60000, vip: 80000, match: 100000 },
+      isActive: p.isActive !== false,
+      isCurrentlyActive: p.isCurrentlyActive || false,
+      createdAt: p.createdAt ? new Date(p.createdAt).toISOString().split("T")[0] : "2026-01-01",
+      updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString().split("T")[0] : "2026-01-01",
+    }));
+  },
+  async create(tier: Partial<PricingTier>): Promise<any> {
+    const { data } = await api.post<ApiResponse<any>>("/pricing", tier);
+    return result(data);
+  },
+  async update(id: string, tier: Partial<PricingTier>): Promise<any> {
+    const { data } = await api.put<ApiResponse<any>>(`/pricing/${id}`, tier);
+    return result(data);
+  },
+  async activate(id: string): Promise<any> {
+    const { data } = await api.put<ApiResponse<any>>(`/pricing/${id}/activate`);
+    return result(data);
+  },
+  async delete(id: string): Promise<any> {
+    const { data } = await api.delete<ApiResponse<any>>(`/pricing/${id}`);
+    return result(data);
+  },
+};
+
