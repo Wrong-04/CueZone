@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AppstoreOutlined,
+  UnorderedListOutlined,
   ClockCircleOutlined,
   PlusOutlined,
   EditOutlined,
@@ -13,6 +14,10 @@ import {
   SafetyCertificateOutlined,
   BulbOutlined,
   ExclamationCircleOutlined,
+  EnvironmentOutlined,
+  ClearOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -26,226 +31,104 @@ import {
   Space,
   SegmentedPillList,
   SearchFilterInput,
+  Pagination,
+  Tooltip,
   message,
 } from "../../shared/ui";
 import type { BilliardTable, PricingTier, TableType } from "../../types";
+import { tableAdminService, pricingAdminService } from "../../services/pos.service";
 
 const { Title, Text } = Typography;
 
-// Initial 11 tables matching CueZone Billiards Club floor
-const DEFAULT_TABLES: BilliardTable[] = [
-  {
-    _id: "TB-01",
-    code: "T01",
-    name: "Bàn 01",
-    type: "pool",
-    area: "Tầng 1 - Khu A (Pool Floor)",
-    floor: 1,
-    pricePerHour: 50000,
-    status: "playing",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-02",
-    code: "T02",
-    name: "Bàn 02",
-    type: "pool",
-    area: "Tầng 1 - Khu A (Pool Floor)",
-    floor: 1,
-    pricePerHour: 50000,
-    status: "available",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-03",
-    code: "T03",
-    name: "Bàn 03",
-    type: "pool",
-    area: "Tầng 1 - Khu A (Pool Floor)",
-    floor: 1,
-    pricePerHour: 50000,
-    status: "playing",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-05",
-    code: "T05",
-    name: "Bàn 05",
-    type: "pool",
-    area: "Tầng 1 - Khu B (Pool Floor)",
-    floor: 1,
-    pricePerHour: 50000,
-    status: "available",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-06",
-    code: "T06",
-    name: "Bàn 06",
-    type: "pool",
-    area: "Tầng 1 - Khu B (Pool Floor)",
-    floor: 1,
-    pricePerHour: 50000,
-    status: "booked",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-08",
-    code: "T08",
-    name: "Bàn 08",
-    type: "pool",
-    area: "Tầng 1 - Khu B (Pool Floor)",
-    floor: 1,
-    pricePerHour: 50000,
-    status: "maintenance",
-    isActive: false,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-09",
-    code: "V09",
-    name: "Bàn Carom 09",
-    type: "carom",
-    area: "Tầng 2 - Phòng Carom Lounge",
-    floor: 2,
-    pricePerHour: 70000,
-    status: "playing",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-10",
-    code: "V10",
-    name: "Bàn Carom 10",
-    type: "carom",
-    area: "Tầng 2 - Phòng Carom Lounge",
-    floor: 2,
-    pricePerHour: 70000,
-    status: "available",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-12",
-    code: "V12",
-    name: "Bàn Carom 12",
-    type: "carom",
-    area: "Tầng 2 - Phòng Carom Lounge",
-    floor: 2,
-    pricePerHour: 70000,
-    status: "available",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-13",
-    code: "M13",
-    name: "Bàn Snooker 13",
-    type: "snooker",
-    area: "Tầng 2 - Khu Thi Đấu Snooker",
-    floor: 2,
-    pricePerHour: 80000,
-    status: "playing",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "TB-14",
-    code: "M14",
-    name: "Bàn Snooker 14",
-    type: "snooker",
-    area: "Tầng 2 - Khu Thi Đấu Snooker",
-    floor: 2,
-    pricePerHour: 80000,
-    status: "available",
-    isActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-];
+const QUICK_PRICE_PRESETS = [40000, 50000, 60000, 70000, 80000, 100000, 120000];
 
-// Initial 4 Club Pricing Tiers
-const DEFAULT_PRICING_TIERS: PricingTier[] = [
-  {
-    _id: "PT-01",
-    name: "Khung Giờ Sáng (Tập Luyện & Học Sinh/SV)",
-    dayType: "weekday",
-    startTime: "08:00",
-    endTime: "14:00",
-    daysOfWeek: [1, 2, 3, 4, 5],
-    prices: {
-      standard: 40000,
-      vip: 60000,
-    },
-    isActive: true,
-    isCurrentlyActive: false,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "PT-02",
-    name: "Khung Giờ Tiêu Chuẩn (Buổi Chiều)",
-    dayType: "weekday",
-    startTime: "14:00",
-    endTime: "18:00",
-    daysOfWeek: [1, 2, 3, 4, 5],
-    prices: {
-      standard: 50000,
-      vip: 70000,
-    },
-    isActive: true,
-    isCurrentlyActive: true,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "PT-03",
-    name: "Khung Giờ Vàng (Peak Evening)",
-    dayType: "peak",
-    startTime: "18:00",
-    endTime: "23:00",
-    daysOfWeek: [1, 2, 3, 4, 5],
-    prices: {
-      standard: 60000,
-      vip: 85000,
-    },
-    isActive: true,
-    isCurrentlyActive: false,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-  {
-    _id: "PT-04",
-    name: "Khung Giờ Cuối Tuần & Lễ (Weekend All Day)",
-    dayType: "weekend",
-    startTime: "08:00",
-    endTime: "23:59",
-    daysOfWeek: [0, 6],
-    prices: {
-      standard: 60000,
-      vip: 90000,
-    },
-    isActive: true,
-    isCurrentlyActive: false,
-    createdAt: "2026-01-01",
-    updatedAt: "2026-01-01",
-  },
-];
+const getEquipmentDetails = (type: TableType) => {
+  if (type === "snooker") {
+    return {
+      cloth: "Nỉ Strachan 6811 Gold",
+      ball: "Bi Aramith Tournament Champion",
+      cushion: "Băng Northern Rubber",
+    };
+  }
+  if (type === "carom") {
+    return {
+      cloth: "Nỉ Simonis 300 Rapide",
+      ball: "Bi Aramith Super Pro Carom",
+      cushion: "Băng sưởi nhiệt Klematch P37",
+    };
+  }
+  return {
+    cloth: "Nỉ Simonis 860 HR",
+    ball: "Bi Aramith Pro Cup TV",
+    cushion: "Băng cao su K-Steel",
+  };
+};
+
+// Chuẩn hóa tên hiển thị của 3 loại bàn bida
+export function getTableTypeLabel(type: TableType | string): string {
+  if (type === "carom") return "Bàn Bida Carom (Phăng)";
+  if (type === "snooker") return "Bàn Bida Snooker";
+  return "Bàn Bida Lỗ (Pool)";
+}
+export function getActivePricingTier(pricingTiers: PricingTier[], now = Date.now()): PricingTier | null {
+  if (!pricingTiers || pricingTiers.length === 0) return null;
+  const date = new Date(now);
+  const vnTimeStr = date.toLocaleTimeString("en-GB", { timeZone: "Asia/Ho_Chi_Minh", hour12: false, hour: "2-digit", minute: "2-digit" });
+  const [hStr, mStr] = vnTimeStr.split(":");
+  const currentMins = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
+  const vnDateStr = date.toLocaleDateString("en-US", { timeZone: "Asia/Ho_Chi_Minh" });
+  const dayOfWeek = new Date(vnDateStr).getDay();
+
+  for (const tier of pricingTiers) {
+    if (tier.isActive === false) continue;
+    if (tier.daysOfWeek && tier.daysOfWeek.length > 0 && !tier.daysOfWeek.includes(dayOfWeek)) continue;
+
+    const [startH, startM] = tier.startTime.split(":").map(Number);
+    const [endH, endM] = tier.endTime === "24:00" ? [24, 0] : tier.endTime.split(":").map(Number);
+    const startTotal = startH * 60 + startM;
+    const endTotal = endH * 60 + endM;
+
+    if (startTotal <= endTotal) {
+      if (currentMins >= startTotal && currentMins < endTotal) {
+        return tier;
+      }
+    } else {
+      if (currentMins >= startTotal || currentMins < endTotal) {
+        return tier;
+      }
+    }
+  }
+
+  const activeOnly = pricingTiers.filter((t) => t.isActive !== false);
+  return activeOnly.find((t) => t.isCurrentlyActive) || activeOnly[0] || pricingTiers[0] || null;
+}
+
+// Định dạng tên khung giờ ngắn gọn, loại bỏ ngoặc kép trùng lặp
+export function formatActivePricingLabel(tier: PricingTier | null): string {
+  if (!tier) return "Biểu giá chuẩn";
+  const cleanName = tier.name.replace(/\s*\([^)]*\)\s*/g, " ").trim();
+  return `${cleanName} (${tier.startTime} – ${tier.endTime})`;
+}
+
+// Định dạng ngày áp dụng chính xác theo cấu hình
+export function formatDaysOfWeek(tier: PricingTier): string {
+  if (tier.daysOfWeek && tier.daysOfWeek.length === 7) {
+    return "Áp dụng: Tất cả các ngày trong tuần";
+  }
+  if (
+    tier.dayType === "weekend" ||
+    (tier.daysOfWeek && tier.daysOfWeek.length === 2 && tier.daysOfWeek.includes(0) && tier.daysOfWeek.includes(6))
+  ) {
+    return "Áp dụng: Thứ 7 & Chủ Nhật hàng tuần";
+  }
+  if (
+    tier.dayType === "weekday" ||
+    (tier.daysOfWeek && tier.daysOfWeek.length === 5 && !tier.daysOfWeek.includes(0) && !tier.daysOfWeek.includes(6))
+  ) {
+    return "Áp dụng: Thứ 2 đến Thứ 6 hàng tuần";
+  }
+  return "Áp dụng: Theo lịch cấu hình";
+}
 
 export const TablesManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -253,128 +136,157 @@ export const TablesManagementPage: React.FC = () => {
   // Active Tab: tables | pricing | automation
   const [activeTab, setActiveTab] = useState<string>("tables");
 
-  // Load Tables
-  const [tables, setTables] = useState<BilliardTable[]>(() => {
-    const saved = localStorage.getItem("cuezone_tables_catalog");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return DEFAULT_TABLES;
-  });
+  // Chế độ xem: Bảng danh sách hoặc Thẻ sàn
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
-  // Load Pricing Tiers
-  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>(() => {
-    const saved = localStorage.getItem("cuezone_pricing_tiers");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return DEFAULT_PRICING_TIERS;
-  });
+  // Phân trang
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 8;
 
-  // Persist Tables & Sync with POS
+  const [tables, setTables] = useState<BilliardTable[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+
+  // Cập nhật khung giờ giá động theo thời gian thực (15s/lần)
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
   useEffect(() => {
-    localStorage.setItem("cuezone_tables_catalog", JSON.stringify(tables));
+    const timer = setInterval(() => setCurrentTime(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, []);
 
-    // Also sync to cuezone_pos_tables if already exists
-    const posRaw = localStorage.getItem("cuezone_pos_tables");
-    if (posRaw) {
-      try {
-        const currentPosTables = JSON.parse(posRaw);
-        const updatedPos = tables.map((t) => {
-          const existing = currentPosTables.find((pt: any) => pt.id === t._id || pt.code === t.code);
-          return {
-            id: t._id,
-            name: t.name,
-            code: t.code,
-            type: t.type === "carom" ? "carom" : t.type === "snooker" ? "snooker" : "pool",
-            typeName:
-              t.type === "carom"
-                ? "Bàn Bida Carom (Phăng)"
-                : t.type === "snooker"
-                ? "Bàn Bida Snooker"
-                : "Bàn Bida Lỗ (Pool)",
-            pricePerHour: t.pricePerHour,
-            status: t.status === "maintenance" ? "maintenance" : existing?.status || "available",
-            currentSession: existing?.currentSession,
-            bookedInfo: existing?.bookedInfo,
-          };
-        });
-        localStorage.setItem("cuezone_pos_tables", JSON.stringify(updatedPos));
-      } catch {
-        // fallback
-      }
+  // Tính toán khung giờ đang chạy tự động 100% theo đồng hồ hệ thống và trạng thái isActive
+  const activePricingTier = useMemo(() => {
+    return getActivePricingTier(pricingTiers, currentTime);
+  }, [pricingTiers, currentTime]);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      localStorage.removeItem("cuezone_tables_catalog");
+      localStorage.removeItem("cuezone_pricing_tiers");
+      localStorage.removeItem("cuezone_pos_tables");
+
+      const [tablesData, pricingData] = await Promise.all([
+        tableAdminService.getAll(),
+        pricingAdminService.getAll(),
+      ]);
+      setTables(tablesData);
+      setPricingTiers(pricingData);
+    } catch (err: any) {
+      console.error("Lỗi tải danh mục bàn:", err);
+      message.error(err.message || "Không thể tải danh mục bàn từ máy chủ");
+    } finally {
+      setLoading(false);
     }
-  }, [tables]);
+  }, []);
 
-  // Persist Pricing Tiers
   useEffect(() => {
-    localStorage.setItem("cuezone_pricing_tiers", JSON.stringify(pricingTiers));
-  }, [pricingTiers]);
+    void loadData();
+  }, [loadData]);
 
-  // Table Filters
+  // Bộ lọc bàn
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterFloor, setFilterFloor] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Table Modal States
+  // Modal bàn
   const [tableModalVisible, setTableModalVisible] = useState<boolean>(false);
   const [editingTable, setEditingTable] = useState<BilliardTable | null>(null);
   const [tableCode, setTableCode] = useState<string>("");
   const [tableName, setTableName] = useState<string>("");
   const [tableType, setTableType] = useState<TableType>("pool");
-  const [tableArea, setTableArea] = useState<string>("Tầng 1 - Khu A");
+  const [tableArea, setTableArea] = useState<string>("Tầng 1 - Khu C");
   const [tableFloor, setTableFloor] = useState<number>(1);
   const [tablePrice, setTablePrice] = useState<number>(50000);
 
-  // Pricing Modal States
+  // Modal bảng giá
   const [pricingModalVisible, setPricingModalVisible] = useState<boolean>(false);
   const [editingPricing, setEditingPricing] = useState<PricingTier | null>(null);
   const [pricingName, setPricingName] = useState<string>("");
   const [pricingDayType, setPricingDayType] = useState<string>("weekday");
   const [pricingStartTime, setPricingStartTime] = useState<string>("08:00");
   const [pricingEndTime, setPricingEndTime] = useState<string>("14:00");
-  const [pricingStandardPrice, setPricingStandardPrice] = useState<number>(50000);
-  const [pricingVipPrice, setPricingVipPrice] = useState<number>(70000);
+  const [pricingStandardPrice, setPricingStandardPrice] = useState<number>(60000);
+  const [pricingVipPrice, setPricingVipPrice] = useState<number>(120000);
+  const [pricingMatchPrice, setPricingMatchPrice] = useState<number>(100000);
+  const [pricingIsActive, setPricingIsActive] = useState<boolean>(true);
 
-  // Delete Confirm Modal
+  // Modal xác nhận xóa
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState<boolean>(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: "table" | "pricing"; name: string } | null>(null);
 
-  // Statistics
+  // Thống kê sàn
   const stats = useMemo(() => {
     const total = tables.length;
     const pool = tables.filter((t) => t.type === "pool").length;
     const carom = tables.filter((t) => t.type === "carom").length;
     const snooker = tables.filter((t) => t.type === "snooker").length;
     const maintenance = tables.filter((t) => t.status === "maintenance").length;
-    return { total, pool, carom, snooker, maintenance };
+    const playing = tables.filter((t) => t.status === "playing").length;
+    const booked = tables.filter((t) => t.status === "booked").length;
+    const available = tables.filter((t) => t.status === "available").length;
+    const floor1 = tables.filter((t) => t.floor === 1).length;
+    const floor2 = tables.filter((t) => t.floor === 2).length;
+    return { total, pool, carom, snooker, maintenance, playing, booked, available, floor1, floor2 };
   }, [tables]);
 
-  // Filtered Tables
+  // Lọc dữ liệu
   const filteredTables = useMemo(() => {
     return tables.filter((t) => {
       const matchType = filterType === "all" || t.type === filterType;
+      const matchFloor = filterFloor === "all" || String(t.floor) === String(filterFloor);
       const matchStatus =
-        filterStatus === "all" ||
-        (filterStatus === "maintenance" ? t.status === "maintenance" : t.status !== "maintenance");
+        filterStatus === "all"
+          ? true
+          : filterStatus === "maintenance"
+          ? t.status === "maintenance"
+          : filterStatus === "playing"
+          ? t.status === "playing"
+          : filterStatus === "booked"
+          ? t.status === "booked"
+          : t.status === "available";
       const matchQuery =
         !searchQuery ||
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.area.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchType && matchStatus && matchQuery;
+      return matchType && matchFloor && matchStatus && matchQuery;
     });
-  }, [tables, filterType, filterStatus, searchQuery]);
+  }, [tables, filterType, filterFloor, filterStatus, searchQuery]);
 
-  // Tab Items for Segmented Pill List
+  const isFiltering = filterType !== "all" || filterFloor !== "all" || filterStatus !== "all" || searchQuery.trim() !== "";
+
+  const handleResetFilters = () => {
+    setFilterType("all");
+    setFilterFloor("all");
+    setFilterStatus("all");
+    setSearchQuery("");
+    setCurrentPage(1);
+  };
+
+  const handleFilterTypeChange = (type: string) => {
+    setFilterType(type);
+    setCurrentPage(1);
+  };
+
+  const handleFilterFloorChange = (floor: string) => {
+    setFilterFloor(floor);
+    setCurrentPage(1);
+  };
+
+  const handleFilterStatusChange = (status: string) => {
+    setFilterStatus(status);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
+
+  // Danh sách Tab
   const tabPills = [
     { key: "tables", label: "Danh Mục Bàn Bida", badge: stats.total, dotClassName: "bg-emerald-500" },
     { key: "pricing", label: "Cấu Hình Bảng Giá Khung Giờ", badge: pricingTiers.length, dotClassName: "bg-blue-500" },
@@ -394,6 +306,10 @@ export const TablesManagementPage: React.FC = () => {
   };
 
   const handleOpenEditTable = (table: BilliardTable) => {
+    if (table.status === "playing" || table.status === "booked") {
+      message.warning("Bàn đang có khách chơi hoặc đã được đặt trước, không thể chỉnh sửa!");
+      return;
+    }
     setEditingTable(table);
     setTableCode(table.code);
     setTableName(table.name);
@@ -404,61 +320,63 @@ export const TablesManagementPage: React.FC = () => {
     setTableModalVisible(true);
   };
 
-  const handleSaveTable = () => {
+  const handleSaveTable = async () => {
     if (!tableName.trim() || !tableCode.trim()) {
       message.warning("Vui lòng điền đầy đủ Mã bàn và Tên bàn!");
       return;
     }
 
-    if (editingTable) {
-      setTables((prev) =>
-        prev.map((t) =>
-          t._id === editingTable._id
-            ? {
-                ...t,
-                code: tableCode.trim(),
-                name: tableName.trim(),
-                type: tableType,
-                area: tableArea.trim(),
-                floor: Number(tableFloor),
-                pricePerHour: Number(tablePrice),
-                updatedAt: new Date().toISOString().split("T")[0],
-              }
-            : t
-        )
-      );
-      message.success(`Đã cập nhật thông số ${tableName} thành công!`);
-    } else {
-      const newTable: BilliardTable = {
-        _id: `TB-${Date.now().toString().slice(-4)}`,
-        code: tableCode.trim(),
-        name: tableName.trim(),
-        type: tableType,
-        area: tableArea.trim(),
-        floor: Number(tableFloor),
-        pricePerHour: Number(tablePrice),
-        status: "available",
-        isActive: true,
-        createdAt: new Date().toISOString().split("T")[0],
-        updatedAt: new Date().toISOString().split("T")[0],
-      };
-      setTables((prev) => [...prev, newTable]);
-      message.success(`Đã thêm ${tableName} vào danh mục bàn thành công!`);
+    setSaving(true);
+    try {
+      if (editingTable) {
+        await tableAdminService.update(editingTable._id, {
+          code: tableCode.trim(),
+          name: tableName.trim(),
+          type: tableType,
+          area: tableArea.trim(),
+          floor: Number(tableFloor),
+          pricePerHour: Number(tablePrice),
+        });
+        message.success(`Đã cập nhật thông số ${tableName} thành công!`);
+      } else {
+        await tableAdminService.create({
+          code: tableCode.trim(),
+          name: tableName.trim(),
+          type: tableType,
+          area: tableArea.trim(),
+          floor: Number(tableFloor),
+          pricePerHour: Number(tablePrice),
+        });
+        message.success(`Đã thêm ${tableName} vào danh mục bàn thành công!`);
+      }
+      setTableModalVisible(false);
+      await loadData();
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || "Không thể lưu thông tin bàn!";
+      message.error(errMsg);
+    } finally {
+      setSaving(false);
     }
-
-    setTableModalVisible(false);
   };
 
-  const handleToggleMaintenance = (table: BilliardTable) => {
+  const handleToggleMaintenance = async (table: BilliardTable) => {
+    if (table.status === "playing" || table.status === "booked") {
+      message.warning("Bàn đang có khách chơi hoặc đã được đặt trước, không thể chuyển sang bảo trì!");
+      return;
+    }
     const isMaintenance = table.status === "maintenance";
     const nextStatus = isMaintenance ? "available" : "maintenance";
-    setTables((prev) =>
-      prev.map((t) => (t._id === table._id ? { ...t, status: nextStatus, isActive: !isMaintenance } : t))
-    );
-    if (!isMaintenance) {
-      message.info(`Đã chuyển ${table.name} sang chế độ bảo trì nỉ!`);
-    } else {
-      message.success(`Đã hoàn tất bảo trì, ${table.name} sẵn sàng hoạt động!`);
+    try {
+      await tableAdminService.updateStatus(table._id, nextStatus);
+      if (!isMaintenance) {
+        message.info(`Đã chuyển ${table.name} sang chế độ bảo trì nỉ!`);
+      } else {
+        message.success(`Đã hoàn tất bảo trì, ${table.name} sẵn sàng hoạt động!`);
+      }
+      await loadData();
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || "Không thể đổi trạng thái bàn!";
+      message.error(errMsg);
     }
   };
 
@@ -468,9 +386,11 @@ export const TablesManagementPage: React.FC = () => {
     setPricingName("");
     setPricingDayType("weekday");
     setPricingStartTime("08:00");
-    setPricingEndTime("14:00");
-    setPricingStandardPrice(50000);
-    setPricingVipPrice(70000);
+    setPricingEndTime("17:00");
+    setPricingStandardPrice(60000);
+    setPricingVipPrice(120000);
+    setPricingMatchPrice(100000);
+    setPricingIsActive(true);
     setPricingModalVisible(true);
   };
 
@@ -482,120 +402,169 @@ export const TablesManagementPage: React.FC = () => {
     setPricingEndTime(tier.endTime);
     setPricingStandardPrice(tier.prices.standard);
     setPricingVipPrice(tier.prices.vip);
+    setPricingMatchPrice(tier.prices.match ?? tier.prices.vip + 10000);
+    setPricingIsActive(tier.isActive !== false);
     setPricingModalVisible(true);
   };
 
-  const handleSavePricing = () => {
+  const handleToggleTierActive = async (tier: PricingTier) => {
+    const isCurrentlyRunning = tier._id === activePricingTier?._id;
+    if (isCurrentlyRunning && tier.isActive !== false) {
+      message.warning("Khung giờ này đang áp dụng tính tiền trực tiếp cho khách, không thể tạm ngưng!");
+      return;
+    }
+    const newActiveState = tier.isActive === false;
+    setSaving(true);
+    try {
+      await pricingAdminService.update(tier._id, { isActive: newActiveState });
+      if (newActiveState) {
+        message.success(`Đã kích hoạt "${tier.name}" tham gia lịch tính tiền tự động!`);
+      } else {
+        message.info(`Đã tạm ngưng "${tier.name}" khỏi lịch tính tiền!`);
+      }
+      await loadData();
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || "Không thể cập nhật trạng thái khung giờ!";
+      message.error(errMsg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSavePricing = async () => {
     if (!pricingName.trim()) {
       message.warning("Vui lòng nhập tên khung giờ!");
       return;
     }
 
-    if (editingPricing) {
-      setPricingTiers((prev) =>
-        prev.map((p) =>
-          p._id === editingPricing._id
-            ? {
-                ...p,
-                name: pricingName.trim(),
-                dayType: pricingDayType,
-                startTime: pricingStartTime,
-                endTime: pricingEndTime,
-                prices: {
-                  standard: Number(pricingStandardPrice),
-                  vip: Number(pricingVipPrice),
-                },
-                updatedAt: new Date().toISOString().split("T")[0],
-              }
-            : p
-        )
-      );
-      message.success(`Đã cập nhật biểu giá khung giờ "${pricingName}"!`);
-    } else {
-      const newTier: PricingTier = {
-        _id: `PT-${Date.now().toString().slice(-4)}`,
-        name: pricingName.trim(),
-        dayType: pricingDayType,
-        startTime: pricingStartTime,
-        endTime: pricingEndTime,
-        prices: {
-          standard: Number(pricingStandardPrice),
-          vip: Number(pricingVipPrice),
-        },
-        isActive: true,
-        createdAt: new Date().toISOString().split("T")[0],
-        updatedAt: new Date().toISOString().split("T")[0],
-      };
-      setPricingTiers((prev) => [...prev, newTier]);
-      message.success(`Đã thêm khung giờ "${pricingName}" vào hệ thống!`);
+    setSaving(true);
+    try {
+      if (editingPricing) {
+        await pricingAdminService.update(editingPricing._id, {
+          name: pricingName.trim(),
+          dayType: pricingDayType as any,
+          startTime: pricingStartTime,
+          endTime: pricingEndTime,
+          daysOfWeek: editingPricing.daysOfWeek,
+          isActive: pricingIsActive,
+          prices: {
+            standard: Number(pricingStandardPrice),
+            vip: Number(pricingVipPrice),
+            match: Number(pricingMatchPrice),
+          },
+        });
+        message.success(`Đã cập nhật biểu giá khung giờ "${pricingName}"!`);
+      } else {
+        await pricingAdminService.create({
+          name: pricingName.trim(),
+          dayType: pricingDayType as any,
+          startTime: pricingStartTime,
+          endTime: pricingEndTime,
+          isActive: pricingIsActive,
+          prices: {
+            standard: Number(pricingStandardPrice),
+            vip: Number(pricingVipPrice),
+            match: Number(pricingMatchPrice),
+          },
+        });
+        message.success(`Đã thêm khung giờ "${pricingName}" vào hệ thống!`);
+      }
+      setPricingModalVisible(false);
+      await loadData();
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || "Không thể lưu khung giờ!";
+      message.error(errMsg);
+    } finally {
+      setSaving(false);
     }
-
-    setPricingModalVisible(false);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
 
-    if (deleteTarget.type === "table") {
-      setTables((prev) => prev.filter((t) => t._id !== deleteTarget.id));
-      message.success(`Đã xóa bàn ${deleteTarget.name} khỏi danh mục!`);
-    } else {
-      setPricingTiers((prev) => prev.filter((p) => p._id !== deleteTarget.id));
-      message.success(`Đã xóa khung giờ "${deleteTarget.name}"!`);
+    if (deleteTarget.type === "pricing" && deleteTarget.id === activePricingTier?._id) {
+      message.warning("Khung giờ đang áp dụng tính tiền trực tiếp cho khách, không thể xóa!");
+      setDeleteConfirmVisible(false);
+      return;
     }
 
-    setDeleteConfirmVisible(false);
-    setDeleteTarget(null);
+    setSaving(true);
+    try {
+      if (deleteTarget.type === "table") {
+        await tableAdminService.delete(deleteTarget.id);
+        message.success(`Đã xóa bàn ${deleteTarget.name} khỏi danh mục!`);
+      } else {
+        await pricingAdminService.delete(deleteTarget.id);
+        message.success(`Đã xóa khung giờ "${deleteTarget.name}"!`);
+      }
+      setDeleteConfirmVisible(false);
+      setDeleteTarget(null);
+      await loadData();
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || "Không thể xóa!";
+      message.error(errMsg);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Table Columns Definition
+  // Cấu hình cột bảng danh sách
   const tableColumns = [
     {
       title: "Mã & Tên Bàn",
       key: "name",
       render: (_: any, record: BilliardTable) => (
         <div className="flex items-center gap-2.5">
-          <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+          <span
+            className={`min-w-[72px] px-2 py-1 rounded-md flex items-center justify-center font-mono font-bold text-xs whitespace-nowrap shrink-0 border ${
+              record.type === "snooker"
+                ? "bg-purple-50 text-purple-700 border-purple-200"
+                : record.type === "carom"
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-cyan-50 text-cyan-800 border-cyan-200"
+            }`}
+          >
             {record.code}
           </span>
           <div>
-            <strong className="text-sm text-slate-900 block">{record.name}</strong>
-            <span className="text-[11px] text-slate-400">Tạo ngày: {record.createdAt}</span>
+            <strong className="text-sm text-slate-900 block font-semibold hover:text-emerald-700 transition-colors">
+              {record.name}
+            </strong>
+            <span className="text-[11px] text-slate-400 font-mono">
+              Ngày tạo: {record.createdAt}
+            </span>
           </div>
         </div>
       ),
     },
     {
-      title: "Phân Loại Bàn",
+      title: "Loại Bàn",
       key: "type",
-      render: (_: any, record: BilliardTable) => (
-        <div>
-          {record.type === "pool" && (
-            <Tag color="cyan" className="!font-bold !bg-cyan-50 !text-cyan-800 !border-cyan-200">
-              BÀN BIDA LỖ (POOL)
-            </Tag>
-          )}
-          {record.type === "carom" && (
-            <Tag color="gold" className="!font-bold !bg-amber-50 !text-amber-800 !border-amber-200">
-              BÀN BIDA CAROM (PHĂNG)
-            </Tag>
-          )}
-          {record.type === "snooker" && (
-            <Tag color="purple" className="!font-bold !bg-purple-50 !text-purple-800 !border-purple-200">
-              BÀN SNOOKER
-            </Tag>
-          )}
+      render: (_: any, record: BilliardTable) => {
+        const color = record.type === "snooker" ? "purple" : record.type === "carom" ? "gold" : "cyan";
+        return (
+          <Tag color={color} className="!font-semibold !px-2.5 !py-0.5 !rounded-full">
+            {getTableTypeLabel(record.type)}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Khu Vực",
+      dataIndex: "area",
+      key: "area",
+      render: (area: string, record: BilliardTable) => (
+        <div className="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
+          <EnvironmentOutlined className="text-slate-400 text-xs shrink-0" />
+          <span>{area}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono font-bold whitespace-nowrap">
+            Tầng {record.floor}
+          </span>
         </div>
       ),
     },
     {
-      title: "Khu Vực & Tầng",
-      dataIndex: "area",
-      key: "area",
-      render: (area: string) => <span className="text-xs text-slate-700 font-medium">{area}</span>,
-    },
-    {
-      title: "Đơn Giá Giờ Chuẩn",
+      title: "Giá Giờ",
       key: "pricePerHour",
       render: (_: any, record: BilliardTable) => (
         <span className="font-mono font-bold text-emerald-700 text-sm">
@@ -604,20 +573,17 @@ export const TablesManagementPage: React.FC = () => {
       ),
     },
     {
-      title: "Trang Thiết Bị Chuẩn",
+      title: "Quy Cách Nỉ & Bi",
       key: "equipment",
-      render: (_: any, record: BilliardTable) => (
-        <div className="text-[11px] text-slate-500 space-y-0.5">
-          <div className="flex items-center gap-1">
-            <CheckCircleOutlined className="text-emerald-500 text-xs" />
-            <span>{record.type === "snooker" ? "Nỉ Strachan 6811 Gold Tournament" : "Nỉ Simonis 860 HR Competition"}</span>
+      render: (_: any, record: BilliardTable) => {
+        const eq = getEquipmentDetails(record.type);
+        return (
+          <div className="text-[11px] text-slate-500 space-y-0.5 max-w-[240px]">
+            <div className="truncate" title={eq.cloth}>• {eq.cloth}</div>
+            <div className="truncate text-slate-400" title={eq.ball}>• {eq.ball}</div>
           </div>
-          <div className="flex items-center gap-1">
-            <CheckCircleOutlined className="text-emerald-500 text-xs" />
-            <span>{record.type === "snooker" ? "Bóng Aramith Tournament Champion" : "Bóng Aramith Pro Cup TV"}</span>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: "Trạng Thái",
@@ -625,13 +591,24 @@ export const TablesManagementPage: React.FC = () => {
       render: (_: any, record: BilliardTable) => (
         <div>
           {record.status === "maintenance" ? (
-            <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
-              BẢO TRÌ NỈ
+            <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !font-bold inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              Bảo trì
+            </Tag>
+          ) : record.status === "playing" ? (
+            <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !font-bold !bg-rose-50 !text-rose-700 !border-rose-200 inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+              Đang chơi
+            </Tag>
+          ) : record.status === "booked" ? (
+            <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !font-bold !bg-blue-50 !text-blue-700 !border-blue-200 inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              Đã đặt
             </Tag>
           ) : (
-            <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !font-bold inline-flex items-center gap-1">
+            <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !font-bold inline-flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              SẴN SÀNG HOẠT ĐỘNG
+              Trống
             </Tag>
           )}
         </div>
@@ -641,74 +618,128 @@ export const TablesManagementPage: React.FC = () => {
       title: "Thao Tác",
       key: "actions",
       align: "right" as const,
-      render: (_: any, record: BilliardTable) => (
-        <Space size={4}>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleOpenEditTable(record)}
-            leftIcon={<EditOutlined />}
-            className="!h-7 !px-2 !rounded-lg !text-xs !border-slate-300 !text-slate-700 hover:!border-emerald-600"
-          >
-            Sửa
-          </Button>
+      render: (_: any, record: BilliardTable) => {
+        const isLocked = record.status === "playing" || record.status === "booked";
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleToggleMaintenance(record)}
-            leftIcon={<ToolOutlined />}
-            className={`!h-7 !px-2 !rounded-lg !text-xs ${
-              record.status === "maintenance"
-                ? "!bg-emerald-50 !border-emerald-300 !text-emerald-800"
-                : "!border-amber-300 !bg-amber-50/60 !text-amber-800 hover:!bg-amber-100"
-            }`}
-          >
-            {record.status === "maintenance" ? "Mở Lại" : "Bảo Trì"}
-          </Button>
+        return (
+          <Space size={4}>
+            <Tooltip
+              title={
+                isLocked
+                  ? "Bàn đang có khách chơi hoặc đã đặt, không thể sửa thông số"
+                  : "Chỉnh sửa thông số bàn"
+              }
+            >
+              <span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isLocked}
+                  onClick={() => handleOpenEditTable(record)}
+                  leftIcon={<EditOutlined />}
+                  className={`!h-7 !px-2.5 !rounded-lg !text-xs font-medium ${
+                    isLocked
+                      ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                      : "!border-slate-300 !text-slate-700 hover:!border-emerald-600 hover:!text-emerald-700"
+                  }`}
+                >
+                  Sửa
+                </Button>
+              </span>
+            </Tooltip>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setDeleteTarget({ id: record._id, type: "table", name: `${record.name} (${record.code})` });
-              setDeleteConfirmVisible(true);
-            }}
-            leftIcon={<DeleteOutlined />}
-            className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-slate-300 !text-slate-400 hover:!text-rose-600 hover:!border-rose-300"
-            title="Xóa bàn"
-          />
-        </Space>
-      ),
+            <Tooltip
+              title={
+                record.status === "maintenance"
+                  ? "Mở lại bàn vào hoạt động"
+                  : isLocked
+                  ? "Bàn đang có khách hoặc đã đặt, không thể chuyển bảo trì"
+                  : "Chuyển bàn sang bảo trì nỉ"
+              }
+            >
+              <span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isLocked}
+                  onClick={() => handleToggleMaintenance(record)}
+                  leftIcon={<ToolOutlined />}
+                  className={`!h-7 !px-2.5 !rounded-lg !text-xs font-medium ${
+                    record.status === "maintenance"
+                      ? "!bg-emerald-50 !border-emerald-300 !text-emerald-800"
+                      : isLocked
+                      ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                      : "!border-amber-300 !bg-amber-50/60 !text-amber-800 hover:!bg-amber-100"
+                  }`}
+                >
+                  {record.status === "maintenance" ? "Mở Lại" : "Bảo Trì"}
+                </Button>
+              </span>
+            </Tooltip>
+
+            <Tooltip
+              title={
+                isLocked
+                  ? "Không thể xóa bàn đang hoạt động hoặc đã đặt trước"
+                  : "Xóa bàn khỏi hệ thống"
+              }
+            >
+              <span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isLocked}
+                  onClick={() => {
+                    setDeleteTarget({ id: record._id, type: "table", name: `${record.name} (${record.code})` });
+                    setDeleteConfirmVisible(true);
+                  }}
+                  leftIcon={<DeleteOutlined className={isLocked ? "text-slate-400" : "text-rose-500"} />}
+                  className={`!h-7 !px-2.5 !rounded-lg !text-xs font-medium ${
+                    isLocked
+                      ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                      : "!border-slate-300 !text-rose-600 hover:!border-rose-300 hover:!bg-rose-50"
+                  }`}
+                >
+                  Xóa
+                </Button>
+              </span>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 
+  // Bàn hiển thị theo trang cho chế độ Thẻ sàn
+  const paginatedTables = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTables.slice(start, start + pageSize);
+  }, [filteredTables, currentPage, pageSize]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── 1. HEADER & TOP CONTROLS ────────────────────────────────────────── */}
-      <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden">
-        <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white border-b border-slate-100">
+      <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white">
+        <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1">
               <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <Title level={3} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
                 Quản Lý Danh Mục Bàn & Cấu Hình Bảng Giá
               </Title>
-              <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0">
-                FLOOR CATALOG
-              </Tag>
             </div>
             <Text className="!text-xs !text-slate-500 block">
-              Quản trị quy mô bàn bida, thông số kỹ thuật nỉ Simonis và cấu hình biểu giá linh hoạt theo từng khung giờ
+              Quản lý danh sách bàn bida, khu vực và cấu hình bảng giá giờ chơi theo khung giờ
             </Text>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
-            {/* Realtime active pricing pill */}
-            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-2 shadow-2xs">
+            {/* Realtime Active Pricing Pill */}
+            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center gap-2 shadow-2xs">
               <ClockCircleOutlined className="text-emerald-700 text-xs" />
-              <span className="text-xs text-emerald-900 font-semibold">
-                Đang áp dụng: <strong>Khung Giờ Chiều (14:00 - 18:00)</strong>
+              <span className="text-xs text-emerald-900 font-semibold flex items-center gap-1.5">
+                <span>Đang áp dụng: <strong>{formatActivePricingLabel(activePricingTier)}</strong></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               </span>
             </div>
 
@@ -717,25 +748,38 @@ export const TablesManagementPage: React.FC = () => {
               size="sm"
               onClick={() => navigate("/pos")}
               leftIcon={<ThunderboltOutlined />}
-              className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs"
+              className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs shadow-2xs"
             >
               Mở Sơ Đồ Bàn POS
             </Button>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleOpenAddTable}
-              leftIcon={<PlusOutlined />}
-              className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
-            >
-              Thêm Bàn Mới
-            </Button>
+            {/* Nút chính tự động thay đổi theo Tab hoạt động */}
+            {activeTab === "tables" ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleOpenAddTable}
+                leftIcon={<PlusOutlined />}
+                className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
+              >
+                Thêm Bàn Mới
+              </Button>
+            ) : activeTab === "pricing" ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleOpenAddPricing}
+                leftIcon={<PlusOutlined />}
+                className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
+              >
+                Thêm Khung Giờ Mới
+              </Button>
+            ) : null}
           </div>
         </div>
 
         {/* Tab Selector using SegmentedPillList */}
-        <div className="p-3 bg-slate-50/70">
+        <div className="px-4 py-2.5 bg-slate-50/70">
           <SegmentedPillList
             items={tabPills}
             activeKey={activeTab}
@@ -747,38 +791,51 @@ export const TablesManagementPage: React.FC = () => {
       {/* ── 2. TAB 1: DANH MỤC BÀN BIDA (TABLE CATALOG) ────────────────────── */}
       {activeTab === "tables" && (
         <div className="space-y-4">
-          {/* KPI Strip: Floor Breakdown */}
+          {/* ── 2A. 5 THẺ XEM NHANH (ĐƠN GIẢN, TINH TẾ NHƯ CŨ) ────────────────── */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex flex-col justify-between shadow-2xs">
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
               <span className="text-xs font-semibold text-slate-500 mb-1">Tổng quy mô sàn</span>
               <span className="text-2xl font-black text-slate-900 font-mono">{stats.total} Bàn</span>
+              <span className="text-[11px] text-slate-400 mt-1">Tầng 1: {stats.floor1} • Tầng 2: {stats.floor2}</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-cyan-50/60 border border-cyan-200/80 flex flex-col justify-between shadow-2xs">
+
+            <div className="p-3.5 rounded-xl bg-cyan-50/50 border border-cyan-200/70 shadow-2xs flex flex-col justify-between">
               <span className="text-xs font-semibold text-cyan-800 mb-1">Bàn Bida Lỗ (Pool)</span>
-              <span className="text-2xl font-black text-cyan-800 font-mono">{stats.pool} Bàn</span>
+              <span className="text-2xl font-black text-cyan-900 font-mono">{stats.pool} Bàn</span>
+              <span className="text-[11px] text-cyan-700/80 mt-1">15 bàn 9FT tiêu chuẩn</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 flex flex-col justify-between shadow-2xs">
-              <span className="text-xs font-semibold text-amber-800 mb-1">Bàn Bida Carom</span>
-              <span className="text-2xl font-black text-amber-800 font-mono">{stats.carom} Bàn</span>
+
+            <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/70 shadow-2xs flex flex-col justify-between">
+              <span className="text-xs font-semibold text-amber-800 mb-1">Bàn Bida Carom (Phăng)</span>
+              <span className="text-2xl font-black text-amber-900 font-mono">{stats.carom} Bàn</span>
+              <span className="text-[11px] text-amber-700/80 mt-1">8 bàn Phăng / 3 Băng</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 flex flex-col justify-between shadow-2xs">
-              <span className="text-xs font-semibold text-purple-800 mb-1">Bàn Snooker</span>
-              <span className="text-2xl font-black text-purple-700 font-mono">{stats.snooker} Bàn</span>
+
+            <div className="p-3.5 rounded-xl bg-purple-50/50 border border-purple-200/70 shadow-2xs flex flex-col justify-between">
+              <span className="text-xs font-semibold text-purple-800 mb-1">Bàn Bida Snooker</span>
+              <span className="text-2xl font-black text-purple-900 font-mono">{stats.snooker} Bàn</span>
+              <span className="text-[11px] text-purple-700/80 mt-1">4 bàn 12FT thi đấu</span>
             </div>
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between shadow-2xs col-span-2 sm:col-span-1">
-              <span className="text-xs font-semibold text-slate-500 mb-1">Đang bảo trì nỉ</span>
-              <span className="text-2xl font-black text-rose-600 font-mono">{stats.maintenance} Bàn</span>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs flex flex-col justify-between col-span-2 sm:col-span-1">
+              <span className="text-xs font-semibold text-slate-500 mb-1">Tình trạng vận hành</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-emerald-700 font-mono">{stats.available} Trống</span>
+                <span className="text-slate-300">•</span>
+                <span className="text-lg font-bold text-rose-600 font-mono">{stats.playing} Chơi</span>
+              </div>
+              <span className="text-[11px] text-slate-500 mt-1">Đã đặt: {stats.booked} • Bảo trì: {stats.maintenance}</span>
             </div>
           </div>
 
-          {/* Filter Toolbar & Data Table */}
+          {/* ── 2B. THANH CÔNG CỤ LỌC & TÌM KIẾM GỌN GÀNG ─────────────────────── */}
           <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white">
-            <div className="p-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+            <div className="p-3.5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-50/50">
               <div className="flex flex-wrap items-center gap-2.5">
                 <Select
                   value={filterType}
-                  onChange={(val) => setFilterType(val)}
-                  className="!w-44 !rounded-lg !text-xs"
+                  onChange={handleFilterTypeChange}
+                  className="!w-44 !rounded-xl !text-xs"
                   options={[
                     { value: "all", label: "Tất cả loại bàn" },
                     { value: "pool", label: "Bàn Bida Lỗ (Pool)" },
@@ -788,34 +845,324 @@ export const TablesManagementPage: React.FC = () => {
                 />
 
                 <Select
-                  value={filterStatus}
-                  onChange={(val) => setFilterStatus(val)}
-                  className="!w-40 !rounded-lg !text-xs"
+                  value={filterFloor}
+                  onChange={handleFilterFloorChange}
+                  className="!w-36 !rounded-xl !text-xs"
                   options={[
-                    { value: "all", label: "Tất cả trạng thái" },
-                    { value: "active", label: "Đang hoạt động" },
-                    { value: "maintenance", label: "Đang bảo trì nỉ" },
+                    { value: "all", label: "Tất cả tầng" },
+                    { value: "1", label: "Tầng 1 (19 bàn)" },
+                    { value: "2", label: "Tầng 2 (8 bàn)" },
                   ]}
                 />
+
+                <Select
+                  value={filterStatus}
+                  onChange={handleFilterStatusChange}
+                  className="!w-40 !rounded-xl !text-xs"
+                  options={[
+                    { value: "all", label: "Tất cả trạng thái" },
+                    { value: "available", label: "Bàn trống" },
+                    { value: "playing", label: "Đang chơi" },
+                    { value: "booked", label: "Đã đặt trước" },
+                    { value: "maintenance", label: "Bảo trì" },
+                  ]}
+                />
+
+                {isFiltering && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetFilters}
+                    leftIcon={<ClearOutlined />}
+                    className="!h-8 !px-2.5 !rounded-lg !text-xs !border-slate-300 !text-slate-500 hover:!text-slate-800"
+                  >
+                    Đặt lại
+                  </Button>
+                )}
               </div>
 
-              <SearchFilterInput
-                value={searchQuery}
-                onChange={(val) => setSearchQuery(val)}
-                placeholder="Tìm mã bàn, tên bàn, khu vực..."
-                width={280}
-              />
+              <div className="flex items-center gap-2.5 self-end lg:self-center">
+                <SearchFilterInput
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder="Tìm mã bàn, tên bàn, khu vực..."
+                  width={260}
+                />
+
+                <div className="inline-flex rounded-xl bg-slate-100 p-0.5 border border-slate-200">
+                  <Tooltip title="Xem dạng bảng">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("table")}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all ${
+                        viewMode === "table" ? "bg-white text-emerald-700 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      <UnorderedListOutlined className="text-xs" />
+                      <span>Bảng</span>
+                    </button>
+                  </Tooltip>
+                  <Tooltip title="Xem dạng thẻ sàn">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("grid")}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all ${
+                        viewMode === "grid" ? "bg-white text-emerald-700 shadow-2xs font-bold" : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      <AppstoreOutlined className="text-xs" />
+                      <span>Thẻ Sàn</span>
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
             </div>
 
-            {/* Table component from shared UI */}
-            <div className="overflow-x-auto">
-              <Table
-                dataSource={filteredTables.map((t) => ({ ...t, key: t._id }))}
-                columns={tableColumns}
-                pagination={{ pageSize: 8, showTotal: (total) => `Tổng cộng ${total} bàn bida` }}
-                className="[&_.ant-table-thead_th]:!bg-slate-50 [&_.ant-table-thead_th]:!text-slate-600 [&_.ant-table-thead_th]:!text-xs [&_.ant-table-tbody_td]:!py-3.5"
-              />
+            {/* Dòng đếm số lượng hiển thị */}
+            <div className="px-4 py-2 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              {(() => {
+                const totalCount = filteredTables.length;
+                const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+                const endItem = Math.min(currentPage * pageSize, totalCount);
+                return (
+                  <span>
+                    Hiển thị <strong className="text-slate-900 font-mono">{startItem}–{endItem}</strong> /{" "}
+                    <strong className="text-slate-900 font-mono">{totalCount}</strong> bàn bida
+                  </span>
+                );
+              })()}
+              {isFiltering && (
+                <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  Đang lọc
+                </span>
+              )}
             </div>
+
+            {/* ── 2C. DATA VIEW (TABLE OR GRID) ───────────────────────────────── */}
+            {viewMode === "table" ? (
+              <div className="overflow-x-auto">
+                <Table
+                  dataSource={filteredTables.map((t) => ({ ...t, key: t._id }))}
+                  columns={tableColumns}
+                  loading={loading}
+                  pagination={{
+                    current: currentPage,
+                    pageSize: pageSize,
+                    total: filteredTables.length,
+                    onChange: (page) => setCurrentPage(page),
+                    showTotal: (total, range) => `Hiển thị ${range[0]}–${range[1]} / ${total} bàn bida`,
+                  }}
+                  className="[&_.ant-table-thead_th]:!bg-slate-50 [&_.ant-table-thead_th]:!text-slate-600 [&_.ant-table-thead_th]:!text-xs [&_.ant-table-tbody_td]:!py-3"
+                />
+              </div>
+            ) : (
+              <div className="p-4">
+                {filteredTables.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <AppstoreOutlined className="text-4xl mb-2 text-slate-300" />
+                    <p className="text-sm font-medium">Không tìm thấy bàn nào phù hợp với bộ lọc</p>
+                    <Button variant="outline" size="sm" onClick={handleResetFilters} className="mt-2">
+                      Xóa bộ lọc
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {paginatedTables.map((table) => {
+                        const eq = getEquipmentDetails(table.type);
+                        const isMaintenance = table.status === "maintenance";
+                        const isPlaying = table.status === "playing";
+                        const isBooked = table.status === "booked";
+                        const isLocked = isPlaying || isBooked;
+
+                        return (
+                          <div
+                            key={table._id}
+                            className={`rounded-2xl border transition-all overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-md ${
+                              isPlaying
+                                ? "bg-rose-50/20 border-rose-200"
+                                : isBooked
+                                ? "bg-blue-50/20 border-blue-200"
+                                : isMaintenance
+                                ? "bg-slate-50 border-slate-200"
+                                : "bg-white border-slate-200 hover:border-emerald-300"
+                            }`}
+                          >
+                            {/* Header Thẻ */}
+                            <div className="p-3.5 border-b border-slate-100 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`min-w-[64px] px-2 py-0.5 rounded-md font-mono font-bold text-xs text-center whitespace-nowrap shrink-0 border ${
+                                    table.type === "snooker"
+                                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                                      : table.type === "carom"
+                                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : "bg-cyan-50 text-cyan-800 border-cyan-200"
+                                  }`}
+                                >
+                                  {table.code}
+                                </span>
+                                <span className="text-xs text-slate-500 font-medium">
+                                  Tầng {table.floor}
+                                </span>
+                              </div>
+
+                              {isMaintenance ? (
+                                <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !font-bold text-[11px]">
+                                  Bảo trì
+                                </Tag>
+                              ) : isPlaying ? (
+                                <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !font-bold !bg-rose-50 !text-rose-700 !border-rose-200 text-[11px] inline-flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                  Đang chơi
+                                </Tag>
+                              ) : isBooked ? (
+                                <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !font-bold !bg-blue-50 !text-blue-700 !border-blue-200 text-[11px]">
+                                  Đã đặt
+                                </Tag>
+                              ) : (
+                                <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !font-bold text-[11px]">
+                                  Trống
+                                </Tag>
+                              )}
+                            </div>
+
+                            {/* Body Thẻ */}
+                            <div className="p-3.5 space-y-2.5 flex-1">
+                              <div>
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <h4 className="text-base font-bold text-slate-900 mb-0">{table.name}</h4>
+                                  <Tag
+                                    color={table.type === "snooker" ? "purple" : table.type === "carom" ? "gold" : "cyan"}
+                                    className="!rounded-full !px-2 !py-0.5 !font-semibold !text-[11px] !m-0"
+                                  >
+                                    {getTableTypeLabel(table.type)}
+                                  </Tag>
+                                </div>
+                                <p className="text-xs text-slate-500 flex items-center gap-1 mb-0">
+                                  <EnvironmentOutlined className="text-slate-400" />
+                                  <span>{table.area}</span>
+                                </p>
+                              </div>
+
+                              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-baseline justify-between">
+                                <span className="text-xs text-slate-500 font-medium">Giá giờ:</span>
+                                <span className="font-mono font-bold text-emerald-700 text-base">
+                                  {table.pricePerHour.toLocaleString("vi-VN")}đ
+                                  <span className="text-xs font-normal text-slate-400">/h</span>
+                                </span>
+                              </div>
+
+                              <div className="space-y-0.5 text-[11px] text-slate-500 pt-0.5">
+                                <div className="truncate" title={eq.cloth}>• {eq.cloth}</div>
+                                <div className="truncate text-slate-400" title={eq.ball}>• {eq.ball}</div>
+                              </div>
+                            </div>
+
+                            {/* Footer Thao tác */}
+                            <div className="p-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-2">
+                              <Tooltip
+                                title={
+                                  isLocked
+                                    ? "Bàn đang có khách chơi hoặc đã đặt, không thể sửa thông số"
+                                    : "Chỉnh sửa thông số bàn"
+                                }
+                              >
+                                <span className="flex-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isLocked}
+                                    onClick={() => handleOpenEditTable(table)}
+                                    leftIcon={<EditOutlined />}
+                                    className={`!h-8 !w-full !rounded-xl !text-xs font-medium ${
+                                      isLocked
+                                        ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                                        : "!border-slate-300 hover:!border-emerald-600"
+                                    }`}
+                                  >
+                                    Sửa
+                                  </Button>
+                                </span>
+                              </Tooltip>
+
+                              <Tooltip
+                                title={
+                                  isMaintenance
+                                    ? "Mở lại bàn vào hoạt động"
+                                    : isLocked
+                                    ? "Bàn đang có khách hoặc đã đặt, không thể chuyển bảo trì"
+                                    : "Chuyển bàn sang bảo trì nỉ"
+                                }
+                              >
+                                <span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isLocked}
+                                    onClick={() => handleToggleMaintenance(table)}
+                                    leftIcon={<ToolOutlined />}
+                                    className={`!h-8 !px-2.5 !rounded-xl !text-xs font-medium ${
+                                      isMaintenance
+                                        ? "!bg-emerald-50 !border-emerald-300 !text-emerald-800"
+                                        : isLocked
+                                        ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                                        : "!border-amber-300 !bg-amber-50/60 !text-amber-800 hover:!bg-amber-100"
+                                    }`}
+                                  >
+                                    {isMaintenance ? "Mở Lại" : "Bảo Trì"}
+                                  </Button>
+                                </span>
+                              </Tooltip>
+
+                              <Tooltip
+                                title={
+                                  isLocked
+                                    ? "Không thể xóa bàn đang hoạt động hoặc đã đặt trước"
+                                    : "Xóa bàn khỏi hệ thống"
+                                }
+                              >
+                                <span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isLocked}
+                                    onClick={() => {
+                                      setDeleteTarget({ id: table._id, type: "table", name: `${table.name} (${table.code})` });
+                                      setDeleteConfirmVisible(true);
+                                    }}
+                                    leftIcon={<DeleteOutlined className={isLocked ? "text-slate-400" : "text-rose-500"} />}
+                                    className={`!h-8 !px-2.5 !rounded-xl !text-xs font-medium ${
+                                      isLocked
+                                        ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                                        : "!border-slate-300 !text-rose-600 hover:!border-rose-300 hover:!bg-rose-50"
+                                    }`}
+                                  >
+                                    Xóa
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {filteredTables.length > pageSize && (
+                      <div className="flex justify-end pt-4 border-t border-slate-100 mt-4">
+                        <Pagination
+                          current={currentPage}
+                          pageSize={pageSize}
+                          total={filteredTables.length}
+                          onChange={(page) => setCurrentPage(page)}
+                          showTotal={(total, range) => `Hiển thị ${range[0]}–${range[1]} / ${total} bàn bida`}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -832,113 +1179,234 @@ export const TablesManagementPage: React.FC = () => {
                 Tự động áp dụng mức giá tương ứng theo thời gian khách mở bàn tại quầy POS
               </Text>
             </div>
+          </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleOpenAddPricing}
-              leftIcon={<PlusOutlined />}
-              className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white"
-            >
-              Thêm Khung Giờ Mới
-            </Button>
+          {/* Sơ đồ trực quan 24 Giờ trong ngày (24H Timeline Visualizer) */}
+          <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                <ClockCircleOutlined className="text-emerald-600" />
+                Sơ Đồ Phân Bổ 24 Giờ Trong Ngày
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-[11px]">
+                  Thời gian: <strong className="text-slate-900 font-mono">{new Date(currentTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</strong>
+                  {" • "}Đang áp dụng: <strong className="text-emerald-700">{formatActivePricingLabel(activePricingTier)}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Thanh Timeline 24H */}
+            <div className="h-6 w-full rounded-lg overflow-hidden flex text-[10px] font-bold text-white shadow-inner">
+              <div
+                style={{ width: "33.33%" }}
+                className="bg-indigo-600/90 flex items-center justify-center truncate px-1 transition-all"
+                title="Khung Giờ Đêm (00:00 - 08:00)"
+              >
+                00:00 – 08:00 (Đêm)
+              </div>
+              <div
+                style={{ width: "37.5%" }}
+                className="bg-emerald-600/90 flex items-center justify-center truncate px-1 transition-all"
+                title="Khung Giờ Tiêu Chuẩn (08:00 - 17:00)"
+              >
+                08:00 – 17:00 (Ngày)
+              </div>
+              <div
+                style={{ width: "29.17%" }}
+                className="bg-amber-600/90 flex items-center justify-center truncate px-1 transition-all"
+                title="Khung Giờ Cao Điểm (17:00 - 24:00)"
+              >
+                17:00 – 24:00 (Tối)
+              </div>
+            </div>
+
+            <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
+              <span>00:00</span>
+              <span>04:00</span>
+              <span>08:00</span>
+              <span>12:00</span>
+              <span>16:00</span>
+              <span>20:00</span>
+              <span>24:00</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {pricingTiers.map((tier) => (
-              <Card
-                key={tier._id}
-                styles={{ body: { padding: 0 } }}
-                className={`!rounded-2xl border transition-all overflow-hidden shadow-2xs hover:shadow-sm ${
-                  tier.isCurrentlyActive ? "!border-emerald-500 bg-white ring-1 ring-emerald-500/20" : "!border-slate-200 bg-white"
-                }`}
-              >
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-                  <div className="flex items-center gap-2">
-                    <ClockCircleOutlined className="text-emerald-600 text-base" />
-                    <div>
-                      <strong className="text-sm text-slate-900 block">{tier.name}</strong>
-                      <span className="font-mono text-xs text-slate-500 font-bold">
-                        {tier.startTime} – {tier.endTime}
+            {pricingTiers.map((tier) => {
+              // Chỉ duy nhất khung giờ đang chạy tính tiền khớp với activePricingTier mới sáng đèn
+              const isTierActive = tier._id === activePricingTier?._id;
+              const isPaused = tier.isActive === false;
+
+              return (
+                <Card
+                  key={tier._id}
+                  styles={{ body: { padding: 0 } }}
+                  className={`!rounded-2xl border transition-all overflow-hidden shadow-2xs hover:shadow-sm ${
+                    isPaused
+                      ? "!border-slate-200 bg-slate-50/60 opacity-80"
+                      : isTierActive
+                      ? "!border-emerald-500 bg-white ring-2 ring-emerald-500/20"
+                      : "!border-slate-200 bg-white"
+                  }`}
+                >
+                  <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-xs ${
+                        isPaused
+                          ? "bg-slate-200 text-slate-500"
+                          : isTierActive
+                          ? "bg-emerald-600 text-white"
+                          : "bg-slate-100 text-slate-600"
+                      }`}>
+                        <ClockCircleOutlined className="text-base" />
+                      </div>
+                      <div>
+                        <strong className={`text-sm block ${isPaused ? "text-slate-500 line-through" : "text-slate-900"}`}>{tier.name}</strong>
+                        <span className="font-mono text-xs text-slate-500 font-bold">
+                          {tier.startTime} – {tier.endTime}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {isPaused ? (
+                        <Tag color="default" className="!rounded-full !px-3 !py-1 !font-bold inline-flex items-center gap-1.5 shadow-2xs text-slate-600 bg-slate-100 border-slate-300">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          TẠM NGƯNG
+                        </Tag>
+                      ) : isTierActive ? (
+                        <Tag color="green" className="!rounded-full !px-3 !py-1 !font-bold inline-flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          ĐANG ÁP DỤNG
+                        </Tag>
+                      ) : (
+                        <Tag color="blue" className="!rounded-full !px-3 !py-1 !font-bold inline-flex items-center gap-1.5 shadow-2xs">
+                          LÊN LỊCH SẴN
+                        </Tag>
+                      )}
+                      {tier.dayType === "peak" && (
+                        <Tag color="gold" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                          GIỜ VÀNG
+                        </Tag>
+                      )}
+                      {tier.dayType === "weekend" && (
+                        <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                          CUỐI TUẦN
+                        </Tag>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                        <span className="text-[11px] text-slate-700 font-bold block mb-1">Bàn Bida Lỗ (Pool)</span>
+                        <strong className="text-sm font-black text-slate-900 font-mono">
+                          {tier.prices.standard.toLocaleString("vi-VN")}đ
+                        </strong>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">Tiêu chuẩn 9FT</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
+                        <span className="text-[11px] text-amber-900 font-bold block mb-1">Bàn Bida Carom (Phăng)</span>
+                        <strong className="text-sm font-black text-amber-900 font-mono">
+                          {tier.prices.vip.toLocaleString("vi-VN")}đ
+                        </strong>
+                        <span className="text-[10px] text-amber-700/80 block mt-0.5">Khu VIP / 3 Băng</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200/80">
+                        <span className="text-[11px] text-purple-900 font-bold block mb-1">Bàn Bida Snooker</span>
+                        <strong className="text-sm font-black text-purple-900 font-mono">
+                          {(tier.prices.match ?? tier.prices.vip + 10000).toLocaleString("vi-VN")}đ
+                        </strong>
+                        <span className="text-[10px] text-purple-700/80 block mt-0.5">Thi đấu 12FT</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                      <span className="text-slate-500">
+                        {formatDaysOfWeek(tier)}
                       </span>
+
+                      <Space size={6}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEditPricing(tier)}
+                          leftIcon={<EditOutlined />}
+                          className="!h-7 !px-2.5 !rounded-lg !text-xs !border-slate-300 hover:!border-emerald-600"
+                        >
+                          Sửa Giá
+                        </Button>
+                        <Tooltip
+                          title={
+                            isTierActive
+                              ? "Khung giờ đang áp dụng tính tiền trực tiếp cho khách, không thể tạm ngưng"
+                              : isPaused
+                              ? "Kích hoạt lại khung giờ này vào lịch tính tiền tự động"
+                              : "Tạm ngưng khung giờ này (sẽ bỏ qua khi tính tiền)"
+                          }
+                        >
+                          <span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isTierActive}
+                              onClick={() => handleToggleTierActive(tier)}
+                              leftIcon={
+                                isPaused ? (
+                                  <PlayCircleOutlined className="text-emerald-600" />
+                                ) : (
+                                  <PauseCircleOutlined className={isTierActive ? "text-slate-400" : "text-amber-600"} />
+                                )
+                              }
+                              className={`!h-7 !px-2.5 !rounded-lg !text-xs font-medium !border-slate-300 ${
+                                isTierActive
+                                  ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                                  : isPaused
+                                  ? "!text-emerald-700 hover:!border-emerald-500 hover:!bg-emerald-50"
+                                  : "!text-amber-700 hover:!border-amber-500 hover:!bg-amber-50"
+                              }`}
+                            >
+                              {isPaused ? "Bật Lại" : "Tạm Ngưng"}
+                            </Button>
+                          </span>
+                        </Tooltip>
+                        <Tooltip
+                          title={
+                            isTierActive
+                              ? "Khung giờ đang áp dụng tính tiền cho khách, không thể xóa"
+                              : "Xóa khung giờ khỏi danh mục"
+                          }
+                        >
+                          <span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isTierActive}
+                              onClick={() => {
+                                setDeleteTarget({ id: tier._id, type: "pricing", name: tier.name });
+                                setDeleteConfirmVisible(true);
+                              }}
+                              leftIcon={<DeleteOutlined className={isTierActive ? "text-slate-400" : "text-rose-500"} />}
+                              className={`!h-7 !px-2.5 !rounded-lg !text-xs font-medium !border-slate-300 ${
+                                isTierActive
+                                  ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                                  : "!text-rose-600 hover:!border-rose-300 hover:!bg-rose-50"
+                              }`}
+                            >
+                              Xóa
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </Space>
                     </div>
                   </div>
-
-                  <div>
-                    {tier.isCurrentlyActive && (
-                      <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !font-bold inline-flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        ĐANG ÁP DỤNG
-                      </Tag>
-                    )}
-                    {tier.dayType === "peak" && (
-                      <Tag color="gold" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
-                        GIỜ VÀNG PEAK
-                      </Tag>
-                    )}
-                    {tier.dayType === "weekend" && (
-                      <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
-                        CUỐI TUẦN
-                      </Tag>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-4 space-y-3">
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                      <span className="text-[11px] text-slate-500 block mb-1">Bàn Thường 9FT</span>
-                      <strong className="text-sm font-black text-slate-900 font-mono">
-                        {tier.prices.standard.toLocaleString("vi-VN")}đ
-                      </strong>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
-                      <span className="text-[11px] text-amber-800 block mb-1">Bàn VIP Bank Pool</span>
-                      <strong className="text-sm font-black text-amber-900 font-mono">
-                        {tier.prices.vip.toLocaleString("vi-VN")}đ
-                      </strong>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
-                      <span className="text-[11px] text-emerald-800 block mb-1">Match K-Steel</span>
-                      <strong className="text-sm font-black text-emerald-800 font-mono">
-                        {(tier.prices.vip + 10000).toLocaleString("vi-VN")}đ
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                    <span className="text-slate-500">
-                      Áp dụng: {tier.dayType === "weekend" ? "Thứ 7 & Chủ Nhật" : "Thứ 2 đến Thứ 6 hàng tuần"}
-                    </span>
-
-                    <Space size={6}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenEditPricing(tier)}
-                        leftIcon={<EditOutlined />}
-                        className="!h-7 !px-2.5 !rounded-lg !text-xs !border-slate-300"
-                      >
-                        Sửa Giá
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setDeleteTarget({ id: tier._id, type: "pricing", name: tier.name });
-                          setDeleteConfirmVisible(true);
-                        }}
-                        leftIcon={<DeleteOutlined />}
-                        className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-slate-300 !text-slate-400 hover:!text-rose-600 hover:!border-rose-300"
-                        title="Xóa khung giờ"
-                      />
-                    </Space>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}
@@ -946,54 +1414,135 @@ export const TablesManagementPage: React.FC = () => {
       {/* ── 4. TAB 3: QUY TẮC TÍNH GIỜ & TỰ ĐỘNG HÓA (SMART RULES) ─────────── */}
       {activeTab === "automation" && (
         <div className="space-y-4">
-          <div>
-            <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0">
-              Quy Tắc Thu Ngân & Tự Động Hóa Thông Minh
-            </Title>
-            <Text className="!text-xs !text-slate-500">
-              Các thiết lập thuật toán tính tiền giờ, phân chia block và tích hợp rơ-le điều khiển thiết bị
-            </Text>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0">
+                Quy Tắc Thu Ngân & Tự Động Hóa Thông Minh
+              </Title>
+              <Text className="!text-xs !text-slate-500">
+                Các thuật toán tính tiền giờ, phân bổ block và cơ chế đồng bộ rơ-le thiết bị sàn bida
+              </Text>
+            </div>
+            <Tag color="cyan" className="!rounded-full !px-3 !py-1 !font-bold self-start sm:self-center shadow-2xs">
+              ● 4 Quy Tắc Cốt Lõi Đang Hoạt Động
+            </Tag>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
-              <div className="flex items-center gap-2 text-emerald-700 font-bold text-sm">
-                <ClockCircleOutlined />
-                <span>Quy tắc Block 15 Phút Đầu Tiên</span>
+            {/* Quy tắc 1 */}
+            <Card styles={{ body: { padding: "18px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
+                    <ClockCircleOutlined className="text-base" />
+                  </div>
+                  <div>
+                    <strong className="text-sm text-slate-900 block">Quy Tắc Block 15 Phút Đầu Tiên</strong>
+                    <span className="text-[11px] text-slate-500">Mức thời gian tối thiểu của phiên chơi</span>
+                  </div>
+                </div>
+                <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                  Mặc định hệ thống
+                </Tag>
               </div>
+
               <p className="text-xs text-slate-600 leading-relaxed mb-0">
-                Khi mở bàn tính giờ, hệ thống áp dụng mức tính tối thiểu là 15 phút đầu tiên. Trường hợp khách chơi dưới 15 phút, bill tạm tính tự động làm tròn thành 15 phút để bảo toàn chi phí lau nỉ, bóng và phục vụ ban đầu.
+                Khi mở bàn tính giờ, hệ thống áp dụng mức tính tối thiểu là 15 phút đầu tiên. Trường hợp khách chơi dưới 15 phút, hóa đơn tạm tính tự động làm tròn đủ 15 phút nhằm bù đắp chi phí bảo dưỡng nỉ, vệ sinh bi và công chuẩn bị bàn ban đầu.
               </p>
+
+              <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs font-mono">
+                <span className="text-emerald-900 font-semibold">Thời gian chơi &lt; 15 phút:</span>
+                <span className="text-emerald-800 font-bold bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs self-start sm:self-auto">
+                  Làm tròn = 15 phút × (Đơn giá / 60)
+                </span>
+              </div>
             </Card>
 
-            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
-              <div className="flex items-center gap-2 text-blue-700 font-bold text-sm">
-                <SettingOutlined />
-                <span>Tự Động Tính Tiền Lũy Tiến Sau 15 Phút</span>
+            {/* Quy tắc 2 */}
+            <Card styles={{ body: { padding: "18px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shadow-xs">
+                    <SettingOutlined className="text-base" />
+                  </div>
+                  <div>
+                    <strong className="text-sm text-slate-900 block">Tự Động Tính Tiền Lũy Tiến Tuyến Tính</strong>
+                    <span className="text-[11px] text-slate-500">Thuật toán phân bổ theo từng 1 phút</span>
+                  </div>
+                </div>
+                <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                  Chuẩn SRS BD-07
+                </Tag>
               </div>
+
               <p className="text-xs text-slate-600 leading-relaxed mb-0">
-                Từ phút thứ 16 trở đi, hệ thống tính chuẩn xác theo từng 1 phút (block 1 phút = Đơn giá giờ / 60). Cơ chế này tạo sự minh bạch tuyệt đối cho khách hàng, không làm tròn quá tay gây phàn nàn.
+                Từ phút thứ 16 trở đi, hệ thống tính chuẩn xác theo từng 1 phút (block 1 phút = Đơn giá giờ / 60). Cơ chế lũy tiến tuyến tính loại bỏ hoàn toàn sai số làm tròn, đảm bảo tính công bằng và minh bạch tuyệt đối với khách hàng.
               </p>
+
+              <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs font-mono">
+                <span className="text-blue-900 font-semibold">Từ phút thứ 16 trở đi:</span>
+                <span className="text-blue-800 font-bold bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs self-start sm:self-auto">
+                  Tiền giờ = (Số phút thực tế × Đơn giá) / 60
+                </span>
+              </div>
             </Card>
 
-            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
-              <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
-                <BulbOutlined />
-                <span>Tích Hợp Rơ-Le Điều Khiển Đèn Bàn Tự Động (IoT Smart Relay)</span>
+            {/* Quy tắc 3 */}
+            <Card styles={{ body: { padding: "18px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shadow-xs">
+                    <BulbOutlined className="text-base" />
+                  </div>
+                  <div>
+                    <strong className="text-sm text-slate-900 block">Rơ-Le Điều Khiển Đèn Tự Động (IoT Smart Relay)</strong>
+                    <span className="text-[11px] text-slate-500">Tự động hóa đồng bộ thiết bị sàn</span>
+                  </div>
+                </div>
+                <Tag color="gold" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                  Đồng bộ POS & IoT
+                </Tag>
               </div>
+
               <p className="text-xs text-slate-600 leading-relaxed mb-0">
-                Khi thu ngân bấm <strong>Bật Bàn Tính Giờ</strong> trên POS, rơ-le thông minh tự động bật sáng đèn chụp của bàn đó. Khi hoàn tất thanh toán, đèn duy trì 30 giây để cơ thủ dọn bao cơ rồi tự động tắt.
+                Khi thu ngân bấm <strong>Bật Bàn Tính Giờ</strong> trên POS, rơ-le thông minh tự động cấp nguồn cho đèn chụp bàn tương ứng. Khi hoàn tất thanh toán, hệ thống duy trì trễ 30 giây (Buffer Time) hỗ trợ khách thu dọn phụ kiện/bao cơ trước khi ngắt hẳn.
               </p>
+
+              <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs font-mono">
+                <span className="text-amber-900 font-semibold">Quy trình rơ-le:</span>
+                <span className="text-amber-800 font-bold bg-white px-2.5 py-1 rounded-lg border border-amber-200 shadow-2xs text-[11px] self-start sm:self-auto">
+                  Mở bàn ➔ Bật đèn | Đóng bàn ➔ Trễ 30s ➔ Tắt nguồn
+                </span>
+              </div>
             </Card>
 
-            <Card styles={{ body: { padding: "16px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-2">
-              <div className="flex items-center gap-2 text-purple-700 font-bold text-sm">
-                <SafetyCertificateOutlined />
-                <span>Cơ Chế Tự Động Chia Khung Giờ (Split Time Rate)</span>
+            {/* Quy tắc 4 */}
+            <Card styles={{ body: { padding: "18px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-xs">
+                    <SafetyCertificateOutlined className="text-base" />
+                  </div>
+                  <div>
+                    <strong className="text-sm text-slate-900 block">Tự Động Phân Tách Khung Giờ (Split-Time Rate)</strong>
+                    <span className="text-[11px] text-slate-500">Thuật toán vắt qua các mốc biểu giá</span>
+                  </div>
+                </div>
+                <Tag color="purple" className="!rounded-full !px-2.5 !py-0.5 !font-bold">
+                  Tự động chuyển giá
+                </Tag>
               </div>
+
               <p className="text-xs text-slate-600 leading-relaxed mb-0">
-                Khi phiên chơi của khách kéo dài vắt qua 2 khung giờ khác nhau (ví dụ: chơi từ 17:00 đến 19:30, đi qua mốc 18:00 Giờ Vàng), hệ thống tự động tách làm 2 khoảng giá: 60 phút giá Chiều và 90 phút giá Giờ Vàng.
+                Khi phiên chơi giao thoa giữa các khung giờ giá khác nhau, thuật toán tự động phân tách chính xác số phút theo từng mốc giá và cộng dồn vào hóa đơn cuối cùng mà thu ngân không cần thao tác tính nhẩm hay can thiệp thủ công.
               </p>
+
+              <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs font-mono">
+                <span className="text-purple-900 font-semibold">Ví dụ chơi 17:00 – 19:30 (Mốc 18:00):</span>
+                <span className="text-purple-800 font-bold bg-white px-2.5 py-1 rounded-lg border border-purple-200 shadow-2xs text-[11px] self-start sm:self-auto">
+                  [60p × Giá Ngày] + [90p × Giá Giờ Vàng]
+                </span>
+              </div>
             </Card>
           </div>
         </div>
@@ -1004,11 +1553,14 @@ export const TablesManagementPage: React.FC = () => {
         open={tableModalVisible}
         onCancel={() => setTableModalVisible(false)}
         footer={null}
+        width={540}
         title={
-          <Space align="center" size={8}>
-            <AppstoreOutlined className="text-emerald-600 text-lg" />
+          <Space align="center" size={10}>
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <AppstoreOutlined className="text-base" />
+            </div>
             <span className="font-bold text-slate-900 text-base">
-              {editingTable ? `Chỉnh Sửa Thông Tin ${editingTable.name}` : "Thêm Bàn Bida Mới"}
+              {editingTable ? `Chỉnh Sửa ${editingTable.name}` : "Thêm Bàn Bida Mới"}
             </span>
           </Space>
         }
@@ -1016,7 +1568,7 @@ export const TablesManagementPage: React.FC = () => {
         <div className="py-2 space-y-3.5 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Mã bàn (Code):</label>
+              <label className="block text-slate-700 font-semibold mb-1">Mã bàn:</label>
               <Input
                 placeholder="T01, V09, M13..."
                 value={tableCode}
@@ -1037,7 +1589,7 @@ export const TablesManagementPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Phân loại bàn:</label>
+              <label className="block text-slate-700 font-semibold mb-1">Loại bàn:</label>
               <Select
                 value={tableType}
                 onChange={(val) => setTableType(val as TableType)}
@@ -1051,46 +1603,76 @@ export const TablesManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Đơn giá giờ chuẩn (VNĐ):</label>
-              <Input
-                type="number"
-                value={tablePrice}
-                onChange={(e) => setTablePrice(Number(e.target.value))}
-                className="!h-9 !rounded-xl font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1">Khu vực đặt bàn:</label>
-              <Input
-                placeholder="Tầng 1 - Khu A, Tầng 2 - VIP..."
-                value={tableArea}
-                onChange={(e) => setTableArea(e.target.value)}
-                className="!h-9 !rounded-xl"
-              />
-            </div>
-            <div>
               <label className="block text-slate-700 font-semibold mb-1">Tầng:</label>
               <Select
                 value={tableFloor}
                 onChange={(val) => setTableFloor(Number(val))}
                 className="!w-full !rounded-xl"
                 options={[
-                  { value: 1, label: "Tầng 1 (Khu Sàn Chính)" },
-                  { value: 2, label: "Tầng 2 (Phòng VIP & Match)" },
+                  { value: 1, label: "Tầng 1 (Khu Sàn)" },
+                  { value: 2, label: "Tầng 2 (Khu VIP & Match)" },
                 ]}
               />
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
-            <span className="font-bold block">Chuẩn trang thiết bị mặc định:</span>
-            <span>• Nỉ thi đấu: Simonis 860 HR (Bỉ)</span>
-            <br />
-            <span>• Bi thi đấu: Aramith Tournament TV Pro Cup (Bỉ)</span>
+          <div>
+            <label className="block text-slate-700 font-semibold mb-1">Khu vực đặt bàn:</label>
+            <Input
+              placeholder="Tầng 1 - Khu A, Tầng 2 - Phòng VIP..."
+              value={tableArea}
+              onChange={(e) => setTableArea(e.target.value)}
+              className="!h-9 !rounded-xl"
+            />
           </div>
+
+          {/* Chọn giá nhanh */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-slate-700 font-semibold">Giá giờ chuẩn (VNĐ/h):</label>
+              <span className="text-[11px] text-slate-400">Chọn nhanh mức giá:</span>
+            </div>
+            <Input
+              type="number"
+              value={tablePrice}
+              onChange={(e) => setTablePrice(Number(e.target.value))}
+              className="!h-9 !rounded-xl font-mono text-emerald-800 font-bold mb-2"
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              {QUICK_PRICE_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setTablePrice(preset)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all ${
+                    tablePrice === preset
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {(preset / 1000).toFixed(0)}k
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Gợi ý trang thiết bị */}
+          {(() => {
+            const eq = getEquipmentDetails(tableType);
+            return (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 space-y-1">
+                <span className="font-bold text-slate-900 block flex items-center gap-1.5">
+                  <CheckCircleOutlined className="text-emerald-600" />
+                  Quy cách trang bị chuẩn ({getTableTypeLabel(tableType)}):
+                </span>
+                <div className="text-[11px] text-slate-600 space-y-0.5 pl-4">
+                  <div>• Nỉ: <strong>{eq.cloth}</strong></div>
+                  <div>• Bi: <strong>{eq.ball}</strong></div>
+                  <div>• Băng: <strong>{eq.cushion}</strong></div>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setTableModalVisible(false)} className="!rounded-xl">
@@ -1099,10 +1681,11 @@ export const TablesManagementPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
+              loading={saving}
               onClick={handleSaveTable}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
             >
-              Lưu Thông Tin Bàn
+              Lưu Thông Tin
             </Button>
           </div>
         </div>
@@ -1113,11 +1696,14 @@ export const TablesManagementPage: React.FC = () => {
         open={pricingModalVisible}
         onCancel={() => setPricingModalVisible(false)}
         footer={null}
+        width={620}
         title={
-          <Space align="center" size={8}>
-            <ClockCircleOutlined className="text-emerald-600 text-lg" />
+          <Space align="center" size={10}>
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <ClockCircleOutlined className="text-base" />
+            </div>
             <span className="font-bold text-slate-900 text-base">
-              {editingPricing ? `Cập Nhật Biểu Giá: ${editingPricing.name}` : "Thêm Khung Giờ Mới"}
+              {editingPricing ? `Cập Nhật ${editingPricing.name}` : "Thêm Khung Giờ Mới"}
             </span>
           </Space>
         }
@@ -1133,7 +1719,7 @@ export const TablesManagementPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2.5">
             <div>
               <label className="block text-slate-700 font-semibold mb-1">Loại ngày:</label>
               <Select
@@ -1159,31 +1745,59 @@ export const TablesManagementPage: React.FC = () => {
             <div>
               <label className="block text-slate-700 font-semibold mb-1">Đến giờ:</label>
               <Input
-                placeholder="14:00"
+                placeholder="17:00"
                 value={pricingEndTime}
                 onChange={(e) => setPricingEndTime(e.target.value)}
                 className="!h-9 !rounded-xl font-mono text-center"
               />
             </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Trạng thái:</label>
+              <Select
+                value={pricingIsActive ? "active" : "inactive"}
+                onChange={(val) => setPricingIsActive(val === "active")}
+                className="!w-full !rounded-xl"
+                options={[
+                  { value: "active", label: "Hoạt Động" },
+                  { value: "inactive", label: "Tạm Ngưng" },
+                ]}
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Đầy đủ 3 mức giá cho 3 loại bàn chuẩn */}
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Giá Bàn Thường 9FT (VNĐ/h):</label>
+              <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
+                Bàn Lỗ - Pool (đ/h):
+              </label>
               <Input
                 type="number"
                 value={pricingStandardPrice}
                 onChange={(e) => setPricingStandardPrice(Number(e.target.value))}
-                className="!h-9 !rounded-xl font-mono"
+                className="!h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
               />
             </div>
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Giá Bàn VIP Bank Pool (VNĐ/h):</label>
+              <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
+                Bàn Carom - Phăng (đ/h):
+              </label>
               <Input
                 type="number"
                 value={pricingVipPrice}
                 onChange={(e) => setPricingVipPrice(Number(e.target.value))}
-                className="!h-9 !rounded-xl font-mono"
+                className="!h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
+                Bàn Snooker (đ/h):
+              </label>
+              <Input
+                type="number"
+                value={pricingMatchPrice}
+                onChange={(e) => setPricingMatchPrice(Number(e.target.value))}
+                className="!h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
               />
             </div>
           </div>
@@ -1195,6 +1809,7 @@ export const TablesManagementPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
+              loading={saving}
               onClick={handleSavePricing}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
             >
@@ -1209,17 +1824,17 @@ export const TablesManagementPage: React.FC = () => {
         open={deleteConfirmVisible}
         onCancel={() => setDeleteConfirmVisible(false)}
         footer={null}
-        width={420}
+        width={400}
         title={
           <Space align="center" size={8}>
             <ExclamationCircleOutlined className="text-rose-600 text-lg" />
-            <span className="font-bold text-slate-900 text-base">Xác Nhận Xóa Dữ Liệu</span>
+            <span className="font-bold text-slate-900 text-base">Xác Nhận Xóa</span>
           </Space>
         }
       >
         <div className="py-2 space-y-4 text-xs">
           <p className="text-slate-600 leading-relaxed mb-0">
-            Bạn có chắc chắn muốn xóa <strong>{deleteTarget?.name}</strong> khỏi hệ thống? Thao tác này không thể hoàn tác.
+            Bạn có chắc chắn muốn xóa <strong>{deleteTarget?.name}</strong> khỏi danh mục? Thao tác này không thể hoàn tác.
           </p>
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1229,6 +1844,7 @@ export const TablesManagementPage: React.FC = () => {
             <Button
               variant="danger"
               size="sm"
+              loading={saving}
               onClick={handleConfirmDelete}
               className="!rounded-xl font-bold px-4"
             >

@@ -21,6 +21,7 @@ import {
   LeftOutlined,
   RightOutlined,
   ThunderboltOutlined,
+  LogoutOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../../contexts/AuthContext";
 import ConfirmModal from "../ui/ConfirmModal";
@@ -209,29 +210,18 @@ const AdminLayout = () => {
             })}
         </nav>
 
-        {/* User section */}
+        {/* Sidebar Footer: Logout button (User info is displayed in Topbar) */}
         <div className="border-t border-navy-700 p-3">
-          <div className="flex items-center gap-3 px-2 py-1.5">
-            <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-xs">
-              <span className="text-white font-bold text-xs">
-                {user?.name?.charAt(0) || "U"}
-              </span>
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
-                <p className="text-[11px] text-gray-400 truncate">{roleLabels[user?.role || ""] || user?.role}</p>
-              </div>
-            )}
-          </div>
-          {sidebarOpen && (
-            <button
-              onClick={handleLogout}
-              className="w-full mt-1.5 px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-navy-700 rounded-lg transition text-left"
-            >
-              Đăng xuất
-            </button>
-          )}
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-400 hover:text-rose-400 hover:bg-navy-700 rounded-lg transition ${
+              !sidebarOpen ? "justify-center" : ""
+            }`}
+            title="Đăng xuất khỏi hệ thống"
+          >
+            <LogoutOutlined className="text-base flex-shrink-0" />
+            {sidebarOpen && <span>Đăng xuất</span>}
+          </button>
         </div>
       </aside>
 
