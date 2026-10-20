@@ -56,3 +56,7 @@ desktop.ini
 # Local task notes
 /task/
 /tasks/
+
+# OpenSpec & Local Prompts
+.pi/
+openspec/
