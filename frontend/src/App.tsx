@@ -16,6 +16,8 @@ import CustomerHistory from "./pages/customer/CustomerHistory";
 import CustomerWallet from "./pages/customer/CustomerWallet";
 import CustomerProfile from "./pages/customer/CustomerProfile";
 import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
+import WalletTopupsPage from "./pages/admin/WalletTopupsPage";
+import TournamentFeesPage from "./pages/admin/TournamentFeesPage";
 import {
   TablesPage,
   BookingPage,
@@ -49,6 +51,7 @@ const ProtectedRoute = ({ children, roles }: { children: React.ReactNode; roles?
 const getDefaultRedirectPath = (role?: string): string => {
   if (role === "customer") return "/customer";
   if (role === "admin") return "/dashboard";
+  if (role === "cashier") return "/wallet-topups";
   return "/pos";
 };
 
@@ -64,7 +67,7 @@ const AppRoutes = () => {
       {/* Management / POS / Staff routes (Clean direct paths: /pos, /booking, /tables, /dashboard...) */}
       <Route
         element={
-          <ProtectedRoute roles={["admin", "staff"]}>
+          <ProtectedRoute roles={["admin", "staff", "cashier"]}>
             <AdminLayout />
           </ProtectedRoute>
         }
@@ -77,6 +80,8 @@ const AppRoutes = () => {
         <Route path="/fnb" element={<ProtectedRoute roles={["admin", "staff"]}><FnBPage /></ProtectedRoute>} />
         <Route path="/inventory" element={<ProtectedRoute roles={["admin", "staff"]}><InventoryPage /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute roles={["admin", "staff"]}><InvoicesPage /></ProtectedRoute>} />
+        <Route path="/wallet-topups" element={<ProtectedRoute roles={["admin", "staff", "cashier"]}><WalletTopupsPage /></ProtectedRoute>} />
+        <Route path="/tournament-fees" element={<ProtectedRoute roles={["admin", "staff", "cashier"]}><TournamentFeesPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute roles={["admin"]}><ReportsPage /></ProtectedRoute>} />
         <Route path="/employees" element={<ProtectedRoute roles={["admin"]}><EmployeesPage /></ProtectedRoute>} />
         <Route path="/news" element={<ProtectedRoute roles={["admin"]}><NewsPage /></ProtectedRoute>} />

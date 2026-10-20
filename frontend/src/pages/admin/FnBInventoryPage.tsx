@@ -16,6 +16,7 @@ import {
   FireOutlined,
   CheckOutlined,
   FilterOutlined,
+  CloudUploadOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -29,9 +30,11 @@ import {
   Image,
   Card,
   SegmentedPillList,
+  Upload,
   type TableColumnsType,
 } from "../../shared/ui";
 import { INITIAL_FNB_STOCK, type FnbStockItem } from "../../mock/posData";
+import { productService, type ProductImageTarget } from "../../services/product.service";
 
 const { Title, Text } = Typography;
 
@@ -130,6 +133,70 @@ export const FnBInventoryPage: React.FC = () => {
     minThreshold: 10,
     image: "/fnb/fnb-salt-coffee.jpg",
   });
+  const [imageTargets, setImageTargets] = useState<ProductImageTarget[]>([]);
+  const [selectedImageProductId, setSelectedImageProductId] = useState("");
+  const [isLoadingImageTargets, setIsLoadingImageTargets] = useState(true);
+  const [isUploadingProductImage, setIsUploadingProductImage] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    productService
+      .getImageTargets()
+      .then((products) => {
+        if (isMounted) setImageTargets(products);
+      })
+      .catch((error: unknown) => {
+        if (isMounted) {
+          message.error(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải danh sách món trên menu khách",
+          );
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingImageTargets(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleCloudinaryImageUpload = async (file: File) => {
+    if (!selectedImageProductId) {
+      message.warning("Vui lòng chọn món cần cập nhật ảnh");
+      return Upload.LIST_IGNORE;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      message.warning("Ảnh không được vượt quá 5 MB");
+      return Upload.LIST_IGNORE;
+    }
+
+    setIsUploadingProductImage(true);
+    try {
+      const updatedProduct = await productService.uploadProductImage(
+        selectedImageProductId,
+        file,
+      );
+      setImageTargets((current) =>
+        current.map((product) =>
+          product._id === updatedProduct._id ? updatedProduct : product,
+        ),
+      );
+      message.success(`Đã cập nhật ảnh Cloudinary cho món ${updatedProduct.name}`);
+    } catch (error: unknown) {
+      message.error(
+        error instanceof Error ? error.message : "Không thể tải ảnh lên Cloudinary",
+      );
+    } finally {
+      setIsUploadingProductImage(false);
+    }
+
+    return Upload.LIST_IGNORE;
+  };
 
   // ── 2. ACTIONS ────────────────────────────────────────────────────────────
   const handleOpenAdjustModal = (item: FnbStockItem) => {
@@ -642,6 +709,85 @@ export const FnBInventoryPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <Card className="!rounded-2xl !border-slate-200 !bg-white !shadow-xs">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <Text strong className="!text-sm !text-slate-900 block">
+                Cập nhật ảnh món trên menu khách
+              </Text>
+              <Text className="!text-xs !text-slate-500">
+                Ảnh sẽ được tải lên Cloudinary và lưu trực tiếp vào sản phẩm trong hệ thống.
+              </Text>
+            </div>
+            <Tag color="green" className="!rounded-lg !font-bold">
+              <CloudUploadOutlined className="mr-1" /> Cloudinary
+            </Tag>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
+            <Select
+              value={selectedImageProductId || undefined}
+              onChange={(value) => setSelectedImageProductId(String(value))}
+              placeholder="Chọn món trong menu khách"
+              loading={isLoadingImageTargets}
+              disabled={isLoadingImageTargets || imageTargets.length === 0}
+              showSearch
+              optionFilterProp="label"
+              options={imageTargets.map((product) => ({
+                value: product._id,
+                label: `${product.name} (${product.sku})`,
+              }))}
+              className="w-full !rounded-xl"
+            />
+            <Upload
+              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+              showUploadList={false}
+              beforeUpload={handleCloudinaryImageUpload}
+              disabled={!selectedImageProductId || isUploadingProductImage}
+            >
+              <Button
+                variant="primary"
+                leftIcon={<CloudUploadOutlined />}
+                loading={isUploadingProductImage}
+                disabled={!selectedImageProductId || isUploadingProductImage}
+                className="!w-full !rounded-xl !font-bold"
+              >
+                Tải ảnh lên Cloudinary
+              </Button>
+            </Upload>
+          </div>
+
+          {imageTargets.length === 0 && !isLoadingImageTargets && (
+            <Text className="!text-xs !text-amber-700">
+              Chưa có sản phẩm đồ uống, món ăn hoặc ăn vặt trong cơ sở dữ liệu để cập nhật ảnh.
+            </Text>
+          )}
+
+          {imageTargets.find((product) => product._id === selectedImageProductId) && (
+            <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+              <Image
+                src={imageTargets.find((product) => product._id === selectedImageProductId)?.imageUrl || "/fnb/fnb-peach-tea.jpg"}
+                fallback="/fnb/fnb-peach-tea.jpg"
+                alt="Ảnh món đang chọn"
+                width={48}
+                height={48}
+                style={{ objectFit: "cover", borderRadius: 8 }}
+                preview={false}
+              />
+              <div className="min-w-0">
+                <Text strong className="!text-xs !text-slate-800 block truncate">
+                  {imageTargets.find((product) => product._id === selectedImageProductId)?.name}
+                </Text>
+                <Text className="!text-[11px] !text-slate-500">
+                  Ảnh hiện tại của sản phẩm
+                </Text>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* ── FILTER TOOLBAR & VIEW SWITCHER ────────────────────────────────── */}
       <div className="space-y-3.5 bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">

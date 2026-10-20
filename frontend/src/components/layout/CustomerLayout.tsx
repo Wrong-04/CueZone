@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate, Link, useLocation } from "react-router-dom";
+import { io, type Socket } from "socket.io-client";
 import { useAuth } from "../../contexts/AuthContext";
-import { Button, Space, Typography, Tag, Modal } from "../../shared/ui";
+import { Button, Space, Tag, message } from "../../shared/ui";
+import { notificationService, type Notification } from "../../services/notification.service";
 import {
   EnvironmentOutlined,
   ClockCircleOutlined,
@@ -18,15 +20,116 @@ import {
   HomeOutlined,
   PhoneOutlined,
   LogoutOutlined,
+  CheckOutlined,
 } from "@ant-design/icons";
 
-const { Text } = Typography;
+const SOCKET_URL = import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
 const CustomerLayout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [notificationData, setNotificationData] = useState<{
+    userId: string;
+    notifications: Notification[];
+    unreadCount: number;
+  } | null>(null);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
+  const [markingReadId, setMarkingReadId] = useState<string | null>(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
+  const userId = user?._id;
+  const notifications = notificationData?.userId === userId ? notificationData.notifications : [];
+  const unreadCount = notificationData?.userId === userId ? notificationData.unreadCount : 0;
+
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) return;
+    setNotificationsLoading(true);
+    setNotificationError("");
+    try {
+      const result = await notificationService.getAll(1, 20);
+      setNotificationData({ userId, ...result });
+    } catch {
+      setNotificationError("Không thể tải thông báo. Vui lòng thử lại.");
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const initialFetch = window.setTimeout(() => void fetchNotifications(), 0);
+    const socket: Socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+    socket.on("notification:new", () => void fetchNotifications());
+    const interval = window.setInterval(() => void fetchNotifications(), 30000);
+
+    return () => {
+      window.clearTimeout(initialFetch);
+      window.clearInterval(interval);
+      socket.disconnect();
+    };
+  }, [userId, fetchNotifications]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationPanelRef.current && !notificationPanelRef.current.contains(event.target as Node)) {
+        setShowNotifPanel(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleMarkRead = async (id: string) => {
+    if (!userId) return;
+    const notification = notifications.find((item) => item._id === id);
+    if (!notification || notification.isRead) return;
+    setMarkingReadId(id);
+    try {
+      await notificationService.markRead(id);
+      setNotificationData((current) => current?.userId === userId ? {
+        ...current,
+        notifications: current.notifications.map((item) => item._id === id ? { ...item, isRead: true } : item),
+        unreadCount: Math.max(0, current.unreadCount - 1),
+      } : current);
+    } catch {
+      message.error("Không thể đánh dấu thông báo đã đọc. Vui lòng thử lại.");
+    } finally {
+      setMarkingReadId(null);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!userId || unreadCount === 0) return;
+    setMarkingAllRead(true);
+    try {
+      await notificationService.markAllRead();
+      setNotificationData((current) => current?.userId === userId ? {
+        ...current,
+        notifications: current.notifications.map((item) => ({ ...item, isRead: true })),
+        unreadCount: 0,
+      } : current);
+    } catch {
+      message.error("Không thể đánh dấu tất cả thông báo đã đọc. Vui lòng thử lại.");
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
+
+  const formatNotificationTime = (createdAt: string) => {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   const handleLogout = () => {
     logout();
@@ -51,30 +154,6 @@ const CustomerLayout = () => {
   ];
 
   const navLinks = user ? memberNavLinks : guestNavLinks;
-
-  const mockNotifications = [
-    {
-      id: "n1",
-      title: "Nhắc nhở ca chơi sắp tới",
-      desc: "Bàn VIP 01 của bạn đã sẵn sàng lúc 14:00 hôm nay. Vui lòng check-in trước 15 phút.",
-      time: "10 phút trước",
-      read: false,
-    },
-    {
-      id: "n2",
-      title: "Hoàn tất nạp ví CueZone Pay",
-      desc: "Tài khoản của bạn đã được cộng +500.000 VNĐ qua VietQR Techcombank.",
-      time: "2 giờ trước",
-      read: false,
-    },
-    {
-      id: "n3",
-      title: "Xác nhận ghi danh Giải Bank Pool Q2",
-      desc: "Bạn đã đăng ký thành công giải Bank Pool Open Q2. Lệ phí 200k đã khấu trừ ví.",
-      time: "Hôm qua",
-      read: true,
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
@@ -167,16 +246,116 @@ const CustomerLayout = () => {
                     <span>750.000đ</span>
                   </Link>
 
-                  {/* Thông báo chuông icon button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowNotifModal(true)}
-                    className="relative h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition shrink-0 cursor-pointer"
-                    title="Hộp thư thông báo"
-                  >
-                    <BellOutlined className="text-sm" />
-                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-                  </button>
+                  {/* Thông báo cá nhân */}
+                  <div className="relative" ref={notificationPanelRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !showNotifPanel;
+                        setShowNotifPanel(next);
+                        if (next) void fetchNotifications();
+                      }}
+                      aria-label={`Thông báo${unreadCount > 0 ? `, ${unreadCount} chưa đọc` : ""}`}
+                      aria-expanded={showNotifPanel}
+                      aria-haspopup="dialog"
+                      className="relative h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200/80 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/50 transition shrink-0 cursor-pointer"
+                      title="Hộp thư thông báo"
+                    >
+                      <BellOutlined className="text-sm" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </span>
+                      )}
+                    </button>
+
+                    {showNotifPanel && (
+                      <section
+                        role="dialog"
+                        aria-label="Danh sách thông báo"
+                        className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl z-[60]"
+                      >
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                          <div className="min-w-0">
+                            <h2 className="text-sm font-bold text-slate-900">Thông báo</h2>
+                            <p className="text-[11px] text-slate-500">
+                              {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Bạn đã xem hết thông báo"}
+                            </p>
+                          </div>
+                          {unreadCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => void handleMarkAllRead()}
+                              disabled={markingAllRead}
+                              className="shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-50"
+                            >
+                              {markingAllRead ? "Đang cập nhật..." : "Đánh dấu tất cả đã đọc"}
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="max-h-[min(28rem,70vh)] overflow-y-auto" aria-live="polite">
+                          {notificationsLoading && notifications.length === 0 ? (
+                            <div className="px-4 py-10 text-center text-sm text-slate-500">Đang tải thông báo...</div>
+                          ) : notificationError ? (
+                            <div className="px-4 py-8 text-center">
+                              <p className="text-sm text-rose-600">{notificationError}</p>
+                              <button
+                                type="button"
+                                onClick={() => void fetchNotifications()}
+                                className="mt-3 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                              >
+                                Thử tải lại
+                              </button>
+                            </div>
+                          ) : notifications.length === 0 ? (
+                            <div className="px-4 py-10 text-center">
+                              <BellOutlined className="text-2xl text-slate-300" />
+                              <p className="mt-2 text-sm text-slate-500">Chưa có thông báo nào.</p>
+                            </div>
+                          ) : (
+                            notifications.map((notification) => (
+                              <article
+                                key={notification._id}
+                                className={`border-b border-slate-100 px-4 py-3 last:border-b-0 ${
+                                  notification.isRead ? "bg-white" : "bg-emerald-50/60"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      {!notification.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-600" />}
+                                      <h3 className={`text-sm leading-5 ${notification.isRead ? "font-medium text-slate-700" : "font-bold text-slate-900"}`}>
+                                        {notification.title}
+                                      </h3>
+                                    </div>
+                                    <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600">
+                                      {notification.content}
+                                    </p>
+                                    <time className="mt-2 block text-[11px] text-slate-400" dateTime={notification.createdAt}>
+                                      {formatNotificationTime(notification.createdAt)}
+                                    </time>
+                                  </div>
+                                  {!notification.isRead && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleMarkRead(notification._id)}
+                                      disabled={markingReadId === notification._id}
+                                      aria-label={`Đánh dấu đã đọc: ${notification.title}`}
+                                      className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                    >
+                                      <CheckOutlined />
+                                      {markingReadId === notification._id ? "Đang lưu" : "Đánh dấu đã đọc"}
+                                    </button>
+                                  )}
+                                </div>
+                              </article>
+                            ))
+                          )}
+                        </div>
+                      </section>
+                    )}
+                  </div>
 
                   {/* User Profile Pill */}
                   <Link
@@ -261,67 +440,12 @@ const CustomerLayout = () => {
                 }`}
               >
                 <WalletOutlined />
-                <span>Ví: 750k</span>
+                <span>Ví CueZone</span>
               </Link>
             )}
           </div>
         </div>
       </header>
-
-      {/* Modal Thông Báo Hội Viên */}
-      <Modal
-        open={showNotifModal}
-        onCancel={() => setShowNotifModal(false)}
-        footer={[
-          <Button
-            key="close"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowNotifModal(false)}
-            className="!rounded-xl !text-xs"
-          >
-            Đóng
-          </Button>,
-          <Button
-            key="all"
-            variant="primary"
-            size="sm"
-            to="/customer/profile"
-            onClick={() => setShowNotifModal(false)}
-            className="!rounded-xl !text-xs !bg-emerald-600 !border-emerald-600"
-          >
-            Cài Đặt Thông Báo
-          </Button>,
-        ]}
-        title={
-          <div className="flex items-center gap-2">
-            <BellOutlined className="text-emerald-600" />
-            <span className="font-bold text-slate-900 text-sm">Hộp Thư Thông Báo CLB</span>
-            <Tag color="green" className="!text-[10px] !font-bold">2 Chưa Đọc</Tag>
-          </div>
-        }
-      >
-        <div className="space-y-3 py-2">
-          {mockNotifications.map((notif) => (
-            <div
-              key={notif.id}
-              className={`p-3.5 rounded-2xl border transition ${
-                notif.read ? "bg-white border-slate-200" : "bg-emerald-50/40 border-emerald-200/80"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2 mb-1">
-                <Text strong className="!text-xs !text-slate-900">
-                  {notif.title}
-                </Text>
-                <span className="text-[10px] text-slate-400">{notif.time}</span>
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed mb-0">
-                {notif.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </Modal>
 
       {/* Main Content Area */}
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
