@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   CoffeeOutlined,
   ShoppingOutlined,
@@ -7,7 +7,6 @@ import {
   DeleteOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  FireOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import {
@@ -20,132 +19,45 @@ import {
   message,
   Modal,
   Space,
+  Image,
+  Pagination,
 } from "../../shared/ui";
+import { productService, type ProductMenu as Product } from "../../services/product.service";
 
 const { Title, Text, Paragraph } = Typography;
 
-interface MenuItem {
-  id: string;
-  name: string;
-  category: "coffee" | "tea" | "juice" | "beer" | "food" | "snack";
-  categoryName: string;
-  price: number;
-  priceFormatted: string;
-  desc: string;
-  popular?: boolean;
-  image: string;
-}
+const normalizeCategory = (category?: string) =>
+  category?.trim().toLocaleLowerCase("vi-VN") ?? "";
 
-const MENU_ITEMS: MenuItem[] = [
-  {
-    id: "fnb-01",
-    name: "Cà Phê Muối CueZone Signature",
-    category: "coffee",
-    categoryName: "Cà Phê",
-    price: 35000,
-    priceFormatted: "35.000đ",
-    desc: "Cà phê Robusta Đắk Lắk pha phin truyền thống hòa quyện lớp kem muối béo ngậy thơm lừng.",
-    popular: true,
-    image: "/fnb/fnb-salt-coffee.jpg",
-  },
-  {
-    id: "fnb-02",
-    name: "Bạc Xỉu Sữa Tươi Nóng / Đá",
-    category: "coffee",
-    categoryName: "Cà Phê",
-    price: 32000,
-    priceFormatted: "32.000đ",
-    desc: "Hương vị ngọt dịu nhẹ, cân bằng giữa sữa đặc ngọt mát và giọt đắng cà phê.",
-    image: "/fnb/fnb-salt-coffee.jpg",
-  },
-  {
-    id: "fnb-03",
-    name: "Trà Đào Cam Sả Tươi",
-    category: "tea",
-    categoryName: "Trà",
-    price: 38000,
-    priceFormatted: "38.000đ",
-    desc: "Trà đen ủ lạnh kèm miếng đào giòn ngâm và sả chanh thơm mát xua tan căng thẳng.",
-    popular: true,
-    image: "/fnb/fnb-peach-tea.jpg",
-  },
-  {
-    id: "fnb-04",
-    name: "Trà Vải Hoa Lài Hạt Chia",
-    category: "tea",
-    categoryName: "Trà",
-    price: 38000,
-    priceFormatted: "38.000đ",
-    desc: "Hương hoa lài thoang thoảng kết hợp trái vải mọng nước và hạt chia dinh dưỡng.",
-    image: "/fnb/fnb-peach-tea.jpg",
-  },
-  {
-    id: "fnb-05",
-    name: "Nước Ép Dưa Hấu Tươi 100%",
-    category: "juice",
-    categoryName: "Nước Ép",
-    price: 40000,
-    priceFormatted: "40.000đ",
-    desc: "Ép lạnh nguyên chất không pha đường, giàu vitamin và khoáng chất hồi phục năng lượng.",
-    image: "/fnb/fnb-peach-tea.jpg",
-  },
-  {
-    id: "fnb-06",
-    name: "Bia Budweiser Chai 330ml (Ướp Lạnh)",
-    category: "beer",
-    categoryName: "Bia & Đồ Uống",
-    price: 35000,
-    priceFormatted: "35.000đ",
-    desc: "Bia Mỹ ủ gỗ sồi hảo hạng, giữ lạnh sâu phục vụ tận bàn cùng ly đá pha lê.",
-    popular: true,
-    image: "/fnb/fnb-cold-beer.jpg",
-  },
-  {
-    id: "fnb-07",
-    name: "Bia Heineken Silver Chai",
-    category: "beer",
-    categoryName: "Bia & Đồ Uống",
-    price: 38000,
-    priceFormatted: "38.000đ",
-    desc: "Hương vị êm đầm sảng khoái, nồng độ cồn nhẹ nhàng giúp cơ thủ giữ vững phong độ.",
-    image: "/fnb/fnb-cold-beer.jpg",
-  },
-  {
-    id: "fnb-08",
-    name: "Mì Xào Bò Trứng Ốp La",
-    category: "food",
-    categoryName: "Đồ Ăn Nhanh",
-    price: 55000,
-    priceFormatted: "55.000đ",
-    desc: "Sợi mì dai giòn xào cùng bò Mỹ áp chảo, rau cải thìa tươi và trứng lòng đào vàng ươm.",
-    popular: true,
-    image: "/fnb/fnb-beef-noodles.jpg",
-  },
-  {
-    id: "fnb-09",
-    name: "Cơm Chiên Hải Sản Hoàng Gia",
-    category: "food",
-    categoryName: "Đồ Ăn Nhanh",
-    price: 75000,
-    priceFormatted: "75.000đ",
-    desc: "Hạt cơm tơi vàng xào cùng tôm sú, mực tươi, bắp ngọt và gia vị bí truyền CueZone.",
-    image: "/fnb/fnb-seafood-rice.jpg",
-  },
-  {
-    id: "fnb-10",
-    name: "Bò Khô Cháy Tỏi Chanh Ớt",
-    category: "snack",
-    categoryName: "Đồ Ăn Vặt",
-    price: 65000,
-    priceFormatted: "65.000đ",
-    desc: "Món nhắm kinh điển cho các trận cơ kéo dài, bò tẩm ướp cay tê vừa vặn kèm tỏi phi giòn rụm.",
-    popular: true,
-    image: "/fnb/fnb-beef-jerky.jpg",
-  },
-];
+const getCategoryLabel = (category: string) => {
+  const labels: Record<string, string> = {
+    drink: "Đồ uống",
+    food: "Món ăn",
+    snack: "Ăn vặt",
+  };
+
+  return labels[normalizeCategory(category)] ?? category;
+};
+
+const getFallbackImage = (item: Product) => {
+  const category = normalizeCategory(item.category);
+  const name = item.name.toLocaleLowerCase("vi-VN");
+
+  if (category === "drink" && /bia|beer/.test(name)) {
+    return "/fnb/fnb-cold-beer.jpg";
+  }
+  if (category === "drink" && /cà phê|coffee/.test(name)) {
+    return "/fnb/fnb-salt-coffee.jpg";
+  }
+  if (category === "drink") return "/fnb/fnb-peach-tea.jpg";
+  if (category === "food") return "/fnb/fnb-beef-noodles.jpg";
+  if (category === "snack") return "/fnb/fnb-beef-jerky.jpg";
+
+  return "/fnb/fnb-salt-coffee.jpg";
+};
 
 interface CartItem {
-  item: MenuItem;
+  item: Product;
   quantity: number;
 }
 
@@ -157,21 +69,61 @@ export const CustomerFnB: React.FC = () => {
   const [isOrdering, setIsOrdering] = useState<boolean>(false);
   const [showOrderSuccessModal, setShowOrderSuccessModal] = useState<boolean>(false);
   const [recentOrderCode, setRecentOrderCode] = useState<string>("");
+  const [menuItems, setMenuItems] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        setIsLoading(true);
+        const response = await productService.getFnbMenu();
+        setMenuItems(response);
+      } catch (error: any) {
+        message.error(error.message || "Đã xảy ra lỗi khi tải thực đơn");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMenu();
+  }, []);
 
   const filteredItems =
     selectedCategory === "all"
-      ? MENU_ITEMS
-      : MENU_ITEMS.filter((item) => item.category === selectedCategory);
+      ? menuItems
+      : menuItems.filter(
+          (item) => normalizeCategory(item.category) === selectedCategory,
+        );
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to page 1 when category changes
+  const handleCategoryChange = (cat: string) => {
+    setSelectedCategory(cat);
+    setCurrentPage(1);
+  };
 
   const totalItems = cart.reduce((sum, i) => sum + i.quantity, 0);
-  const totalPrice = cart.reduce((sum, i) => sum + i.item.price * i.quantity, 0);
+  const totalPrice = cart.reduce((sum, i) => sum + i.item.salePrice * i.quantity, 0);
 
-  const addToCart = (item: MenuItem) => {
+  const addToCart = (item: Product) => {
+    if (item.isOutOfStock) {
+      message.warning("Món này hiện đang hết hàng!");
+      return;
+    }
     setCart((prev) => {
-      const existing = prev.find((i) => i.item.id === item.id);
+      const existing = prev.find((i) => i.item._id === item._id);
       if (existing) {
         return prev.map((i) =>
-          i.item.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+          i.item._id === item._id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
       return [...prev, { item, quantity: 1 }];
@@ -183,7 +135,7 @@ export const CustomerFnB: React.FC = () => {
     setCart((prev) =>
       prev
         .map((i) => {
-          if (i.item.id === itemId) {
+          if (i.item._id === itemId) {
             const nextQty = i.quantity + delta;
             return nextQty > 0 ? { ...i, quantity: nextQty } : null;
           }
@@ -232,18 +184,15 @@ export const CustomerFnB: React.FC = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {[
             { key: "all", label: "Tất Cả Món" },
-            { key: "coffee", label: "Cà Phê" },
-            { key: "tea", label: "Trà Hoa Quả" },
-            { key: "juice", label: "Nước Ép Tươi" },
-            { key: "beer", label: "Bia & Đồ Uống" },
-            { key: "food", label: "Đồ Ăn Nhanh" },
-            { key: "snack", label: "Đồ Ăn Vặt" },
+            { key: "drink", label: "Đồ Uống" },
+            { key: "food", label: "Món Ăn" },
+            { key: "snack", label: "Ăn Vặt" },
           ].map((cat) => (
             <Button
               key={cat.key}
               variant={selectedCategory === cat.key ? "primary" : "outline"}
               size="sm"
-              onClick={() => setSelectedCategory(cat.key)}
+              onClick={() => handleCategoryChange(cat.key)}
               className={`!text-xs !h-8 !px-3.5 !rounded-xl transition-all ${
                 selectedCategory === cat.key
                   ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-xs"
@@ -263,53 +212,99 @@ export const CustomerFnB: React.FC = () => {
       {/* Bố cục Chính: Danh sách món (70%) + Giỏ Order Tại Bàn (30%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Danh Sách Món Ăn & Đồ Uống */}
-        <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-5">
-          {filteredItems.map((item) => (
-            <Card
-              key={item.id}
-              className="!rounded-2xl !border-slate-200 !bg-white hover:!shadow-md transition-all overflow-hidden flex flex-col justify-between group p-0"
-            >
-              <div className="p-5 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <Text className="!text-[11px] !text-emerald-700 font-semibold uppercase tracking-wider block">
-                      {item.categoryName}
-                    </Text>
-                    <Text strong className="!text-sm !text-slate-900 block group-hover:text-emerald-600 transition">
-                      {item.name}
-                    </Text>
-                  </div>
-                  {item.popular && (
-                    <Tag color="red" className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase">
-                      <FireOutlined className="mr-1" /> Best Seller
-                    </Tag>
-                  )}
-                </div>
-
-                <Paragraph className="!text-xs !text-slate-500 !mb-0 line-clamp-2 leading-relaxed">
-                  {item.desc}
-                </Paragraph>
-              </div>
-
-              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                <div>
-                  <Text strong className="!text-base !text-emerald-600 font-black">
-                    {item.priceFormatted}
+        {isLoading ? (
+          <div className="lg:col-span-8 flex justify-center py-20">
+            <Text className="!text-slate-400 animate-pulse italic">Đang tải thực đơn hấp dẫn... Vui lòng đợi trong giây lát</Text>
+          </div>
+        ) : (
+          <div className="lg:col-span-8 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {paginatedItems.length === 0 ? (
+                <div className="sm:col-span-2 rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center">
+                  <Text className="!text-sm !text-slate-500">
+                    Không có món nào trong danh mục này.
                   </Text>
                 </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<PlusOutlined />}
-                  onClick={() => addToCart(item)}
-                  className="!text-xs !h-8 !px-3 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
+              ) : paginatedItems.map((item) => (
+                <Card
+                  key={item._id}
+                  className={`!rounded-2xl !border-slate-200 !bg-white hover:!shadow-md transition-all overflow-hidden flex flex-col justify-between group p-0 ${
+                    item.isOutOfStock ? "!opacity-75" : ""
+                  }`}
                 >
-                  Thêm Món
-                </Button>
+                  <div className="p-5 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Text className="!text-[11px] !text-emerald-700 font-semibold uppercase tracking-wider block">
+                            {getCategoryLabel(item.category)}
+                          </Text>
+                          {item.isOutOfStock && (
+                            <Tag color="error" className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase">
+                              HẾT HÀNG
+                            </Tag>
+                          )}
+                        </div>
+                        <Text strong className="!text-sm !text-slate-900 block group-hover:text-emerald-600 transition">
+                          {item.name}
+                        </Text>
+                      </div>
+                    </div>
+
+                    <div className="aspect-video rounded-xl overflow-hidden mb-3 bg-slate-100">
+                      <Image
+                        src={item.imageUrl || getFallbackImage(item)}
+                        fallback={getFallbackImage(item)}
+                        alt={item.name}
+                        width="100%"
+                        height="100%"
+                        style={{ objectFit: "cover" }}
+                        preview={true}
+                      />
+                    </div>
+
+                    <Paragraph className="!text-xs !text-slate-500 !mb-0 line-clamp-2 leading-relaxed">
+                      {item.description}
+                    </Paragraph>
+                  </div>
+
+                  <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      <Text strong className={`!text-base font-black ${item.isOutOfStock ? "!text-slate-400" : "!text-emerald-600"}`}>
+                        {item.salePrice.toLocaleString("vi-VN")}đ
+                      </Text>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<PlusOutlined />}
+                      onClick={() => addToCart(item)}
+                      disabled={item.isOutOfStock}
+                      className={`!text-xs !h-8 !px-3 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl ${
+                        item.isOutOfStock ? "!opacity-50 !cursor-not-allowed" : ""
+                      }`}
+                    >
+                      Thêm Món
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-center pt-4">
+                <Pagination
+                  current={currentPage}
+                  total={filteredItems.length}
+                  pageSize={itemsPerPage}
+                  onChange={(page) => setCurrentPage(page)}
+                  className="!bg-transparent"
+                />
               </div>
-            </Card>
-          ))}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Giỏ Order Tại Bàn Sticky */}
         <div className="lg:col-span-4 sticky top-24">
@@ -357,20 +352,20 @@ export const CustomerFnB: React.FC = () => {
                   </div>
                 ) : (
                   cart.map(({ item, quantity }) => (
-                    <div key={item.id} className="flex items-center justify-between text-xs gap-2">
+                    <div key={item._id} className="flex items-center justify-between text-xs gap-2">
                       <div className="flex-1 pr-2">
                         <Text strong className="!text-xs !text-slate-800 block truncate">
                           {item.name}
                         </Text>
                         <Text className="!text-[11px] !text-emerald-600 font-semibold">
-                          {(item.price * quantity).toLocaleString("vi-VN")}đ
+                          {(item.salePrice * quantity).toLocaleString("vi-VN")}đ
                         </Text>
                       </div>
 
                       <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg p-1">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.id, -1)}
+                          onClick={() => updateQuantity(item._id, -1)}
                           className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-slate-200 text-slate-600 transition"
                         >
                           {quantity === 1 ? <DeleteOutlined className="text-[10px] text-red-500" /> : <MinusOutlined className="text-[10px]" />}
@@ -380,7 +375,7 @@ export const CustomerFnB: React.FC = () => {
                         </span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.id, 1)}
+                          onClick={() => updateQuantity(item._id, 1)}
                           className="w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-slate-200 text-slate-600 transition"
                         >
                           <PlusOutlined className="text-[10px]" />

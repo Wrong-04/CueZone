@@ -21,6 +21,26 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
   }
 };
 
+export const optionalAuthMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    next();
+    return;
+  }
+  if (!authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ success: false, message: "Token không hợp lệ" });
+    return;
+  }
+
+  try {
+    const token = authHeader.slice("Bearer ".length);
+    (req as any).user = jwt.verify(token, appConfig.jwt.secret) as TokenPayload;
+    next();
+  } catch {
+    res.status(401).json({ success: false, message: "Token không hợp lệ hoặc đã hết hạn" });
+  }
+};
+
 export class AuthMiddleware implements ExpressMiddlewareInterface {
   use(req: Request, res: Response, next: NextFunction): void {
     authMiddleware(req, res, next);

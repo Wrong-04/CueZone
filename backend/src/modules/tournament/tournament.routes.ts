@@ -2,9 +2,47 @@ import { Router, Request, Response, NextFunction } from "express";
 import { TournamentService } from "./tournament.service";
 import { requirePosStaff } from "../../middlewares/pos.middleware";
 import { TournamentStatus } from "./tournament.model";
+import { User, UserRole } from "../user/user.model";
 
 const router = Router();
 const tournamentService = new TournamentService();
+
+async function requireTournamentOperator(req: Request, res: Response, next: NextFunction) {
+  try {
+    const user = await User.findById((req as any).user?.userId);
+    if (!user || !user.isActive || user.isLocked) {
+      return res.status(401).json({ success: false, message: "Phiên đăng nhập không còn hợp lệ" });
+    }
+    if (![UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER].includes(user.role)) {
+      return res.status(403).json({ success: false, message: "Bạn không có quyền đối soát lệ phí giải đấu" });
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+router.get("/pending-fees", requireTournamentOperator, async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const items = await tournamentService.getPendingFees();
+    res.json({ success: true, message: "Lấy danh sách lệ phí chờ xác nhận thành công", data: items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/:id/players/:userId/fee", requireTournamentOperator, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tournament = await tournamentService.confirmPlayerFee(
+      req.params.id,
+      req.params.userId,
+      (req as any).user?.userId
+    );
+    res.json({ success: true, message: "Đã ghi nhận lệ phí tại quầy", data: tournament });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Lấy danh sách giải đấu (cho phép cả staff xem)
 router.get("/", async (req: Request, res: Response, next: NextFunction) => {
@@ -29,6 +67,20 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
       message: "Lấy thông tin giải đấu thành công",
       data: tournament,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Hội viên ghi danh giải đấu và chọn thanh toán qua ví hoặc tại quầy
+router.post("/:id/register", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tournament = await tournamentService.registerPlayer(
+      req.params.id,
+      (req as any).user?.userId,
+      req.body.paymentMethod
+    );
+    res.status(201).json({ success: true, message: "Ghi danh giải đấu thành công", data: tournament });
   } catch (err) {
     next(err);
   }

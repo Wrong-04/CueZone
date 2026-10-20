@@ -6,6 +6,8 @@ import { connectDatabase } from "./config/database";
 import { Booking } from "./modules/booking/booking.model";
 import { Invoice } from "./modules/invoice/invoice.model";
 import { Table } from "./modules/table/table.model";
+import { Notification } from "./modules/notification/notification.model";
+import { Wallet } from "./modules/wallet/wallet.model";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
@@ -34,7 +36,7 @@ io.on("connection", (socket) => {
 async function start() {
   await connectDatabase();
   try {
-    await Promise.all([Booking.init(), Invoice.init(), Table.init()]);
+    await Promise.all([Booking.init(), Invoice.init(), Table.init(), Notification.init(), Wallet.init()]);
     console.log("✅ Database indexes verified");
   } catch (err: any) {
     console.warn("⚠️ Cảnh báo khởi tạo index (bỏ qua để tiếp tục khởi động server):", err?.message || err);

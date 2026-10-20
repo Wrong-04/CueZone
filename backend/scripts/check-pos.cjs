@@ -3,17 +3,16 @@
 require('dotenv/config');
 const dns = require('dns');
 try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
-require('ts-node/register/transpile-only');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const { randomUUID } = require('node:crypto');
-const { App } = require('../src/app');
-const { User } = require('../src/modules/user/user.model');
-const { Table } = require('../src/modules/table/table.model');
-const { Booking } = require('../src/modules/booking/booking.model');
-const { Invoice } = require('../src/modules/invoice/invoice.model');
-const { playingDetails } = require('../src/modules/session/session.service');
-const { bookingInput } = require('../src/modules/booking/booking.service');
+const { App } = require('../dist/app');
+const { User } = require('../dist/modules/user/user.model');
+const { Table } = require('../dist/modules/table/table.model');
+const { Booking } = require('../dist/modules/booking/booking.model');
+const { Invoice } = require('../dist/modules/invoice/invoice.model');
+const { playingDetails } = require('../dist/modules/session/session.service');
+const { bookingInput } = require('../dist/modules/booking/booking.service');
 
 async function main() {
   const dbName = `cz_check_${randomUUID().slice(0, 18)}`;

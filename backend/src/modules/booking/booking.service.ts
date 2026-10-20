@@ -3,6 +3,10 @@ import { Booking } from "./booking.model";
 import { Table, TableStatus } from "../table/table.model";
 import { User } from "../user/user.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
+import { NotificationService } from "../notification/notification.service";
+import { NotificationType } from "../notification/notification.model";
+
+const notificationService = new NotificationService();
 
 export function bookingInput(input: any) {
   const deposit = input.deposit ?? 0;
@@ -48,13 +52,23 @@ export class BookingService {
     });
   }
 
-  async create(input: any) {
+  async create(input: any, customerId?: string) {
     const dto = bookingInput(input);
+    const associatedCustomer = customerId && mongoose.isValidObjectId(customerId)
+      ? await User.findOne({ _id: customerId, role: "customer", isActive: true, isLocked: false }).select("_id")
+      : null;
+    const associatedCustomerId = associatedCustomer ? customerId : undefined;
     // ponytail: one held reservation per table; add interval scheduling when multiple future slots are needed.
     const result = await mongoose.connection.transaction(async (session) => {
       const table = await Table.findOne({ _id: dto.tableId, isActive: true, status: TableStatus.AVAILABLE }).session(session);
       if (!table) throw new Error("Bàn không còn trống, vui lòng tải lại");
-      const [booking] = await Booking.create([{ ...dto, tableName: table.name, estimatedCost: table.pricePerHour * dto.duration, status: "approved" }], { session });
+      const [booking] = await Booking.create([{
+        ...dto,
+        customer: associatedCustomerId,
+        tableName: table.name,
+        estimatedCost: table.pricePerHour * dto.duration,
+        status: "approved",
+      }], { session });
       table.status = TableStatus.BOOKED;
       table.bookedInfo = { customerName: booking.customerName || "Khách đặt trước", phone: booking.phone || "0900000000",
         time: `${booking.time} (${booking.date})`, bookingId: String(booking._id) };
@@ -62,6 +76,18 @@ export class BookingService {
       return { booking, table };
     });
     emitTableStatusChanged({ tableId: String(result.table._id), status: result.table.status, table: result.table });
+    if (associatedCustomerId) {
+      await notificationService.createForUser(associatedCustomerId, {
+        title: "Đặt bàn đã được xác nhận",
+        content: `Lịch đặt bàn ${result.booking.date} lúc ${result.booking.time} tại ${result.booking.tableName} đã được xác nhận.`,
+        type: NotificationType.TABLE,
+      }).catch(() => undefined);
+    }
+    await notificationService.create({
+      title: "Có lịch đặt bàn mới",
+      content: `${result.booking.customerName} đặt ${result.booking.tableName} ngày ${result.booking.date} lúc ${result.booking.time}.`,
+      type: NotificationType.TABLE,
+    }).catch(() => undefined);
     return result.booking;
   }
 
@@ -76,6 +102,7 @@ export class BookingService {
     const result = await mongoose.connection.transaction(async (session) => {
       const booking = await Booking.findById(id).session(session);
       if (!booking) throw new Error("Không tìm thấy đơn đặt bàn");
+      const previousStatus = booking.status;
       const allowed: Record<string, string[]> = {
         pending: ["approved", "rejected"],
         approved: ["approved", "rejected"],
@@ -115,10 +142,23 @@ export class BookingService {
       booking.status = input.status;
       booking.rejectionReason = input.status === "rejected" ? input.rejectionReason.trim() : undefined;
       await booking.save({ session });
-      return { booking, affectedTableId };
+      return { booking, affectedTableId, previousStatus };
     });
     if (result.affectedTableId) {
       emitTableStatusChanged({ tableId: result.affectedTableId });
+    }
+    if (result.booking.customer && result.previousStatus !== result.booking.status) {
+      const isRejected = result.booking.status === "rejected";
+      if (isRejected || result.booking.status === "approved") {
+        const reason = result.booking.rejectionReason ? ` Lý do: ${result.booking.rejectionReason}` : "";
+        await notificationService.createForUser(String(result.booking.customer), {
+          title: isRejected ? "Đặt bàn đã bị từ chối" : "Đặt bàn đã được xác nhận",
+          content: isRejected
+            ? `Lịch đặt bàn ${result.booking.date} lúc ${result.booking.time} đã bị từ chối.${reason}`
+            : `Lịch đặt bàn ${result.booking.date} lúc ${result.booking.time} tại ${result.booking.tableName} đã được xác nhận.`,
+          type: NotificationType.TABLE,
+        }).catch(() => undefined);
+      }
     }
     return result.booking;
   }

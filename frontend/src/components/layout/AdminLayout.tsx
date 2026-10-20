@@ -15,6 +15,7 @@ import {
   SettingOutlined,
   UserOutlined,
   DollarOutlined,
+  WalletOutlined,
   SafetyCertificateOutlined,
   MenuOutlined,
   BellOutlined,
@@ -45,6 +46,8 @@ const menuItems: MenuItemConfig[] = [
   { path: "/tournaments", label: "Giải đấu & Trọng tài", icon: <TrophyOutlined />, roles: ["admin", "staff"] },
   { path: "/inventory", label: "Kho hàng", icon: <InboxOutlined />, roles: ["admin", "staff"] },
   { path: "/invoices", label: "Hóa đơn", icon: <FileTextOutlined />, roles: ["admin", "staff"] },
+  { path: "/wallet-topups", label: "Đối soát nạp ví", icon: <WalletOutlined />, roles: ["admin", "staff", "cashier"] },
+  { path: "/tournament-fees", label: "Đối soát lệ phí giải", icon: <TrophyOutlined />, roles: ["admin", "staff", "cashier"] },
   { path: "/reports", label: "Báo cáo", icon: <LineChartOutlined />, roles: ["admin"] },
   { path: "/employees", label: "Nhân sự", icon: <TeamOutlined />, roles: ["admin"] },
   { path: "/news", label: "Tin tức", icon: <ReadOutlined />, roles: ["admin"] },
@@ -54,6 +57,7 @@ const menuItems: MenuItemConfig[] = [
 const roleLabels: Record<string, string> = {
   admin: "Quản Trị Viên",
   staff: "Nhân Viên Vận Hành & Thu Ngân",
+  cashier: "Thu Ngân",
   customer: "Hội Viên",
 };
 
@@ -61,6 +65,8 @@ const typeIcons: Record<string, ReactNode> = {
   user: <UserOutlined />,
   table: <AppstoreOutlined />,
   pricing: <DollarOutlined />,
+  wallet: <WalletOutlined />,
+  tournament: <TrophyOutlined />,
   role: <SafetyCertificateOutlined />,
   system: <SettingOutlined />,
 };
@@ -310,7 +316,7 @@ const AdminLayout = () => {
                                 )}
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                                {n.message}
+                                {n.content}
                               </p>
                               <p className="text-[11px] text-gray-400 mt-1">
                                 {timeAgo(n.createdAt)}

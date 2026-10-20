@@ -9,8 +9,126 @@ import {
   validateTournamentData,
 } from "./dto/tournament.dto";
 import mongoose from "mongoose";
+import { User, UserRole } from "../user/user.model";
+import { NotificationService } from "../notification/notification.service";
+import { NotificationType } from "../notification/notification.model";
+import { WalletService } from "../wallet/wallet.service";
+
+const notifications = new NotificationService();
+const walletService = new WalletService();
 
 export class TournamentService {
+  async getPublicTournaments(query: { page?: number; limit?: number }) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 50));
+    const filter = { status: { $ne: TournamentStatus.DRAFT } };
+    const [items, total] = await Promise.all([
+      Tournament.find(filter).sort({ startDate: 1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Tournament.countDocuments(filter),
+    ]);
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async registerPlayer(id: string, userId: string, paymentMethod: "wallet" | "counter") {
+    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(userId)) {
+      throw Object.assign(new Error("Mã giải đấu hoặc tài khoản không hợp lệ"), { httpCode: 400 });
+    }
+    if (paymentMethod !== "wallet" && paymentMethod !== "counter") {
+      throw Object.assign(new Error("Phương thức thanh toán không hợp lệ"), { httpCode: 400 });
+    }
+
+    const result = await mongoose.connection.transaction(async (session) => {
+      const user = await User.findOne({ _id: userId, role: UserRole.CUSTOMER, isActive: true, isLocked: false }).session(session);
+      if (!user) throw Object.assign(new Error("Chỉ hội viên đang hoạt động mới được ghi danh"), { httpCode: 403 });
+      const tournament = await Tournament.findById(id).session(session);
+      if (!tournament) throw Object.assign(new Error("Không tìm thấy giải đấu"), { httpCode: 404 });
+      if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
+        throw Object.assign(new Error("Giải đấu hiện không mở ghi danh"), { httpCode: 400 });
+      }
+      if (tournament.registrationDeadline.getTime() < Date.now()) {
+        throw Object.assign(new Error("Đã hết hạn ghi danh giải đấu"), { httpCode: 400 });
+      }
+      if (tournament.players.some((player: { user: mongoose.Types.ObjectId }) => String(player.user) === userId)) {
+        throw Object.assign(new Error("Bạn đã ghi danh giải đấu này"), { httpCode: 409 });
+      }
+      if (tournament.players.length >= tournament.maxPlayers) {
+        throw Object.assign(new Error("Giải đấu đã đủ số lượng cơ thủ"), { httpCode: 409 });
+      }
+
+      const feePaid = tournament.registrationFee <= 0 || paymentMethod === "wallet";
+      if (paymentMethod === "wallet" && tournament.registrationFee > 0) {
+        await walletService.chargeForTournament(userId, tournament.registrationFee, tournament.name, session);
+      }
+      tournament.players.push({
+        user: user._id,
+        name: user.name,
+        avatar: user.avatar,
+        phone: user.phone,
+        feePaid,
+        registeredAt: new Date(),
+      });
+      await tournament.save({ session });
+      return { tournament, user, feePaid };
+    });
+
+    const feeText = result.feePaid
+      ? `Lệ phí ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ đã được ghi nhận.`
+      : `Ghi danh đã được tiếp nhận. Vui lòng thanh toán ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ tại quầy trước hạn.`;
+    await Promise.all([
+      notifications.createForUser(userId, {
+        title: "Ghi danh giải đấu thành công",
+        content: `Bạn đã ghi danh giải ${result.tournament.name}. ${feeText}`,
+        type: NotificationType.TOURNAMENT,
+      }).catch(() => undefined),
+      notifications.create({
+        title: "Có cơ thủ ghi danh giải đấu",
+        content: `${result.user.name} đã ghi danh giải ${result.tournament.name}.`,
+        type: NotificationType.TOURNAMENT,
+      }).catch(() => undefined),
+    ]);
+    return result.tournament;
+  }
+
+  async getPendingFees() {
+    const tournaments = await Tournament.find({ registrationFee: { $gt: 0 }, "players.feePaid": false })
+      .populate("players.user", "name email phone")
+      .sort({ startDate: 1 });
+    return tournaments.flatMap((tournament: any) => tournament.players
+      .filter((player: any) => !player.feePaid)
+      .map((player: any) => ({
+        tournamentId: String(tournament._id),
+        tournamentName: tournament.name,
+        startDate: tournament.startDate,
+        amount: tournament.registrationFee,
+        player,
+      })));
+  }
+
+  async confirmPlayerFee(id: string, userId: string, reviewerId: string) {
+    if (![id, userId, reviewerId].every((value) => mongoose.isValidObjectId(value))) {
+      throw Object.assign(new Error("Mã giải đấu hoặc tài khoản không hợp lệ"), { httpCode: 400 });
+    }
+    const result = await mongoose.connection.transaction(async (session) => {
+      const tournament = await Tournament.findById(id).session(session);
+      if (!tournament) throw Object.assign(new Error("Không tìm thấy giải đấu"), { httpCode: 404 });
+      const player = tournament.players.find((entry: { user: mongoose.Types.ObjectId }) => String(entry.user) === userId);
+      if (!player) throw Object.assign(new Error("Cơ thủ chưa ghi danh giải này"), { httpCode: 404 });
+      if (player.feePaid) return { tournament, player, changed: false };
+      player.feePaid = true;
+      await tournament.save({ session });
+      return { tournament, player, changed: true };
+    });
+
+    if (result.changed) {
+      await notifications.createForUser(userId, {
+        title: "Đã xác nhận lệ phí giải đấu",
+        content: `Nhân viên đã ghi nhận khoản thanh toán ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ cho giải ${result.tournament.name}.`,
+        type: NotificationType.TOURNAMENT,
+      }).catch(() => undefined);
+    }
+    return result.tournament;
+  }
+
   /**
    * Tạo giải đấu mới ở trạng thái DRAFT
    */
@@ -222,6 +340,21 @@ export class TournamentService {
 
     tournament.status = nextStatus;
     await tournament.save();
+    if (currentStatus !== nextStatus && tournament.players.length > 0) {
+      const statusLabels: Record<TournamentStatus, string> = {
+        [TournamentStatus.DRAFT]: "bản nháp",
+        [TournamentStatus.REGISTRATION_OPEN]: "mở ghi danh",
+        [TournamentStatus.REGISTRATION_CLOSED]: "đóng ghi danh",
+        [TournamentStatus.BRACKET_GENERATED]: "đã tạo nhánh đấu",
+        [TournamentStatus.IN_PROGRESS]: "đang diễn ra",
+        [TournamentStatus.COMPLETED]: "đã kết thúc",
+      };
+      await Promise.all(tournament.players.map((player: { user: mongoose.Types.ObjectId }) => notifications.createForUser(String(player.user), {
+        title: "Cập nhật giải đấu",
+        content: `Giải ${tournament.name} đã chuyển sang trạng thái ${statusLabels[nextStatus]}.`,
+        type: NotificationType.TOURNAMENT,
+      }).catch(() => undefined)));
+    }
     return tournament;
   }
 }
