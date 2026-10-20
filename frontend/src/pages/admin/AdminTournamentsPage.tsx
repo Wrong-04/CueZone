@@ -13,6 +13,8 @@ import {
   FireOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -39,6 +41,14 @@ import {
 } from "../../mock/posData";
 
 const { Title, Text } = Typography;
+
+const formatDateForInput = (isoDate?: string): string => {
+  if (!isoDate) return "";
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -460,6 +470,121 @@ export const AdminTournamentsPage: React.FC = () => {
     }
   };
 
+  // Modal: Edit Tournament (SCRUM-153)
+  const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
+  const [selectedTourneyForEdit, setSelectedTourneyForEdit] = useState<TournamentItem | null>(null);
+  const [editLoading, setEditLoading] = useState<boolean>(false);
+  const [editTourneyForm, setEditTourneyForm] = useState({
+    title: "",
+    raceTo: 5,
+    feeAmount: 150000,
+    prizePool: "",
+    firstPrize: "",
+    secondPrize: "",
+    thirdPrize: "",
+    startDate: "",
+    endDate: "",
+    registrationDeadline: "",
+    maxParticipants: 16,
+    assignedTables: "",
+    description: "",
+  });
+
+  const handleOpenEditModal = (tourney: TournamentItem) => {
+    setSelectedTourneyForEdit(tourney);
+    setEditTourneyForm({
+      title: tourney.name,
+      raceTo: tourney.raceToScore || 5,
+      feeAmount: tourney.registrationFee || 0,
+      prizePool: tourney.prizePool || "",
+      firstPrize: tourney.firstPrize || "",
+      secondPrize: tourney.secondPrize || "",
+      thirdPrize: tourney.thirdPrize || "",
+      startDate: formatDateForInput(tourney.startDate),
+      endDate: formatDateForInput(tourney.endDate),
+      registrationDeadline: formatDateForInput(tourney.registrationDeadline),
+      maxParticipants: tourney.maxPlayers || 16,
+      assignedTables: tourney.assignedTables?.join(", ") || "",
+      description: tourney.description || "",
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleUpdateTournament = async () => {
+    if (!selectedTourneyForEdit) return;
+    if (!editTourneyForm.title.trim()) {
+      message.warning("Vui lòng nhập tên giải đấu!");
+      return;
+    }
+    if (!editTourneyForm.startDate || !editTourneyForm.endDate || !editTourneyForm.registrationDeadline) {
+      message.warning("Vui lòng nhập đầy đủ ngày thi đấu và hạn đăng ký!");
+      return;
+    }
+
+    const regDate = new Date(editTourneyForm.registrationDeadline);
+    const sDate = new Date(editTourneyForm.startDate);
+    const eDate = new Date(editTourneyForm.endDate);
+
+    if (regDate > sDate) {
+      message.error("Hạn đăng ký phải trước hoặc bằng ngày bắt đầu thi đấu!");
+      return;
+    }
+
+    if (eDate < sDate) {
+      message.error("Ngày kết thúc thi đấu phải sau hoặc bằng ngày bắt đầu!");
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      await tournamentService.updateTournament(selectedTourneyForEdit._id, {
+        name: editTourneyForm.title.trim(),
+        description: editTourneyForm.description.trim(),
+        startDate: sDate.toISOString(),
+        endDate: eDate.toISOString(),
+        registrationDeadline: regDate.toISOString(),
+        maxPlayers: Number(editTourneyForm.maxParticipants) || 16,
+        registrationFee: Number(editTourneyForm.feeAmount) || 0,
+        prizePool: editTourneyForm.prizePool,
+        firstPrize: editTourneyForm.firstPrize,
+        secondPrize: editTourneyForm.secondPrize,
+        thirdPrize: editTourneyForm.thirdPrize,
+        raceToScore: Number(editTourneyForm.raceTo) || 5,
+        assignedTables: editTourneyForm.assignedTables,
+      });
+
+      message.success(`Đã cập nhật giải đấu "${editTourneyForm.title}" thành công!`);
+      setEditModalVisible(false);
+      setSelectedTourneyForEdit(null);
+      fetchTournaments();
+    } catch (err: any) {
+      message.error(err?.message || "Cập nhật giải đấu thất bại!");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Modal: Delete Tournament
+  const [deleteConfirmModalVisible, setDeleteConfirmModalVisible] = useState<boolean>(false);
+  const [selectedTourneyForDelete, setSelectedTourneyForDelete] = useState<TournamentItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<boolean>(false);
+
+  const handleConfirmDeleteTournament = async () => {
+    if (!selectedTourneyForDelete) return;
+    setDeleteLoading(true);
+    try {
+      await tournamentService.deleteTournament(selectedTourneyForDelete._id);
+      message.success(`Đã xóa giải đấu bản nháp "${selectedTourneyForDelete.name}"!`);
+      setDeleteConfirmModalVisible(false);
+      setSelectedTourneyForDelete(null);
+      fetchTournaments();
+    } catch (err: any) {
+      message.error(err?.message || "Không thể xóa giải đấu!");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   // Modal: Participants Approval
   const [participantsModalVisible, setParticipantsModalVisible] = useState<boolean>(false);
   const [selectedTourneyForParticipants, setSelectedTourneyForParticipants] =
@@ -765,10 +890,11 @@ export const AdminTournamentsPage: React.FC = () => {
                 className="!w-44 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả giải đấu" },
+                  { value: "draft", label: "Bản nháp (DRAFT)" },
+                  { value: "registration_open", label: "Đang mở đăng ký" },
                   { value: "in_progress", label: "Đang diễn ra" },
-                  { value: "open", label: "Đang mở đăng ký" },
-                  { value: "upcoming", label: "Sắp diễn ra" },
-                  { value: "finished", label: "Đã kết thúc" },
+                  { value: "registration_closed", label: "Đã đóng đăng ký" },
+                  { value: "completed", label: "Đã hoàn thành" },
                 ]}
               />
             </div>
@@ -890,18 +1016,43 @@ export const AdminTournamentsPage: React.FC = () => {
                     {/* Actions */}
                     <div className="space-y-2 pt-3 border-t border-slate-100">
                       {tourney.status === "draft" && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedTourneyForStatusChange(tourney);
-                            setStatusConfirmModalVisible(true);
-                          }}
-                          leftIcon={<CheckCircleOutlined />}
-                          className="w-full !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !text-xs !h-9 font-bold"
-                        >
-                          Mở Đăng Ký Giải Đấu (REGISTRATION_OPEN)
-                        </Button>
+                        <div className="space-y-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTourneyForStatusChange(tourney);
+                              setStatusConfirmModalVisible(true);
+                            }}
+                            leftIcon={<CheckCircleOutlined />}
+                            className="w-full !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !text-xs !h-9 font-bold"
+                          >
+                            Mở Đăng Ký Giải Đấu (REGISTRATION_OPEN)
+                          </Button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenEditModal(tourney)}
+                              leftIcon={<EditOutlined />}
+                              className="!rounded-xl !text-xs !h-8 font-semibold !text-slate-700 hover:!border-emerald-600 hover:!text-emerald-700"
+                            >
+                              Sửa Thông Tin
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedTourneyForDelete(tourney);
+                                setDeleteConfirmModalVisible(true);
+                              }}
+                              leftIcon={<DeleteOutlined className="text-rose-500" />}
+                              className="!rounded-xl !text-xs !h-8 font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50 hover:!border-rose-300"
+                            >
+                              Xóa Bản Nháp
+                            </Button>
+                          </div>
+                        </div>
                       )}
 
                       <div className="grid grid-cols-2 gap-2">
@@ -1845,6 +1996,269 @@ export const AdminTournamentsPage: React.FC = () => {
               className="!rounded-xl"
             >
               Đóng
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: CHỈNH SỬA GIẢI ĐẤU (SCRUM-153) ────────────────────────── */}
+      <Modal
+        open={editModalVisible}
+        onCancel={() => {
+          if (!editLoading) {
+            setEditModalVisible(false);
+            setSelectedTourneyForEdit(null);
+          }
+        }}
+        footer={null}
+        width={640}
+        title={
+          <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <EditOutlined className="text-base" />
+            </div>
+            <div>
+              <span className="font-black text-slate-900 text-base block leading-tight">
+                Cập Nhật Thông Tin Giải Đấu
+              </span>
+              <span className="text-xs text-slate-500 font-normal">
+                Chỉnh sửa thông số giải đấu trước khi mở đăng ký chính thức
+              </span>
+            </div>
+          </div>
+        }
+      >
+        <div className="py-4 space-y-4 text-xs">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Tên giải đấu chính thức: <span className="text-rose-500">*</span>
+            </label>
+            <Input
+              placeholder="Ví dụ: CueZone Bank Pool Championship Q4/2026"
+              value={editTourneyForm.title}
+              onChange={(e) =>
+                setEditTourneyForm((prev) => ({ ...prev, title: e.target.value }))
+              }
+              className="!h-10 !rounded-xl text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Hạn chót đăng ký: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                type="datetime-local"
+                value={editTourneyForm.registrationDeadline}
+                onChange={(e) =>
+                  setEditTourneyForm((prev) => ({
+                    ...prev,
+                    registrationDeadline: e.target.value,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Số lượng cơ thủ tối đa (Quy mô):
+              </label>
+              <Select
+                value={editTourneyForm.maxParticipants}
+                onChange={(val) =>
+                  setEditTourneyForm((prev) => ({ ...prev, maxParticipants: val }))
+                }
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={[
+                  { value: 8, label: "8 Cơ thủ (Vòng tứ kết)" },
+                  { value: 16, label: "16 Cơ thủ (Chuẩn CLB)" },
+                  { value: 32, label: "32 Cơ thủ (Giải mở rộng)" },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ngày bắt đầu thi đấu: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                type="datetime-local"
+                value={editTourneyForm.startDate}
+                onChange={(e) =>
+                  setEditTourneyForm((prev) => ({
+                    ...prev,
+                    startDate: e.target.value,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ngày bế mạc (kết thúc): <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                type="datetime-local"
+                value={editTourneyForm.endDate}
+                onChange={(e) =>
+                  setEditTourneyForm((prev) => ({
+                    ...prev,
+                    endDate: e.target.value,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Thể thức Race to (Số ván chạm):
+              </label>
+              <Input
+                type="number"
+                value={editTourneyForm.raceTo}
+                onChange={(e) =>
+                  setEditTourneyForm((prev) => ({
+                    ...prev,
+                    raceTo: parseInt(e.target.value) || 5,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Lệ phí tham gia (VNĐ):
+              </label>
+              <Input
+                type="number"
+                value={editTourneyForm.feeAmount}
+                onChange={(e) =>
+                  setEditTourneyForm((prev) => ({
+                    ...prev,
+                    feeAmount: parseInt(e.target.value) || 0,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs font-mono"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Tổng quỹ giải thưởng & Danh hiệu:
+              </label>
+              <Input
+                value={editTourneyForm.prizePool}
+                onChange={(e) =>
+                  setEditTourneyForm((prev) => ({ ...prev, prizePool: e.target.value }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Bàn thi đấu chỉ định:
+              </label>
+              <Input
+                placeholder="Bàn Match 13 (VAR), Bàn Match 14 (VAR)..."
+                value={editTourneyForm.assignedTables}
+                onChange={(e) =>
+                  setEditTourneyForm((prev) => ({
+                    ...prev,
+                    assignedTables: e.target.value,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="md"
+              disabled={editLoading}
+              onClick={() => {
+                setEditModalVisible(false);
+                setSelectedTourneyForEdit(null);
+              }}
+              className="!rounded-xl !text-xs"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={editLoading}
+              onClick={handleUpdateTournament}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
+            >
+              Lưu Cập Nhật
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: XÁC NHẬN XÓA GIẢI ĐẤU DRAFT ────────────────────────────── */}
+      <Modal
+        open={deleteConfirmModalVisible}
+        onCancel={() => {
+          if (!deleteLoading) {
+            setDeleteConfirmModalVisible(false);
+            setSelectedTourneyForDelete(null);
+          }
+        }}
+        footer={null}
+        width={440}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <DeleteOutlined className="text-rose-500 text-lg" />
+            <span className="font-black text-slate-900 text-base">
+              Xác Nhận Xóa Giải Đấu Bản Nháp
+            </span>
+          </div>
+        }
+      >
+        <div className="py-4 space-y-3 text-xs text-slate-600">
+          <p>
+            Bạn có chắc chắn muốn xóa vĩnh viễn giải đấu bản nháp này?
+          </p>
+          <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200 text-rose-900">
+            <strong className="text-sm block mb-0.5">
+              {selectedTourneyForDelete?.name}
+            </strong>
+            <span className="text-[11px] text-rose-700">Trạng thái: Bản nháp (DRAFT)</span>
+          </div>
+          <p className="text-slate-500 text-[11px]">
+            Hành động này không thể hoàn tác sau khi xác nhận.
+          </p>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="md"
+              disabled={deleteLoading}
+              onClick={() => {
+                setDeleteConfirmModalVisible(false);
+                setSelectedTourneyForDelete(null);
+              }}
+              className="!rounded-xl !text-xs"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={deleteLoading}
+              onClick={handleConfirmDeleteTournament}
+              className="!bg-rose-600 hover:!bg-rose-700 !border-rose-600 !rounded-xl !font-bold px-5 !text-xs text-white"
+            >
+              Đồng Ý Xóa
             </Button>
           </div>
         </div>

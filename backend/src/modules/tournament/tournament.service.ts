@@ -357,4 +357,24 @@ export class TournamentService {
     }
     return tournament;
   }
+
+  /**
+   * Xóa giải đấu (Chỉ cho phép xóa khi ở trạng thái DRAFT)
+   */
+  async deleteTournament(id: string): Promise<void> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new Error("Mã giải đấu không hợp lệ");
+    }
+
+    const tournament = await Tournament.findById(id);
+    if (!tournament) {
+      throw new Error("Không tìm thấy giải đấu");
+    }
+
+    if (tournament.status !== TournamentStatus.DRAFT) {
+      throw new Error("Chỉ có thể xóa giải đấu khi ở trạng thái Bản nháp (DRAFT)");
+    }
+
+    await Tournament.findByIdAndDelete(id);
+  }
 }

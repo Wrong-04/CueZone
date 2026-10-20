@@ -159,4 +159,21 @@ router.patch(
   }
 );
 
+// Xóa giải đấu DRAFT (Cần quyền Admin/Staff)
+router.delete(
+  "/:id",
+  requirePosStaff,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await tournamentService.deleteTournament(req.params.id);
+      res.json({
+        success: true,
+        message: "Xóa giải đấu bản nháp thành công",
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

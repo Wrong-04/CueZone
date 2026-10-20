@@ -188,8 +188,32 @@ async function runTests() {
     assert.strictEqual(resGet.data.data.name, "TEST_CueZone_Championship_Q4");
     console.log("   ✓ Lấy chi tiết giải đấu thành công");
 
-    // 7. SCRUM-152 Test: Chuyển trạng thái sang REGISTRATION_OPEN
-    console.log("🧪 Test 6: Chuyển trạng thái vòng đời sang REGISTRATION_OPEN...");
+    // 7. SCRUM-153 Test: Cập nhật giải đấu Master (PUT)
+    console.log("🧪 Test 6: Cập nhật thông tin giải đấu Master...");
+    const resUpdate = await request(
+      {
+        hostname: "localhost",
+        port: TEST_PORT,
+        path: `/api/v1/tournaments/${createdTourney._id}`,
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+      },
+      {
+        name: "TEST_CueZone_Championship_Q4_Updated",
+        registrationFee: 250000,
+        raceToScore: 6,
+      }
+    );
+    assert(resUpdate.data.success === true, "Phải cập nhật được giải đấu");
+    assert.strictEqual(resUpdate.data.data.name, "TEST_CueZone_Championship_Q4_Updated");
+    assert.strictEqual(resUpdate.data.data.raceToScore, 6);
+    console.log("   ✓ Cập nhật giải đấu thành công");
+
+    // 8. SCRUM-152 Test: Chuyển trạng thái sang REGISTRATION_OPEN
+    console.log("🧪 Test 7: Chuyển trạng thái vòng đời sang REGISTRATION_OPEN...");
     const resChangeStatus = await request(
       {
         hostname: "localhost",
@@ -214,7 +238,7 @@ async function runTests() {
     );
     console.log("   ✓ Đã chuyển trạng thái sang REGISTRATION_OPEN thành công");
 
-    // 8. Dọn dẹp dữ liệu test
+    // 9. Dọn dẹp dữ liệu test
     await Tournament.findByIdAndDelete(createdTourney._id);
     console.log("✅ Dọn dẹp dữ liệu test hoàn tất");
 

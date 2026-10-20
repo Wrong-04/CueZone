@@ -122,6 +122,11 @@ export const tournamentService = {
     return data.data!;
   },
 
+  async deleteTournament(id: string): Promise<void> {
+    const { data } = await api.delete<ApiResponse>(`/tournaments/${id}`);
+    if (!data.success) throw new Error(data.message || "Không thể xóa giải đấu");
+  },
+
   async register(id: string, paymentMethod: "wallet" | "counter"): Promise<TournamentItem> {
     const { data } = await api.post<ApiResponse<TournamentItem>>(`/tournaments/${id}/register`, { paymentMethod });
     if (!data.success || !data.data) throw new Error(data.message || "Không thể ghi danh giải đấu");
