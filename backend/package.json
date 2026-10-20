@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "node seed.js",
-    "check:pos": "node scripts/check-pos.cjs"
+    "check:pos": "node scripts/check-pos.cjs",
+    "check:tournament": "node scripts/check-tournament.cjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",

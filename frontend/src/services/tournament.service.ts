@@ -1,0 +1,98 @@
+import api from "./api";
+import { type ApiResponse } from "../types";
+
+export type TournamentStatus =
+  | "draft"
+  | "registration_open"
+  | "registration_closed"
+  | "bracket_generated"
+  | "in_progress"
+  | "completed";
+
+export interface TournamentPlayer {
+  user: string;
+  name: string;
+  avatar?: string;
+  phone?: string;
+  seed?: number;
+  feePaid: boolean;
+  registeredAt: string;
+}
+
+export interface TournamentItem {
+  _id: string;
+  id?: string;
+  name: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  registrationDeadline: string;
+  maxPlayers: number;
+  registrationFee: number;
+  prizePool?: string;
+  firstPrize?: string;
+  secondPrize?: string;
+  thirdPrize?: string;
+  status: TournamentStatus;
+  rules?: string;
+  format: string;
+  raceToScore: number;
+  assignedTables?: string[];
+  players?: TournamentPlayer[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateTournamentPayload {
+  name: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  registrationDeadline: string;
+  maxPlayers: number;
+  registrationFee: number;
+  prizePool?: string;
+  firstPrize?: string;
+  secondPrize?: string;
+  thirdPrize?: string;
+  rules?: string;
+  format?: string;
+  raceToScore?: number;
+  assignedTables?: string[] | string;
+}
+
+export interface UpdateTournamentPayload extends Partial<CreateTournamentPayload> {}
+
+export const tournamentService = {
+  async getTournaments(params?: { status?: string; search?: string; page?: number; limit?: number }) {
+    const { data } = await api.get<ApiResponse<{ items: TournamentItem[]; total: number }>>("/tournaments", {
+      params,
+    });
+    if (!data.success) throw new Error(data.message || "Không thể tải danh sách giải đấu");
+    return data.data || { items: [], total: 0 };
+  },
+
+  async getTournamentById(id: string): Promise<TournamentItem> {
+    const { data } = await api.get<ApiResponse<TournamentItem>>(`/tournaments/${id}`);
+    if (!data.success) throw new Error(data.message || "Không thể tải chi tiết giải đấu");
+    return data.data!;
+  },
+
+  async createTournament(payload: CreateTournamentPayload): Promise<TournamentItem> {
+    const { data } = await api.post<ApiResponse<TournamentItem>>("/tournaments", payload);
+    if (!data.success) throw new Error(data.message || "Không thể tạo giải đấu");
+    return data.data!;
+  },
+
+  async updateTournament(id: string, payload: UpdateTournamentPayload): Promise<TournamentItem> {
+    const { data } = await api.put<ApiResponse<TournamentItem>>(`/tournaments/${id}`, payload);
+    if (!data.success) throw new Error(data.message || "Không thể cập nhật giải đấu");
+    return data.data!;
+  },
+
+  async changeStatus(id: string, status: TournamentStatus): Promise<TournamentItem> {
+    const { data } = await api.patch<ApiResponse<TournamentItem>>(`/tournaments/${id}/status`, { status });
+    if (!data.success) throw new Error(data.message || "Không thể thay đổi trạng thái giải đấu");
+    return data.data!;
+  },
+};

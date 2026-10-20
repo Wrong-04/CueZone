@@ -299,6 +299,58 @@ const LoginPage: React.FC = () => {
               </Button>
             </Form>
 
+            {/* Gợi ý tài khoản demo để đăng nhập nhanh */}
+            <div className="mt-4 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600">
+              <div className="font-semibold text-slate-800 mb-1 flex items-center justify-between">
+                <span>Tài khoản trải nghiệm hệ thống:</span>
+                <span className="text-[10px] text-emerald-600 font-medium">Bấm để điền nhanh</span>
+              </div>
+              {activeTab === "customer" ? (
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-slate-500">Hội viên: <strong className="text-slate-700">customer1@gmail.com</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("customer1@gmail.com");
+                      setPassword("admin123");
+                    }}
+                    className="text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer"
+                  >
+                    Điền
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between py-0.5">
+                    <span className="text-slate-500">Admin: <strong className="text-slate-700">admin@cuezone.com</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail("admin@cuezone.com");
+                        setPassword("password123");
+                      }}
+                      className="text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer"
+                    >
+                      Điền (Admin)
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between py-0.5">
+                    <span className="text-slate-500">Thu ngân: <strong className="text-slate-700">staff1@cuezone.com</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail("staff1@cuezone.com");
+                        setPassword("admin123");
+                      }}
+                      className="text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer"
+                    >
+                      Điền (Staff)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* DÀNH CHO KHÁCH VÃNG LAI: KHÔNG CẦN TÀI KHOẢN VẪN TRA CỨU ĐƯỢC BÀN */}
             {activeTab === "customer" && (
               <div className="mt-4 pt-3 border-t border-slate-200">

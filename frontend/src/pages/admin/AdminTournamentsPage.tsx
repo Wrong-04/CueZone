@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   TrophyOutlined,
   ThunderboltOutlined,
@@ -11,6 +11,8 @@ import {
   FilterOutlined,
   CalendarOutlined,
   FireOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -23,8 +25,14 @@ import {
   Select,
   SegmentedPillList,
   Card,
+  Spin,
   type TableColumnsType,
 } from "../../shared/ui";
+import {
+  tournamentService,
+  type TournamentItem,
+  type TournamentStatus,
+} from "../../services/tournament.service";
 import {
   INITIAL_TOURNAMENT_MATCH,
   type TournamentMatchScore,
@@ -33,25 +41,6 @@ import {
 const { Title, Text } = Typography;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface TournamentAdminItem {
-  id: string;
-  title: string;
-  status: "open" | "in_progress" | "upcoming" | "finished";
-  statusText: string;
-  format: string;
-  raceTo: number;
-  feeAmount: number;
-  feeFormatted: string;
-  prizePool: string;
-  firstPrize: string;
-  secondPrize: string;
-  thirdPrize: string;
-  date: string;
-  registeredCount: number;
-  maxParticipants: number;
-  assignedTables: string[];
-}
 
 export interface PlayerRankItem {
   id: string;
@@ -65,83 +54,6 @@ export interface PlayerRankItem {
   tournamentsWon: number;
   status: "active" | "inactive";
 }
-
-// ── Seed Mock Data ────────────────────────────────────────────────────────────
-
-const INITIAL_TOURNAMENTS: TournamentAdminItem[] = [
-  {
-    id: "tourney-1",
-    title: "CueZone Bank Pool Open Championship Q2/2026",
-    status: "in_progress",
-    statusText: "Đang Diễn Ra (Vòng Bán Kết)",
-    format: "Loại trực tiếp (Single Elimination) • Race to 5",
-    raceTo: 5,
-    feeAmount: 200000,
-    feeFormatted: "200.000đ",
-    prizePool: "15.000.000đ + Cúp Vàng",
-    firstPrize: "8.000.000đ + Cúp",
-    secondPrize: "4.000.000đ + HCB",
-    thirdPrize: "1.500.000đ x 2",
-    date: "15/10/2026 - 18/10/2026",
-    registeredCount: 32,
-    maxParticipants: 32,
-    assignedTables: ["Bàn Match 13 (VAR)", "Bàn Match 14 (VAR)"],
-  },
-  {
-    id: "tourney-2",
-    title: "Bank Pool Weekend Challenge - Tranh Tài Tuần #43",
-    status: "open",
-    statusText: "Đang Mở Đăng Ký",
-    format: "Vòng tròn tính điểm & Knock-out • Race to 4",
-    raceTo: 4,
-    feeAmount: 100000,
-    feeFormatted: "100.000đ",
-    prizePool: "5.000.000đ + ELO CLB",
-    firstPrize: "2.500.000đ + HCV",
-    secondPrize: "1.500.000đ + HCB",
-    thirdPrize: "500.000đ (Đồng hạng 3)",
-    date: "Chủ Nhật hàng tuần (14:00 - 19:00)",
-    registeredCount: 12,
-    maxParticipants: 16,
-    assignedTables: ["Bàn VIP 10", "Bàn VIP 11"],
-  },
-  {
-    id: "tourney-3",
-    title: "Giải Bida Bank Pool Trẻ CueZone Junior Cup Q3",
-    status: "upcoming",
-    statusText: "Sắp Khởi Tranh",
-    format: "Loại trực tiếp • Race to 3",
-    raceTo: 3,
-    feeAmount: 50000,
-    feeFormatted: "50.000đ",
-    prizePool: "3.000.000đ + Cơ Bida Custom",
-    firstPrize: "1.500.000đ + 01 Cơ Bida CueZone",
-    secondPrize: "1.000.000đ + Voucher",
-    thirdPrize: "500.000đ",
-    date: "05/11/2026 - 06/11/2026",
-    registeredCount: 8,
-    maxParticipants: 16,
-    assignedTables: ["Bàn 01", "Bàn 02"],
-  },
-  {
-    id: "tourney-4",
-    title: "CueZone Master Invitational Season 1",
-    status: "finished",
-    statusText: "Đã Bế Mạc & Trao Cúp",
-    format: "Vòng chung kết 8 cơ thủ xuất sắc • Race to 7",
-    raceTo: 7,
-    feeAmount: 0,
-    feeFormatted: "Miễn phí (Thư mời)",
-    prizePool: "20.000.000đ",
-    firstPrize: "Quán Quân: Nguyễn Hoàng Nam (10.000.000đ)",
-    secondPrize: "Á Quân: Lê Quốc Bảo (6.000.000đ)",
-    thirdPrize: "Hạng Ba: Trần Đình Trọng (4.000.000đ)",
-    date: "10/09/2026 - 12/09/2026",
-    registeredCount: 8,
-    maxParticipants: 8,
-    assignedTables: ["Bàn Match 13 (VAR)"],
-  },
-];
 
 const SECOND_MATCH: TournamentMatchScore = {
   matchId: "MATCH-BP-02",
@@ -254,26 +166,34 @@ export const AdminTournamentsPage: React.FC = () => {
   // ── 1. ACTIVE MAIN TAB ────────────────────────────────────────────────────
   const [activeMainTab, setActiveMainTab] = useState<string>("tournaments");
 
-  // ── 2. TOURNAMENTS STATE ──────────────────────────────────────────────────
-  const [tournamentsList, setTournamentsList] = useState<TournamentAdminItem[]>(() => {
-    const saved = localStorage.getItem("cuezone_admin_tournaments");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
+  // ── 2. TOURNAMENTS STATE (Live API with Local Storage Cache) ─────────────
+  const [apiTournaments, setApiTournaments] = useState<TournamentItem[]>([]);
+  const [loadingTournaments, setLoadingTournaments] = useState<boolean>(false);
+
+  const fetchTournaments = useCallback(async () => {
+    setLoadingTournaments(true);
+    try {
+      const data = await tournamentService.getTournaments();
+      setApiTournaments(data.items || []);
+    } catch (err: any) {
+      console.warn("Chưa thể đồng bộ giải đấu từ server:", err.message);
+    } finally {
+      setLoadingTournaments(false);
     }
-    return INITIAL_TOURNAMENTS;
-  });
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem("cuezone_admin_tournaments", JSON.stringify(tournamentsList));
-  }, [tournamentsList]);
+    fetchTournaments();
+  }, [fetchTournaments]);
 
   // Tournament Filters
   const [tourneyFilter, setTourneyFilter] = useState<string>("all");
   const [tourneySearchQuery, setTourneySearchQuery] = useState<string>("");
+
+  // Modal xác nhận chuyển trạng thái vòng đời (DRAFT -> REGISTRATION_OPEN)
+  const [statusConfirmModalVisible, setStatusConfirmModalVisible] = useState<boolean>(false);
+  const [selectedTourneyForStatusChange, setSelectedTourneyForStatusChange] = useState<TournamentItem | null>(null);
+  const [statusChangeLoading, setStatusChangeLoading] = useState<boolean>(false);
 
   // ── 3. LIVE REFEREE SCORING STATE ─────────────────────────────────────────
   const [currentMatchId, setCurrentMatchId] = useState<string>("MATCH-BP-01");
@@ -447,6 +367,7 @@ export const AdminTournamentsPage: React.FC = () => {
   // ── 4. MODALS ─────────────────────────────────────────────────────────────
   // Modal: Create Tournament
   const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
+  const [createLoading, setCreateLoading] = useState<boolean>(false);
   const [newTourneyForm, setNewTourneyForm] = useState({
     title: "",
     raceTo: 5,
@@ -455,47 +376,96 @@ export const AdminTournamentsPage: React.FC = () => {
     firstPrize: "5.000.000đ",
     secondPrize: "3.000.000đ",
     thirdPrize: "1.000.000đ x 2",
-    date: "25/10/2026 - 28/10/2026",
+    startDate: "2026-10-25T08:00",
+    endDate: "2026-10-28T22:00",
+    registrationDeadline: "2026-10-24T23:59",
     maxParticipants: 16,
     assignedTables: "Bàn Match 13, Bàn Match 14",
+    description: "Giải đấu Bank Pool chuẩn WPA/BCA tranh tài cúp vàng CueZone",
   });
 
-  const handleSaveNewTournament = () => {
+  const handleSaveNewTournament = async () => {
     if (!newTourneyForm.title.trim()) {
       message.warning("Vui lòng nhập tên giải đấu!");
       return;
     }
 
-    const created: TournamentAdminItem = {
-      id: `tourney-${Date.now()}`,
-      title: newTourneyForm.title.trim(),
-      status: "open",
-      statusText: "Đang Mở Đăng Ký",
-      format: `Loại trực tiếp • Race to ${newTourneyForm.raceTo}`,
-      raceTo: Number(newTourneyForm.raceTo) || 5,
-      feeAmount: Number(newTourneyForm.feeAmount) || 0,
-      feeFormatted: `${Number(newTourneyForm.feeAmount).toLocaleString("vi-VN")}đ`,
-      prizePool: newTourneyForm.prizePool,
-      firstPrize: newTourneyForm.firstPrize,
-      secondPrize: newTourneyForm.secondPrize,
-      thirdPrize: newTourneyForm.thirdPrize,
-      date: newTourneyForm.date,
-      registeredCount: 0,
-      maxParticipants: Number(newTourneyForm.maxParticipants) || 16,
-      assignedTables: newTourneyForm.assignedTables.split(",").map((s) => s.trim()),
-    };
+    if (!newTourneyForm.startDate || !newTourneyForm.endDate || !newTourneyForm.registrationDeadline) {
+      message.warning("Vui lòng nhập đầy đủ ngày thi đấu và hạn đăng ký!");
+      return;
+    }
 
-    setTournamentsList((prev) => [created, ...prev]);
-    message.success(`Đã tạo thành công giải đấu "${created.title}"!`);
-    setCreateModalVisible(false);
+    const regDate = new Date(newTourneyForm.registrationDeadline);
+    const sDate = new Date(newTourneyForm.startDate);
+    const eDate = new Date(newTourneyForm.endDate);
+
+    if (regDate > sDate) {
+      message.error("Hạn đăng ký phải trước hoặc bằng ngày bắt đầu thi đấu!");
+      return;
+    }
+
+    if (eDate < sDate) {
+      message.error("Ngày kết thúc thi đấu phải sau hoặc bằng ngày bắt đầu!");
+      return;
+    }
+
+    setCreateLoading(true);
+    try {
+      await tournamentService.createTournament({
+        name: newTourneyForm.title.trim(),
+        description: newTourneyForm.description.trim(),
+        startDate: sDate.toISOString(),
+        endDate: eDate.toISOString(),
+        registrationDeadline: regDate.toISOString(),
+        maxPlayers: Number(newTourneyForm.maxParticipants) || 16,
+        registrationFee: Number(newTourneyForm.feeAmount) || 0,
+        prizePool: newTourneyForm.prizePool,
+        firstPrize: newTourneyForm.firstPrize,
+        secondPrize: newTourneyForm.secondPrize,
+        thirdPrize: newTourneyForm.thirdPrize,
+        raceToScore: Number(newTourneyForm.raceTo) || 5,
+        assignedTables: newTourneyForm.assignedTables,
+      });
+
+      message.success(`Đã tạo thành công giải đấu "${newTourneyForm.title}" ở trạng thái Bản Nháp (DRAFT)!`);
+      setCreateModalVisible(false);
+      fetchTournaments();
+    } catch (err: any) {
+      message.error(err?.message || "Tạo giải đấu thất bại, vui lòng kiểm tra lại thông tin!");
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  // Xử lý xác nhận chuyển trạng thái sang REGISTRATION_OPEN
+  const handleConfirmOpenRegistration = async () => {
+    if (!selectedTourneyForStatusChange) return;
+
+    setStatusChangeLoading(true);
+    try {
+      await tournamentService.changeStatus(
+        selectedTourneyForStatusChange._id,
+        "registration_open"
+      );
+      message.success(
+        `Đã mở đăng ký chính thức cho giải đấu "${selectedTourneyForStatusChange.name}"!`
+      );
+      setStatusConfirmModalVisible(false);
+      setSelectedTourneyForStatusChange(null);
+      fetchTournaments();
+    } catch (err: any) {
+      message.error(err?.message || "Không thể chuyển trạng thái giải đấu!");
+    } finally {
+      setStatusChangeLoading(false);
+    }
   };
 
   // Modal: Participants Approval
   const [participantsModalVisible, setParticipantsModalVisible] = useState<boolean>(false);
   const [selectedTourneyForParticipants, setSelectedTourneyForParticipants] =
-    useState<TournamentAdminItem | null>(null);
+    useState<TournamentItem | null>(null);
 
-  const handleOpenParticipants = (tourney: TournamentAdminItem) => {
+  const handleOpenParticipants = (tourney: TournamentItem) => {
     setSelectedTourneyForParticipants(tourney);
     setParticipantsModalVisible(true);
   };
@@ -506,37 +476,37 @@ export const AdminTournamentsPage: React.FC = () => {
 
   // ── 5. FILTERED TOURNAMENTS ───────────────────────────────────────────────
   const filteredTournaments = useMemo(() => {
-    return tournamentsList.filter((item) => {
+    return apiTournaments.filter((item) => {
       const matchStatus = tourneyFilter === "all" || item.status === tourneyFilter;
       const q = tourneySearchQuery.toLowerCase().trim();
       const matchQuery =
         !q ||
-        item.title.toLowerCase().includes(q) ||
-        item.format.toLowerCase().includes(q);
+        item.name.toLowerCase().includes(q) ||
+        (item.format && item.format.toLowerCase().includes(q));
       return matchStatus && matchQuery;
     });
-  }, [tournamentsList, tourneyFilter, tourneySearchQuery]);
+  }, [apiTournaments, tourneyFilter, tourneySearchQuery]);
 
   // Overall Metrics
   const metrics = useMemo(() => {
-    const totalTourneys = tournamentsList.length;
-    const activeCount = tournamentsList.filter(
-      (t) => t.status === "open" || t.status === "in_progress"
+    const totalTourneys = apiTournaments.length;
+    const activeCount = apiTournaments.filter(
+      (t) => t.status === "registration_open" || t.status === "in_progress"
     ).length;
-    const totalRegistered = tournamentsList.reduce(
-      (acc, cur) => acc + cur.registeredCount,
+    const totalRegistered = apiTournaments.reduce(
+      (acc, cur) => acc + (cur.players?.length || 0),
       0
     );
     const liveMatches = 2;
     return { totalTourneys, activeCount, totalRegistered, liveMatches };
-  }, [tournamentsList]);
+  }, [apiTournaments]);
 
   // Main Tabs navigation pills
   const mainTabPills = [
     {
       key: "tournaments",
       label: "Danh Sách Giải Đấu",
-      badge: tournamentsList.length,
+      badge: apiTournaments.length,
     },
     {
       key: "referee_live",
@@ -816,111 +786,154 @@ export const AdminTournamentsPage: React.FC = () => {
           </div>
 
           {/* Tournament Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {filteredTournaments.map((tourney) => {
-              const percent = Math.round(
-                (tourney.registeredCount / tourney.maxParticipants) * 100
-              );
-              return (
-                <Card
-                  key={tourney.id}
-                  className="!rounded-3xl border border-slate-200 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all p-5 flex flex-col justify-between bg-white"
-                >
-                  <div>
-                    {/* Top Row: Status badge & Prize */}
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <Tag
-                        color={
-                          tourney.status === "in_progress"
-                            ? "error"
-                            : tourney.status === "open"
-                            ? "green"
-                            : tourney.status === "upcoming"
-                            ? "gold"
-                            : "default"
-                        }
-                        className="!rounded-full !px-3 !py-0.5 !text-xs !font-black inline-flex items-center gap-1"
-                      >
-                        {tourney.status === "in_progress" && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping mr-1" />}
-                        {tourney.statusText}
-                      </Tag>
+          {loadingTournaments ? (
+            <div className="py-20 flex flex-col items-center justify-center">
+              <Spin size="large" />
+              <span className="text-xs text-slate-500 mt-3">Đang tải danh sách giải đấu từ server...</span>
+            </div>
+          ) : filteredTournaments.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center">
+              <TrophyOutlined className="text-4xl text-slate-300 mb-3" />
+              <h4 className="text-slate-800 font-bold text-sm mb-1">Chưa có giải đấu nào phù hợp</h4>
+              <p className="text-slate-500 text-xs mb-4">Bạn có thể tạo giải đấu mới bằng nút "Tạo Giải Đấu Mới" phía trên.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {filteredTournaments.map((tourney) => {
+                const registeredCount = tourney.players?.length || 0;
+                const percent = Math.round((registeredCount / tourney.maxPlayers) * 100);
 
-                      <span className="font-extrabold text-emerald-700 text-sm">
-                        {tourney.prizePool}
-                      </span>
-                    </div>
+                const getStatusTag = (status: TournamentStatus) => {
+                  switch (status) {
+                    case "draft":
+                      return <Tag color="default" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">Bản Nháp (DRAFT)</Tag>;
+                    case "registration_open":
+                      return <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1" />Đang Mở Đăng Ký</Tag>;
+                    case "in_progress":
+                      return <Tag color="error" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 animate-ping mr-1" />Đang Diễn Ra</Tag>;
+                    case "registration_closed":
+                      return <Tag color="warning" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">Đã Đóng Đăng Ký</Tag>;
+                    case "completed":
+                      return <Tag color="purple" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">Đã Hoàn Thành</Tag>;
+                    default:
+                      return <Tag color="default" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">{status}</Tag>;
+                  }
+                };
 
-                    {/* Title */}
-                    <h3 className="font-black text-slate-900 text-lg mb-2 leading-snug">
-                      {tourney.title}
-                    </h3>
+                const formatDateRange = (start?: string, end?: string) => {
+                  if (!start) return "Đang cập nhật";
+                  const s = new Date(start).toLocaleDateString("vi-VN");
+                  const e = end ? new Date(end).toLocaleDateString("vi-VN") : "";
+                  return e ? `${s} - ${e}` : s;
+                };
 
-                    {/* Meta info */}
-                    <div className="space-y-1.5 text-xs text-slate-600 mb-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Thể thức thi đấu:</span>
-                        <strong className="text-slate-800">{tourney.format}</strong>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Thời gian tổ chức:</span>
-                        <strong className="text-slate-800">{tourney.date}</strong>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Lệ phí tham gia:</span>
-                        <strong className="text-emerald-700">{tourney.feeFormatted}</strong>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Bàn đấu chỉ định:</span>
-                        <strong className="text-slate-800">{tourney.assignedTables.join(", ")}</strong>
-                      </div>
-                    </div>
-
-                    {/* Registration Progress */}
-                    <div className="space-y-1 mb-5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-medium">Số lượng đăng ký:</span>
-                        <span className="font-bold text-slate-900">
-                          {tourney.registeredCount} / {tourney.maxParticipants} cơ thủ ({percent}%)
+                return (
+                  <Card
+                    key={tourney._id}
+                    className="!rounded-3xl border border-slate-200 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all p-5 flex flex-col justify-between bg-white"
+                  >
+                    <div>
+                      {/* Top Row: Status badge & Prize */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        {getStatusTag(tourney.status)}
+                        <span className="font-extrabold text-emerald-700 text-sm">
+                          {tourney.prizePool || "Cúp Vàng CLB"}
                         </span>
                       </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all"
-                          style={{ width: `${percent}%` }}
-                        />
+
+                      {/* Title */}
+                      <h3 className="font-black text-slate-900 text-lg mb-2 leading-snug">
+                        {tourney.name}
+                      </h3>
+
+                      {/* Meta info */}
+                      <div className="space-y-1.5 text-xs text-slate-600 mb-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Thể thức thi đấu:</span>
+                          <strong className="text-slate-800">{tourney.format || "Loại trực tiếp"} • Race to {tourney.raceToScore || 5}</strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Thời gian tổ chức:</span>
+                          <strong className="text-slate-800">{formatDateRange(tourney.startDate, tourney.endDate)}</strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Hạn đăng ký:</span>
+                          <strong className="text-slate-800">{tourney.registrationDeadline ? new Date(tourney.registrationDeadline).toLocaleDateString("vi-VN") : "---"}</strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Lệ phí tham gia:</span>
+                          <strong className="text-emerald-700">{Number(tourney.registrationFee).toLocaleString("vi-VN")}đ</strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">Bàn đấu chỉ định:</span>
+                          <strong className="text-slate-800">{tourney.assignedTables && tourney.assignedTables.length > 0 ? tourney.assignedTables.join(", ") : "Bàn CLB chỉ định"}</strong>
+                        </div>
+                      </div>
+
+                      {/* Registration Progress */}
+                      <div className="space-y-1 mb-5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Số lượng đăng ký:</span>
+                          <span className="font-bold text-slate-900">
+                            {registeredCount} / {tourney.maxPlayers} cơ thủ ({percent}%)
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(100, percent)}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenParticipants(tourney)}
-                      leftIcon={<TeamOutlined />}
-                      className="!rounded-xl !text-xs !h-9 font-bold !text-slate-700"
-                    >
-                      Duyệt Cơ Thủ ({tourney.registeredCount})
-                    </Button>
+                    {/* Actions */}
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                      {tourney.status === "draft" && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTourneyForStatusChange(tourney);
+                            setStatusConfirmModalVisible(true);
+                          }}
+                          leftIcon={<CheckCircleOutlined />}
+                          className="w-full !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !text-xs !h-9 font-bold"
+                        >
+                          Mở Đăng Ký Giải Đấu (REGISTRATION_OPEN)
+                        </Button>
+                      )}
 
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        setActiveMainTab("referee_live");
-                        message.info(`Đang chuyển sang Bảng Điểm Trọng Tài cho giải "${tourney.title}"`);
-                      }}
-                      leftIcon={<ThunderboltOutlined />}
-                      className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !text-xs !h-9 font-bold"
-                    >
-                      Chấm Điểm Trận Đấu
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenParticipants(tourney)}
+                          leftIcon={<TeamOutlined />}
+                          className="!rounded-xl !text-xs !h-9 font-bold !text-slate-700"
+                        >
+                          Duyệt Cơ Thủ ({registeredCount})
+                        </Button>
+
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            setActiveMainTab("referee_live");
+                            message.info(`Đang chuyển sang Bảng Điểm Trọng Tài cho giải "${tourney.name}"`);
+                          }}
+                          leftIcon={<ThunderboltOutlined />}
+                          className="!bg-slate-900 hover:!bg-slate-800 !border-slate-900 !rounded-xl !text-xs !h-9 font-bold text-white"
+                        >
+                          Chấm Điểm Trận Đấu
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1509,7 +1522,7 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── MODAL: TẠO GIẢI ĐẤU MỚI ────────────────────────────────────────── */}
+      {/* ── MODAL: TẠO GIẢI ĐẤU MỚI (SCRUM-151) ────────────────────────── */}
       <Modal
         open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
@@ -1522,10 +1535,10 @@ export const AdminTournamentsPage: React.FC = () => {
             </div>
             <div>
               <span className="font-black text-slate-900 text-base block leading-tight">
-                Thiết Lập Giải Đấu Bida Mới
+                Thiết Lập Giải Đấu Bank Pool Mới (DRAFT)
               </span>
               <span className="text-xs text-slate-500 font-normal">
-                Tạo giải đấu Bank Pool, quy định thể thức Race to X và phân bổ bàn đấu
+                Tạo giải đấu Bank Pool, thời gian, hạn đăng ký, lệ phí và quy mô cơ thủ
               </span>
             </div>
           </div>
@@ -1537,7 +1550,7 @@ export const AdminTournamentsPage: React.FC = () => {
               Tên giải đấu chính thức: <span className="text-rose-500">*</span>
             </label>
             <Input
-              placeholder="Ví dụ: CueZone Bank Pool Championship Q3/2026"
+              placeholder="Ví dụ: CueZone Bank Pool Championship Q4/2026"
               value={newTourneyForm.title}
               onChange={(e) =>
                 setNewTourneyForm((prev) => ({ ...prev, title: e.target.value }))
@@ -1547,6 +1560,75 @@ export const AdminTournamentsPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Hạn chót đăng ký: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                type="datetime-local"
+                value={newTourneyForm.registrationDeadline}
+                onChange={(e) =>
+                  setNewTourneyForm((prev) => ({
+                    ...prev,
+                    registrationDeadline: e.target.value,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Số lượng cơ thủ tối đa (Quy mô):
+              </label>
+              <Select
+                value={newTourneyForm.maxParticipants}
+                onChange={(val) =>
+                  setNewTourneyForm((prev) => ({ ...prev, maxParticipants: val }))
+                }
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={[
+                  { value: 8, label: "8 Cơ thủ (Vòng tứ kết)" },
+                  { value: 16, label: "16 Cơ thủ (Chuẩn CLB)" },
+                  { value: 32, label: "32 Cơ thủ (Giải mở rộng)" },
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ngày bắt đầu thi đấu: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                type="datetime-local"
+                value={newTourneyForm.startDate}
+                onChange={(e) =>
+                  setNewTourneyForm((prev) => ({
+                    ...prev,
+                    startDate: e.target.value,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ngày bế mạc (kết thúc): <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                type="datetime-local"
+                value={newTourneyForm.endDate}
+                onChange={(e) =>
+                  setNewTourneyForm((prev) => ({
+                    ...prev,
+                    endDate: e.target.value,
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Thể thức Race to (Số ván chạm):
@@ -1566,26 +1648,7 @@ export const AdminTournamentsPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Số lượng cơ thủ tối đa:
-              </label>
-              <Select
-                value={newTourneyForm.maxParticipants}
-                onChange={(val) =>
-                  setNewTourneyForm((prev) => ({ ...prev, maxParticipants: val }))
-                }
-                className="!w-full !rounded-xl !text-xs !h-10"
-                options={[
-                  { value: 8, label: "8 Cơ thủ (Vòng tứ kết)" },
-                  { value: 16, label: "16 Cơ thủ (Chuẩn CLB)" },
-                  { value: 32, label: "32 Cơ thủ (Giải mở rộng)" },
-                  { value: 64, label: "64 Cơ thủ (Giải Pro Quốc gia)" },
-                ]}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Lệ phí đăng ký (VNĐ):
+                Lệ phí tham gia (VNĐ):
               </label>
               <Input
                 type="number"
@@ -1600,9 +1663,9 @@ export const AdminTournamentsPage: React.FC = () => {
               />
             </div>
 
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Tổng quỹ giải thưởng:
+                Tổng quỹ giải thưởng & Danh hiệu:
               </label>
               <Input
                 value={newTourneyForm.prizePool}
@@ -1643,10 +1706,73 @@ export const AdminTournamentsPage: React.FC = () => {
             <Button
               variant="primary"
               size="md"
+              loading={createLoading}
               onClick={handleSaveNewTournament}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
             >
-              Tạo & Mở Đăng Ký
+              Lưu Bản Nháp (DRAFT)
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: XÁC NHẬN CHUYỂN TRẠNG THÁI MỞ ĐĂNG KÝ (SCRUM-155) ─────── */}
+      <Modal
+        open={statusConfirmModalVisible}
+        onCancel={() => {
+          if (!statusChangeLoading) {
+            setStatusConfirmModalVisible(false);
+            setSelectedTourneyForStatusChange(null);
+          }
+        }}
+        footer={null}
+        width={480}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <ExclamationCircleOutlined className="text-amber-500 text-lg" />
+            <span className="font-black text-slate-900 text-base">
+              Xác Nhận Mở Đăng Ký Giải Đấu
+            </span>
+          </div>
+        }
+      >
+        <div className="py-4 space-y-3 text-xs text-slate-600">
+          <p className="leading-relaxed">
+            Bạn có chắc chắn muốn mở cổng đăng ký trực tuyến cho giải đấu:
+          </p>
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-800">
+            <strong className="text-sm text-slate-900 block mb-1">
+              {selectedTourneyForStatusChange?.name}
+            </strong>
+            <div>Quy mô: <strong>{selectedTourneyForStatusChange?.maxPlayers} cơ thủ</strong></div>
+            <div>Lệ phí: <strong>{Number(selectedTourneyForStatusChange?.registrationFee).toLocaleString("vi-VN")}đ</strong></div>
+            <div>Hạn đăng ký: <strong>{selectedTourneyForStatusChange?.registrationDeadline ? new Date(selectedTourneyForStatusChange.registrationDeadline).toLocaleString("vi-VN") : "---"}</strong></div>
+          </div>
+          <p className="text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[11px]">
+            ⚠️ Lưu ý: Khi đã mở đăng ký (REGISTRATION_OPEN), các hội viên có thể ghi danh và nộp lệ phí. Quy mô cơ thủ sẽ được khóa cố định.
+          </p>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="md"
+              disabled={statusChangeLoading}
+              onClick={() => {
+                setStatusConfirmModalVisible(false);
+                setSelectedTourneyForStatusChange(null);
+              }}
+              className="!rounded-xl !text-xs"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={statusChangeLoading}
+              onClick={handleConfirmOpenRegistration}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-5 !text-xs text-white"
+            >
+              Đồng Ý Mở Đăng Ký
             </Button>
           </div>
         </div>
@@ -1662,7 +1788,7 @@ export const AdminTournamentsPage: React.FC = () => {
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
             <TeamOutlined className="text-emerald-600 text-lg" />
             <span className="font-black text-slate-900 text-base">
-              Danh Sách Đăng Ký: {selectedTourneyForParticipants?.title}
+              Danh Sách Đăng Ký: {selectedTourneyForParticipants?.name}
             </span>
           </div>
         }
@@ -1672,8 +1798,8 @@ export const AdminTournamentsPage: React.FC = () => {
             <span>
               Tổng đã đăng ký:{" "}
               <strong>
-                {selectedTourneyForParticipants?.registeredCount} /{" "}
-                {selectedTourneyForParticipants?.maxParticipants} cơ thủ
+                {selectedTourneyForParticipants?.players?.length || 0} /{" "}
+                {selectedTourneyForParticipants?.maxPlayers} cơ thủ
               </strong>
             </span>
             <Tag color="green" className="!rounded-full !font-bold">
@@ -1682,49 +1808,43 @@ export const AdminTournamentsPage: React.FC = () => {
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {LEADERBOARD_DATA.slice(0, 5).map((player) => (
-              <div
-                key={player.id}
-                className="p-3 rounded-2xl border border-slate-200 flex items-center justify-between bg-white"
-              >
-                <div className="flex items-center gap-3">
-                  <img
-                    src={player.avatar}
-                    alt={player.name}
-                    className="w-9 h-9 rounded-xl object-cover"
-                  />
-                  <div>
-                    <span className="font-bold text-slate-900 block">{player.name}</span>
-                    <span className="text-slate-400 text-[11px]">
-                      {player.tier} • ELO {player.elo}
-                    </span>
+            {(selectedTourneyForParticipants?.players && selectedTourneyForParticipants.players.length > 0) ? (
+              selectedTourneyForParticipants.players.map((p, idx) => (
+                <div
+                  key={idx}
+                  className="p-3 rounded-2xl border border-slate-200 flex items-center justify-between bg-white"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900 block">{p.name}</span>
+                      <span className="text-slate-400 text-[11px]">
+                        {p.phone || "---"} • Ngày ĐK: {new Date(p.registeredAt).toLocaleDateString("vi-VN")}
+                      </span>
+                    </div>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Tag color="green" className="!rounded-full !text-[10px] !font-bold">
-                    ĐÃ ĐÓNG PHÍ
+                  <Tag color={p.feePaid ? "green" : "volcano"}>
+                    {p.feePaid ? "Đã nộp lệ phí" : "Chưa nộp"}
                   </Tag>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="!rounded-xl !text-[11px] !h-7 !border-slate-300"
-                  >
-                    Xếp Bảng
-                  </Button>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-6 text-slate-400">
+                Chưa có cơ thủ nào đăng ký giải đấu này.
               </div>
-            ))}
+            )}
           </div>
 
-          <div className="flex justify-end pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-end pt-3 border-t border-slate-100">
             <Button
-              variant="primary"
-              size="md"
+              variant="outline"
+              size="sm"
               onClick={() => setParticipantsModalVisible(false)}
-              className="!bg-emerald-600 !rounded-xl !text-xs !font-bold"
+              className="!rounded-xl"
             >
-              Đóng Danh Sách
+              Đóng
             </Button>
           </div>
         </div>

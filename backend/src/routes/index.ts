@@ -7,6 +7,7 @@ import pricingRouter from "../modules/pricing/pricing.routes";
 import notificationRouter from "../modules/notification/notification.routes";
 import bookingRouter from "../modules/booking/booking.routes";
 import sessionRouter from "../modules/session/session.routes";
+import tournamentRouter from "../modules/tournament/tournament.routes";
 import { getPublicTables } from "../modules/table/table.controller";
 import { BookingService } from "../modules/booking/booking.service";
 
@@ -35,4 +36,5 @@ protectedRouter.use("/tables", tableRouter);
 protectedRouter.use("/bookings", bookingRouter);
 protectedRouter.use("/pricing", pricingRouter);
 protectedRouter.use("/notifications", notificationRouter);
+protectedRouter.use("/tournaments", tournamentRouter);
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile
