@@ -6,7 +6,7 @@
  * Chạy lệnh: npm run seed (hoặc: node seed.js) từ thư mục backend/
  */
 
-require("dotenv").config();
+require("dotenv").config({ path: require("path").resolve(__dirname, ".env") });
 const dns = require("dns");
 try {
   dns.setServers(["8.8.8.8", "1.1.1.1"]);
@@ -196,8 +196,14 @@ const TournamentPlayerSubSchema = new mongoose.Schema(
     player: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
     },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    name: { type: String },
+    avatar: { type: String },
+    phone: { type: String },
     registrationStatus: {
       type: String,
       enum: ["pending", "confirmed", "cancelled"],
@@ -221,6 +227,10 @@ const TournamentSchema = new mongoose.Schema(
     maxPlayers: { type: Number, default: 16 },
     registrationFee: { type: Number, default: 0 },
     prizePool: { type: String },
+    firstPrize: { type: String },
+    secondPrize: { type: String },
+    thirdPrize: { type: String },
+    assignedTables: [{ type: String }],
     status: {
       type: String,
       enum: [
@@ -1895,19 +1905,62 @@ const tournamentsData = [
   {
     name: "Giải Bank Pool Mở Rộng 2026 (CueZone Cup)",
     description:
-      "Giải đấu phong trào Bank Pool đỉnh cao quy tụ 16 cơ thủ hàng đầu CLB. Thể thức đấu loại trực tiếp Single Elimination Bracket chạm 5 bi băng.",
-    startDate: new Date("2026-10-10"),
-    endDate: new Date("2026-10-25"),
-    registrationDeadline: new Date("2026-10-08"),
+      "Giải đấu phong trào Bank Pool đỉnh cao quy tụ 16 cơ thủ hàng đầu CLB. Thể thức đấu loại trực tiếp Single Elimination chạm 5 bi băng.",
+    startDate: new Date("2026-11-15T08:00:00"),
+    endDate: new Date("2026-11-20T22:00:00"),
+    registrationDeadline: new Date("2026-11-12T23:59:00"),
     maxPlayers: 16,
     registrationFee: 200000,
     prizePool:
-      "Tổng giá trị 10.000.000 VNĐ (Nhất: 5.000.000đ | Nhì: 3.000.000đ | Đồng hạng Ba: 1.000.000đ)",
+      "Tổng giá trị 15.000.000 VNĐ (Nhất: 8.000.000đ + Cúp Vàng | Nhì: 4.000.000đ + HCB | Đồng hạng Ba: 1.500.000đ)",
+    firstPrize: "8.000.000đ + Cúp Vàng",
+    secondPrize: "4.000.000đ + HCB",
+    thirdPrize: "1.500.000đ x 2",
+    assignedTables: ["Bàn Match 13 (VAR)", "Bàn Match 14 (VAR)"],
     status: "registration_open",
     format: "Single Elimination",
     raceToScore: 5,
     rules:
       "Luật Bank Pool WPA quốc tế. Mỗi ván đánh chạm 5 bi băng. Cơ thủ bắt buộc gọi bi mục tiêu và lỗ định đánh.",
+  },
+  {
+    name: "Giải Bank Pool Trẻ CueZone Junior Cup Q4/2026",
+    description:
+      "Giải đấu ươm mầm tài năng trẻ CLB CueZone. Cơ hội cọ xát và giành suất tài trợ thi đấu giải quốc gia.",
+    startDate: new Date("2026-12-05T08:00:00"),
+    endDate: new Date("2026-12-08T20:00:00"),
+    registrationDeadline: new Date("2026-12-02T23:59:00"),
+    maxPlayers: 16,
+    registrationFee: 150000,
+    prizePool:
+      "Tổng giá trị 8.000.000 VNĐ + 01 Cơ Bida Custom CueZone",
+    firstPrize: "4.000.000đ + 01 Cơ Bida Custom",
+    secondPrize: "2.500.000đ + Voucher",
+    thirdPrize: "750.000đ x 2",
+    assignedTables: ["Bàn 01", "Bàn 02"],
+    status: "draft",
+    format: "Single Elimination",
+    raceToScore: 4,
+    rules: "Luật Bank Pool WPA. Chạm 4 bi băng.",
+  },
+  {
+    name: "Bank Pool Weekend Challenge - Tranh Tài Tuần #43",
+    description:
+      "Thử thách cuối tuần tranh tài tính điểm ELO và cúp tuần cho các hội viên hạng Master & Grand Master.",
+    startDate: new Date("2026-10-18T14:00:00"),
+    endDate: new Date("2026-10-22T20:00:00"),
+    registrationDeadline: new Date("2026-10-16T23:59:00"),
+    maxPlayers: 8,
+    registrationFee: 100000,
+    prizePool: "5.000.000đ + ELO CLB",
+    firstPrize: "2.500.000đ + HCV",
+    secondPrize: "1.500.000đ + HCB",
+    thirdPrize: "500.000đ (Đồng hạng 3)",
+    assignedTables: ["Bàn Match 13 (VAR)", "Bàn Match 14 (VAR)"],
+    status: "in_progress",
+    format: "Single Elimination",
+    raceToScore: 5,
+    rules: "Luật Bank Pool WPA. Chạm 5 bi băng.",
   },
   {
     name: "Giải Giao Hữu Bank Pool Mùa Thu 2026",
@@ -1919,6 +1972,10 @@ const tournamentsData = [
     maxPlayers: 8,
     registrationFee: 100000,
     prizePool: "Nhất: 1.500.000đ | Nhì: 800.000đ",
+    firstPrize: "1.500.000đ + Cúp",
+    secondPrize: "800.000đ + Cờ lưu niệm",
+    thirdPrize: "350.000đ",
+    assignedTables: ["Bàn Match 13"],
     status: "completed",
     format: "Single Elimination",
     raceToScore: 3,
@@ -2471,20 +2528,46 @@ async function runSeed() {
     );
     const tournamentPlayersData = customers.slice(0, 8).map((cust, idx) => ({
       player: cust._id,
+      user: cust._id,
+      name: cust.name,
+      avatar: cust.avatar,
+      phone: cust.phone,
       registrationStatus: "confirmed",
       seed: idx + 1,
       feePaid: true,
       registeredAt: new Date("2026-10-01"),
     }));
 
+    const activeTournamentPlayers = customers.slice(0, 6).map((cust, idx) => ({
+      player: cust._id,
+      user: cust._id,
+      name: cust.name,
+      avatar: cust.avatar,
+      phone: cust.phone,
+      registrationStatus: "confirmed",
+      seed: idx + 1,
+      feePaid: idx < 4,
+      registeredAt: new Date("2026-10-15"),
+    }));
+
     const tournamentsDataWithCreator = [
       {
         ...tournamentsData[0],
         createdBy: adminUser._id,
-        players: [],
+        players: activeTournamentPlayers,
       },
       {
         ...tournamentsData[1],
+        createdBy: adminUser._id,
+        players: [],
+      },
+      {
+        ...tournamentsData[2],
+        createdBy: adminUser._id,
+        players: tournamentPlayersData,
+      },
+      {
+        ...tournamentsData[3],
         createdBy: adminUser._id,
         players: tournamentPlayersData,
       },
@@ -2497,7 +2580,9 @@ async function runSeed() {
     );
 
     const activeTournament = createdTournaments[0]; // CueZone Cup (registration_open)
-    const completedTournament = createdTournaments[1]; // Mùa Thu 2026 (completed)
+    const draftTournament = createdTournaments[1]; // Junior Cup (draft)
+    const inProgressTournament = createdTournaments[2]; // Weekend Challenge (in_progress)
+    const completedTournament = createdTournaments[3]; // Mùa Thu 2026 (completed)
 
     // 12. Seed Matches (Bracket Rounds)
     console.log("🌱 11/22. Seeding Tournament Matches (Bracket)...");
