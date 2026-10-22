@@ -300,16 +300,25 @@ export class AuthService {
   }
 
   async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+    let decoded: TokenPayload;
     try {
-      const decoded = jwt.verify(refreshToken, appConfig.jwt.refreshSecret) as TokenPayload;
-      const user = await User.findById(decoded.userId);
-      if (!user || !user.isActive || user.isLocked) {
-        throw new Error("Token không hợp lệ hoặc tài khoản đã bị khóa");
-      }
-      return this.generateTokens(user);
+      decoded = jwt.verify(refreshToken, appConfig.jwt.refreshSecret) as TokenPayload;
     } catch {
       throw new Error("Refresh token không hợp lệ hoặc đã hết hạn");
     }
+
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      throw new Error("Tài khoản không tồn tại");
+    }
+    if (user.isLocked) {
+      throw new Error("Tài khoản đã bị khóa");
+    }
+    if (!user.isActive) {
+      throw new Error("Tài khoản đã bị vô hiệu hóa");
+    }
+
+    return this.generateTokens(user);
   }
 
   private generateTokens(user: IUser): { accessToken: string; refreshToken: string } {

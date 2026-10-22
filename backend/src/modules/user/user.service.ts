@@ -30,7 +30,7 @@ export class UserService {
     return user;
   }
 
-  async create(dto: CreateUserDTO): Promise<IUser> {
+  async create(dto: CreateUserDTO): Promise<Omit<IUser, "password">> {
     if (!dto.password || dto.password.length < 8) {
       throw new Error("Mật khẩu phải có ít nhất 8 ký tự");
     }
@@ -45,7 +45,9 @@ export class UserService {
       message: `Đã tạo tài khoản "${user.name}" (${user.email}) với vai trò ${user.role}.`,
       type: NotificationType.USER,
     }).catch(() => {});
-    return user;
+    const userObj = user.toObject();
+    delete (userObj as any).password;
+    return userObj as Omit<IUser, "password">;
   }
 
   async update(id: string, dto: UpdateUserDTO): Promise<IUser> {

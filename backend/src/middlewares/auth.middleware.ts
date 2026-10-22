@@ -6,7 +6,7 @@ import { TokenPayload } from "../modules/auth/auth.service";
 import { User, UserRole } from "../modules/user/user.model";
 import { Role } from "../modules/role/role.model";
 
-export const authMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     res.status(401).json({ success: false, message: "Không có token xác thực" });
@@ -16,7 +16,21 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction):
   const token = authHeader.split(" ")[1];
   try {
     const decoded = jwt.verify(token, appConfig.jwt.secret) as TokenPayload;
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      res.status(401).json({ success: false, message: "Tài khoản không tồn tại" });
+      return;
+    }
+    if (user.isLocked) {
+      res.status(403).json({ success: false, message: "Tài khoản đã bị khóa" });
+      return;
+    }
+    if (!user.isActive) {
+      res.status(403).json({ success: false, message: "Tài khoản đã bị vô hiệu hóa" });
+      return;
+    }
     (req as any).user = decoded;
+    (req as any).currentUser = user;
     next();
   } catch {
     res.status(401).json({ success: false, message: "Token không hợp lệ hoặc đã hết hạn" });
