@@ -8,9 +8,7 @@ export interface IProduct extends Document {
   name: string;
   /** Mã SKU / mã vạch định danh duy nhất của sản phẩm */
   sku: string;
-  /** Phân loại danh mục: phụ kiện, đồ uống, thức ăn, đồ ăn vặt, nguyên liệu pha chế */
   category: "accessory" | "drink" | "food" | "snack" | "ingredient";
-  /** Đơn vị tính (vd: "lon", "chai", "đĩa", "ly", "cái", "hộp") */
   unit: string;
   /** Giá vốn nhập hàng (VNĐ) */
   costPrice: number;
@@ -40,11 +38,10 @@ const ProductSchema = new mongoose.Schema<IProduct>(
     name: { type: String, required: true },
     // Mã SKU duy nhất
     sku: { type: String, required: true, unique: true },
-    // Nhóm danh mục hàng hóa
     category: {
       type: String,
-      enum: ["accessory", "drink", "food", "snack", "ingredient"],
       required: true,
+      trim: true,
     },
     // Đơn vị tính của món
     unit: { type: String, required: true },
