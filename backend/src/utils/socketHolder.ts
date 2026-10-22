@@ -31,7 +31,7 @@ export const emitTableStatusChanged = (payload: { tableId?: string; status?: str
       floor: payload.table.floor,
       pricePerHour: payload.table.pricePerHour,
       status: payload.table.status,
-      sessionStart: payload.table.currentSession?.sessionStart,
+      sessionStart: payload.table.currentSession?.sessionStart || (payload.table.currentSession?.startedAt ? new Date(payload.table.currentSession.startedAt).toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit" }) : undefined),
       isPaused: Boolean(payload.table.currentSession?.isPaused || payload.table.status === "paused"),
       bookedTime: payload.table.bookedInfo?.time,
     } : undefined,
