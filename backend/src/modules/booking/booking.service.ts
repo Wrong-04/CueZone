@@ -9,10 +9,11 @@ import { NotificationType } from "../notification/notification.model";
 const notificationService = new NotificationService();
 
 export function bookingInput(input: any) {
+  const tableRef = input.table || input.tableId;
   const deposit = input.deposit ?? 0;
   if (typeof input.customerName !== "string" || !input.customerName.trim() || input.customerName.length > 120 ||
       typeof input.phone !== "string" || !/^[+\d\s().-]{8,30}$/.test(input.phone) ||
-      !mongoose.isValidObjectId(input.tableId) ||
+      !mongoose.isValidObjectId(tableRef) ||
       typeof input.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(input.date) ||
       typeof input.time !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.time) ||
       !Number.isInteger(input.duration) || input.duration < 1 || input.duration > 24 ||
@@ -25,7 +26,7 @@ export function bookingInput(input: any) {
       new Date(start.getTime() + 7 * 3600000).toISOString().slice(0, 10) !== input.date) {
     throw new Error("Ngày giờ đặt bàn phải hợp lệ và ở tương lai (giờ Việt Nam)");
   }
-  return { customerName: input.customerName.trim(), phone: input.phone.trim(), tableId: input.tableId,
+  return { customerName: input.customerName.trim(), phone: input.phone.trim(), table: tableRef,
     date: input.date, time: input.time, duration: input.duration, deposit, note: input.note };
 }
 
@@ -40,7 +41,7 @@ export class BookingService {
         ...obj,
         customerName: obj.customerName || (cust && cust.name ? cust.name : "Khách đặt trước"),
         phone: obj.phone || (cust && cust.phone ? cust.phone : "0900000000"),
-        tableId: obj.tableId || (tbl ? String(tbl._id) : (obj.table ? String(obj.table) : "")),
+        tableId: tbl ? String(tbl._id) : (obj.table ? String(obj.table) : ""),
         tableName: obj.tableName || (tbl ? tbl.name : "Bàn bida"),
         date: obj.date || (obj.bookingDate ? new Date(obj.bookingDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
         time: obj.time || obj.startTime || "19:00",
@@ -60,10 +61,11 @@ export class BookingService {
     const associatedCustomerId = associatedCustomer ? customerId : undefined;
     // ponytail: one held reservation per table; add interval scheduling when multiple future slots are needed.
     const result = await mongoose.connection.transaction(async (session) => {
-      const table = await Table.findOne({ _id: dto.tableId, isActive: true, status: TableStatus.AVAILABLE }).session(session);
+      const table = await Table.findOne({ _id: dto.table, isActive: true, status: TableStatus.AVAILABLE }).session(session);
       if (!table) throw new Error("Bàn không còn trống, vui lòng tải lại");
       const [booking] = await Booking.create([{
         ...dto,
+        table: table._id,
         customer: associatedCustomerId,
         tableName: table.name,
         estimatedCost: table.pricePerHour * dto.duration,
@@ -88,10 +90,14 @@ export class BookingService {
       content: `${result.booking.customerName} đặt ${result.booking.tableName} ngày ${result.booking.date} lúc ${result.booking.time}.`,
       type: NotificationType.TABLE,
     }).catch(() => undefined);
-    return result.booking;
+    return {
+      ...(result.booking.toObject ? result.booking.toObject() : result.booking),
+      tableId: String(result.table._id),
+    };
   }
 
   async update(id: string, input: any) {
+    const inputTableId = input.tableId || input.table;
     if (!mongoose.isValidObjectId(id) || !["approved", "rejected", "pending"].includes(input.status)) {
       throw new Error("Yêu cầu cập nhật không hợp lệ");
     }
@@ -112,13 +118,13 @@ export class BookingService {
       if (!allowed[booking.status]?.includes(input.status)) throw new Error("Trạng thái đơn đã thay đổi, vui lòng tải lại");
       let affectedTableId: string | undefined;
       if (input.status === "approved") {
-        if (!mongoose.isValidObjectId(input.tableId)) throw new Error("Vui lòng chọn bàn hợp lệ");
-        const table = await Table.findOne({ _id: input.tableId, isActive: true, $or: [
+        if (!mongoose.isValidObjectId(inputTableId)) throw new Error("Vui lòng chọn bàn hợp lệ");
+        const table = await Table.findOne({ _id: inputTableId, isActive: true, $or: [
           { status: TableStatus.AVAILABLE }, { status: TableStatus.BOOKED, "bookedInfo.bookingId": id },
         ] }).session(session);
         if (!table) throw new Error("Bàn không còn trống");
-        if (String(booking.tableId) !== input.tableId && (booking.status === "approved" || booking.status === "confirmed")) {
-          await Table.updateOne({ _id: booking.tableId, "bookedInfo.bookingId": id, status: TableStatus.BOOKED },
+        if (String(booking.table) !== inputTableId && (booking.status === "approved" || booking.status === "confirmed")) {
+          await Table.updateOne({ _id: booking.table, "bookedInfo.bookingId": id, status: TableStatus.BOOKED },
             { $set: { status: TableStatus.AVAILABLE }, $unset: { bookedInfo: 1 } }, { session });
         }
         const custUser = booking.customer ? await User.findById(booking.customer).session(session) : null;
@@ -126,7 +132,7 @@ export class BookingService {
         const resolvedPhone: string = String(booking.phone || custUser?.phone || "0900000000");
         booking.customerName = resolvedName;
         booking.phone = resolvedPhone;
-        booking.tableId = table._id;
+        booking.table = table._id;
         booking.tableName = table.name;
         booking.estimatedCost = table.pricePerHour * (booking.duration || 2);
         table.status = TableStatus.BOOKED;
@@ -135,9 +141,9 @@ export class BookingService {
         await table.save({ session });
         affectedTableId = String(table._id);
       } else if (booking.status === "approved" || booking.status === "confirmed") {
-        await Table.updateOne({ _id: booking.tableId, "bookedInfo.bookingId": id, status: TableStatus.BOOKED },
+        await Table.updateOne({ _id: booking.table, "bookedInfo.bookingId": id, status: TableStatus.BOOKED },
           { $set: { status: TableStatus.AVAILABLE }, $unset: { bookedInfo: 1 } }, { session });
-        affectedTableId = String(booking.tableId);
+        affectedTableId = String(booking.table);
       }
       booking.status = input.status;
       booking.rejectionReason = input.status === "rejected" ? input.rejectionReason.trim() : undefined;
@@ -160,6 +166,9 @@ export class BookingService {
         }).catch(() => undefined);
       }
     }
-    return result.booking;
+    return {
+      ...(result.booking.toObject ? result.booking.toObject() : result.booking),
+      tableId: result.affectedTableId,
+    };
   }
 }

@@ -341,7 +341,6 @@ const BookingSchema = new mongoose.Schema(
     },
     customerName: { type: String },
     phone: { type: String },
-    tableId: { type: mongoose.Schema.Types.ObjectId, ref: "Table" },
     tableName: { type: String },
     date: { type: String },
     time: { type: String },
@@ -556,6 +555,26 @@ const InvoiceSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// 1.18b Wallet Schema (module: wallet - Phương án B)
+const WalletSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+    },
+    balance: { type: Number, default: 0, min: 0 },
+    points: { type: Number, default: 0, min: 0 },
+    status: {
+      type: String,
+      enum: ["active", "frozen", "closed"],
+      default: "active",
+    },
+  },
+  { timestamps: true }
+);
+
 // 1.19 WalletTransaction Schema (module: wallet)
 const WalletTransactionSchema = new mongoose.Schema(
   {
@@ -717,6 +736,8 @@ const TableSession =
 const Order = mongoose.models.Order || mongoose.model("Order", OrderSchema);
 const Invoice =
   mongoose.models.Invoice || mongoose.model("Invoice", InvoiceSchema);
+const Wallet =
+  mongoose.models.Wallet || mongoose.model("Wallet", WalletSchema);
 const WalletTransaction =
   mongoose.models.WalletTransaction ||
   mongoose.model("WalletTransaction", WalletTransactionSchema);
@@ -738,8 +759,6 @@ const pricingTiersData = [
   {
     name: "Khung Giờ Tiêu Chuẩn (Ban Ngày T2–T6)",
     dayType: "weekday",
-    startTime: "08:00",
-    endTime: "17:00",
     daysOfWeek: [1, 2, 3, 4, 5],
     prices: { standard: 60000, vip: 120000, match: 100000 },
     isActive: true,
@@ -748,8 +767,6 @@ const pricingTiersData = [
   {
     name: "Khung Giờ Cao Điểm / Tối (T2–T6)",
     dayType: "peak",
-    startTime: "17:00",
-    endTime: "24:00",
     daysOfWeek: [1, 2, 3, 4, 5],
     prices: { standard: 80000, vip: 140000, match: 120000 },
     isActive: true,
@@ -758,8 +775,6 @@ const pricingTiersData = [
   {
     name: "Khung Giờ Cuối Tuần (T7 & CN)",
     dayType: "weekend",
-    startTime: "08:00",
-    endTime: "24:00",
     daysOfWeek: [0, 6],
     prices: { standard: 90000, vip: 150000, match: 130000 },
     isActive: true,
@@ -768,8 +783,6 @@ const pricingTiersData = [
   {
     name: "Khung Giờ Đêm Khuya (Sau 00:00)",
     dayType: "weekday",
-    startTime: "00:00",
-    endTime: "08:00",
     daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
     prices: { standard: 70000, vip: 130000, match: 110000 },
     isActive: true,
@@ -2320,6 +2333,7 @@ async function runSeed() {
       Order.deleteMany({}),
       Invoice.deleteMany({}),
       WalletTransaction.deleteMany({}),
+      Wallet.deleteMany({}),
       InventoryTransaction.deleteMany({}),
       ImportReceipt.deleteMany({}),
       AuditLog.deleteMany({}),
@@ -2717,13 +2731,9 @@ async function runSeed() {
         customerName: customers[20].name,
         phone: customers[20].phone,
         table: tableVip3._id,
-        tableId: tableVip3._id,
         tableName: tableVip3.name,
         tableType: "carom",
-        bookingDate: new Date(),
         date: todayStr,
-        startTime: "19:30",
-        endTime: "21:30",
         time: "19:30",
         duration: 2,
         numberOfGuests: 4,
@@ -2738,13 +2748,9 @@ async function runSeed() {
         customerName: customers[21].name,
         phone: customers[21].phone,
         table: tableStd8._id,
-        tableId: tableStd8._id,
         tableName: tableStd8.name,
         tableType: "pool",
-        bookingDate: new Date(),
         date: todayStr,
-        startTime: "20:00",
-        endTime: "22:00",
         time: "20:00",
         duration: 2,
         numberOfGuests: 2,
@@ -2759,13 +2765,10 @@ async function runSeed() {
         customerName: customers[22].name,
         phone: customers[22].phone,
         table: tableStd13._id,
-        tableId: tableStd13._id,
         tableName: tableStd13.name,
         tableType: "pool",
         bookingDate: new Date(Date.now() + 86400000),
         date: tomorrowStr,
-        startTime: "18:30",
-        endTime: "20:30",
         time: "18:30",
         duration: 2,
         numberOfGuests: 2,
@@ -2779,13 +2782,10 @@ async function runSeed() {
         customerName: customers[23].name,
         phone: customers[23].phone,
         table: tableVip7._id,
-        tableId: tableVip7._id,
         tableName: tableVip7.name,
         tableType: "carom",
         bookingDate: new Date(Date.now() - 86400000),
         date: yesterdayStr,
-        startTime: "15:00",
-        endTime: "17:00",
         time: "15:00",
         duration: 2,
         numberOfGuests: 3,
@@ -2799,10 +2799,7 @@ async function runSeed() {
         customerName: customers[4].name,
         phone: customers[4].phone,
         tableType: "pool",
-        bookingDate: new Date(),
         date: todayStr,
-        startTime: "19:00",
-        endTime: "21:00",
         time: "19:00",
         duration: 2,
         numberOfGuests: 2,
@@ -2817,10 +2814,7 @@ async function runSeed() {
         customerName: customers[5].name,
         phone: customers[5].phone,
         tableType: "pool",
-        bookingDate: new Date(),
         date: todayStr,
-        startTime: "14:00",
-        endTime: "16:00",
         time: "14:00",
         duration: 2,
         numberOfGuests: 2,
