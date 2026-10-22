@@ -66,3 +66,36 @@ export const refreshToken = async (req: Request, res: Response) => {
     res.status(401).json({ success: false, message: error.message });
   }
 };
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const result = await authService.forgotPassword(req.body);
+    res.json({ success: true, message: result.message });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const result = await authService.resetPassword(req.body);
+    res.json({ success: true, message: result.message });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.userId) {
+      res.status(401).json({ success: false, message: "Không có thông tin xác thực" });
+      return;
+    }
+    const result = await authService.changePassword(user.userId, req.body);
+    res.json({ success: true, message: result.message });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+

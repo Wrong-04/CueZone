@@ -1,6 +1,7 @@
 // Run from backend: pnpm exec node scripts/check-auth.cjs
 // Automated test for SCRUM-724: User Registration
-require('dotenv/config');
+const path = require('node:path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const dns = require('dns');
 try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
 const assert = require('node:assert/strict');

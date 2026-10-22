@@ -1,10 +1,11 @@
 import jwt from "jsonwebtoken";
 import { User, IUser, UserRole } from "../user/user.model";
 import { Role, IPermission } from "../role/role.model";
-import { RegisterDTO, LoginDTO } from "./dto/auth.dto";
+import { RegisterDTO, LoginDTO, ForgotPasswordDTO, ResetPasswordDTO, ChangePasswordDTO } from "./dto/auth.dto";
 import { appConfig } from "../../config/app.config";
 import { EmailVerification } from "./emailVerification.model";
-import { sendVerificationEmail } from "./email.service";
+import { PasswordResetOtp } from "./passwordResetOtp.model";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./email.service";
 
 export interface TokenPayload {
   userId: string;
@@ -319,6 +320,167 @@ export class AuthService {
     }
 
     return this.generateTokens(user);
+  }
+
+  /**
+   * SCRUM-741 & SCRUM-742 & SCRUM-745: Sinh mã OTP ngẫu nhiên, lưu vào DB và gửi qua Nodemailer
+   * Business Rules: Có hiệu lực trong 10 phút, chỉ sử dụng 1 lần.
+   */
+  async forgotPassword(dto: ForgotPasswordDTO): Promise<{ message: string }> {
+    const email = typeof dto.email === "string" ? dto.email.trim().toLowerCase() : "";
+    if (!email) {
+      throw new Error("Email không được để trống");
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error("Email không đúng định dạng");
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw new Error("Email không tồn tại trong hệ thống");
+    }
+
+    if (user.isLocked) {
+      throw new Error("Tài khoản đã bị khóa, không thể đặt lại mật khẩu");
+    }
+
+    const lockKey = `forgot_${email}`;
+    if (this.sendingLocks.has(lockKey)) {
+      throw new Error("Đang xử lý yêu cầu gửi mã, vui lòng thử lại sau giây lát");
+    }
+    this.sendingLocks.add(lockKey);
+
+    try {
+      // Cooldown chống spam 60s
+      const pending = await PasswordResetOtp.findOne({ email, isUsed: false }).sort({ createdAt: -1 });
+      if (pending) {
+        const elapsed = Date.now() - pending.createdAt.getTime();
+        if (elapsed < 60_000) {
+          const wait = Math.ceil((60_000 - elapsed) / 1000);
+          throw new Error(`Vui lòng chờ ${wait} giây trước khi yêu cầu mã mới`);
+        }
+      }
+
+      // Sinh mã OTP 6 chữ số ngẫu nhiên
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      // Hiệu lực 10 phút (Business Rule)
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      // Đánh dấu các mã cũ là không còn hiệu lực
+      await PasswordResetOtp.updateMany({ email, isUsed: false }, { isUsed: true });
+
+      const otpRecord = new PasswordResetOtp({
+        email,
+        code,
+        attempts: 0,
+        isUsed: false,
+        expiresAt,
+      });
+      await otpRecord.save();
+
+      try {
+        await sendPasswordResetEmail(email, code, user.name);
+      } catch (err) {
+        await PasswordResetOtp.deleteOne({ _id: otpRecord._id });
+        console.error("❌ Send password reset email failed:", err);
+        throw new Error(
+          "Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau hoặc liên hệ hỗ trợ."
+        );
+      }
+
+      console.log(`📧 Password reset OTP for ${email}: ${code}`);
+      return { message: "Mã OTP đặt lại mật khẩu đã được gửi đến email của bạn" };
+    } finally {
+      this.sendingLocks.delete(lockKey);
+    }
+  }
+
+  /**
+   * SCRUM-743 & SCRUM-744 & SCRUM-745: Xác thực OTP, validate mật khẩu mới, hash và cập nhật mật khẩu
+   */
+  async resetPassword(dto: ResetPasswordDTO): Promise<{ message: string }> {
+    const email = typeof dto.email === "string" ? dto.email.trim().toLowerCase() : "";
+    const code = typeof dto.code === "string" ? dto.code.trim() : "";
+    const newPassword = typeof dto.newPassword === "string" ? dto.newPassword : "";
+
+    if (!email || !code || !newPassword) {
+      throw new Error("Email, mã OTP và mật khẩu mới không được để trống");
+    }
+
+    this.validatePassword(newPassword);
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw new Error("Tài khoản không tồn tại");
+    }
+
+    const otpRecord = await PasswordResetOtp.findOne({ email, isUsed: false }).sort({ createdAt: -1 });
+    if (!otpRecord) {
+      throw new Error("Không tìm thấy yêu cầu đặt lại mật khẩu hoặc mã đã được sử dụng. Vui lòng yêu cầu mã mới.");
+    }
+
+    if (otpRecord.expiresAt.getTime() < Date.now()) {
+      otpRecord.isUsed = true;
+      await otpRecord.save();
+      throw new Error("Mã OTP đã hết hạn (chỉ có hiệu lực 10 phút). Vui lòng yêu cầu mã mới.");
+    }
+
+    otpRecord.attempts += 1;
+    if (otpRecord.attempts > 5) {
+      otpRecord.isUsed = true;
+      await otpRecord.save();
+      throw new Error("Bạn đã nhập sai mã OTP quá 5 lần. Vui lòng yêu cầu mã mới.");
+    }
+
+    if (otpRecord.code !== code) {
+      await otpRecord.save();
+      const remain = 5 - otpRecord.attempts;
+      throw new Error(`Mã OTP không chính xác. Còn ${remain} lần thử.`);
+    }
+
+    // Đánh dấu mã đã dùng thành công (chỉ dùng duy nhất 1 lần)
+    otpRecord.isUsed = true;
+    await otpRecord.save();
+
+    // Hash mật khẩu mới và lưu vào User (thông qua pre-save hook của Mongoose)
+    user.password = newPassword;
+    await user.save();
+
+    return { message: "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập bằng mật khẩu mới." };
+  }
+
+  /**
+   * Đổi mật khẩu cho người dùng đã đăng nhập (yêu cầu mật khẩu hiện tại)
+   */
+  async changePassword(userId: string, dto: ChangePasswordDTO): Promise<{ message: string }> {
+    const currentPassword = typeof dto.currentPassword === "string" ? dto.currentPassword : "";
+    const newPassword = typeof dto.newPassword === "string" ? dto.newPassword : "";
+
+    if (!currentPassword || !newPassword) {
+      throw new Error("Mật khẩu hiện tại và mật khẩu mới không được để trống");
+    }
+
+    this.validatePassword(newPassword);
+
+    const user = await User.findById(userId).select("+password");
+    if (!user) {
+      throw new Error("Tài khoản không tồn tại");
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      throw new Error("Mật khẩu hiện tại không chính xác");
+    }
+
+    if (currentPassword === newPassword) {
+      throw new Error("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    return { message: "Đổi mật khẩu thành công" };
   }
 
   private generateTokens(user: IUser): { accessToken: string; refreshToken: string } {

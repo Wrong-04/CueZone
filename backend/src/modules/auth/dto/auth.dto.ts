@@ -38,3 +38,34 @@ export class LoginDTO {
   @IsString()
   phone?: string;
 }
+
+export class ForgotPasswordDTO {
+  @IsEmail({}, { message: "Email không đúng định dạng" })
+  @IsNotEmpty({ message: "Email không được để trống" })
+  email!: string;
+}
+
+export class ResetPasswordDTO {
+  @IsEmail({}, { message: "Email không đúng định dạng" })
+  @IsNotEmpty({ message: "Email không được để trống" })
+  email!: string;
+
+  @IsNotEmpty({ message: "Mã OTP không được để trống" })
+  @IsString({ message: "Mã OTP phải là chuỗi ký tự" })
+  code!: string;
+
+  @IsNotEmpty({ message: "Mật khẩu mới không được để trống" })
+  @MinLength(8, { message: "Mật khẩu mới phải có ít nhất 8 ký tự" })
+  newPassword!: string;
+}
+
+export class ChangePasswordDTO {
+  @IsNotEmpty({ message: "Mật khẩu hiện tại không được để trống" })
+  @IsString()
+  currentPassword!: string;
+
+  @IsNotEmpty({ message: "Mật khẩu mới không được để trống" })
+  @MinLength(8, { message: "Mật khẩu mới phải có ít nhất 8 ký tự" })
+  newPassword!: string;
+}
+
