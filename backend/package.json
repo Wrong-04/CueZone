@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "seed": "node seed.js",
     "check:pos": "pnpm build && node scripts/check-pos.cjs",
+    "check:auth": "pnpm build && node scripts/check-auth.cjs",
     "check:tournament": "node scripts/check-tournament.cjs",
     "check:notification": "pnpm build && node scripts/check-notification.cjs"
   },

@@ -6,9 +6,9 @@ const authService = new AuthService();
 export const register = async (req: Request, res: Response) => {
   try {
     const result = await authService.register(req.body);
-    res.json({ success: true, message: "Đăng ký thành công", data: result });
+    res.status(201).json({ success: true, message: "Đăng ký thành công", data: result });
   } catch (error: any) {
-    res.json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -21,7 +21,7 @@ export const sendVerificationCode = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -29,9 +29,9 @@ export const verifyAndRegister = async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body;
     const result = await authService.verifyAndRegister(email, code);
-    res.json({ success: true, message: "Xác minh email thành công", data: result });
+    res.status(201).json({ success: true, message: "Xác minh email thành công", data: result });
   } catch (error: any) {
-    res.json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 

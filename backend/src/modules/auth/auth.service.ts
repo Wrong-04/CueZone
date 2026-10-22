@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { User, IUser, UserRole } from "../user/user.model";
+import { Role, IPermission } from "../role/role.model";
 import { RegisterDTO, LoginDTO } from "./dto/auth.dto";
 import { appConfig } from "../../config/app.config";
 import { EmailVerification } from "./emailVerification.model";
@@ -11,8 +12,27 @@ export interface TokenPayload {
   role: UserRole;
 }
 
+export type UserPlain = {
+  _id: any;
+  name: string;
+  email: string;
+  role: UserRole;
+  phone?: string;
+  avatar?: string;
+  isActive: boolean;
+  isLocked: boolean;
+  branch?: string;
+  position?: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export interface UserWithPermissions extends UserPlain {
+  permissions?: IPermission[];
+}
+
 export interface AuthResponse {
-  user: Omit<IUser, "password">;
+  user: UserWithPermissions;
   accessToken: string;
   refreshToken: string;
 }
@@ -20,25 +40,73 @@ export interface AuthResponse {
 export class AuthService {
   private sendingLocks = new Set<string>();
 
-  async register(dto: RegisterDTO): Promise<AuthResponse> {
-    if (!dto.password || dto.password.length < 8) {
-      throw new Error("Mật khẩu phải có ít nhất 8 ký tự");
+  private async getRolePermissions(roleName: string): Promise<IPermission[]> {
+    try {
+      const roleDoc = await Role.findOne({ name: roleName.toLowerCase() });
+      return roleDoc?.permissions || [];
+    } catch {
+      return [];
     }
-    if (!/[a-zA-Z]/.test(dto.password) || !/[0-9]/.test(dto.password)) {
-      throw new Error("Mật khẩu phải chứa cả chữ cái và số");
+  }
+
+  private validateRegistrationInput(dto: RegisterDTO): { name: string; email: string; phone?: string; password: string } {
+    const name = typeof dto.name === "string" ? dto.name.trim() : "";
+    if (!name) {
+      throw new Error("Họ và tên không được để trống");
     }
 
     const email = typeof dto.email === "string" ? dto.email.trim().toLowerCase() : "";
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    if (!email) {
+      throw new Error("Email không được để trống");
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error("Email không đúng định dạng");
+    }
+
+    let phone: string | undefined = undefined;
+    if (dto.phone !== undefined && dto.phone !== null && String(dto.phone).trim() !== "") {
+      phone = String(dto.phone).trim();
+      const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+      if (!phoneRegex.test(phone)) {
+        throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
+      }
+    }
+
+    this.validatePassword(dto.password);
+
+    return { name, email, phone, password: dto.password };
+  }
+
+  private validatePassword(password: string): void {
+    if (!password || password.length < 8) {
+      throw new Error("Mật khẩu phải có ít nhất 8 ký tự");
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      throw new Error("Mật khẩu phải chứa cả chữ cái và số");
+    }
+  }
+
+  async register(dto: RegisterDTO): Promise<AuthResponse> {
+    const validated = this.validateRegistrationInput(dto);
+
+    const existingEmail = await User.findOne({ email: validated.email });
+    if (existingEmail) {
       throw new Error("Email đã được sử dụng");
     }
 
+    if (validated.phone) {
+      const existingPhone = await User.findOne({ phone: validated.phone });
+      if (existingPhone) {
+        throw new Error("Số điện thoại đã được sử dụng");
+      }
+    }
+
     const user = new User({
-      name: dto.name,
-      email,
-      password: dto.password,
-      phone: dto.phone,
+      name: validated.name,
+      email: validated.email,
+      password: validated.password,
+      phone: validated.phone,
       role: UserRole.CUSTOMER,
     });
 
@@ -47,8 +115,9 @@ export class AuthService {
     const tokens = this.generateTokens(user);
     const userObj = user.toObject();
     delete (userObj as any).password;
+    const permissions = await this.getRolePermissions(user.role);
 
-    return { user: userObj as Omit<IUser, "password">, ...tokens };
+    return { user: { ...userObj, permissions } as UserWithPermissions, ...tokens };
   }
 
   async login(dto: LoginDTO): Promise<AuthResponse> {
@@ -92,43 +161,45 @@ export class AuthService {
     const tokens = this.generateTokens(user);
     const userObj = user.toObject();
     delete (userObj as any).password;
+    const permissions = await this.getRolePermissions(user.role);
 
-    return { user: userObj as Omit<IUser, "password">, ...tokens };
+    return { user: { ...userObj, permissions } as UserWithPermissions, ...tokens };
   }
 
-  async getProfile(userId: string): Promise<Omit<IUser, "password">> {
+  async getProfile(userId: string): Promise<UserWithPermissions> {
     const user = await User.findById(userId);
     if (!user || !user.isActive || user.isLocked) {
       throw new Error("Tài khoản không còn hoạt động");
     }
-    return user;
-  }
-
-  private validatePassword(password: string): void {
-    if (!password || password.length < 8) {
-      throw new Error("Mật khẩu phải có ít nhất 8 ký tự");
-    }
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      throw new Error("Mật khẩu phải chứa cả chữ cái và số");
-    }
+    const userObj = user.toObject();
+    delete (userObj as any).password;
+    const permissions = await this.getRolePermissions(user.role);
+    return { ...userObj, permissions } as UserWithPermissions;
   }
 
   async sendVerificationCode(dto: RegisterDTO): Promise<{ message: string }> {
-    this.validatePassword(dto.password);
+    const validated = this.validateRegistrationInput(dto);
 
-    const lockKey = dto.email.toLowerCase();
+    const lockKey = validated.email;
     if (this.sendingLocks.has(lockKey)) {
       throw new Error("Đang xử lý yêu cầu gửi mã, vui lòng thử lại sau giây lát");
     }
     this.sendingLocks.add(lockKey);
 
     try {
-      const existingUser = await User.findOne({ email: dto.email });
+      const existingUser = await User.findOne({ email: validated.email });
       if (existingUser) {
         throw new Error("Email đã được sử dụng");
       }
 
-      const pending = await EmailVerification.findOne({ email: dto.email });
+      if (validated.phone) {
+        const existingPhone = await User.findOne({ phone: validated.phone });
+        if (existingPhone) {
+          throw new Error("Số điện thoại đã được sử dụng");
+        }
+      }
+
+      const pending = await EmailVerification.findOne({ email: validated.email });
       if (pending) {
         const elapsed = Date.now() - pending.updatedAt.getTime();
         if (elapsed < 60_000) {
@@ -137,17 +208,18 @@ export class AuthService {
         }
       }
 
-      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      // Mã OTP 6 chữ số ngẫu nhiên
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
       await EmailVerification.findOneAndUpdate(
-        { email: dto.email },
+        { email: validated.email },
         {
-          email: dto.email,
+          email: validated.email,
           code,
-          name: dto.name,
-          password: dto.password,
-          phone: dto.phone,
+          name: validated.name,
+          password: validated.password,
+          phone: validated.phone,
           attempts: 0,
           expiresAt,
         },
@@ -155,16 +227,16 @@ export class AuthService {
       );
 
       try {
-        await sendVerificationEmail(dto.email, code, dto.name);
+        await sendVerificationEmail(validated.email, code, validated.name);
       } catch (err) {
-        await EmailVerification.deleteOne({ email: dto.email });
+        await EmailVerification.deleteOne({ email: validated.email });
         console.error("❌ Email send failed:", err);
         throw new Error(
           "Không thể gửi email xác minh. Vui lòng cấu hình App Password Gmail (SMTP_PASS) và thử lại."
         );
       }
 
-      console.log(`📧 Verification code for ${dto.email}: ${code}`);
+      console.log(`📧 Verification code for ${validated.email}: ${code}`);
       return { message: "Mã xác minh đã được gửi" };
     } finally {
       this.sendingLocks.delete(lockKey);
@@ -172,19 +244,20 @@ export class AuthService {
   }
 
   async verifyAndRegister(email: string, code: string): Promise<AuthResponse> {
-    const pending = await EmailVerification.findOne({ email });
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const pending = await EmailVerification.findOne({ email: normalizedEmail });
     if (!pending) {
       throw new Error("Không tìm thấy yêu cầu xác minh. Vui lòng yêu cầu mã mới.");
     }
 
     if (pending.expiresAt.getTime() < Date.now()) {
-      await EmailVerification.deleteOne({ email });
+      await EmailVerification.deleteOne({ email: normalizedEmail });
       throw new Error("Mã xác minh đã hết hạn. Vui lòng yêu cầu mã mới.");
     }
 
     pending.attempts += 1;
     if (pending.attempts > 5) {
-      await EmailVerification.deleteOne({ email });
+      await EmailVerification.deleteOne({ email: normalizedEmail });
       throw new Error("Bạn đã nhập sai quá 5 lần. Vui lòng yêu cầu mã mới.");
     }
 
@@ -194,10 +267,18 @@ export class AuthService {
       throw new Error(`Mã xác minh không chính xác. Còn ${remain} lần thử.`);
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
-      await EmailVerification.deleteOne({ email });
+      await EmailVerification.deleteOne({ email: normalizedEmail });
       throw new Error("Email đã được sử dụng");
+    }
+
+    if (pending.phone) {
+      const existingPhone = await User.findOne({ phone: pending.phone });
+      if (existingPhone) {
+        await EmailVerification.deleteOne({ email: normalizedEmail });
+        throw new Error("Số điện thoại đã được sử dụng");
+      }
     }
 
     const user = new User({
@@ -208,13 +289,14 @@ export class AuthService {
       role: UserRole.CUSTOMER,
     });
     await user.save();
-    await EmailVerification.deleteOne({ email });
+    await EmailVerification.deleteOne({ email: normalizedEmail });
 
     const tokens = this.generateTokens(user);
     const userObj = user.toObject();
     delete (userObj as any).password;
+    const permissions = await this.getRolePermissions(user.role);
 
-    return { user: userObj as Omit<IUser, "password">, ...tokens };
+    return { user: { ...userObj, permissions } as UserWithPermissions, ...tokens };
   }
 
   async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {

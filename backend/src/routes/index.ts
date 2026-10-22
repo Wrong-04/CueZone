@@ -1,57 +1,63 @@
 import { Router } from "express";
-import authRouter from "../modules/auth/auth.routes";
-import userRouter from "../modules/user/user.routes";
-import roleRouter from "../modules/role/role.routes";
-import tableRouter from "../modules/table/table.routes";
-import pricingRouter from "../modules/pricing/pricing.routes";
-import notificationRouter from "../modules/notification/notification.routes";
-import bookingRouter from "../modules/booking/booking.routes";
-import sessionRouter from "../modules/session/session.routes";
-import tournamentRouter from "../modules/tournament/tournament.routes";
-import walletRouter from "../modules/wallet/wallet.routes";
-import { TournamentService } from "../modules/tournament/tournament.service";
-import { getPublicTables } from "../modules/table/table.controller";
-import { BookingService } from "../modules/booking/booking.service";
-import { optionalAuthMiddleware } from "../middlewares/auth.middleware";
 
-import productRouter, { productManagementRouter } from "../modules/product/product.routes";
+// Import router từ từng thư mục feature
+import { authRoutes } from "./auth";
+import { rbacProtectedRoutes } from "./user";
+import { tablePublicRoutes, tableProtectedRoutes } from "./table";
+import { bookingPublicRoutes, bookingProtectedRoutes } from "./booking";
+import { productPublicRoutes, productProtectedRoutes } from "./product";
+import { tournamentPublicRoutes, tournamentProtectedRoutes } from "./tournament";
+import { pricingProtectedRoutes } from "./pricing";
+import { walletProtectedRoutes } from "./wallet";
+import { notificationProtectedRoutes } from "./notification";
 
-const bookingService = new BookingService();
-const tournamentService = new TournamentService();
-
-// Public routes (no auth middleware)
+// ============================================================================
+// PUBLIC ROUTES: Các endpoint công khai (không yêu cầu token xác thực)
+// ============================================================================
 export const publicRouter = Router();
-publicRouter.use("/auth", authRouter);
-publicRouter.use("/products", productRouter);
-publicRouter.get("/public/tables", getPublicTables);
-publicRouter.get("/tables/public", getPublicTables);
-publicRouter.get("/public/tournaments", async (req, res, next) => {
-  try {
-    const result = await tournamentService.getPublicTournaments(req.query);
-    res.json({ success: true, message: "Lấy danh sách giải đấu thành công", data: result });
-  } catch (error) {
-    next(error);
-  }
-});
-publicRouter.post("/public/bookings", optionalAuthMiddleware, async (req, res, next) => {
-  try {
-    const booking = await bookingService.create(req.body, (req as any).user?.userId);
-    res.status(201).json({ success: true, message: "Đặt bàn thành công", data: booking });
-  } catch (error) {
-    next(error);
-  }
-});
 
-// Protected routes (auth middleware applied in app.ts)
+// 1. Feature: Auth
+publicRouter.use("/auth", authRoutes);
+
+// 2. Feature: Table & Floor (Public)
+publicRouter.use(tablePublicRoutes);
+
+// 3. Feature: Booking (Public)
+publicRouter.use(bookingPublicRoutes);
+
+// 4. Feature: Product & F&B (Public)
+publicRouter.use(productPublicRoutes);
+
+// 5. Feature: Tournament (Public)
+publicRouter.use(tournamentPublicRoutes);
+
+// ============================================================================
+// PROTECTED ROUTES: Các endpoint yêu cầu JWT token (được gác authMiddleware tại app.ts)
+// ============================================================================
 export const protectedRouter = Router();
-protectedRouter.use("/users", userRouter);
-protectedRouter.use("/roles", roleRouter);
-protectedRouter.use("/tables/:id/session", sessionRouter);
-protectedRouter.use("/tables", tableRouter);
-protectedRouter.use("/bookings", bookingRouter);
-protectedRouter.use("/pricing", pricingRouter);
-protectedRouter.use("/notifications", notificationRouter);
-protectedRouter.use("/tournaments", tournamentRouter);
-protectedRouter.use("/wallet", walletRouter);
-protectedRouter.use("/products", productManagementRouter);
+
+// 1. Feature: User & Role (RBAC)
+protectedRouter.use(rbacProtectedRoutes);
+
+// 2. Feature: Table & POS Session
+protectedRouter.use(tableProtectedRoutes);
+
+// 3. Feature: Booking
+protectedRouter.use(bookingProtectedRoutes);
+
+// 4. Feature: Pricing Tier
+protectedRouter.use(pricingProtectedRoutes);
+
+// 5. Feature: Product & Inventory Management
+protectedRouter.use(productProtectedRoutes);
+
+// 6. Feature: Tournament Management
+protectedRouter.use(tournamentProtectedRoutes);
+
+// 7. Feature: Wallet
+protectedRouter.use(walletProtectedRoutes);
+
+// 8. Feature: Notification
+protectedRouter.use(notificationProtectedRoutes);
+
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile

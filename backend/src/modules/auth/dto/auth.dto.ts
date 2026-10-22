@@ -1,21 +1,23 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum } from "class-validator";
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum, Matches } from "class-validator";
 import { UserRole } from "../../user/user.model";
 
 export class RegisterDTO {
-  @IsNotEmpty({ message: "Tên không được để trống" })
-  @IsString()
+  @IsNotEmpty({ message: "Họ và tên không được để trống" })
+  @IsString({ message: "Họ và tên phải là chuỗi ký tự" })
   name!: string;
 
-  @IsEmail({}, { message: "Email không hợp lệ" })
+  @IsEmail({}, { message: "Email không đúng định dạng" })
   @IsNotEmpty({ message: "Email không được để trống" })
   email!: string;
 
   @IsNotEmpty({ message: "Mật khẩu không được để trống" })
-  @MinLength(8, { message: "Mật khẩu phải có ít nhất 8 ký tự và phải bao gồm chữ thường và số" })
+  @MinLength(8, { message: "Mật khẩu phải có ít nhất 8 ký tự" })
   password!: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/, {
+    message: "Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)",
+  })
   phone?: string;
 
   @IsOptional()

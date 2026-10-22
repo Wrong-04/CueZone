@@ -53,8 +53,8 @@ export async function sendVerificationEmail(
   await getTransporter().sendMail({
     from: fromAddress,
     to,
-    subject: "CueZone - Mã xác minh tài khoản (4 chữ số)",
-    text: `Mã xác minh tài khoản CueZone của bạn là: ${code}. Mã có hiệu lực trong 5 phút.`,
+    subject: "CueZone - Mã xác thực tài khoản",
+    text: `Mã xác thực tài khoản CueZone của bạn là: ${code}. Mã có hiệu lực trong 5 phút.`,
     html,
   });
 }
