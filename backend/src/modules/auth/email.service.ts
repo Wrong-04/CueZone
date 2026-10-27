@@ -101,3 +101,46 @@ export async function sendPasswordResetEmail(
   });
 }
 
+/**
+ * SCRUM-727: Gửi email chào mừng / xác thực sau khi đăng ký tài khoản thành công
+ */
+export async function sendWelcomeRegistrationEmail(
+  to: string,
+  name?: string
+): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="display: inline-block; background: #059669; color: #fff; font-weight: bold; font-size: 20px; padding: 10px 14px; border-radius: 10px;">CZ</div>
+      </div>
+      <h2 style="color: #0f172a; text-align: center; margin: 0 0 8px;">Chào mừng gia nhập CueZone Billiards!</h2>
+      <p style="color: #475569; text-align: center; font-size: 15px;">
+        ${name ? `Xin chào <strong>${name}</strong>,` : "Xin chào,"}
+        chúc mừng bạn đã đăng ký tài khoản hội viên thành công tại <strong>CueZone Billiards Club</strong>.
+      </p>
+      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px; margin: 20px 0; text-align: center;">
+        <p style="color: #166534; font-weight: bold; margin: 0 0 4px; font-size: 16px;">
+          🎉 Đặc quyền Hội Viên Mới Đã Kích Hoạt
+        </p>
+        <p style="color: #15803d; font-size: 13px; margin: 0;">
+          Bạn đã có thể đăng nhập để đặt bàn trước, gọi món trực tuyến và tích điểm đổi quà.
+        </p>
+      </div>
+      <p style="color: #64748b; font-size: 13px; text-align: center; line-height: 1.5;">
+        Nếu bạn cần hỗ trợ hoặc có thắc mắc, vui lòng liên hệ nhân viên tại quầy hoặc gửi phản hồi qua email này.
+      </p>
+      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 24px;">
+        CueZone Billiards Management & Bank Pool Tournament System
+      </p>
+    </div>
+  `;
+
+  await getTransporter().sendMail({
+    from: fromAddress,
+    to,
+    subject: "Chào mừng bạn đến với CueZone Billiards Club",
+    text: `Chào mừng ${name || "Hội viên mới"} đã đăng ký tài khoản thành công tại CueZone Billiards Club!`,
+    html,
+  });
+}
+

@@ -22,7 +22,7 @@ import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
 
 const { Title, Text } = Typography;
 
-const OTP_LENGTH = 4;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 const RegisterPage: React.FC = () => {
@@ -148,7 +148,7 @@ const RegisterPage: React.FC = () => {
     setError("");
     const code = otp.join("");
     if (code.length !== OTP_LENGTH) {
-      setError("Vui lòng nhập đủ 4 chữ số");
+      setError("Vui lòng nhập đủ 6 chữ số");
       return;
     }
 
@@ -367,7 +367,7 @@ const RegisterPage: React.FC = () => {
                     Xác Minh Email
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
-                    Nhập mã xác thực 4 chữ số đã được gửi đến:
+                    Nhập mã xác thực 6 chữ số đã được gửi đến:
                   </Text>
                   <span className="font-semibold text-emerald-700 text-xs break-all mt-1 inline-block">
                     {email}
@@ -390,9 +390,9 @@ const RegisterPage: React.FC = () => {
                 <form onSubmit={handleVerify} className="space-y-6">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-3 text-center">
-                      Nhập mã 4 chữ số (OTP)
+                      Nhập mã 6 chữ số (OTP)
                     </label>
-                    <div className="flex justify-center gap-3.5" onPaste={handleOtpPaste}>
+                    <div className="flex justify-center gap-2 sm:gap-3" onPaste={handleOtpPaste}>
                       {otp.map((digit, index) => (
                         <input
                           key={index}
@@ -406,7 +406,7 @@ const RegisterPage: React.FC = () => {
                           value={digit}
                           onChange={(e) => handleOtpChange(index, e.target.value)}
                           onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                          className="w-13 h-14 text-center text-2xl font-bold bg-slate-50 text-slate-900 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner font-mono"
+                          className="w-10 sm:w-12 h-12 sm:h-14 text-center text-xl sm:text-2xl font-bold bg-slate-50 text-slate-900 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner font-mono"
                           required
                         />
                       ))}

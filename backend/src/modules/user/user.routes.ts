@@ -1,7 +1,11 @@
 import { Router } from "express";
 import * as userController from "./user.controller";
+import { requireRole } from "../../middlewares/auth.middleware";
+import { UserRole } from "./user.model";
 
 const router = Router();
+
+router.use(requireRole(UserRole.ADMIN));
 
 router.get("/", userController.getAll);
 router.get("/stats", userController.getStats);

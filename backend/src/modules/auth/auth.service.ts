@@ -5,7 +5,7 @@ import { RegisterDTO, LoginDTO, ForgotPasswordDTO, ResetPasswordDTO, ChangePassw
 import { appConfig } from "../../config/app.config";
 import { EmailVerification } from "./emailVerification.model";
 import { PasswordResetOtp } from "./passwordResetOtp.model";
-import { sendVerificationEmail, sendPasswordResetEmail } from "./email.service";
+import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeRegistrationEmail } from "./email.service";
 
 export interface TokenPayload {
   userId: string;
@@ -112,6 +112,11 @@ export class AuthService {
     });
 
     await user.save();
+
+    // SCRUM-727: Gửi email chào mừng / xác thực sau khi đăng ký
+    sendWelcomeRegistrationEmail(user.email, user.name).catch((err) => {
+      console.warn("⚠️ Không thể gửi email xác thực đăng ký:", err.message);
+    });
 
     const tokens = this.generateTokens(user);
     const userObj = user.toObject();
@@ -291,6 +296,11 @@ export class AuthService {
     });
     await user.save();
     await EmailVerification.deleteOne({ email: normalizedEmail });
+
+    // SCRUM-727: Gửi email chào mừng / xác thực sau khi hoàn tất đăng ký
+    sendWelcomeRegistrationEmail(user.email, user.name).catch((err) => {
+      console.warn("⚠️ Không thể gửi email xác thực đăng ký:", err.message);
+    });
 
     const tokens = this.generateTokens(user);
     const userObj = user.toObject();

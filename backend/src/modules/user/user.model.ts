@@ -65,8 +65,8 @@ const userSchema = new Schema<IUser>(
       enum: Object.values(UserRole),
       default: UserRole.CUSTOMER,
     },
-    // Số điện thoại liên hệ (duy nhất nếu có)
-    phone: { type: String, trim: true, sparse: true, index: true },
+    // Số điện thoại liên hệ (duy nhất trên toàn hệ thống nếu có)
+    phone: { type: String, trim: true, sparse: true, unique: true },
     // Đường dẫn ảnh đại diện
     avatar: { type: String },
     // Trạng thái tài khoản đang hoạt động hay vô hiệu
