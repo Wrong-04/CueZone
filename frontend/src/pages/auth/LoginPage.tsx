@@ -11,6 +11,7 @@ import {
   Eye,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { authService } from "../../services/auth.service";
 import { UserRole } from "../../types";
 import {
   Button,
@@ -443,17 +444,22 @@ const LoginPage: React.FC = () => {
                       variant="primary"
                       size="sm"
                       loading={isSendingOtp}
-                      onClick={() => {
-                        if (!forgotEmail) {
+                      onClick={async () => {
+                        const trimmedEmail = forgotEmail.trim();
+                        if (!trimmedEmail) {
                           message.warning("Vui lòng nhập địa chỉ email!");
                           return;
                         }
                         setIsSendingOtp(true);
-                        setTimeout(() => {
-                          setIsSendingOtp(false);
+                        try {
+                          const resMsg = await authService.forgotPassword(trimmedEmail);
                           setForgotStep("otp");
-                          message.success(`Đã gửi mã xác thực OTP 4 chữ số về email: ${forgotEmail}`);
-                        }, 700);
+                          message.success(resMsg || `Đã gửi mã xác thực OTP 6 chữ số về email: ${trimmedEmail}`);
+                        } catch (err: any) {
+                          message.error(err.message || "Không thể gửi mã xác thực. Vui lòng thử lại!");
+                        } finally {
+                          setIsSendingOtp(false);
+                        }
                       }}
                       className="!bg-emerald-600 !border-emerald-600 !rounded-xl font-bold"
                     >
@@ -464,17 +470,17 @@ const LoginPage: React.FC = () => {
               ) : (
                 <>
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
-                    Mã OTP 4 số đã được gửi đến: <strong>{forgotEmail}</strong>. (Mã thử nghiệm: <strong>8888</strong>)
+                    Mã OTP 6 số đã được gửi đến: <strong>{forgotEmail}</strong>. Vui lòng kiểm tra hộp thư email (kể cả thư rác/spam).
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Nhập mã OTP 4 số:
+                      Nhập mã OTP 6 số:
                     </label>
                     <Input
                       value={forgotOtp}
-                      onChange={(e) => setForgotOtp(e.target.value)}
-                      maxLength={4}
-                      placeholder="8888"
+                      onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      maxLength={6}
+                      placeholder="123456"
                       className="!h-10 !rounded-xl text-center font-mono font-bold tracking-widest text-base"
                     />
                   </div>
@@ -485,7 +491,7 @@ const LoginPage: React.FC = () => {
                     <Input.Password
                       value={forgotNewPassword}
                       onChange={(e) => setForgotNewPassword(e.target.value)}
-                      placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                      placeholder="Tối thiểu 8 ký tự, gồm cả chữ và số"
                       className="!h-10 !rounded-xl"
                     />
                   </div>
@@ -511,24 +517,36 @@ const LoginPage: React.FC = () => {
                         variant="primary"
                         size="sm"
                         loading={isResetting}
-                        onClick={() => {
-                          if (forgotOtp.length < 4) {
-                            message.warning("Vui lòng nhập đủ 4 chữ số mã OTP!");
+                        onClick={async () => {
+                          if (forgotOtp.length !== 6) {
+                            message.warning("Vui lòng nhập đủ 6 chữ số mã OTP!");
                             return;
                           }
-                          if (forgotNewPassword.length < 6) {
-                            message.warning("Mật khẩu mới tối thiểu 6 ký tự!");
+                          if (forgotNewPassword.length < 8) {
+                            message.warning("Mật khẩu mới phải có ít nhất 8 ký tự!");
+                            return;
+                          }
+                          if (!/[a-zA-Z]/.test(forgotNewPassword) || !/[0-9]/.test(forgotNewPassword)) {
+                            message.warning("Mật khẩu mới phải chứa cả chữ cái và chữ số!");
                             return;
                           }
                           setIsResetting(true);
-                          setTimeout(() => {
-                            setIsResetting(false);
+                          try {
+                            const resMsg = await authService.resetPassword(
+                              forgotEmail.trim(),
+                              forgotOtp.trim(),
+                              forgotNewPassword
+                            );
+                            message.success(resMsg || "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.");
                             setShowForgotModal(false);
                             setForgotStep("email");
                             setForgotOtp("");
                             setForgotNewPassword("");
-                            message.success("Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.");
-                          }, 800);
+                          } catch (err: any) {
+                            message.error(err.message || "Đặt lại mật khẩu thất bại, vui lòng thử lại!");
+                          } finally {
+                            setIsResetting(false);
+                          }
                         }}
                         className="!bg-emerald-600 !border-emerald-600 !rounded-xl font-bold"
                       >

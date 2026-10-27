@@ -45,6 +45,31 @@ export const authService = {
     return data.data!;
   },
 
+  async forgotPassword(email: string): Promise<string> {
+    const { data } = await api.post<ApiResponse>("/auth/forgot-password", { email });
+    if (!data.success) throw new Error(data.message || "Yêu cầu gửi mã thất bại");
+    return data.message || "Mã OTP đã được gửi đến email của bạn";
+  },
+
+  async resetPassword(email: string, code: string, newPassword: string): Promise<string> {
+    const { data } = await api.post<ApiResponse>("/auth/reset-password", {
+      email,
+      code,
+      newPassword,
+    });
+    if (!data.success) throw new Error(data.message || "Đặt lại mật khẩu thất bại");
+    return data.message || "Đặt lại mật khẩu thành công";
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<string> {
+    const { data } = await api.post<ApiResponse>("/auth/change-password", {
+      currentPassword,
+      newPassword,
+    });
+    if (!data.success) throw new Error(data.message || "Đổi mật khẩu thất bại");
+    return data.message || "Đổi mật khẩu thành công";
+  },
+
   logout() {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
