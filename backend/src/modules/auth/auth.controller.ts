@@ -40,7 +40,7 @@ export const login = async (req: Request, res: Response) => {
     const result = await authService.login(req.body);
     res.json({ success: true, message: "Đăng nhập thành công", data: result });
   } catch (error: any) {
-    res.json({ success: false, message: error.message });
+    res.status(401).json({ success: false, message: error.message });
   }
 };
 

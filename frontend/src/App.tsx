@@ -80,6 +80,8 @@ const getDefaultRedirectPath = (role?: string): string => {
   if (role === "customer") return "/customer";
   if (role === "admin") return "/dashboard";
   if (role === "cashier") return "/wallet-topups";
+  if (role === "warehouse") return "/stock-catalog";
+  if (role === "referee") return "/tournaments";
 
   return "/pos";
 };

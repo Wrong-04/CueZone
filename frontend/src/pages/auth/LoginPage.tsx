@@ -35,6 +35,12 @@ const getRoleNavigationPath = (role?: string): string => {
       return "/pos";
     case UserRole.ADMIN:
       return "/dashboard";
+    case UserRole.CASHIER:
+      return "/wallet-topups";
+    case UserRole.WAREHOUSE:
+      return "/stock-catalog";
+    case UserRole.REFEREE:
+      return "/tournaments";
     default:
       return "/customer";
   }
