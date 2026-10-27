@@ -1,9 +1,46 @@
 import nodemailer from "nodemailer";
+import fs from "fs";
+import path from "path";
 
 const fromAddress =
   process.env.EMAIL_FROM || '"CueZone Billiards" <cuezonewdp@gmail.com>';
 
 let transporter: nodemailer.Transporter | null = null;
+let baseEmailTemplate: string | null = null;
+
+function getBaseTemplate(): string {
+  if (!baseEmailTemplate) {
+    const candidates = [
+      path.resolve(__dirname, "../../templates/email.template.html"),
+      path.resolve(process.cwd(), "src/templates/email.template.html"),
+      path.resolve(process.cwd(), "templates/email.template.html"),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        baseEmailTemplate = fs.readFileSync(p, "utf-8");
+        break;
+      }
+    }
+    if (!baseEmailTemplate) {
+      baseEmailTemplate = `<!DOCTYPE html><html><body>{{BODY_CONTENT}}</body></html>`;
+    }
+  }
+  return baseEmailTemplate;
+}
+
+function renderEmail(options: {
+  title: string;
+  greeting: string;
+  message: string;
+  bodyContent: string;
+}): string {
+  const template = getBaseTemplate();
+  return template
+    .replace(/{{TITLE}}/g, options.title)
+    .replace(/{{GREETING}}/g, options.greeting)
+    .replace(/{{MESSAGE}}/g, options.message)
+    .replace(/{{BODY_CONTENT}}/g, options.bodyContent);
+}
 
 function getTransporter(): nodemailer.Transporter {
   if (!transporter) {
@@ -25,35 +62,28 @@ export async function sendVerificationEmail(
   code: string,
   name?: string
 ): Promise<void> {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="display: inline-block; background: #D96B27; color: #fff; font-weight: bold; font-size: 20px; padding: 10px 14px; border-radius: 10px;">CZ</div>
-      </div>
-      <h2 style="color: #1B365D; text-align: center; margin: 0 0 8px;">Xác minh địa chỉ email</h2>
-      <p style="color: #4b5563; text-align: center;">
-        ${name ? `Xin chào <strong>${name}</strong>,` : "Xin chào,"}
-        bạn đang đăng ký tài khoản tại <strong>CueZone Billiards</strong>.
-      </p>
-      <p style="color: #4b5563; text-align: center; margin-bottom: 16px;">
-        Mã xác minh của bạn là:
-      </p>
-      <div style="text-align: center; margin: 20px 0;">
-        <span style="display: inline-block; background: #fff7ed; color: #D96B27; font-size: 36px; font-weight: bold; letter-spacing: 10px; padding: 14px 22px; border-radius: 10px; border: 1px solid #fed7aa;">${code}</span>
-      </div>
-      <p style="color: #6b7280; font-size: 14px; text-align: center;">
-        Mã có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.
-      </p>
-      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
-        Nếu bạn không yêu cầu email này, vui lòng bỏ qua.
-      </p>
+  const bodyContent = `
+    <div class="otp-box">
+      <div class="otp-label">MÃ XÁC MINH CỦA BẠN</div>
+      <div class="otp-code">${code}</div>
+      <div class="otp-expire">⏱️ Mã có hiệu lực trong vòng 5 phút</div>
+    </div>
+    <div class="notice-card">
+      <strong>Lưu ý bảo mật:</strong> Tuyệt đối không cung cấp mã xác minh này cho bất kỳ ai để đảm bảo an toàn tài khoản hội viên của bạn.
     </div>
   `;
+
+  const html = renderEmail({
+    title: "CueZone - Xác minh đăng ký tài khoản",
+    greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
+    message: "Bạn đang thực hiện đăng ký tài khoản hội viên tại <strong>CueZone Billiards</strong>. Vui lòng nhập mã OTP bên dưới để kích hoạt tài khoản của mình:",
+    bodyContent,
+  });
 
   await getTransporter().sendMail({
     from: fromAddress,
     to,
-    subject: "CueZone - Mã xác thực tài khoản",
+    subject: "CueZone - Mã xác thực đăng ký tài khoản",
     text: `Mã xác thực tài khoản CueZone của bạn là: ${code}. Mã có hiệu lực trong 5 phút.`,
     html,
   });
@@ -64,33 +94,23 @@ export async function sendPasswordResetEmail(
   code: string,
   name?: string
 ): Promise<void> {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="display: inline-block; background: #D96B27; color: #fff; font-weight: bold; font-size: 20px; padding: 10px 14px; border-radius: 10px;">CZ</div>
-      </div>
-      <h2 style="color: #1B365D; text-align: center; margin: 0 0 8px;">Khôi phục mật khẩu</h2>
-      <p style="color: #4b5563; text-align: center;">
-        ${name ? `Xin chào <strong>${name}</strong>,` : "Xin chào,"}
-        chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản CueZone của bạn.
-      </p>
-      <p style="color: #4b5563; text-align: center; margin-bottom: 16px;">
-        Mã OTP xác thực của bạn là:
-      </p>
-      <div style="text-align: center; margin: 20px 0;">
-        <span style="display: inline-block; background: #fff7ed; color: #D96B27; font-size: 36px; font-weight: bold; letter-spacing: 10px; padding: 14px 22px; border-radius: 10px; border: 1px solid #fed7aa;">${code}</span>
-      </div>
-      <p style="color: #6b7280; font-size: 14px; text-align: center;">
-        Mã OTP có hiệu lực trong <strong>10 phút</strong> và chỉ sử dụng được <strong>1 lần duy nhất</strong>.
-      </p>
-      <p style="color: #ef4444; font-size: 13px; text-align: center; font-weight: 500;">
-        Tuyệt đối không chia sẻ mã này cho bất kỳ ai để đảm bảo an toàn tài khoản.
-      </p>
-      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
-        Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email hoặc liên hệ với quản trị viên.
-      </p>
+  const bodyContent = `
+    <div class="otp-box">
+      <div class="otp-label">MÃ OTP ĐẶT LẠI MẬT KHẨU</div>
+      <div class="otp-code">${code}</div>
+      <div class="otp-expire">⏱️ Mã có hiệu lực trong vòng 10 phút (Sử dụng 1 lần)</div>
+    </div>
+    <div class="notice-card">
+      <strong>Cảnh báo an toàn:</strong> Nếu bạn không yêu cầu đặt lại mật khẩu, có thể ai đó đang cố truy cập tài khoản. Vui lòng bỏ qua email này hoặc liên hệ hotline CueZone để được hỗ trợ.
     </div>
   `;
+
+  const html = renderEmail({
+    title: "CueZone - Khôi phục mật khẩu",
+    greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
+    message: "Hệ thống CueZone nhận được yêu cầu cấp lại mật khẩu cho tài khoản liên kết với địa chỉ email này. Sử dụng mã OTP sau để hoàn tất quá trình:",
+    bodyContent,
+  });
 
   await getTransporter().sendMail({
     from: fromAddress,
@@ -108,32 +128,29 @@ export async function sendWelcomeRegistrationEmail(
   to: string,
   name?: string
 ): Promise<void> {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="display: inline-block; background: #059669; color: #fff; font-weight: bold; font-size: 20px; padding: 10px 14px; border-radius: 10px;">CZ</div>
-      </div>
-      <h2 style="color: #0f172a; text-align: center; margin: 0 0 8px;">Chào mừng gia nhập CueZone Billiards!</h2>
-      <p style="color: #475569; text-align: center; font-size: 15px;">
-        ${name ? `Xin chào <strong>${name}</strong>,` : "Xin chào,"}
-        chúc mừng bạn đã đăng ký tài khoản hội viên thành công tại <strong>CueZone Billiards Club</strong>.
-      </p>
-      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px; margin: 20px 0; text-align: center;">
-        <p style="color: #166534; font-weight: bold; margin: 0 0 4px; font-size: 16px;">
-          🎉 Đặc quyền Hội Viên Mới Đã Kích Hoạt
-        </p>
-        <p style="color: #15803d; font-size: 13px; margin: 0;">
-          Bạn đã có thể đăng nhập để đặt bàn trước, gọi món trực tuyến và tích điểm đổi quà.
-        </p>
-      </div>
-      <p style="color: #64748b; font-size: 13px; text-align: center; line-height: 1.5;">
-        Nếu bạn cần hỗ trợ hoặc có thắc mắc, vui lòng liên hệ nhân viên tại quầy hoặc gửi phản hồi qua email này.
-      </p>
-      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 24px;">
-        CueZone Billiards Management & Bank Pool Tournament System
+  const bodyContent = `
+    <div class="welcome-card">
+      <h3>🎉 ĐẶC QUYỀN HỘI VIÊN ĐÃ SẴN SÀNG</h3>
+      <p>
+        Tài khoản của bạn đã được kích hoạt thành công trên toàn hệ thống CueZone Billiards Club.
       </p>
     </div>
+    <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 18px; margin: 20px 0;">
+      <p style="margin: 0 0 8px; font-weight: 700; color: #047857; font-size: 14px;">✨ Các tiện ích dành riêng cho bạn:</p>
+      <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #475569; line-height: 1.7;">
+        <li>Đặt trước bàn chơi tại tất cả chi nhánh không lo hết bàn.</li>
+        <li>Gọi món ăn, nước uống và phụ kiện trực tiếp tại bàn.</li>
+        <li>Theo dõi lịch sử thi đấu và cập nhật bảng xếp hạng giải đấu Bank Pool.</li>
+      </ul>
+    </div>
   `;
+
+  const html = renderEmail({
+    title: "Chào mừng gia nhập CueZone Billiards Club",
+    greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
+    message: "Chúc mừng bạn đã gia nhập đại gia đình <strong>CueZone Billiards</strong>! Chúng tôi rất vinh hạnh được đồng hành cùng những trận cơ bida đỉnh cao của bạn.",
+    bodyContent,
+  });
 
   await getTransporter().sendMail({
     from: fromAddress,
