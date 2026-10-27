@@ -1,186 +1,223 @@
-<!DOCTYPE html>
-<html lang="vi">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="x-apple-disable-message-reformatting" />
   <title>{{TITLE}}</title>
-  <style>
+  <style type="text/css">
+    body, table, td, a {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    table, td {
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      -ms-interpolation-mode: bicubic;
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+    }
     body {
-      margin: 0;
-      padding: 0;
-      background-color: #f1f5f9;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      background-color: #0f172a;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       color: #334155;
-      -webkit-font-smoothing: antialiased;
     }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-    .wrapper {
-      max-width: 580px;
-      margin: 30px auto;
-      background-color: #ffffff;
-      border-radius: 16px;
+    /* Preheader preview text hiding */
+    .preheader {
+      display: none !important;
+      visibility: hidden;
+      mso-hide: all;
+      font-size: 1px;
+      line-height: 1px;
+      max-height: 0px;
+      max-width: 0px;
+      opacity: 0;
       overflow: hidden;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-      border: 1px solid #e2e8f0;
     }
-    .header {
-      background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%);
-      padding: 36px 30px;
-      text-align: center;
-      color: #ffffff;
-    }
-    .brand-badge {
-      display: inline-block;
-      width: 44px;
-      height: 44px;
-      line-height: 44px;
-      background-color: rgba(255, 255, 255, 0.18);
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      border-radius: 12px;
-      font-size: 20px;
-      font-weight: 900;
-      letter-spacing: 1px;
-      color: #ffffff;
-      margin-bottom: 12px;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      color: #ffffff;
-    }
-    .header p {
-      margin: 6px 0 0;
-      font-size: 13px;
-      color: #a7f3d0;
-      font-weight: 500;
-    }
-    .content {
-      padding: 32px 30px;
-    }
-    .greeting {
-      font-size: 16px;
-      font-weight: 600;
-      color: #0f172a;
-      margin-bottom: 12px;
-    }
-    .message {
-      font-size: 14px;
-      line-height: 1.65;
-      color: #475569;
-      margin-bottom: 24px;
-    }
-    .otp-box {
-      background: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 14px;
-      padding: 24px 20px;
-      text-align: center;
-      margin: 24px 0;
-    }
-    .otp-label {
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      color: #64748b;
-      margin-bottom: 10px;
-    }
-    .otp-code {
-      font-family: 'SF Pro Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
-      font-size: 38px;
-      font-weight: 800;
-      letter-spacing: 12px;
-      color: #047857;
-      display: inline-block;
-      padding: 10px 18px 10px 30px;
-      background: #ecfdf5;
-      border: 1px solid #a7f3d0;
-      border-radius: 10px;
-    }
-    .otp-expire {
-      margin-top: 14px;
-      font-size: 12px;
-      color: #059669;
-      font-weight: 600;
-    }
-    .notice-card {
-      background-color: #fffbeb;
-      border-left: 4px solid #f59e0b;
-      padding: 14px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      color: #92400e;
-      line-height: 1.5;
-      margin: 20px 0;
-    }
-    .welcome-card {
-      background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-      border: 1px solid #bbf7d0;
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-      margin: 20px 0;
-    }
-    .welcome-card h3 {
-      margin: 0 0 6px;
-      font-size: 16px;
-      color: #166534;
-      font-weight: 700;
-    }
-    .welcome-card p {
-      margin: 0;
-      font-size: 13px;
-      color: #15803d;
-      line-height: 1.5;
-    }
-    .footer {
-      background-color: #f8fafc;
-      border-top: 1px solid #e2e8f0;
-      padding: 24px 30px;
-      text-align: center;
-      font-size: 12px;
-      color: #94a3b8;
-      line-height: 1.6;
-    }
-    .footer strong {
-      color: #64748b;
+    @media only screen and (max-width: 620px) {
+      .container-table {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .content-padding {
+        padding: 24px 18px !important;
+      }
+      .otp-digit {
+        font-size: 28px !important;
+        letter-spacing: 6px !important;
+        padding: 10px 14px !important;
+      }
+      .perk-col {
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 12px !important;
+      }
     }
   </style>
 </head>
-<body>
-  <div class="wrapper">
-    <!-- Header -->
-    <div class="header">
-      <div class="brand-badge">CZ</div>
-      <h1>CUEZONE BILLIARDS</h1>
-      <p>Hệ Thống Quản Lý Câu Lạc Bộ & Giải Đấu Bida Chuyên Nghiệp</p>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <!-- Hidden Preheader for email clients -->
+  <span class="preheader" style="display: none; font-size: 1px; color: #f1f5f9; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
+    {{PREHEADER}}
+  </span>
 
-    <!-- Content -->
-    <div class="content">
-      <div class="greeting">{{GREETING}}</div>
-      <div class="message">{{MESSAGE}}</div>
+  <!-- Outer Canvas Table -->
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; table-layout: fixed;">
+    <tr>
+      <td align="center" style="padding: 24px 12px 36px 12px;">
 
-      {{BODY_CONTENT}}
-    </div>
+        <!-- Main Card Container (Max 600px) -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" class="container-table" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); border: 1px solid #e2e8f0;">
+          
+          <!-- ================= HEADER SECTION ================= -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #022c22 0%, #064e3b 40%, #047857 100%); padding: 36px 28px 32px 28px; text-align: center;">
+              <!-- Brand Monogram Emblem -->
+              <table border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto 14px auto;">
+                <tr>
+                  <td align="center" style="width: 50px; height: 50px; background: rgba(255, 255, 255, 0.15); border: 1.5px solid rgba(255, 255, 255, 0.35); border-radius: 14px; text-align: center; vertical-align: middle;">
+                    <span style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: 1.5px; display: inline-block; line-height: 50px;">CZ</span>
+                  </td>
+                </tr>
+              </table>
 
-    <!-- Footer -->
-    <div class="footer">
-      <p style="margin: 0 0 6px;">
-        <strong>CueZone Billiards Club</strong> • Số 123 Đường Bida, Phường Thể Thao, TP. Hồ Chí Minh
-      </p>
-      <p style="margin: 0 0 6px;">
-        Hotline CSKH: <strong>1900 6868</strong> • Email: <a href="mailto:cuezonewdp@gmail.com" style="color: #059669; text-decoration: none;">cuezonewdp@gmail.com</a>
-      </p>
-      <p style="margin: 12px 0 0; font-size: 11px; color: #cbd5e1;">
-        Đây là email gửi tự động từ hệ thống. Vui lòng không trả lời trực tiếp email này.
-      </p>
-    </div>
-  </div>
+              <!-- Brand Name -->
+              <h1 style="margin: 0; font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: 0.5px; text-transform: uppercase;">
+                CueZone <span style="color: #6ee7b7;">Billiards</span>
+              </h1>
+              <p style="margin: 6px 0 0 0; font-size: 13px; color: #a7f3d0; font-weight: 500; letter-spacing: 0.3px;">
+                Hệ Thống Quản Lý Bàn Chơi & Giải Đấu Bank Pool Chuyên Nghiệp
+              </p>
+
+              <!-- Category Badge -->
+              <table border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 16px auto 0 auto;">
+                <tr>
+                  <td style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(110, 231, 183, 0.4); border-radius: 20px; padding: 4px 14px;">
+                    <span style="font-size: 11px; font-weight: 700; color: #d1fae5; text-transform: uppercase; letter-spacing: 1.2px;">
+                      {{BADGE_TEXT}}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ================= MAIN CONTENT SECTION ================= -->
+          <tr>
+            <td class="content-padding" style="padding: 34px 32px 28px 32px;">
+              <!-- Greeting -->
+              <div style="font-size: 17px; font-weight: 700; color: #0f172a; margin-bottom: 12px; letter-spacing: -0.2px;">
+                {{GREETING}}
+              </div>
+
+              <!-- Primary Instruction/Message -->
+              <div style="font-size: 14px; line-height: 1.65; color: #475569; margin-bottom: 22px;">
+                {{MESSAGE}}
+              </div>
+
+              <!-- Dynamic Body (OTP Card, Welcome Card, etc.) -->
+              {{BODY_CONTENT}}
+
+              <!-- Optional Call-to-action button -->
+              {{CTA_BUTTON}}
+
+              <!-- Security Advisory Card -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-top: 24px;">
+                <tr>
+                  <td width="24" valign="top" style="padding-right: 10px; font-size: 16px;">
+                    🛡️
+                  </td>
+                  <td style="font-size: 12.5px; line-height: 1.55; color: #64748b;">
+                    <strong style="color: #334155;">Quy tắc bảo mật an toàn:</strong> Nhân viên CueZone <em>tuyệt đối không bao giờ</em> yêu cầu bạn cung cấp mật khẩu hoặc mã OTP qua điện thoại hay tin nhắn. Nếu có bất kỳ nghi vấn nào, xin vui lòng thông báo ngay cho ban quản trị.
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CueZone Feature Highlights (3-box banner) -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 28px; border-top: 1px solid #f1f5f9; padding-top: 22px;">
+                <tr>
+                  <td style="text-align: center; padding-bottom: 14px;">
+                    <span style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.2px;">
+                      Dịch Vụ & Tiện Ích Đẳng Cấp Tại CueZone
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <!-- Feature 1 -->
+                        <td width="33%" align="center" class="perk-col" style="padding: 10px 8px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px;">
+                          <div style="font-size: 20px; margin-bottom: 4px;">🎱</div>
+                          <div style="font-size: 12px; font-weight: 700; color: #0f172a;">Đặt Bàn 24/7</div>
+                          <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Giữ chỗ online tức thì</div>
+                        </td>
+                        <td width="2%"></td>
+                        <!-- Feature 2 -->
+                        <td width="33%" align="center" class="perk-col" style="padding: 10px 8px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px;">
+                          <div style="font-size: 20px; margin-bottom: 4px;">🏆</div>
+                          <div style="font-size: 12px; font-weight: 700; color: #0f172a;">Bank Pool</div>
+                          <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Giải đấu & Bảng xếp hạng</div>
+                        </td>
+                        <td width="2%"></td>
+                        <!-- Feature 3 -->
+                        <td width="33%" align="center" class="perk-col" style="padding: 10px 8px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 10px;">
+                          <div style="font-size: 20px; margin-bottom: 4px;">🍹</div>
+                          <div style="font-size: 12px; font-weight: 700; color: #0f172a;">Menu F&B</div>
+                          <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Gọi món tận bàn siêu tốc</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- ================= FOOTER SECTION ================= -->
+          <tr>
+            <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 26px 30px; text-align: center;">
+              <!-- Club Info -->
+              <div style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 6px;">
+                CÂU LẠC BỘ BIDA CUEZONE CLUB
+              </div>
+              <div style="font-size: 12px; color: #64748b; line-height: 1.6; margin-bottom: 12px;">
+                Trụ sở: Số 123 Đường Bida, Phường Thể Thao, Quận 10, TP. Hồ Chí Minh<br />
+                Hotline hỗ trợ: <strong style="color: #047857;">1900 6868</strong> • CSKH: <a href="mailto:cuezonewdp@gmail.com" style="color: #047857; text-decoration: none; font-weight: 600;">cuezonewdp@gmail.com</a>
+              </div>
+
+              <!-- Request metadata / Audit trail -->
+              <div style="font-size: 11px; color: #94a3b8; border-top: 1px dashed #e2e8f0; padding-top: 12px; margin-top: 12px; line-height: 1.5;">
+                Mã tham chiếu: <span style="font-family: monospace; color: #64748b;">{{REFERENCE_ID}}</span> • Thời gian gửi: <span>{{GENERATED_TIME}}</span><br />
+                Email này được gửi tự động từ máy chủ bảo mật CueZone Billiards System. Vui lòng không trả lời trực tiếp email này.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Main Card Container -->
+
+        <!-- Bottom Copyright -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin-top: 14px;">
+          <tr>
+            <td align="center" style="font-size: 11px; color: #94a3b8;">
+              © 2026 CueZone Billiards Management System. Tất cả các quyền được bảo lưu.
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
