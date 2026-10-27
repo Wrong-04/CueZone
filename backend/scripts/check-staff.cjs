@@ -1,6 +1,7 @@
 // Run from backend: node scripts/check-staff.cjs
 // Script kiểm thử độc lập cho tính năng SCRUM-757: Quản lý nhân sự, phân quyền RBAC & Bật/Tắt trạng thái hoạt động tài khoản
-require('dotenv/config');
+const path = require('node:path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const dns = require('dns');
 try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
 const assert = require('node:assert/strict');
