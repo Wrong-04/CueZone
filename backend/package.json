@@ -11,6 +11,7 @@
     "check:auth": "pnpm build && node scripts/check-auth.cjs",
     "check:password-reset": "pnpm build && node scripts/check-password-reset.cjs",
     "check:staff": "pnpm build && node scripts/check-staff.cjs",
+    "check:rules": "pnpm build && node scripts/check-bank-pool-rules.cjs",
     "check:tournament": "node scripts/check-tournament.cjs",
     "check:notification": "pnpm build && node scripts/check-notification.cjs"
   },

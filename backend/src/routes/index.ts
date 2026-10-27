@@ -17,6 +17,8 @@ import { optionalAuthMiddleware } from "../middlewares/auth.middleware";
 
 import productRouter, { productManagementRouter } from "../modules/product/product.routes";
 
+import { BANK_POOL_RULES_DATA } from "../modules/rule/bankPoolRules.data";
+
 const bookingService = new BookingService();
 const tournamentService = new TournamentService();
 
@@ -26,6 +28,13 @@ publicRouter.use("/auth", authRouter);
 publicRouter.use("/products", productRouter);
 publicRouter.get("/public/tables", getPublicTables);
 publicRouter.get("/tables/public", getPublicTables);
+publicRouter.get("/public/bank-pool-rules", (req, res) => {
+  res.json({
+    success: true,
+    message: "Lấy quy định và thể thức thi đấu Bank Pool thành công",
+    data: BANK_POOL_RULES_DATA,
+  });
+});
 publicRouter.get("/public/tournaments", async (req, res, next) => {
   try {
     const result = await tournamentService.getPublicTournaments(req.query);
