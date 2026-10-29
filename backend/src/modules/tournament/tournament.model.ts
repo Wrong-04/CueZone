@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { applyErdDefaults } from "../../config/erd-fields";
 
 /**
  * Các trạng thái trong vòng đời của giải đấu bida:
@@ -24,6 +25,12 @@ export enum TournamentStatus {
 export interface ITournamentPlayer {
   /** ID tài khoản người dùng đăng ký (khóa ngoại User) */
   user: mongoose.Types.ObjectId;
+  _id: mongoose.Types.ObjectId;
+  tournamentId?: mongoose.Types.ObjectId;
+  groupId?: mongoose.Types.ObjectId;
+  transactionId?: mongoose.Types.ObjectId;
+  registrationStatus: "pending" | "confirmed" | "cancelled";
+  result?: { _id: mongoose.Types.ObjectId; tournamentId?: mongoose.Types.ObjectId; registrationId?: mongoose.Types.ObjectId; finalRank: number; prizeAmount?: number };
   /** Tên cơ thủ tham gia thi đấu */
   name: string;
   /** Ảnh đại diện của cơ thủ */
@@ -44,6 +51,12 @@ export interface ITournamentPlayer {
 export interface ITournament extends Document {
   /** Tên giải đấu (vd: "Giải Vô Địch CueZone Mở Rộng 2025") */
   name: string;
+  gameType?: string;
+  minPlayers?: number;
+  prizePoolAmount?: number;
+  groups: { _id: mongoose.Types.ObjectId; tournamentId?: mongoose.Types.ObjectId; name: string; qualifySlots: number }[];
+  rounds: { _id: mongoose.Types.ObjectId; tournamentId?: mongoose.Types.ObjectId; roundNo: number; name?: string; stage: string; raceTo: number }[];
+  prizes: { _id: mongoose.Types.ObjectId; tournamentId?: mongoose.Types.ObjectId; rank: number; reward?: string; amount?: number }[];
   /** Mô tả giới thiệu thông tin giải đấu */
   description?: string;
   /** Ngày giờ bắt đầu khởi tranh giải đấu */
@@ -86,6 +99,19 @@ export interface ITournament extends Document {
 
 const TournamentPlayerSchema = new Schema<ITournamentPlayer>(
   {
+    tournamentId: { type: Schema.Types.ObjectId, ref: "Tournament" },
+    groupId: { type: Schema.Types.ObjectId },
+    transactionId: { type: Schema.Types.ObjectId, ref: "Transaction" },
+    registrationStatus: { type: String, enum: ["pending", "confirmed", "cancelled"], default: "confirmed" },
+    result: {
+      type: new Schema({
+        tournamentId: { type: Schema.Types.ObjectId, ref: "Tournament" },
+        registrationId: { type: Schema.Types.ObjectId },
+        finalRank: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+        prizeAmount: { type: Number, min: 0, validate: (v: number | null) => v == null || Number.isSafeInteger(v) },
+      }, { _id: true }),
+      default: undefined,
+    },
     // Tài khoản người chơi trong hệ thống
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     // Tên cơ thủ thi đấu
@@ -101,11 +127,33 @@ const TournamentPlayerSchema = new Schema<ITournamentPlayer>(
     // Thời điểm ghi danh
     registeredAt: { type: Date, default: Date.now },
   },
-  { _id: false }
+  { _id: true }
 );
 
 const TournamentSchema = new Schema<ITournament>(
   {
+    gameType: { type: String, enum: ["eight_ball", "nine_ball", "ten_ball", "bank_pool", "carom", "three_cushion", "snooker"] },
+    minPlayers: { type: Number, min: 2, validate: (v: number | null) => v == null || Number.isSafeInteger(v) },
+    // Tiền VNĐ nguyên; giữ prizePool dạng chữ để không suy đoán giá trị lịch sử.
+    prizePoolAmount: { type: Number, min: 0, validate: (v: number | null) => v == null || Number.isSafeInteger(v) },
+    groups: [new Schema({
+      tournamentId: { type: Schema.Types.ObjectId, ref: "Tournament" },
+      name: { type: String, required: true, trim: true },
+      qualifySlots: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+    })],
+    rounds: [new Schema({
+      tournamentId: { type: Schema.Types.ObjectId, ref: "Tournament" },
+      roundNo: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+      name: String,
+      stage: { type: String, enum: ["group", "knockout"], required: true },
+      raceTo: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+    })],
+    prizes: [new Schema({
+      tournamentId: { type: Schema.Types.ObjectId, ref: "Tournament" },
+      rank: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+      reward: String,
+      amount: { type: Number, min: 0, validate: (v: number | null) => v == null || Number.isSafeInteger(v) },
+    }, { _id: true })],
     // Tên giải đấu
     name: { type: String, required: true, trim: true },
     // Giới thiệu tóm tắt
@@ -153,8 +201,35 @@ const TournamentSchema = new Schema<ITournament>(
     // Danh sách đấu thủ tham gia
     players: [TournamentPlayerSchema],
   },
-  { timestamps: true }
+  { timestamps: true, collection: "tournaments", optimisticConcurrency: true }
 );
+
+applyErdDefaults(TournamentSchema, "Tournament");
+
+// ponytail: đăng ký nhúng vì quy mô hiện tại tối đa 32; tách collection khi hỗ trợ giải lớn.
+TournamentSchema.pre("validate", function () {
+  for (const entry of [...this.players, ...this.groups, ...this.rounds, ...this.prizes]) entry.tournamentId = this._id as mongoose.Types.ObjectId;
+  for (const player of this.players) {
+    if (player.result) {
+      player.result.tournamentId = this._id as mongoose.Types.ObjectId;
+      player.result.registrationId = player._id;
+    }
+  }
+  const unique = (items: unknown[]) => new Set(items.map(String)).size === items.length;
+  if (this.players.length > this.maxPlayers || !unique(this.players.map(p => p.user)) || !unique(this.players.map(p => p._id))) {
+    this.invalidate("players", "Danh sách cơ thủ vượt quy mô hoặc trùng đăng ký");
+  }
+  if (!unique(this.groups.map(g => g.name)) || !unique(this.groups.map(g => g._id))) this.invalidate("groups", "Bảng đấu bị trùng");
+  if (!unique(this.rounds.map(r => r.roundNo)) || !unique(this.rounds.map(r => r._id))) this.invalidate("rounds", "Vòng đấu bị trùng");
+  if (!unique(this.prizes.map(p => p.rank))) this.invalidate("prizes", "Hạng giải thưởng bị trùng");
+  for (const player of this.players) {
+    if (player.groupId && !this.groups.some(g => String(g._id) === String(player.groupId))) this.invalidate("players", "Bảng đấu không thuộc giải");
+  }
+  if (this.minPlayers && this.minPlayers > this.maxPlayers) this.invalidate("minPlayers", "Số cơ thủ tối thiểu vượt quy mô");
+  if (this.endDate < this.startDate || this.registrationDeadline > this.startDate) this.invalidate("startDate", "Lịch giải đấu không hợp lệ");
+});
+TournamentSchema.index({ status: 1, startDate: 1 });
+TournamentSchema.index({ "players.user": 1, startDate: -1 });
 
 export const Tournament =
   mongoose.models.Tournament ||

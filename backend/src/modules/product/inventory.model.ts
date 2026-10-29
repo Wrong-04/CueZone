@@ -76,7 +76,7 @@ const inventoryTransactionSchema =
     },
     {
       timestamps: true,
-      collection: "inventorytransactions",
+      collection: "inventory_transactions",
     }
   );
 

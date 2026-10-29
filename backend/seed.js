@@ -2302,6 +2302,8 @@ function assertSeedIntegrity({
 // 3. MAIN SEED FUNCTION
 // ==============================================================================
 async function runSeed() {
+  // Seed legacy xóa dữ liệu và dùng tên collection cũ; thay bằng migration không phá hủy.
+  throw new Error("Seed legacy đã bị khóa. Dùng pnpm db:migrate để chuyển schema và giữ dữ liệu hiện có.");
   try {
     console.log("==================================================");
     console.log("🎱 CUEZONE BILLIARDS — DATABASE RE-SEED MASTER (v4.3)");

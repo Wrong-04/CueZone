@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { applyErdDefaults } from "../../config/erd-fields";
 
 const bookingSchema = new Schema(
   {
@@ -20,8 +21,13 @@ const bookingSchema = new Schema(
     },
     rejectionReason: { type: String, maxlength: 1000 },
     checkedInAt: { type: Date },
+    staff: { type: Schema.Types.ObjectId, ref: "User" },
+    startDate: Date,
+    endDate: Date,
   },
   { timestamps: true },
 );
+
+applyErdDefaults(bookingSchema, "Booking");
 
 export const Booking = mongoose.model("Booking", bookingSchema);

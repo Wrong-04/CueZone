@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcryptjs";
+import { applyErdDefaults } from "../../config/erd-fields";
 
 /**
  * Các vai trò người dùng trong hệ thống CueZone:
@@ -25,6 +26,9 @@ export enum UserRole {
 export interface IUser extends Document {
   /** Họ và tên của người dùng */
   name: string;
+  userName?: string | null;
+  // Trạng thái ERD; quyền truy cập vẫn do isActive/isLocked kiểm soát.
+  status?: string | null;
   /** Địa chỉ email đăng nhập (duy nhất, viết thường) */
   email: string;
   /** Mật khẩu đã được mã hóa bcrypt (mặc định select: false khi query) */
@@ -33,6 +37,7 @@ export interface IUser extends Document {
   role: UserRole;
   /** Số điện thoại liên hệ */
   phone?: string;
+  dateOfBirth?: Date;
   /** URL ảnh đại diện */
   avatar?: string;
   /** Trạng thái kích hoạt của tài khoản (true = đang hoạt động) */
@@ -66,7 +71,10 @@ const userSchema = new Schema<IUser>(
       default: UserRole.CUSTOMER,
     },
     // Số điện thoại liên hệ (duy nhất trên toàn hệ thống nếu có)
-    phone: { type: String, trim: true, sparse: true, unique: true },
+    phone: { type: String, trim: true, default: null, index: { name: "phone_1_v2", unique: true, partialFilterExpression: { phone: { $type: "string" } } } },
+    dateOfBirth: { type: Date, default: null },
+    userName: { type: String, trim: true, default: null },
+    status: { type: String, default: null },
     // Đường dẫn ảnh đại diện
     avatar: { type: String },
     // Trạng thái tài khoản đang hoạt động hay vô hiệu
@@ -80,6 +88,8 @@ const userSchema = new Schema<IUser>(
   },
   { timestamps: true }
 );
+
+applyErdDefaults(userSchema, "User");
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();

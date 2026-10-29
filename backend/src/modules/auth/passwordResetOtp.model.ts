@@ -29,7 +29,7 @@ const passwordResetOtpSchema = new Schema<IPasswordResetOtp>(
     isUsed: { type: Boolean, default: false },
     expiresAt: { type: Date, required: true },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "password_reset_otps" }
 );
 
 // TTL index: Tự động xóa bản ghi khi quá hạn

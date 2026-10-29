@@ -142,7 +142,7 @@ const tableSchema = new Schema<ITable>(
     // Cho phép hiển thị và phục vụ hay không
     isActive: { type: Boolean, default: true },
     // Tham chiếu đến bảng giá theo khung giờ
-    pricingTier: { type: Schema.Types.ObjectId, ref: "PricingTier" },
+    pricingTier: { type: Schema.Types.ObjectId, ref: "PricingTier", default: null },
     // Phiên chơi hiện tại nhúng trực tiếp vào bàn
     currentSession: {
       type: new Schema<TableSession>({
@@ -183,7 +183,7 @@ const tableSchema = new Schema<ITable>(
       default: undefined,
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "pool_tables" }
 );
 
 // Tự động chuẩn hóa loại bàn cũ sang 3 loại chuẩn (pool, carom, snooker)

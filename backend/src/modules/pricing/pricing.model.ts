@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { applyErdDefaults } from "../../config/erd-fields";
 
 /**
  * Interface đại diện cho bảng giá / khung giá giờ chơi (Pricing Tier).
@@ -7,6 +8,11 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IPricingTier extends Document {
   /** Tên khung giá (vd: "Khung giờ vàng tối", "Cuối tuần - Ban ngày") */
   name: string;
+  status?: string | null;
+  type?: boolean | null;
+  price?: number | null;
+  priceType?: string | null;
+  note?: string | null;
   /** Phân loại ngày áp dụng: weekday (ngày thường T2-T6), weekend (cuối tuần T7-CN), peak (giờ cao điểm) */
   dayType: "weekday" | "weekend" | "peak";
   /** Giờ bắt đầu áp dụng (định dạng "HH:mm", vd: "18:00") */
@@ -38,6 +44,12 @@ const pricingTierSchema = new Schema<IPricingTier>(
   {
     // Tên của khung giá
     name: { type: String, required: true, trim: true },
+    // Các thuộc tính ERD chưa có quy tắc quy đổi từ biểu giá nhiều hạng.
+    status: { type: String, default: null },
+    type: { type: Boolean, default: null },
+    price: { type: Number, min: 0, default: null },
+    priceType: { type: String, default: null },
+    note: { type: String, default: null },
     // Loại ngày áp dụng: ngày thường, cuối tuần hoặc cao điểm
     dayType: { type: String, enum: ["weekday", "weekend", "peak"], required: true },
     // Thời điểm bắt đầu có hiệu lực (HH:mm)
@@ -57,7 +69,9 @@ const pricingTierSchema = new Schema<IPricingTier>(
     // Trạng thái hiệu lực theo thời gian thực hiện tại
     isCurrentlyActive: { type: Boolean, default: false },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "pricing_types" }
 );
+
+applyErdDefaults(pricingTierSchema, "PricingTier");
 
 export const PricingTier = mongoose.model<IPricingTier>("PricingTier", pricingTierSchema);

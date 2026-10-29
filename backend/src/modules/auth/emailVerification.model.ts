@@ -42,7 +42,7 @@ const emailVerificationSchema = new Schema<IEmailVerification>(
     // Thời điểm hết hạn của mã xác nhận
     expiresAt: { type: Date, required: true },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "email_verifications" }
 );
 
 // MongoDB TTL Index: tự động xóa document này khi thời gian hiện tại vượt qua expiresAt

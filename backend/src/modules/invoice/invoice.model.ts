@@ -9,6 +9,7 @@ export interface IInvoice extends Document {
   sessionId: string;
   /** ID bàn bida thực hiện phiên chơi */
   tableId: Types.ObjectId;
+  transactionId?: Types.ObjectId;
   /** Snapshot dữ liệu toàn bộ hóa đơn chi tiết tại thời điểm thanh toán (tiền giờ, F&B, cọc, giảm giá, VAT...) */
   receipt: Record<string, any>;
   /** Thời điểm tạo hóa đơn */
@@ -30,6 +31,7 @@ const invoiceSchema = new Schema<IInvoice>(
     },
     // Tham chiếu đến bàn chơi
     tableId: { type: Schema.Types.ObjectId, ref: "Table", required: true },
+    transactionId: { type: Schema.Types.ObjectId, ref: "Transaction" },
     // Dữ liệu snapshot chi tiết hóa đơn (JSON linh hoạt lưu toàn bộ thông tin thanh toán cuối cùng)
     receipt: { type: Schema.Types.Mixed, required: true },
   },
