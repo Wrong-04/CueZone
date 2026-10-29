@@ -1,10 +1,4 @@
-
-import {
-  Router,
-  Request,
-  Response,
-  NextFunction,
-} from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 
 import { Product } from "./product.model";
@@ -13,26 +7,14 @@ import Category from "./category.model";
 const router = Router();
 
 function asyncHandler(
-  handler: (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => Promise<unknown>
+  handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>,
 ) {
-  return (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(handler(req, res, next)).catch(next);
   };
 }
 
-function sendError(
-  res: Response,
-  status: number,
-  message: string
-) {
+function sendError(res: Response, status: number, message: string) {
   return res.status(status).json({
     success: false,
     message,
@@ -55,15 +37,13 @@ function normalizeString(value: unknown): string {
 router.get(
   "/categories",
   asyncHandler(async (_req, res) => {
-    const categories = await Category.find()
-      .sort({ createdAt: -1 })
-      .lean();
+    const categories = await Category.find().sort({ createdAt: -1 }).lean();
 
     return res.json({
       success: true,
       data: categories,
     });
-  })
+  }),
 );
 
 // POST /api/v1/catalog-management/categories
@@ -71,28 +51,17 @@ router.post(
   "/categories",
   asyncHandler(async (req, res) => {
     const name = normalizeString(req.body?.name);
-    const code = normalizeString(req.body?.code)
-      .toLowerCase();
-    const description = normalizeString(
-      req.body?.description
-    );
+    const code = normalizeString(req.body?.code).toLowerCase();
+    const description = normalizeString(req.body?.description);
 
     if (!name || !code) {
-      return sendError(
-        res,
-        400,
-        "Tên danh mục và mã danh mục là bắt buộc."
-      );
+      return sendError(res, 400, "Tên danh mục và mã danh mục là bắt buộc.");
     }
 
     const existing = await Category.findOne({ code });
 
     if (existing) {
-      return sendError(
-        res,
-        409,
-        "Mã danh mục đã tồn tại."
-      );
+      return sendError(res, 409, "Mã danh mục đã tồn tại.");
     }
 
     const category = await Category.create({
@@ -107,7 +76,7 @@ router.post(
       data: category,
       message: "Tạo danh mục thành công.",
     });
-  })
+  }),
 );
 
 // PUT /api/v1/catalog-management/categories/:id
@@ -117,11 +86,7 @@ router.put(
     const { id } = req.params;
 
     if (!validId(id)) {
-      return sendError(
-        res,
-        400,
-        "ID danh mục không hợp lệ."
-      );
+      return sendError(res, 400, "ID danh mục không hợp lệ.");
     }
 
     const updates: Record<string, unknown> = {};
@@ -130,20 +95,14 @@ router.put(
       const name = normalizeString(req.body.name);
 
       if (!name) {
-        return sendError(
-          res,
-          400,
-          "Tên danh mục không được để trống."
-        );
+        return sendError(res, 400, "Tên danh mục không được để trống.");
       }
 
       updates.name = name;
     }
 
     if (req.body?.description !== undefined) {
-      updates.description = normalizeString(
-        req.body.description
-      );
+      updates.description = normalizeString(req.body.description);
     }
 
     const category = await Category.findByIdAndUpdate(
@@ -152,15 +111,11 @@ router.put(
       {
         new: true,
         runValidators: true,
-      }
+      },
     );
 
     if (!category) {
-      return sendError(
-        res,
-        404,
-        "Không tìm thấy danh mục."
-      );
+      return sendError(res, 404, "Không tìm thấy danh mục.");
     }
 
     return res.json({
@@ -168,7 +123,7 @@ router.put(
       data: category,
       message: "Cập nhật danh mục thành công.",
     });
-  })
+  }),
 );
 
 // PATCH /api/v1/catalog-management/categories/:id/status
@@ -179,19 +134,11 @@ router.patch(
     const { isActive } = req.body ?? {};
 
     if (!validId(id)) {
-      return sendError(
-        res,
-        400,
-        "ID danh mục không hợp lệ."
-      );
+      return sendError(res, 400, "ID danh mục không hợp lệ.");
     }
 
     if (typeof isActive !== "boolean") {
-      return sendError(
-        res,
-        400,
-        "isActive phải là true hoặc false."
-      );
+      return sendError(res, 400, "isActive phải là true hoặc false.");
     }
 
     const category = await Category.findByIdAndUpdate(
@@ -200,15 +147,11 @@ router.patch(
       {
         new: true,
         runValidators: true,
-      }
+      },
     );
 
     if (!category) {
-      return sendError(
-        res,
-        404,
-        "Không tìm thấy danh mục."
-      );
+      return sendError(res, 404, "Không tìm thấy danh mục.");
     }
 
     return res.json({
@@ -216,7 +159,7 @@ router.patch(
       data: category,
       message: "Cập nhật trạng thái danh mục thành công.",
     });
-  })
+  }),
 );
 
 // DELETE /api/v1/catalog-management/categories/:id
@@ -226,24 +169,15 @@ router.delete(
     const { id } = req.params;
 
     if (!validId(id)) {
-      return sendError(
-        res,
-        400,
-        "ID danh mục không hợp lệ."
-      );
+      return sendError(res, 400, "ID danh mục không hợp lệ.");
     }
 
     const category = await Category.findById(id);
 
     if (!category) {
-      return sendError(
-        res,
-        404,
-        "Không tìm thấy danh mục."
-      );
+      return sendError(res, 404, "Không tìm thấy danh mục.");
     }
 
-    // Không xóa danh mục đang được hàng hóa sử dụng.
     const productUsingCategory = await Product.exists({
       category: category._id,
     });
@@ -252,7 +186,7 @@ router.delete(
       return sendError(
         res,
         409,
-        "Danh mục đang được hàng hóa sử dụng. Hãy ngừng sử dụng thay vì xóa."
+        "Danh mục đang được hàng hóa sử dụng. Hãy ngừng sử dụng thay vì xóa.",
       );
     }
 
@@ -263,7 +197,7 @@ router.delete(
       data: { _id: id },
       message: "Xóa danh mục thành công.",
     });
-  })
+  }),
 );
 
 /* =========================
@@ -288,23 +222,19 @@ router.get(
 
     if (category) {
       if (validId(category)) {
-        filter.category = new mongoose.Types.ObjectId(
-          category
-        );
+        filter.category = new mongoose.Types.ObjectId(category);
       } else {
         filter.category = category;
       }
     }
 
-    const products = await Product.find(filter)
-      .sort({ createdAt: -1 })
-      .lean();
+    const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
 
     return res.json({
       success: true,
       data: products,
     });
-  })
+  }),
 );
 
 // POST /api/v1/catalog-management/products
@@ -319,11 +249,7 @@ router.post(
     const unit = normalizeString(body.unit);
 
     if (!name || !sku || !category || !unit) {
-      return sendError(
-        res,
-        400,
-        "Tên hàng hóa, SKU, danh mục và đơn vị tính là bắt buộc."
-      );
+      return sendError(res, 400, "Tên hàng hóa, SKU, danh mục và đơn vị tính là bắt buộc.");
     }
 
     const costPrice = Number(body.costPrice);
@@ -338,21 +264,13 @@ router.post(
       salePrice < 0 ||
       minStock < 0
     ) {
-      return sendError(
-        res,
-        400,
-        "Giá nhập, giá bán và tồn kho tối thiểu phải là số không âm."
-      );
+      return sendError(res, 400, "Giá nhập, giá bán và tồn kho tối thiểu phải là số không âm.");
     }
 
     const duplicateSku = await Product.findOne({ sku });
 
     if (duplicateSku) {
-      return sendError(
-        res,
-        409,
-        "SKU đã tồn tại."
-      );
+      return sendError(res, 409, "SKU đã tồn tại.");
     }
 
     const categoryExists = validId(category)
@@ -360,11 +278,7 @@ router.post(
       : await Category.exists({ code: category });
 
     if (!categoryExists) {
-      return sendError(
-        res,
-        400,
-        "Danh mục không tồn tại."
-      );
+      return sendError(res, 400, "Danh mục không tồn tại.");
     }
 
     const categoryId = validId(category)
@@ -372,29 +286,16 @@ router.post(
       : (await Category.findOne({ code: category }))?._id;
 
     if (!categoryId) {
-      return sendError(
-        res,
-        400,
-        "Không xác định được danh mục."
-      );
+      return sendError(res, 400, "Không xác định được danh mục.");
     }
 
     const supplierId =
-      body.supplierId === undefined ||
-      body.supplierId === null ||
-      body.supplierId === ""
+      body.supplierId === undefined || body.supplierId === null || body.supplierId === ""
         ? null
         : normalizeString(body.supplierId);
 
-    if (
-      supplierId &&
-      !validId(supplierId)
-    ) {
-      return sendError(
-        res,
-        400,
-        "ID nhà cung cấp không hợp lệ."
-      );
+    if (supplierId && !validId(supplierId)) {
+      return sendError(res, 400, "ID nhà cung cấp không hợp lệ.");
     }
 
     const product = await Product.create({
@@ -416,7 +317,7 @@ router.post(
       data: product,
       message: "Tạo hàng hóa thành công.",
     });
-  })
+  }),
 );
 
 // PUT /api/v1/catalog-management/products/:id
@@ -427,63 +328,35 @@ router.put(
     const body = req.body ?? {};
 
     if (!validId(id)) {
-      return sendError(
-        res,
-        400,
-        "ID hàng hóa không hợp lệ."
-      );
+      return sendError(res, 400, "ID hàng hóa không hợp lệ.");
     }
 
     const product = await Product.findById(id);
 
     if (!product) {
-      return sendError(
-        res,
-        404,
-        "Không tìm thấy hàng hóa."
-      );
+      return sendError(res, 404, "Không tìm thấy hàng hóa.");
     }
 
     const updates: Record<string, unknown> = {};
 
-    for (const field of [
-      "name",
-      "sku",
-      "unit",
-      "description",
-    ]) {
+    for (const field of ["name", "sku", "unit", "description"]) {
       if (body[field] !== undefined) {
         const value = normalizeString(body[field]);
 
-        if (
-          ["name", "sku", "unit"].includes(field) &&
-          !value
-        ) {
-          return sendError(
-            res,
-            400,
-            `${field} không được để trống.`
-          );
+        if (["name", "sku", "unit"].includes(field) && !value) {
+          return sendError(res, 400, `${field} không được để trống.`);
         }
 
         updates[field] = value;
       }
     }
 
-    for (const field of [
-      "costPrice",
-      "salePrice",
-      "minStock",
-    ]) {
+    for (const field of ["costPrice", "salePrice", "minStock"]) {
       if (body[field] !== undefined) {
         const value = Number(body[field]);
 
         if (!Number.isFinite(value) || value < 0) {
-          return sendError(
-            res,
-            400,
-            `${field} phải là số không âm.`
-          );
+          return sendError(res, 400, `${field} phải là số không âm.`);
         }
 
         updates[field] = value;
@@ -497,25 +370,15 @@ router.put(
       });
 
       if (duplicate) {
-        return sendError(
-          res,
-          409,
-          "SKU đã được sử dụng bởi hàng hóa khác."
-        );
+        return sendError(res, 409, "SKU đã được sử dụng bởi hàng hóa khác.");
       }
     }
 
     if (body.category !== undefined) {
-      const categoryValue = normalizeString(
-        body.category
-      );
+      const categoryValue = normalizeString(body.category);
 
       if (!categoryValue) {
-        return sendError(
-          res,
-          400,
-          "Danh mục không được để trống."
-        );
+        return sendError(res, 400, "Danh mục không được để trống.");
       }
 
       const foundCategory = validId(categoryValue)
@@ -523,27 +386,17 @@ router.put(
         : await Category.findOne({ code: categoryValue });
 
       if (!foundCategory) {
-        return sendError(
-          res,
-          400,
-          "Danh mục không tồn tại."
-        );
+        return sendError(res, 400, "Danh mục không tồn tại.");
       }
 
       updates.category = foundCategory._id;
     }
 
     if (body.supplierId !== undefined) {
-      const supplierId = body.supplierId
-        ? normalizeString(body.supplierId)
-        : null;
+      const supplierId = body.supplierId ? normalizeString(body.supplierId) : null;
 
       if (supplierId && !validId(supplierId)) {
-        return sendError(
-          res,
-          400,
-          "ID nhà cung cấp không hợp lệ."
-        );
+        return sendError(res, 400, "ID nhà cung cấp không hợp lệ.");
       }
 
       updates.supplierId = supplierId;
@@ -551,11 +404,7 @@ router.put(
 
     if (body.isForSale !== undefined) {
       if (typeof body.isForSale !== "boolean") {
-        return sendError(
-          res,
-          400,
-          "isForSale phải là true hoặc false."
-        );
+        return sendError(res, 400, "isForSale phải là true hoặc false.");
       }
 
       updates.isForSale = body.isForSale;
@@ -567,7 +416,7 @@ router.put(
       {
         new: true,
         runValidators: true,
-      }
+      },
     );
 
     return res.json({
@@ -575,7 +424,7 @@ router.put(
       data: updated,
       message: "Cập nhật hàng hóa thành công.",
     });
-  })
+  }),
 );
 
 // PATCH /api/v1/catalog-management/products/:id/status
@@ -586,19 +435,11 @@ router.patch(
     const { isForSale } = req.body ?? {};
 
     if (!validId(id)) {
-      return sendError(
-        res,
-        400,
-        "ID hàng hóa không hợp lệ."
-      );
+      return sendError(res, 400, "ID hàng hóa không hợp lệ.");
     }
 
     if (typeof isForSale !== "boolean") {
-      return sendError(
-        res,
-        400,
-        "isForSale phải là true hoặc false."
-      );
+      return sendError(res, 400, "isForSale phải là true hoặc false.");
     }
 
     const product = await Product.findByIdAndUpdate(
@@ -607,15 +448,11 @@ router.patch(
       {
         new: true,
         runValidators: true,
-      }
+      },
     );
 
     if (!product) {
-      return sendError(
-        res,
-        404,
-        "Không tìm thấy hàng hóa."
-      );
+      return sendError(res, 404, "Không tìm thấy hàng hóa.");
     }
 
     return res.json({
@@ -623,7 +460,7 @@ router.patch(
       data: product,
       message: "Cập nhật trạng thái hàng hóa thành công.",
     });
-  })
+  }),
 );
 
 // DELETE /api/v1/catalog-management/products/:id
@@ -633,21 +470,13 @@ router.delete(
     const { id } = req.params;
 
     if (!validId(id)) {
-      return sendError(
-        res,
-        400,
-        "ID hàng hóa không hợp lệ."
-      );
+      return sendError(res, 400, "ID hàng hóa không hợp lệ.");
     }
 
     const product = await Product.findById(id);
 
     if (!product) {
-      return sendError(
-        res,
-        404,
-        "Không tìm thấy hàng hóa."
-      );
+      return sendError(res, 404, "Không tìm thấy hàng hóa.");
     }
 
     await Product.deleteOne({ _id: id });
@@ -657,7 +486,7 @@ router.delete(
       data: { _id: id },
       message: "Xóa hàng hóa thành công.",
     });
-  })
+  }),
 );
 
 export default router;

@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -51,10 +50,7 @@ interface ProtectedRouteProps {
   roles?: UserRole[];
 }
 
-const ProtectedRoute = ({
-  children,
-  roles,
-}: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, roles }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -94,29 +90,13 @@ const AppRoutes = () => {
       {/* Public routes */}
       <Route
         path="/login"
-        element={
-          user ? (
-            <Navigate
-              to={getDefaultRedirectPath(user.role)}
-              replace
-            />
-          ) : (
-            <LoginPage />
-          )
-        }
+        element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <LoginPage />}
       />
 
       <Route
         path="/register"
         element={
-          user ? (
-            <Navigate
-              to={getDefaultRedirectPath(user.role)}
-              replace
-            />
-          ) : (
-            <RegisterPage />
-          )
+          user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <RegisterPage />
         }
       />
 
@@ -287,67 +267,25 @@ const AppRoutes = () => {
       </Route>
 
       {/* Legacy /admin redirects */}
-      <Route
-        path="/admin"
-        element={<Navigate to="/dashboard" replace />}
-      />
-      <Route
-        path="/admin/pos"
-        element={<Navigate to="/pos" replace />}
-      />
-      <Route
-        path="/admin/tables"
-        element={<Navigate to="/tables" replace />}
-      />
-      <Route
-        path="/admin/booking"
-        element={<Navigate to="/booking" replace />}
-      />
-      <Route
-        path="/admin/tournaments"
-        element={<Navigate to="/tournaments" replace />}
-      />
-      <Route
-        path="/admin/fnb"
-        element={<Navigate to="/fnb" replace />}
-      />
-      <Route
-        path="/admin/inventory"
-        element={<Navigate to="/inventory" replace />}
-      />
-      <Route
-        path="/admin/invoices"
-        element={<Navigate to="/invoices" replace />}
-      />
-      <Route
-        path="/admin/reports"
-        element={<Navigate to="/reports" replace />}
-      />
-      <Route
-        path="/admin/employees"
-        element={<Navigate to="/employees" replace />}
-      />
-      <Route
-        path="/admin/news"
-        element={<Navigate to="/news" replace />}
-      />
-      <Route
-        path="/admin/settings"
-        element={<Navigate to="/settings" replace />}
-      />
+      <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/admin/pos" element={<Navigate to="/pos" replace />} />
+      <Route path="/admin/tables" element={<Navigate to="/tables" replace />} />
+      <Route path="/admin/booking" element={<Navigate to="/booking" replace />} />
+      <Route path="/admin/tournaments" element={<Navigate to="/tournaments" replace />} />
+      <Route path="/admin/fnb" element={<Navigate to="/fnb" replace />} />
+      <Route path="/admin/inventory" element={<Navigate to="/inventory" replace />} />
+      <Route path="/admin/invoices" element={<Navigate to="/invoices" replace />} />
+      <Route path="/admin/reports" element={<Navigate to="/reports" replace />} />
+      <Route path="/admin/employees" element={<Navigate to="/employees" replace />} />
+      <Route path="/admin/news" element={<Navigate to="/news" replace />} />
+      <Route path="/admin/settings" element={<Navigate to="/settings" replace />} />
 
       {/* Customer routes */}
-      <Route
-        path="/customer"
-        element={<CustomerLayout />}
-      >
+      <Route path="/customer" element={<CustomerLayout />}>
         <Route index element={<CustomerHome />} />
         <Route path="booking" element={<CustomerBooking />} />
         <Route path="fnb" element={<CustomerFnB />} />
-        <Route
-          path="tournaments"
-          element={<CustomerTournaments />}
-        />
+        <Route path="tournaments" element={<CustomerTournaments />} />
         <Route path="history" element={<CustomerHistory />} />
         <Route path="wallet" element={<CustomerWallet />} />
         <Route path="profile" element={<CustomerProfile />} />
@@ -356,15 +294,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Default redirect */}
-      <Route
-        path="*"
-        element={
-          <Navigate
-            to={getDefaultRedirectPath(user?.role)}
-            replace
-          />
-        }
-      />
+      <Route path="*" element={<Navigate to={getDefaultRedirectPath(user?.role)} replace />} />
     </Routes>
   );
 };

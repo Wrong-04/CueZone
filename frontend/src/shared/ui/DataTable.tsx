@@ -1,18 +1,14 @@
-import { DownloadOutlined } from '@ant-design/icons';
-import { type TablePaginationConfig } from 'antd';
-import type { TableRowSelection } from 'antd/es/table/interface';
-import clsx from 'clsx';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { DownloadOutlined } from "@ant-design/icons";
+import { type TablePaginationConfig } from "antd";
+import type { TableRowSelection } from "antd/es/table/interface";
+import clsx from "clsx";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 
-import { Button } from './Button';
-import { Card } from './Card';
-import { Pagination } from './Pagination';
-import { Table, type ColumnsType } from './Table';
+import { Button } from "./Button";
+import { Card } from "./Card";
+import { Pagination } from "./Pagination";
+import { Table, type ColumnsType } from "./Table";
 
-/**
- * Props của component DataTable:
- * Hỗ trợ phân trang, padding dòng trống để cố định chiều cao bảng, xuất Excel, chọn dòng (checkbox), click dòng,...
- */
 export interface DataTableProps<T> {
   title?: ReactNode;
   total?: number;
@@ -32,7 +28,7 @@ export interface DataTableProps<T> {
   pagination?: boolean | TablePaginationConfig;
   onRowClick?: (record: T, index?: number) => void;
   className?: string;
-  size?: 'small' | 'middle' | 'large';
+  size?: "small" | "middle" | "large";
   scroll?: { x?: number | string | true; y?: number | string };
   /**
    * Render the table alone — no Card wrapper, no title/total header bar and
@@ -40,9 +36,9 @@ export interface DataTableProps<T> {
    * card, where the default card-in-card styling reads wrong.
    */
   bare?: boolean;
-  /** AntD Table's `bordered`. Bật sẵn — tắt chỉ khi thật sự cần bảng không viền. */
+
   bordered?: boolean;
-  /** Chọn nhiều dòng bằng checkbox. Dòng đệm luôn bị khoá, không chọn được. */
+
   rowSelection?: TableRowSelection<T>;
   /** AntD Table's `summary`, for a totals row. Receives the real rows only — never the padding placeholders. */
   summary?: (data: readonly T[]) => ReactNode;
@@ -56,27 +52,23 @@ interface PlaceholderRow {
 }
 
 function isPlaceholder(record: unknown): record is PlaceholderRow {
-  return typeof record === 'object' && record !== null && '__isPlaceholder' in record;
+  return typeof record === "object" && record !== null && "__isPlaceholder" in record;
 }
 
 const CARD_BODY_STYLES = {
-  body: { padding: 0, display: 'flex', flexDirection: 'column' as const, flex: 1, minHeight: 0 },
+  body: { padding: 0, display: "flex", flexDirection: "column" as const, flex: 1, minHeight: 0 },
 };
 
-/**
- * Bảng dữ liệu nghiệp vụ hoàn chỉnh (DataTable):
- * Tích hợp sẵn khung Card, thanh tiêu đề đếm tổng số bản ghi, nút Xuất Excel, tự động chèn dòng đệm (minRows) giữ bảng cố định độ cao và phân trang chuẩn.
- */
 export function DataTable<T extends object>({
   title,
   total,
   totalText,
   extra,
   onExport,
-  exportText = 'Xuất Excel',
+  exportText = "Xuất Excel",
   columns,
   dataSource,
-  rowKey = 'id',
+  rowKey = "id",
   loading = false,
   page = 1,
   pageSize = 20,
@@ -86,11 +78,10 @@ export function DataTable<T extends object>({
   pagination = true,
   onRowClick,
   className,
-  size = 'small',
+  size = "small",
   scroll,
   bare = false,
-  // Viền ô là một phần của kiểu bảng chuẩn (giống bảng "Lịch sử tổn thất"),
-  // nên bật mặc định thay vì để từng nơi gọi tự bật.
+
   bordered = true,
   summary,
   rowClassName,
@@ -132,9 +123,9 @@ export function DataTable<T extends object>({
       columns.map((col) => ({
         ...col,
         render: (value, record, index) => {
-          if (isPlaceholder(record)) return ' ';
+          if (isPlaceholder(record)) return " ";
           const original = (col as { render?: (v: unknown, r: T, i: number) => ReactNode }).render;
-          return original ? original(value, record as T, index) : ((value as ReactNode) ?? '');
+          return original ? original(value, record as T, index) : ((value as ReactNode) ?? "");
         },
       })) as ColumnsType<T | PlaceholderRow>,
     [columns],
@@ -155,7 +146,7 @@ export function DataTable<T extends object>({
     const { getCheckboxProps, ...rest } = rowSelection;
     return {
       ...rest,
-      // Dòng đệm không phải bản ghi thật nên không bao giờ được chọn.
+
       getCheckboxProps: (record: T | PlaceholderRow) =>
         isPlaceholder(record) ? { disabled: true } : (getCheckboxProps?.(record as T) ?? {}),
     } as TableRowSelection<T | PlaceholderRow>;
@@ -168,31 +159,29 @@ export function DataTable<T extends object>({
       rowKey={(record) =>
         isPlaceholder(record)
           ? record.__placeholderKey
-          : typeof rowKey === 'function'
+          : typeof rowKey === "function"
             ? rowKey(record)
             : ((record as Record<string, string | number>)[rowKey] ??
               (record as Record<string, string | number>).id ??
               (record as Record<string, string | number>).key ??
-              'row')
+              "row")
       }
       loading={loading}
       pagination={false}
       size={size}
       scroll={scroll}
       bordered={bordered}
-      // Khi khung ngoài là nơi cuộn dọc, nhờ AntD ghim header vào chính khung
-      // đó. `position: sticky` tự viết không dùng được vì `.ant-table-content`
-      // (cuộn ngang) chen vào giữa và trở thành scrollport gần nhất.
+
       sticky={scroll?.y ? undefined : { getContainer: () => wrapperRef.current ?? window }}
       rowSelection={wrappedRowSelection}
       summary={wrappedSummary}
       onRow={(record, index) =>
         isPlaceholder(record)
-          ? { className: 'empty-placeholder-row select-none pointer-events-none' }
+          ? { className: "empty-placeholder-row select-none pointer-events-none" }
           : {
               onClick: onRowClick ? () => onRowClick(record, index) : undefined,
               className: clsx(
-                onRowClick && 'cursor-pointer hover:bg-bg-app',
+                onRowClick && "cursor-pointer hover:bg-bg-app",
                 rowClassName?.(record, index),
               ),
             }
@@ -200,15 +189,11 @@ export function DataTable<T extends object>({
     />
   );
 
-  // Mỗi trục chỉ được có ĐÚNG MỘT khung cuộn, nếu không sẽ thấy hai thanh cuộn
-  // lồng nhau: khi caller đặt `scroll.y`, AntD tự tạo `.ant-table-body` cuộn cả
-  // hai trục nên khung ngoài phải cắt; khi có `scroll.x`, AntD cuộn ngang trong
-  // `.ant-table-content` nên khung ngoài chỉ giữ trục dọc.
   const wrapperOverflow = scroll?.y
-    ? 'overflow-hidden'
+    ? "overflow-hidden"
     : scroll?.x
-      ? 'overflow-x-hidden overflow-y-auto'
-      : 'overflow-auto';
+      ? "overflow-x-hidden overflow-y-auto"
+      : "overflow-auto";
 
   const paginationNode =
     pagination !== false ? (
@@ -216,7 +201,7 @@ export function DataTable<T extends object>({
         <span className="text-[12.5px] text-text-secondary">
           {totalCount > 0
             ? `Hiển thị ${Math.min((currentPage - 1) * currentPageSize + 1, totalCount)}-${Math.min(currentPage * currentPageSize, totalCount)} trên ${totalCount} bản ghi`
-            : '0 bản ghi'}
+            : "0 bản ghi"}
         </span>
         <Pagination
           current={currentPage}
@@ -233,7 +218,7 @@ export function DataTable<T extends object>({
     return (
       <div
         ref={wrapperRef}
-        className={clsx('eclaim-data-table flex flex-1 flex-col', wrapperOverflow, className)}
+        className={clsx("eclaim-data-table flex flex-1 flex-col", wrapperOverflow, className)}
       >
         {tableNode}
         {paginationNode}
@@ -245,7 +230,7 @@ export function DataTable<T extends object>({
     <Card
       variant="borderless"
       className={clsx(
-        'flex w-full flex-col overflow-hidden rounded-lg border-none bg-bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]',
+        "flex w-full flex-col overflow-hidden rounded-lg border-none bg-bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]",
         className,
       )}
       styles={CARD_BODY_STYLES}
@@ -277,7 +262,7 @@ export function DataTable<T extends object>({
 
       <div
         ref={wrapperRef}
-        className={clsx('eclaim-data-table flex min-h-0 flex-1 flex-col', wrapperOverflow)}
+        className={clsx("eclaim-data-table flex min-h-0 flex-1 flex-col", wrapperOverflow)}
       >
         {tableNode}
       </div>

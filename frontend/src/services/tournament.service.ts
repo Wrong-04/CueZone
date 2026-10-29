@@ -48,7 +48,9 @@ export interface PendingTournamentFee {
   tournamentName: string;
   startDate: string;
   amount: number;
-  player: Omit<TournamentPlayer, "user"> & { user: { _id: string; name: string; email: string; phone?: string } };
+  player: Omit<TournamentPlayer, "user"> & {
+    user: { _id: string; name: string; email: string; phone?: string };
+  };
 }
 
 export interface CreateTournamentPayload {
@@ -73,27 +75,42 @@ export interface UpdateTournamentPayload extends Partial<CreateTournamentPayload
 
 export const tournamentService = {
   async getPublicTournaments(params?: { page?: number; limit?: number }) {
-    const { data } = await api.get<ApiResponse<{ items: TournamentItem[]; total: number }>>("/public/tournaments", { params });
+    const { data } = await api.get<ApiResponse<{ items: TournamentItem[]; total: number }>>(
+      "/public/tournaments",
+      { params },
+    );
     if (!data.success) throw new Error(data.message || "Không thể tải danh sách giải đấu");
     return data.data || { items: [], total: 0 };
   },
 
   async getPendingFees(): Promise<PendingTournamentFee[]> {
-    const { data } = await api.get<ApiResponse<PendingTournamentFee[]>>("/tournaments/pending-fees");
+    const { data } = await api.get<ApiResponse<PendingTournamentFee[]>>(
+      "/tournaments/pending-fees",
+    );
     if (!data.success) throw new Error(data.message || "Không thể tải lệ phí giải đấu đang chờ");
     return data.data || [];
   },
 
   async confirmPlayerFee(tournamentId: string, userId: string) {
-    const { data } = await api.patch<ApiResponse<TournamentItem>>(`/tournaments/${tournamentId}/players/${userId}/fee`);
+    const { data } = await api.patch<ApiResponse<TournamentItem>>(
+      `/tournaments/${tournamentId}/players/${userId}/fee`,
+    );
     if (!data.success) throw new Error(data.message || "Không thể xác nhận lệ phí");
     return data.data!;
   },
 
-  async getTournaments(params?: { status?: string; search?: string; page?: number; limit?: number }) {
-    const { data } = await api.get<ApiResponse<{ items: TournamentItem[]; total: number }>>("/tournaments", {
-      params,
-    });
+  async getTournaments(params?: {
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const { data } = await api.get<ApiResponse<{ items: TournamentItem[]; total: number }>>(
+      "/tournaments",
+      {
+        params,
+      },
+    );
     if (!data.success) throw new Error(data.message || "Không thể tải danh sách giải đấu");
     return data.data || { items: [], total: 0 };
   },
@@ -117,7 +134,9 @@ export const tournamentService = {
   },
 
   async changeStatus(id: string, status: TournamentStatus): Promise<TournamentItem> {
-    const { data } = await api.patch<ApiResponse<TournamentItem>>(`/tournaments/${id}/status`, { status });
+    const { data } = await api.patch<ApiResponse<TournamentItem>>(`/tournaments/${id}/status`, {
+      status,
+    });
     if (!data.success) throw new Error(data.message || "Không thể thay đổi trạng thái giải đấu");
     return data.data!;
   },
@@ -128,7 +147,9 @@ export const tournamentService = {
   },
 
   async register(id: string, paymentMethod: "wallet" | "counter"): Promise<TournamentItem> {
-    const { data } = await api.post<ApiResponse<TournamentItem>>(`/tournaments/${id}/register`, { paymentMethod });
+    const { data } = await api.post<ApiResponse<TournamentItem>>(`/tournaments/${id}/register`, {
+      paymentMethod,
+    });
     if (!data.success || !data.data) throw new Error(data.message || "Không thể ghi danh giải đấu");
     return data.data;
   },

@@ -1,11 +1,21 @@
 import jwt from "jsonwebtoken";
 import { User, IUser, UserRole } from "../user/user.model";
 import { Role, IPermission } from "../role/role.model";
-import { RegisterDTO, LoginDTO, ForgotPasswordDTO, ResetPasswordDTO, ChangePasswordDTO } from "./dto/auth.dto";
+import {
+  RegisterDTO,
+  LoginDTO,
+  ForgotPasswordDTO,
+  ResetPasswordDTO,
+  ChangePasswordDTO,
+} from "./dto/auth.dto";
 import { appConfig } from "../../config/app.config";
 import { EmailVerification } from "./emailVerification.model";
 import { PasswordResetOtp } from "./passwordResetOtp.model";
-import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeRegistrationEmail } from "./email.service";
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendWelcomeRegistrationEmail,
+} from "./email.service";
 
 export interface TokenPayload {
   userId: string;
@@ -50,7 +60,12 @@ export class AuthService {
     }
   }
 
-  private validateRegistrationInput(dto: RegisterDTO): { name: string; email: string; phone?: string; password: string } {
+  private validateRegistrationInput(dto: RegisterDTO): {
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+  } {
     const name = typeof dto.name === "string" ? dto.name.trim() : "";
     if (!name) {
       throw new Error("Họ và tên không được để trống");
@@ -113,7 +128,6 @@ export class AuthService {
 
     await user.save();
 
-    // SCRUM-727: Gửi email chào mừng / xác thực sau khi đăng ký
     sendWelcomeRegistrationEmail(user.email, user.name).catch((err) => {
       console.warn("⚠️ Không thể gửi email xác thực đăng ký:", err.message);
     });
@@ -139,7 +153,7 @@ export class AuthService {
     const user = await User.findOne(
       isEmail
         ? { email: identifier.toLowerCase() }
-        : { $or: [{ phone: identifier }, { email: identifier.toLowerCase() }] }
+        : { $or: [{ phone: identifier }, { email: identifier.toLowerCase() }] },
     ).select("+password");
 
     if (!user) {
@@ -214,7 +228,6 @@ export class AuthService {
         }
       }
 
-      // Mã OTP 6 chữ số ngẫu nhiên
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -229,7 +242,7 @@ export class AuthService {
           attempts: 0,
           expiresAt,
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, setDefaultsOnInsert: true },
       );
 
       try {
@@ -238,7 +251,7 @@ export class AuthService {
         await EmailVerification.deleteOne({ email: validated.email });
         console.error("❌ Email send failed:", err);
         throw new Error(
-          "Không thể gửi email xác minh. Vui lòng cấu hình App Password Gmail (SMTP_PASS) và thử lại."
+          "Không thể gửi email xác minh. Vui lòng cấu hình App Password Gmail (SMTP_PASS) và thử lại.",
         );
       }
 
@@ -297,7 +310,6 @@ export class AuthService {
     await user.save();
     await EmailVerification.deleteOne({ email: normalizedEmail });
 
-    // SCRUM-727: Gửi email chào mừng / xác thực sau khi hoàn tất đăng ký
     sendWelcomeRegistrationEmail(user.email, user.name).catch((err) => {
       console.warn("⚠️ Không thể gửi email xác thực đăng ký:", err.message);
     });
@@ -332,10 +344,6 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  /**
-   * SCRUM-741 & SCRUM-742 & SCRUM-745: Sinh mã OTP ngẫu nhiên, lưu vào DB và gửi qua Nodemailer
-   * Business Rules: Có hiệu lực trong 10 phút, chỉ sử dụng 1 lần.
-   */
   async forgotPassword(dto: ForgotPasswordDTO): Promise<{ message: string }> {
     const email = typeof dto.email === "string" ? dto.email.trim().toLowerCase() : "";
     if (!email) {
@@ -362,8 +370,9 @@ export class AuthService {
     this.sendingLocks.add(lockKey);
 
     try {
-      // Cooldown chống spam 60s
-      const pending = await PasswordResetOtp.findOne({ email, isUsed: false }).sort({ createdAt: -1 });
+      const pending = await PasswordResetOtp.findOne({ email, isUsed: false }).sort({
+        createdAt: -1,
+      });
       if (pending) {
         const elapsed = Date.now() - pending.createdAt.getTime();
         if (elapsed < 60_000) {
@@ -372,12 +381,10 @@ export class AuthService {
         }
       }
 
-      // Sinh mã OTP 6 chữ số ngẫu nhiên
       const code = Math.floor(100000 + Math.random() * 900000).toString();
-      // Hiệu lực 10 phút (Business Rule)
+
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      // Đánh dấu các mã cũ là không còn hiệu lực
       await PasswordResetOtp.updateMany({ email, isUsed: false }, { isUsed: true });
 
       const otpRecord = new PasswordResetOtp({
@@ -395,7 +402,7 @@ export class AuthService {
         await PasswordResetOtp.deleteOne({ _id: otpRecord._id });
         console.error("❌ Send password reset email failed:", err);
         throw new Error(
-          "Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau hoặc liên hệ hỗ trợ."
+          "Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
         );
       }
 
@@ -406,9 +413,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * SCRUM-743 & SCRUM-744 & SCRUM-745: Xác thực OTP, validate mật khẩu mới, hash và cập nhật mật khẩu
-   */
   async resetPassword(dto: ResetPasswordDTO): Promise<{ message: string }> {
     const email = typeof dto.email === "string" ? dto.email.trim().toLowerCase() : "";
     const code = typeof dto.code === "string" ? dto.code.trim() : "";
@@ -425,9 +429,13 @@ export class AuthService {
       throw new Error("Tài khoản không tồn tại");
     }
 
-    const otpRecord = await PasswordResetOtp.findOne({ email, isUsed: false }).sort({ createdAt: -1 });
+    const otpRecord = await PasswordResetOtp.findOne({ email, isUsed: false }).sort({
+      createdAt: -1,
+    });
     if (!otpRecord) {
-      throw new Error("Không tìm thấy yêu cầu đặt lại mật khẩu hoặc mã đã được sử dụng. Vui lòng yêu cầu mã mới.");
+      throw new Error(
+        "Không tìm thấy yêu cầu đặt lại mật khẩu hoặc mã đã được sử dụng. Vui lòng yêu cầu mã mới.",
+      );
     }
 
     if (otpRecord.expiresAt.getTime() < Date.now()) {
@@ -449,20 +457,15 @@ export class AuthService {
       throw new Error(`Mã OTP không chính xác. Còn ${remain} lần thử.`);
     }
 
-    // Đánh dấu mã đã dùng thành công (chỉ dùng duy nhất 1 lần)
     otpRecord.isUsed = true;
     await otpRecord.save();
 
-    // Hash mật khẩu mới và lưu vào User (thông qua pre-save hook của Mongoose)
     user.password = newPassword;
     await user.save();
 
     return { message: "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập bằng mật khẩu mới." };
   }
 
-  /**
-   * Đổi mật khẩu cho người dùng đã đăng nhập (yêu cầu mật khẩu hiện tại)
-   */
   async changePassword(userId: string, dto: ChangePasswordDTO): Promise<{ message: string }> {
     const currentPassword = typeof dto.currentPassword === "string" ? dto.currentPassword : "";
     const newPassword = typeof dto.newPassword === "string" ? dto.newPassword : "";

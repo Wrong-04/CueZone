@@ -66,10 +66,6 @@ export const defaultPricingTiers: PricingTier[] = [
   },
 ];
 
-/**
- * Thuật toán tách khoảng giá theo thời gian thực (Split Time Rate)
- * Tự động phân chia phiên chơi qua các khung giờ (ví dụ: chiều 60k -> tối 80k)
- */
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 interface CachedSlotsResult {
@@ -89,15 +85,10 @@ const formatHMFromMins = (totalMins: number): string => {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
-/**
- * Thuật toán tách khoảng giá theo thời gian thực (Split Time Rate) siêu tốc
- * Tự động phân chia phiên chơi qua các khung giờ (ví dụ: chiều 60k -> tối 80k)
- * Đã tối ưu hóa tính toán số nguyên UTC+7 & cache kết quả, loại bỏ 100% hiện tượng giật lag
- */
 export function calculateSplitPlayingDetails(
   table: PosTable,
   pricingTiers: PricingTier[] = defaultPricingTiers,
-  currentTime = Date.now()
+  currentTime = Date.now(),
 ): SplitPlayingDetails {
   if (!table.currentSession) {
     if (table.status === "playing" || table.status === "paused") {
@@ -129,7 +120,10 @@ export function calculateSplitPlayingDetails(
 
   const session = table.currentSession;
   const effectiveNow = session.isPaused && session.pausedAt ? session.pausedAt : currentTime;
-  const totalElapsedMs = Math.max(0, effectiveNow - session.startedAt - (session.totalPausedMs || 0));
+  const totalElapsedMs = Math.max(
+    0,
+    effectiveNow - session.startedAt - (session.totalPausedMs || 0),
+  );
   const totalMinutes = Math.max(1, Math.round(totalElapsedMs / 60000));
 
   const hours = Math.floor(totalElapsedMs / 3600000);
@@ -139,7 +133,9 @@ export function calculateSplitPlayingDetails(
 
   const activeTiers = pricingTiers && pricingTiers.length > 0 ? pricingTiers : defaultPricingTiers;
   const isVip = Boolean(table.code?.startsWith("VIP") || table.area?.toLowerCase().includes("vip"));
-  const isMatch = Boolean(table.code?.startsWith("MTCH") || table.area?.toLowerCase().includes("thi đấu"));
+  const isMatch = Boolean(
+    table.code?.startsWith("MTCH") || table.area?.toLowerCase().includes("thi đấu"),
+  );
 
   const cacheKey = `${table.id}-${session.sessionId || session.startedAt}-${totalMinutes}-${table.pricePerHour}-${session.pricePerHour || ""}-${isVip ? 1 : 0}-${isMatch ? 1 : 0}-${activeTiers.length}`;
   const cached = slotsCache.get(cacheKey);
@@ -156,7 +152,6 @@ export function calculateSplitPlayingDetails(
     };
   }
 
-  // Tiền xử lý các khung giờ để so sánh số nguyên cực nhanh (0.0001ms)
   const parsedTiers = activeTiers.map((tier) => {
     const [startH, startM] = tier.startTime.split(":").map(Number);
     const [endH, endM] = tier.endTime === "24:00" ? [24, 0] : tier.endTime.split(":").map(Number);
@@ -173,7 +168,9 @@ export function calculateSplitPlayingDetails(
   let currentSlot: SplitTimeSlot | null = null;
 
   for (let m = 0; m < totalMinutes; m++) {
-    const minuteTimestamp = session.startedAt + (totalMinutes > 1 ? Math.round((m * (effectiveNow - session.startedAt)) / totalMinutes) : 0);
+    const minuteTimestamp =
+      session.startedAt +
+      (totalMinutes > 1 ? Math.round((m * (effectiveNow - session.startedAt)) / totalMinutes) : 0);
     const vnDate = new Date(minuteTimestamp + VN_OFFSET_MS);
     const currentMins = vnDate.getUTCHours() * 60 + vnDate.getUTCMinutes();
     const dayOfWeek = vnDate.getUTCDay();
@@ -203,7 +200,8 @@ export function calculateSplitPlayingDetails(
       if (isVip) {
         tierPrice = matchedTier.prices.vip;
       } else if (isMatch) {
-        tierPrice = matchedTier.prices.match || Math.round((matchedTier.prices.standard * 1.5) / 1000) * 1000;
+        tierPrice =
+          matchedTier.prices.match || Math.round((matchedTier.prices.standard * 1.5) / 1000) * 1000;
       } else {
         tierPrice = matchedTier.prices.standard;
       }
@@ -224,7 +222,8 @@ export function calculateSplitPlayingDetails(
       currentSlot.minutes += 1;
       currentSlot.endTime = timeStr;
     } else {
-      currentSlot.cost = Math.round(((currentSlot.minutes * currentSlot.pricePerHour) / 60) / 1000) * 1000;
+      currentSlot.cost =
+        Math.round((currentSlot.minutes * currentSlot.pricePerHour) / 60 / 1000) * 1000;
       slots.push(currentSlot);
       currentSlot = {
         tierName,
@@ -238,16 +237,23 @@ export function calculateSplitPlayingDetails(
   }
 
   if (currentSlot) {
-    currentSlot.cost = Math.round(((currentSlot.minutes * currentSlot.pricePerHour) / 60) / 1000) * 1000;
+    currentSlot.cost =
+      Math.round((currentSlot.minutes * currentSlot.pricePerHour) / 60 / 1000) * 1000;
     const endVnDate = new Date(effectiveNow + VN_OFFSET_MS);
-    currentSlot.endTime = formatHMFromMins(endVnDate.getUTCHours() * 60 + endVnDate.getUTCMinutes());
+    currentSlot.endTime = formatHMFromMins(
+      endVnDate.getUTCHours() * 60 + endVnDate.getUTCMinutes(),
+    );
     slots.push(currentSlot);
   }
 
   const rawCost = slots.reduce((sum, s) => sum + s.cost, 0);
   const cost = rawCost + (session.carriedCost || 0);
-  const currentRate = slots.length > 0 ? slots[slots.length - 1].pricePerHour : (session.pricePerHour ?? table.pricePerHour);
-  const currentTierName = slots.length > 0 ? slots[slots.length - 1].tierName : "Biểu giá tiêu chuẩn";
+  const currentRate =
+    slots.length > 0
+      ? slots[slots.length - 1].pricePerHour
+      : (session.pricePerHour ?? table.pricePerHour);
+  const currentTierName =
+    slots.length > 0 ? slots[slots.length - 1].tierName : "Biểu giá tiêu chuẩn";
   const isCrossed = slots.length > 1;
 
   if (slotsCache.size > 300) slotsCache.clear();

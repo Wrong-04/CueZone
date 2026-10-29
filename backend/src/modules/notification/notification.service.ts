@@ -23,11 +23,12 @@ export interface NotificationPage {
 
 const notificationContent = (data: NotificationInput) => {
   const title = typeof data.title === "string" ? data.title.trim() : "";
-  const content = typeof data.content === "string"
-    ? data.content.trim()
-    : typeof data.message === "string"
-      ? data.message.trim()
-      : "";
+  const content =
+    typeof data.content === "string"
+      ? data.content.trim()
+      : typeof data.message === "string"
+        ? data.message.trim()
+        : "";
 
   if (!title || title.length > 120 || !content || content.length > 1000) {
     throw new Error("Tiêu đề hoặc nội dung thông báo không hợp lệ");
@@ -38,11 +39,8 @@ const notificationContent = (data: NotificationInput) => {
 
 const notifyClients = () => {
   try {
-    // Chỉ phát tín hiệu để client tự tải danh sách cá nhân, không gửi nội dung qua socket công khai.
     emitNotification("notification:new");
-  } catch {
-    // Không làm thất bại thao tác chính nếu socket chưa sẵn sàng.
-  }
+  } catch {}
 };
 
 export class NotificationService {
@@ -122,7 +120,9 @@ export class NotificationService {
       role: { $in: [UserRole.ADMIN, UserRole.STAFF] },
       isActive: true,
       isLocked: false,
-    }).select("_id").lean();
+    })
+      .select("_id")
+      .lean();
 
     if (recipients.length === 0) return [];
 

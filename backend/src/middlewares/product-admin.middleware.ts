@@ -1,10 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 
-export function requireProductManager(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
+export function requireProductManager(req: Request, res: Response, next: NextFunction) {
   const user = (
     req as Request & {
       user?: {
@@ -20,14 +16,10 @@ export function requireProductManager(
     });
   }
 
-  if (
-    user.role !== "admin" &&
-    user.role !== "warehouse"
-  ) {
+  if (user.role !== "admin" && user.role !== "warehouse") {
     return res.status(403).json({
       success: false,
-      message:
-        "Bạn không có quyền quản lý hàng hóa.",
+      message: "Bạn không có quyền quản lý hàng hóa.",
     });
   }
 

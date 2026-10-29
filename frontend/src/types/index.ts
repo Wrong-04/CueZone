@@ -82,4 +82,3 @@ export interface PricingTier {
   createdAt: string;
   updatedAt: string;
 }
-

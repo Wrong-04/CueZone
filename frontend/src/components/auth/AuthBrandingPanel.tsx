@@ -62,7 +62,6 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
         <div className="absolute inset-0 bg-emerald-950/20 mix-blend-color" />
       </div>
 
-      {/* Header Trái: Brand Logo */}
       <div className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -104,7 +103,6 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
         </Button>
       </div>
 
-      {/* Giữa: VIP Member Card Mockup + Đặc quyền hội viên */}
       <div className="relative z-10 max-w-xl space-y-6 my-auto py-6">
         <div>
           <Tag
@@ -129,13 +127,10 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
           </Paragraph>
         </div>
 
-        {/* MOCKUP THẺ HỘI VIÊN CUEZONE ELITE MEMBER PASS */}
         <div className="relative rounded-2xl p-5 border border-emerald-500/30 bg-gradient-to-br from-[#0c2420] via-[#09151e] to-[#050b12] shadow-2xl shadow-emerald-950/80 backdrop-blur-xl overflow-hidden group hover:border-emerald-500/50 transition-all duration-300">
-          {/* Ánh sáng holographic nền thẻ */}
           <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
           <div className="absolute -left-10 -bottom-10 h-36 w-36 rounded-full bg-teal-500/10 blur-2xl pointer-events-none" />
 
-          {/* Phần đầu thẻ */}
           <div className="flex items-center justify-between relative z-10 mb-6">
             <Space align="center" size={8}>
               <div className="h-8 w-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
@@ -160,10 +155,8 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
             </Tag>
           </div>
 
-          {/* Chip & Số thẻ mô phỏng */}
           <div className="flex items-center justify-between relative z-10 mb-5">
             <div className="flex items-center gap-3">
-              {/* EMV Chip mô phỏng */}
               <div className="h-7 w-9 rounded-md bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 p-[1px] shadow-sm">
                 <div className="h-full w-full rounded-[5px] bg-[#222] border border-amber-300/40 flex flex-col justify-around p-1">
                   <div className="h-[1px] bg-amber-400/60 w-full" />
@@ -185,7 +178,6 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
             </div>
           </div>
 
-          {/* Tên chủ thẻ & Thông số */}
           <div className="flex items-end justify-between relative z-10 border-t border-emerald-900/40 pt-3">
             <div>
               <Text className="!text-[10px] !text-slate-400 uppercase tracking-wider block">
@@ -199,17 +191,20 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
             <Space size={12} className="text-right">
               <div>
                 <Text className="!text-[10px] !text-slate-400 block">Tỉ lệ thắng</Text>
-                <Text strong className="!text-xs !text-emerald-400">68%</Text>
+                <Text strong className="!text-xs !text-emerald-400">
+                  68%
+                </Text>
               </div>
               <div>
                 <Text className="!text-[10px] !text-slate-400 block">Hạng ELO</Text>
-                <Text strong className="!text-xs !text-amber-400">Master 1850</Text>
+                <Text strong className="!text-xs !text-amber-400">
+                  Master 1850
+                </Text>
               </div>
             </Space>
           </div>
         </div>
 
-        {/* 4 Đặc quyền hội viên thực tế */}
         <div className="grid grid-cols-2 gap-3 pt-1">
           {MEMBER_PERKS.map((perk, idx) => (
             <div
@@ -232,12 +227,12 @@ export const AuthBrandingPanel: React.FC<AuthBrandingPanelProps> = ({
         </div>
       </div>
 
-      {/* Footer Trái: Realtime Club Status & Bảo mật */}
       <div className="relative z-10 flex items-center justify-between border-t border-emerald-950/80 pt-3.5 text-xs text-slate-400">
         <Space align="center" size={8}>
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse ring-4 ring-emerald-500/20" />
           <Text className="!text-xs !text-slate-300">
-            CLB hiện tại: <strong className="text-emerald-400 font-semibold">18/20 Bàn Thi Đấu Sẵn Sàng</strong>
+            CLB hiện tại:{" "}
+            <strong className="text-emerald-400 font-semibold">18/20 Bàn Thi Đấu Sẵn Sàng</strong>
           </Text>
         </Space>
         <Space align="center" size={6}>

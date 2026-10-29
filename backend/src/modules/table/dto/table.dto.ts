@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsString, IsOptional, IsNumber, IsBoolean, IsEnum, Min } from "class-validator";
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsEnum,
+  Min,
+} from "class-validator";
 import { TableType } from "../table.model";
 
 export class CreateTableDTO {

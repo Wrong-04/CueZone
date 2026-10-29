@@ -1,11 +1,4 @@
-
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   AlertCircle,
   Check,
@@ -76,9 +69,7 @@ const EMPTY_CATEGORY_FORM: CategoryForm = {
 };
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "Đã xảy ra lỗi. Vui lòng thử lại.";
+  return error instanceof Error ? error.message : "Đã xảy ra lỗi. Vui lòng thử lại.";
 }
 
 function formatMoney(value: number): string {
@@ -89,27 +80,18 @@ function formatMoney(value: number): string {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
-function getCategoryName(
-  product: Product,
-  categories: Category[]
-): string {
+function getCategoryName(product: Product, categories: Category[]): string {
   const category = categories.find(
     (item) =>
       item._id === product.category ||
       item.code === product.category ||
-      item.name === product.category
+      item.name === product.category,
   );
 
   return category?.name || product.category || "Chưa phân loại";
 }
 
-function StatusBadge({
-  active,
-  children,
-}: {
-  active: boolean;
-  children: string;
-}) {
+function StatusBadge({ active, children }: { active: boolean; children: string }) {
   return (
     <span
       className={[
@@ -121,10 +103,7 @@ function StatusBadge({
       ].join(" ")}
     >
       <span
-        className={[
-          "h-2 w-2 rounded-full",
-          active ? "bg-emerald-500" : "bg-rose-500",
-        ].join(" ")}
+        className={["h-2 w-2 rounded-full", active ? "bg-emerald-500" : "bg-rose-500"].join(" ")}
       />
       {children}
     </span>
@@ -154,9 +133,7 @@ function ToggleButton({
         "inline-flex items-center justify-center rounded-xl",
         "p-2 transition-colors disabled:cursor-not-allowed",
         "disabled:opacity-50",
-        active
-          ? "text-emerald-600 hover:bg-emerald-50"
-          : "text-rose-600 hover:bg-rose-50",
+        active ? "text-emerald-600 hover:bg-emerald-50" : "text-rose-600 hover:bg-rose-50",
       ].join(" ")}
     >
       {loading ? (
@@ -176,8 +153,7 @@ export default function CatalogManagementPage() {
   const [products, setProducts] = useState<Product[]>([]);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -188,39 +164,25 @@ export default function CatalogManagementPage() {
   const [productModal, setProductModal] = useState(false);
   const [categoryModal, setCategoryModal] = useState(false);
 
-  const [editingProduct, setEditingProduct] =
-    useState<Product | null>(null);
-  const [editingCategory, setEditingCategory] =
-    useState<Category | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
-  const [productForm, setProductForm] =
-    useState<ProductForm>(EMPTY_PRODUCT_FORM);
-  const [categoryForm, setCategoryForm] =
-    useState<CategoryForm>(EMPTY_CATEGORY_FORM);
+  const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT_FORM);
+  const [categoryForm, setCategoryForm] = useState<CategoryForm>(EMPTY_CATEGORY_FORM);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const [categoryResult, productResult] =
-        await Promise.all([
-          fetchCategories(),
-          fetchProducts(),
-        ]);
+      const [categoryResult, productResult] = await Promise.all([
+        fetchCategories(),
+        fetchProducts(),
+      ]);
 
-      // Luôn kiểm tra response trước khi đọc dữ liệu.
-      setCategories(
-        Array.isArray(categoryResult?.data)
-          ? categoryResult.data
-          : []
-      );
+      setCategories(Array.isArray(categoryResult?.data) ? categoryResult.data : []);
 
-      setProducts(
-        Array.isArray(productResult?.data)
-          ? productResult.data
-          : []
-      );
+      setProducts(Array.isArray(productResult?.data) ? productResult.data : []);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -240,9 +202,7 @@ export default function CatalogManagementPage() {
         !keyword ||
         product.name?.toLocaleLowerCase("vi").includes(keyword) ||
         product.sku?.toLocaleLowerCase("vi").includes(keyword) ||
-        getCategoryName(product, categories)
-          .toLocaleLowerCase("vi")
-          .includes(keyword);
+        getCategoryName(product, categories).toLocaleLowerCase("vi").includes(keyword);
 
       const active = product.isForSale !== false;
 
@@ -326,9 +286,7 @@ export default function CatalogManagementPage() {
     setCategoryModal(true);
   }
 
-  async function handleProductSubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function handleProductSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError("");
@@ -348,26 +306,13 @@ export default function CatalogManagementPage() {
         isForSale: productForm.isForSale,
       };
 
-      if (
-        !payload.name ||
-        !payload.sku ||
-        !payload.category ||
-        !payload.unit
-      ) {
+      if (!payload.name || !payload.sku || !payload.category || !payload.unit) {
         throw new Error("Vui lòng nhập đầy đủ thông tin bắt buộc.");
       }
 
-      const numericValues = [
-        payload.costPrice,
-        payload.salePrice,
-        payload.minStock,
-      ];
+      const numericValues = [payload.costPrice, payload.salePrice, payload.minStock];
 
-      if (
-        numericValues.some(
-          (value) => !Number.isFinite(value) || value < 0
-        )
-      ) {
+      if (numericValues.some((value) => !Number.isFinite(value) || value < 0)) {
         throw new Error("Giá và tồn kho tối thiểu phải là số không âm.");
       }
 
@@ -378,11 +323,7 @@ export default function CatalogManagementPage() {
       }
 
       setProductModal(false);
-      setSuccess(
-        editingProduct
-          ? "Cập nhật hàng hóa thành công."
-          : "Thêm hàng hóa thành công."
-      );
+      setSuccess(editingProduct ? "Cập nhật hàng hóa thành công." : "Thêm hàng hóa thành công.");
 
       await loadData();
     } catch (err) {
@@ -392,9 +333,7 @@ export default function CatalogManagementPage() {
     }
   }
 
-  async function handleCategorySubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function handleCategorySubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError("");
@@ -423,11 +362,7 @@ export default function CatalogManagementPage() {
       }
 
       setCategoryModal(false);
-      setSuccess(
-        editingCategory
-          ? "Cập nhật danh mục thành công."
-          : "Thêm danh mục thành công."
-      );
+      setSuccess(editingCategory ? "Cập nhật danh mục thành công." : "Thêm danh mục thành công.");
 
       await loadData();
     } catch (err) {
@@ -440,9 +375,7 @@ export default function CatalogManagementPage() {
   async function toggleProduct(product: Product) {
     const nextStatus = product.isForSale === false;
     const confirmed = window.confirm(
-      nextStatus
-        ? `Bật kinh doanh "${product.name}"?`
-        : `Ngừng kinh doanh "${product.name}"?`
+      nextStatus ? `Bật kinh doanh "${product.name}"?` : `Ngừng kinh doanh "${product.name}"?`,
     );
 
     if (!confirmed) return;
@@ -456,17 +389,11 @@ export default function CatalogManagementPage() {
 
       setProducts((current) =>
         current.map((item) =>
-          item._id === product._id
-            ? { ...item, isForSale: nextStatus }
-            : item
-        )
+          item._id === product._id ? { ...item, isForSale: nextStatus } : item,
+        ),
       );
 
-      setSuccess(
-        nextStatus
-          ? "Đã bật kinh doanh hàng hóa."
-          : "Đã ngừng kinh doanh hàng hóa."
-      );
+      setSuccess(nextStatus ? "Đã bật kinh doanh hàng hóa." : "Đã ngừng kinh doanh hàng hóa.");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -479,7 +406,7 @@ export default function CatalogManagementPage() {
     const confirmed = window.confirm(
       nextStatus
         ? `Bật sử dụng danh mục "${category.name}"?`
-        : `Ngừng sử dụng danh mục "${category.name}"?`
+        : `Ngừng sử dụng danh mục "${category.name}"?`,
     );
 
     if (!confirmed) return;
@@ -489,24 +416,15 @@ export default function CatalogManagementPage() {
     setSuccess("");
 
     try {
-      await setCategoryActiveStatus(
-        category._id,
-        nextStatus
-      );
+      await setCategoryActiveStatus(category._id, nextStatus);
 
       setCategories((current) =>
         current.map((item) =>
-          item._id === category._id
-            ? { ...item, isActive: nextStatus }
-            : item
-        )
+          item._id === category._id ? { ...item, isActive: nextStatus } : item,
+        ),
       );
 
-      setSuccess(
-        nextStatus
-          ? "Đã bật sử dụng danh mục."
-          : "Đã ngừng sử dụng danh mục."
-      );
+      setSuccess(nextStatus ? "Đã bật sử dụng danh mục." : "Đã ngừng sử dụng danh mục.");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -535,17 +453,11 @@ export default function CatalogManagementPage() {
 
           <button
             type="button"
-            onClick={
-              tab === "products"
-                ? openCreateProduct
-                : openCreateCategory
-            }
+            onClick={tab === "products" ? openCreateProduct : openCreateCategory}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100"
           >
             <CirclePlus className="h-5 w-5" />
-            {tab === "products"
-              ? "Thêm hàng hóa"
-              : "Thêm danh mục"}
+            {tab === "products" ? "Thêm hàng hóa" : "Thêm danh mục"}
           </button>
         </header>
 
@@ -565,9 +477,7 @@ export default function CatalogManagementPage() {
               ) : (
                 <Check className="mt-0.5 h-5 w-5 shrink-0" />
               )}
-              <span className="text-sm font-medium">
-                {error || success}
-              </span>
+              <span className="text-sm font-medium">{error || success}</span>
             </div>
 
             <button
@@ -648,24 +558,16 @@ export default function CatalogManagementPage() {
               <div className="flex gap-2">
                 <select
                   value={statusFilter}
-                  onChange={(event) =>
-                    setStatusFilter(
-                      event.target.value as StatusFilter
-                    )
-                  }
+                  onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
                   aria-label="Lọc trạng thái"
                   className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-emerald-500"
                 >
                   <option value="all">Tất cả trạng thái</option>
                   <option value="active">
-                    {tab === "products"
-                      ? "Đang kinh doanh"
-                      : "Đang sử dụng"}
+                    {tab === "products" ? "Đang kinh doanh" : "Đang sử dụng"}
                   </option>
                   <option value="inactive">
-                    {tab === "products"
-                      ? "Ngừng bán"
-                      : "Ngừng sử dụng"}
+                    {tab === "products" ? "Ngừng bán" : "Ngừng sử dụng"}
                   </option>
                 </select>
 
@@ -676,12 +578,7 @@ export default function CatalogManagementPage() {
                   title="Làm mới dữ liệu"
                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                 >
-                  <RefreshCw
-                    className={[
-                      "h-5 w-5",
-                      loading ? "animate-spin" : "",
-                    ].join(" ")}
-                  />
+                  <RefreshCw className={["h-5 w-5", loading ? "animate-spin" : ""].join(" ")} />
                 </button>
               </div>
             </div>
@@ -714,14 +611,9 @@ export default function CatalogManagementPage() {
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
                     <tr>
-                      <td
-                        colSpan={tab === "products" ? 8 : 5}
-                        className="px-4 py-16 text-center"
-                      >
+                      <td colSpan={tab === "products" ? 8 : 5} className="px-4 py-16 text-center">
                         <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-emerald-600" />
-                        <p className="mt-3 text-slate-500">
-                          Đang tải dữ liệu...
-                        </p>
+                        <p className="mt-3 text-slate-500">Đang tải dữ liệu...</p>
                       </td>
                     </tr>
                   ) : tab === "products" ? (
@@ -750,9 +642,7 @@ export default function CatalogManagementPage() {
                               {product.sku}
                             </td>
                             <td className="px-4 py-4">
-                              <div className="font-semibold text-slate-800">
-                                {product.name}
-                              </div>
+                              <div className="font-semibold text-slate-800">{product.name}</div>
                               {product.description && (
                                 <div className="mt-1 max-w-64 truncate text-xs text-slate-400">
                                   {product.description}
@@ -766,9 +656,7 @@ export default function CatalogManagementPage() {
                             </td>
                             <td className="px-4 py-4 font-semibold text-slate-700">
                               {product.stock ?? 0}{" "}
-                              <span className="font-normal text-slate-500">
-                                {product.unit}
-                              </span>
+                              <span className="font-normal text-slate-500">{product.unit}</span>
                             </td>
                             <td className="whitespace-nowrap px-4 py-4 text-slate-600">
                               {formatMoney(product.costPrice)}
@@ -794,11 +682,7 @@ export default function CatalogManagementPage() {
                                 <ToggleButton
                                   active={active}
                                   loading={busyId === product._id}
-                                  label={
-                                    active
-                                      ? "Ngừng kinh doanh"
-                                      : "Bật kinh doanh"
-                                  }
+                                  label={active ? "Ngừng kinh doanh" : "Bật kinh doanh"}
                                   onClick={() => void toggleProduct(product)}
                                 />
                               </div>
@@ -824,10 +708,7 @@ export default function CatalogManagementPage() {
                       const active = category.isActive !== false;
 
                       return (
-                        <tr
-                          key={category._id}
-                          className="transition-colors hover:bg-emerald-50/30"
-                        >
+                        <tr key={category._id} className="transition-colors hover:bg-emerald-50/30">
                           <td className="px-4 py-4 font-semibold text-slate-700">
                             <span className="rounded-lg bg-slate-100 px-2.5 py-1.5">
                               {category.code}
@@ -857,11 +738,7 @@ export default function CatalogManagementPage() {
                               <ToggleButton
                                 active={active}
                                 loading={busyId === category._id}
-                                label={
-                                  active
-                                    ? "Ngừng sử dụng danh mục"
-                                    : "Bật sử dụng danh mục"
-                                }
+                                label={active ? "Ngừng sử dụng danh mục" : "Bật sử dụng danh mục"}
                                 onClick={() => void toggleCategory(category)}
                               />
                             </div>
@@ -880,9 +757,7 @@ export default function CatalogManagementPage() {
                   ? `${filteredProducts.length} hàng hóa phù hợp`
                   : `${filteredCategories.length} danh mục phù hợp`}
               </span>
-              <span>
-                Trạng thái được lưu trên máy chủ khi thao tác thành công.
-              </span>
+              <span>Trạng thái được lưu trên máy chủ khi thao tác thành công.</span>
             </div>
           </div>
         </section>
@@ -906,9 +781,7 @@ export default function CatalogManagementPage() {
                 <h2 className="text-xl font-bold text-slate-800">
                   {editingProduct ? "Sửa hàng hóa" : "Thêm hàng hóa"}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Nhập thông tin hàng hóa của quán.
-                </p>
+                <p className="mt-1 text-sm text-slate-500">Nhập thông tin hàng hóa của quán.</p>
               </div>
               <button
                 type="button"
@@ -927,9 +800,7 @@ export default function CatalogManagementPage() {
                 <input
                   required
                   value={productForm.name}
-                  onChange={(e) =>
-                    setProductForm((f) => ({ ...f, name: e.target.value }))
-                  }
+                  onChange={(e) => setProductForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
                 />
               </label>
@@ -939,9 +810,7 @@ export default function CatalogManagementPage() {
                 <input
                   required
                   value={productForm.sku}
-                  onChange={(e) =>
-                    setProductForm((f) => ({ ...f, sku: e.target.value }))
-                  }
+                  onChange={(e) => setProductForm((f) => ({ ...f, sku: e.target.value }))}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
                 />
               </label>
@@ -963,10 +832,7 @@ export default function CatalogManagementPage() {
                   {categories
                     .filter((c) => c.isActive !== false)
                     .map((category) => (
-                      <option
-                        key={category._id}
-                        value={category.code}
-                      >
+                      <option key={category._id} value={category.code}>
                         {category.name}
                       </option>
                     ))}
@@ -978,9 +844,7 @@ export default function CatalogManagementPage() {
                 <input
                   required
                   value={productForm.unit}
-                  onChange={(e) =>
-                    setProductForm((f) => ({ ...f, unit: e.target.value }))
-                  }
+                  onChange={(e) => setProductForm((f) => ({ ...f, unit: e.target.value }))}
                   placeholder="cái, hộp, kg..."
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
                 />
@@ -1069,11 +933,7 @@ export default function CatalogManagementPage() {
               </label>
             </div>
 
-            {error && (
-              <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
-                {error}
-              </p>
-            )}
+            {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
 
             <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
               <button
@@ -1115,9 +975,7 @@ export default function CatalogManagementPage() {
                 <h2 className="text-xl font-bold text-slate-800">
                   {editingCategory ? "Sửa danh mục" : "Thêm danh mục"}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Quản lý nhóm hàng hóa của quán.
-                </p>
+                <p className="mt-1 text-sm text-slate-500">Quản lý nhóm hàng hóa của quán.</p>
               </div>
               <button
                 type="button"
@@ -1135,9 +993,7 @@ export default function CatalogManagementPage() {
               <input
                 required
                 value={categoryForm.name}
-                onChange={(e) =>
-                  setCategoryForm((f) => ({ ...f, name: e.target.value }))
-                }
+                onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Ví dụ: Đồ uống"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
               />
@@ -1181,11 +1037,7 @@ export default function CatalogManagementPage() {
               />
             </label>
 
-            {error && (
-              <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
-                {error}
-              </p>
-            )}
+            {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
 
             <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
               <button

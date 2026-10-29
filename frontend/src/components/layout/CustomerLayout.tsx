@@ -23,7 +23,8 @@ import {
   CheckOutlined,
 } from "@ant-design/icons";
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
+const SOCKET_URL =
+  import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
 const CustomerLayout = () => {
   const { user, logout } = useAuth();
@@ -75,7 +76,10 @@ const CustomerLayout = () => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (notificationPanelRef.current && !notificationPanelRef.current.contains(event.target as Node)) {
+      if (
+        notificationPanelRef.current &&
+        !notificationPanelRef.current.contains(event.target as Node)
+      ) {
         setShowNotifPanel(false);
       }
     };
@@ -90,11 +94,17 @@ const CustomerLayout = () => {
     setMarkingReadId(id);
     try {
       await notificationService.markRead(id);
-      setNotificationData((current) => current?.userId === userId ? {
-        ...current,
-        notifications: current.notifications.map((item) => item._id === id ? { ...item, isRead: true } : item),
-        unreadCount: Math.max(0, current.unreadCount - 1),
-      } : current);
+      setNotificationData((current) =>
+        current?.userId === userId
+          ? {
+              ...current,
+              notifications: current.notifications.map((item) =>
+                item._id === id ? { ...item, isRead: true } : item,
+              ),
+              unreadCount: Math.max(0, current.unreadCount - 1),
+            }
+          : current,
+      );
     } catch {
       message.error("Không thể đánh dấu thông báo đã đọc. Vui lòng thử lại.");
     } finally {
@@ -107,11 +117,15 @@ const CustomerLayout = () => {
     setMarkingAllRead(true);
     try {
       await notificationService.markAllRead();
-      setNotificationData((current) => current?.userId === userId ? {
-        ...current,
-        notifications: current.notifications.map((item) => ({ ...item, isRead: true })),
-        unreadCount: 0,
-      } : current);
+      setNotificationData((current) =>
+        current?.userId === userId
+          ? {
+              ...current,
+              notifications: current.notifications.map((item) => ({ ...item, isRead: true })),
+              unreadCount: 0,
+            }
+          : current,
+      );
     } catch {
       message.error("Không thể đánh dấu tất cả thông báo đã đọc. Vui lòng thử lại.");
     } finally {
@@ -172,7 +186,8 @@ const CustomerLayout = () => {
           </div>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1 text-slate-300">
-              <PhoneOutlined className="text-emerald-400" /> Hotline: <strong className="text-emerald-400 font-bold">1900 6868</strong>
+              <PhoneOutlined className="text-emerald-400" /> Hotline:{" "}
+              <strong className="text-emerald-400 font-bold">1900 6868</strong>
             </span>
             <span className="text-slate-600">|</span>
             <span className="text-slate-400">CLB Bida & Hệ Thống Giải Đấu Bank Pool</span>
@@ -223,7 +238,9 @@ const CustomerLayout = () => {
                         : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
                     }`}
                   >
-                    <span className={isActive ? "text-emerald-600 text-sm" : "text-slate-400 text-sm"}>
+                    <span
+                      className={isActive ? "text-emerald-600 text-sm" : "text-slate-400 text-sm"}
+                    >
                       {item.icon}
                     </span>
                     <span>{item.label}</span>
@@ -236,7 +253,6 @@ const CustomerLayout = () => {
             <div className="flex items-center gap-2 shrink-0">
               {user ? (
                 <>
-                  {/* Ví CueZone Pay badge (Sleek 1-line pill) */}
                   <Link
                     to="/customer/wallet"
                     className="h-9 px-3 rounded-xl bg-emerald-50/90 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-800 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition shadow-2xs group"
@@ -246,7 +262,6 @@ const CustomerLayout = () => {
                     <span>750.000đ</span>
                   </Link>
 
-                  {/* Thông báo cá nhân */}
                   <div className="relative" ref={notificationPanelRef}>
                     <button
                       type="button"
@@ -279,7 +294,9 @@ const CustomerLayout = () => {
                           <div className="min-w-0">
                             <h2 className="text-sm font-bold text-slate-900">Thông báo</h2>
                             <p className="text-[11px] text-slate-500">
-                              {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Bạn đã xem hết thông báo"}
+                              {unreadCount > 0
+                                ? `${unreadCount} thông báo chưa đọc`
+                                : "Bạn đã xem hết thông báo"}
                             </p>
                           </div>
                           {unreadCount > 0 && (
@@ -296,7 +313,9 @@ const CustomerLayout = () => {
 
                         <div className="max-h-[min(28rem,70vh)] overflow-y-auto" aria-live="polite">
                           {notificationsLoading && notifications.length === 0 ? (
-                            <div className="px-4 py-10 text-center text-sm text-slate-500">Đang tải thông báo...</div>
+                            <div className="px-4 py-10 text-center text-sm text-slate-500">
+                              Đang tải thông báo...
+                            </div>
                           ) : notificationError ? (
                             <div className="px-4 py-8 text-center">
                               <p className="text-sm text-rose-600">{notificationError}</p>
@@ -324,15 +343,22 @@ const CustomerLayout = () => {
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                      {!notification.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-600" />}
-                                      <h3 className={`text-sm leading-5 ${notification.isRead ? "font-medium text-slate-700" : "font-bold text-slate-900"}`}>
+                                      {!notification.isRead && (
+                                        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-600" />
+                                      )}
+                                      <h3
+                                        className={`text-sm leading-5 ${notification.isRead ? "font-medium text-slate-700" : "font-bold text-slate-900"}`}
+                                      >
                                         {notification.title}
                                       </h3>
                                     </div>
                                     <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600">
                                       {notification.content}
                                     </p>
-                                    <time className="mt-2 block text-[11px] text-slate-400" dateTime={notification.createdAt}>
+                                    <time
+                                      className="mt-2 block text-[11px] text-slate-400"
+                                      dateTime={notification.createdAt}
+                                    >
                                       {formatNotificationTime(notification.createdAt)}
                                     </time>
                                   </div>
@@ -345,7 +371,9 @@ const CustomerLayout = () => {
                                       className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                                     >
                                       <CheckOutlined />
-                                      {markingReadId === notification._id ? "Đang lưu" : "Đánh dấu đã đọc"}
+                                      {markingReadId === notification._id
+                                        ? "Đang lưu"
+                                        : "Đánh dấu đã đọc"}
                                     </button>
                                   )}
                                 </div>
@@ -369,12 +397,14 @@ const CustomerLayout = () => {
                     <span className="text-xs font-semibold text-slate-800 hidden sm:inline truncate max-w-[130px]">
                       {user.name}
                     </span>
-                    <Tag color="green" className="!m-0 !text-[10px] !px-1.5 !py-0 !leading-4 !font-bold hidden xl:inline-flex">
+                    <Tag
+                      color="green"
+                      className="!m-0 !text-[10px] !px-1.5 !py-0 !leading-4 !font-bold hidden xl:inline-flex"
+                    >
                       VIP
                     </Tag>
                   </Link>
 
-                  {/* Đăng xuất */}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -423,9 +453,7 @@ const CustomerLayout = () => {
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  <span className={isActive ? "text-white" : "text-slate-400"}>
-                    {item.icon}
-                  </span>
+                  <span className={isActive ? "text-white" : "text-slate-400"}>{item.icon}</span>
                   <span>{item.label}</span>
                 </Link>
               );
@@ -456,7 +484,6 @@ const CustomerLayout = () => {
       <footer className="bg-slate-900 text-slate-300 border-t border-slate-800 pt-12 pb-8 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-800">
-            {/* Cột 1: Brand & Slogan */}
             <div className="space-y-3 md:col-span-1">
               <div className="flex items-center gap-2.5">
                 <img
@@ -469,40 +496,70 @@ const CustomerLayout = () => {
                 </span>
               </div>
               <p className="text-slate-400 text-xs leading-relaxed">
-                Hệ thống CLB Bida chuẩn thi đấu quốc tế và điều hành giải đấu Bank Pool chuyên nghiệp hàng đầu.
+                Hệ thống CLB Bida chuẩn thi đấu quốc tế và điều hành giải đấu Bank Pool chuyên
+                nghiệp hàng đầu.
               </p>
               <div className="pt-1 flex items-center gap-2 text-emerald-400 font-semibold">
                 <PhoneOutlined /> 1900 6868 • Hỗ trợ 24/7
               </div>
             </div>
 
-            {/* Cột 2: Cổng Khách Hàng */}
             <div className="space-y-2">
               <h4 className="font-bold text-white uppercase text-xs tracking-wider mb-3">
                 Cổng Khách Hàng
               </h4>
               <ul className="space-y-2 text-slate-400">
-                <li><Link to="/customer" className="hover:text-emerald-400 transition">Trang chủ khám phá</Link></li>
-                <li><Link to="/customer/booking" className="hover:text-emerald-400 transition">Đặt bàn theo khung giờ</Link></li>
-                <li><Link to="/customer/tournaments" className="hover:text-emerald-400 transition">Giải đấu Bank Pool mở rộng</Link></li>
-                <li><Link to="/customer/rules" className="hover:text-emerald-400 transition">Luật Bank Pool chuẩn WPA</Link></li>
+                <li>
+                  <Link to="/customer" className="hover:text-emerald-400 transition">
+                    Trang chủ khám phá
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/customer/booking" className="hover:text-emerald-400 transition">
+                    Đặt bàn theo khung giờ
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/customer/tournaments" className="hover:text-emerald-400 transition">
+                    Giải đấu Bank Pool mở rộng
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/customer/rules" className="hover:text-emerald-400 transition">
+                    Luật Bank Pool chuẩn WPA
+                  </Link>
+                </li>
               </ul>
             </div>
 
-            {/* Cột 3: Hội Viên & Ưu Đãi */}
             <div className="space-y-2">
               <h4 className="font-bold text-white uppercase text-xs tracking-wider mb-3">
                 Đặc Quyền Hội Viên
               </h4>
               <ul className="space-y-2 text-slate-400">
-                <li><Link to="/register" className="hover:text-emerald-400 transition">Đăng ký thành viên VIP</Link></li>
-                <li><Link to="/customer/news" className="hover:text-emerald-400 transition">Giờ vàng giảm giá 20%</Link></li>
-                <li><Link to="/login" className="hover:text-emerald-400 transition">Tra cứu điểm thưởng & ELO</Link></li>
-                <li><Link to="/login" className="hover:text-emerald-400 transition">Cổng quản trị CLB (Staff)</Link></li>
+                <li>
+                  <Link to="/register" className="hover:text-emerald-400 transition">
+                    Đăng ký thành viên VIP
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/customer/news" className="hover:text-emerald-400 transition">
+                    Giờ vàng giảm giá 20%
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/login" className="hover:text-emerald-400 transition">
+                    Tra cứu điểm thưởng & ELO
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/login" className="hover:text-emerald-400 transition">
+                    Cổng quản trị CLB (Staff)
+                  </Link>
+                </li>
               </ul>
             </div>
 
-            {/* Cột 4: Thông tin hoạt động */}
             <div className="space-y-2">
               <h4 className="font-bold text-white uppercase text-xs tracking-wider mb-3">
                 Địa Chỉ & Giờ Mở Cửa
@@ -533,4 +590,3 @@ const CustomerLayout = () => {
 };
 
 export default CustomerLayout;
-

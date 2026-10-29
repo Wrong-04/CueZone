@@ -2,8 +2,7 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
 
-const fromAddress =
-  process.env.EMAIL_FROM || '"CueZone Billiards" <cuezonewdp@gmail.com>';
+const fromAddress = process.env.EMAIL_FROM || '"CueZone Billiards" <cuezonewdp@gmail.com>';
 
 let transporter: nodemailer.Transporter | null = null;
 let baseEmailTemplate: string | null = null;
@@ -40,17 +39,19 @@ function renderEmail(options: {
 }): string {
   const template = getBaseTemplate();
   const now = new Date();
-  const timeString = new Intl.DateTimeFormat("vi-VN", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(now) + " (GMT+7)";
+  const timeString =
+    new Intl.DateTimeFormat("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(now) + " (GMT+7)";
 
-  const ref = options.referenceId || `CZ-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const ref =
+    options.referenceId || `CZ-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
   return template
     .replace(/{{TITLE}}/g, options.title)
@@ -82,7 +83,7 @@ function getTransporter(): nodemailer.Transporter {
 export async function sendVerificationEmail(
   to: string,
   code: string,
-  name?: string
+  name?: string,
 ): Promise<void> {
   const bodyContent = `
     <!-- OTP Display Box -->
@@ -117,7 +118,8 @@ export async function sendVerificationEmail(
     badgeText: "XÁC MINH ĐĂNG KÝ HỘI VIÊN",
     preheader: `Mã OTP kích hoạt tài khoản CueZone của bạn là ${code}. Hiệu lực 5 phút.`,
     greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
-    message: "Bạn đang thực hiện đăng ký tài khoản hội viên tại <strong>CueZone Billiards Club</strong>. Vui lòng nhập mã OTP gồm 6 chữ số dưới đây vào giao diện đăng ký để hoàn tất kích hoạt tài khoản:",
+    message:
+      "Bạn đang thực hiện đăng ký tài khoản hội viên tại <strong>CueZone Billiards Club</strong>. Vui lòng nhập mã OTP gồm 6 chữ số dưới đây vào giao diện đăng ký để hoàn tất kích hoạt tài khoản:",
     bodyContent,
   });
 
@@ -133,7 +135,7 @@ export async function sendVerificationEmail(
 export async function sendPasswordResetEmail(
   to: string,
   code: string,
-  name?: string
+  name?: string,
 ): Promise<void> {
   const bodyContent = `
     <!-- OTP Display Box -->
@@ -168,7 +170,8 @@ export async function sendPasswordResetEmail(
     badgeText: "BẢO MẬT & ĐẶT LẠI MẬT KHẨU",
     preheader: `Mã OTP đặt lại mật khẩu CueZone là ${code}. Hiệu lực 10 phút.`,
     greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
-    message: "Hệ thống CueZone nhận được yêu cầu cấp lại mật khẩu cho tài khoản liên kết với địa chỉ email này. Sử dụng mã OTP sau để hoàn tất quá trình đổi mật khẩu mới:",
+    message:
+      "Hệ thống CueZone nhận được yêu cầu cấp lại mật khẩu cho tài khoản liên kết với địa chỉ email này. Sử dụng mã OTP sau để hoàn tất quá trình đổi mật khẩu mới:",
     bodyContent,
   });
 
@@ -181,13 +184,7 @@ export async function sendPasswordResetEmail(
   });
 }
 
-/**
- * SCRUM-727: Gửi email chào mừng / xác thực sau khi đăng ký tài khoản thành công
- */
-export async function sendWelcomeRegistrationEmail(
-  to: string,
-  name?: string
-): Promise<void> {
+export async function sendWelcomeRegistrationEmail(to: string, name?: string): Promise<void> {
   const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
   const bodyContent = `
     <!-- Welcome Card -->
@@ -236,7 +233,8 @@ export async function sendWelcomeRegistrationEmail(
     badgeText: "CHÀO MỪNG TÂN HỘI VIÊN",
     preheader: "Chúc mừng bạn đã gia nhập CueZone Billiards Club! Voucher 50.000đ đã sẵn sàng.",
     greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
-    message: "Chúc mừng bạn đã gia nhập đại gia đình <strong>CueZone Billiards</strong>! Chúng tôi rất vinh hạnh được đồng hành cùng những trận cơ bida đỉnh cao và những trải nghiệm thư giãn tuyệt vời của bạn.",
+    message:
+      "Chúc mừng bạn đã gia nhập đại gia đình <strong>CueZone Billiards</strong>! Chúng tôi rất vinh hạnh được đồng hành cùng những trận cơ bida đỉnh cao và những trải nghiệm thư giãn tuyệt vời của bạn.",
     bodyContent,
     ctaButton,
   });
@@ -249,4 +247,3 @@ export async function sendWelcomeRegistrationEmail(
     html,
   });
 }
-

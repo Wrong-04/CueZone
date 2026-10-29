@@ -98,4 +98,3 @@ export const changePassword = async (req: Request, res: Response) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
-

@@ -35,10 +35,7 @@ import {
   type TournamentItem,
   type TournamentStatus,
 } from "../../services/tournament.service";
-import {
-  INITIAL_TOURNAMENT_MATCH,
-  type TournamentMatchScore,
-} from "../../mock/posData";
+import { INITIAL_TOURNAMENT_MATCH, type TournamentMatchScore } from "../../mock/posData";
 
 const { Title, Text } = Typography;
 
@@ -79,7 +76,8 @@ const SECOND_MATCH: TournamentMatchScore = {
     name: "Lê Quốc Bảo",
     rank: "Master",
     elo: 1880,
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
     score: 3,
     fouls: 1,
     bankShots: 13,
@@ -89,7 +87,8 @@ const SECOND_MATCH: TournamentMatchScore = {
     name: "Nguyễn Hoàng Nam",
     rank: "Grand Master",
     elo: 1940,
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80",
     score: 4,
     fouls: 0,
     bankShots: 16,
@@ -102,7 +101,8 @@ const LEADERBOARD_DATA: PlayerRankItem[] = [
     id: "pl-1",
     rankIndex: 1,
     name: "Nguyễn Hoàng Nam",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80",
     tier: "Grand Master",
     elo: 1940,
     matchesPlayed: 48,
@@ -114,7 +114,8 @@ const LEADERBOARD_DATA: PlayerRankItem[] = [
     id: "pl-2",
     rankIndex: 2,
     name: "Lê Quốc Bảo",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
     tier: "Master",
     elo: 1880,
     matchesPlayed: 42,
@@ -126,7 +127,8 @@ const LEADERBOARD_DATA: PlayerRankItem[] = [
     id: "pl-3",
     rankIndex: 3,
     name: "Đặng Tuấn Anh",
-    avatar: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80",
     tier: "Master",
     elo: 1850,
     matchesPlayed: 36,
@@ -138,7 +140,8 @@ const LEADERBOARD_DATA: PlayerRankItem[] = [
     id: "pl-4",
     rankIndex: 4,
     name: "Trần Minh Quang",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
     tier: "Senior",
     elo: 1820,
     matchesPlayed: 30,
@@ -150,7 +153,8 @@ const LEADERBOARD_DATA: PlayerRankItem[] = [
     id: "pl-5",
     rankIndex: 5,
     name: "Vũ Hải Đăng",
-    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80",
     tier: "Senior",
     elo: 1780,
     matchesPlayed: 25,
@@ -162,7 +166,8 @@ const LEADERBOARD_DATA: PlayerRankItem[] = [
     id: "pl-6",
     rankIndex: 6,
     name: "Trần Đình Trọng",
-    avatar: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=150&q=80",
     tier: "Pro",
     elo: 1750,
     matchesPlayed: 22,
@@ -200,9 +205,9 @@ export const AdminTournamentsPage: React.FC = () => {
   const [tourneyFilter, setTourneyFilter] = useState<string>("all");
   const [tourneySearchQuery, setTourneySearchQuery] = useState<string>("");
 
-  // Modal xác nhận chuyển trạng thái vòng đời (DRAFT -> REGISTRATION_OPEN)
   const [statusConfirmModalVisible, setStatusConfirmModalVisible] = useState<boolean>(false);
-  const [selectedTourneyForStatusChange, setSelectedTourneyForStatusChange] = useState<TournamentItem | null>(null);
+  const [selectedTourneyForStatusChange, setSelectedTourneyForStatusChange] =
+    useState<TournamentItem | null>(null);
   const [statusChangeLoading, setStatusChangeLoading] = useState<boolean>(false);
 
   // ── 3. LIVE REFEREE SCORING STATE ─────────────────────────────────────────
@@ -400,7 +405,11 @@ export const AdminTournamentsPage: React.FC = () => {
       return;
     }
 
-    if (!newTourneyForm.startDate || !newTourneyForm.endDate || !newTourneyForm.registrationDeadline) {
+    if (
+      !newTourneyForm.startDate ||
+      !newTourneyForm.endDate ||
+      !newTourneyForm.registrationDeadline
+    ) {
       message.warning("Vui lòng nhập đầy đủ ngày thi đấu và hạn đăng ký!");
       return;
     }
@@ -437,7 +446,9 @@ export const AdminTournamentsPage: React.FC = () => {
         assignedTables: newTourneyForm.assignedTables,
       });
 
-      message.success(`Đã tạo thành công giải đấu "${newTourneyForm.title}" ở trạng thái Bản Nháp (DRAFT)!`);
+      message.success(
+        `Đã tạo thành công giải đấu "${newTourneyForm.title}" ở trạng thái Bản Nháp (DRAFT)!`,
+      );
       setCreateModalVisible(false);
       fetchTournaments();
     } catch (err: any) {
@@ -447,18 +458,14 @@ export const AdminTournamentsPage: React.FC = () => {
     }
   };
 
-  // Xử lý xác nhận chuyển trạng thái sang REGISTRATION_OPEN
   const handleConfirmOpenRegistration = async () => {
     if (!selectedTourneyForStatusChange) return;
 
     setStatusChangeLoading(true);
     try {
-      await tournamentService.changeStatus(
-        selectedTourneyForStatusChange._id,
-        "registration_open"
-      );
+      await tournamentService.changeStatus(selectedTourneyForStatusChange._id, "registration_open");
       message.success(
-        `Đã mở đăng ký chính thức cho giải đấu "${selectedTourneyForStatusChange.name}"!`
+        `Đã mở đăng ký chính thức cho giải đấu "${selectedTourneyForStatusChange.name}"!`,
       );
       setStatusConfirmModalVisible(false);
       setSelectedTourneyForStatusChange(null);
@@ -516,7 +523,11 @@ export const AdminTournamentsPage: React.FC = () => {
       message.warning("Vui lòng nhập tên giải đấu!");
       return;
     }
-    if (!editTourneyForm.startDate || !editTourneyForm.endDate || !editTourneyForm.registrationDeadline) {
+    if (
+      !editTourneyForm.startDate ||
+      !editTourneyForm.endDate ||
+      !editTourneyForm.registrationDeadline
+    ) {
       message.warning("Vui lòng nhập đầy đủ ngày thi đấu và hạn đăng ký!");
       return;
     }
@@ -566,7 +577,9 @@ export const AdminTournamentsPage: React.FC = () => {
 
   // Modal: Delete Tournament
   const [deleteConfirmModalVisible, setDeleteConfirmModalVisible] = useState<boolean>(false);
-  const [selectedTourneyForDelete, setSelectedTourneyForDelete] = useState<TournamentItem | null>(null);
+  const [selectedTourneyForDelete, setSelectedTourneyForDelete] = useState<TournamentItem | null>(
+    null,
+  );
   const [deleteLoading, setDeleteLoading] = useState<boolean>(false);
 
   const handleConfirmDeleteTournament = async () => {
@@ -616,11 +629,11 @@ export const AdminTournamentsPage: React.FC = () => {
   const metrics = useMemo(() => {
     const totalTourneys = apiTournaments.length;
     const activeCount = apiTournaments.filter(
-      (t) => t.status === "registration_open" || t.status === "in_progress"
+      (t) => t.status === "registration_open" || t.status === "in_progress",
     ).length;
     const totalRegistered = apiTournaments.reduce(
       (acc, cur) => acc + (cur.players?.length || 0),
-      0
+      0,
     );
     const liveMatches = 2;
     return { totalTourneys, activeCount, totalRegistered, liveMatches };
@@ -694,7 +707,16 @@ export const AdminTournamentsPage: React.FC = () => {
           />
           <div>
             <span className="font-bold text-slate-900 text-sm block">{name}</span>
-            <Tag color={record.tier === "Grand Master" ? "gold" : record.tier === "Master" ? "green" : "blue"} className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold">
+            <Tag
+              color={
+                record.tier === "Grand Master"
+                  ? "gold"
+                  : record.tier === "Master"
+                    ? "green"
+                    : "blue"
+              }
+              className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold"
+            >
               {record.tier}
             </Tag>
           </div>
@@ -707,9 +729,7 @@ export const AdminTournamentsPage: React.FC = () => {
       key: "elo",
       width: 120,
       render: (elo: number) => (
-        <span className="font-mono font-black text-emerald-700 text-base">
-          {elo}
-        </span>
+        <span className="font-mono font-black text-emerald-700 text-base">{elo}</span>
       ),
     },
     {
@@ -726,9 +746,7 @@ export const AdminTournamentsPage: React.FC = () => {
       key: "winRate",
       width: 120,
       align: "center",
-      render: (wr: number) => (
-        <span className="font-bold text-slate-900 font-mono">{wr}%</span>
-      ),
+      render: (wr: number) => <span className="font-bold text-slate-900 font-mono">{wr}%</span>,
     },
     {
       title: "Cúp Vô Địch",
@@ -760,7 +778,10 @@ export const AdminTournamentsPage: React.FC = () => {
               <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
                 <TrophyOutlined className="text-xl" />
               </div>
-              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Quản Lý Giải Đấu & Trọng Tài Bank Pool
               </Title>
               <Tag color="gold" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
@@ -768,7 +789,8 @@ export const AdminTournamentsPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Điều hành các giải đấu bida chuyên nghiệp, phân nhánh đấu (Brackets), duyệt cơ thủ đăng ký và điều khiển bảng điểm điện tử VAR trực tiếp.
+              Điều hành các giải đấu bida chuyên nghiệp, phân nhánh đấu (Brackets), duyệt cơ thủ
+              đăng ký và điều khiển bảng điểm điện tử VAR trực tiếp.
             </Text>
           </div>
 
@@ -875,7 +897,6 @@ export const AdminTournamentsPage: React.FC = () => {
         />
       </div>
 
-      {/* ── TAB 1: DANH SÁCH GIẢI ĐẤU ──────────────────────────────────────── */}
       {activeMainTab === "tournaments" && (
         <div className="space-y-5">
           {/* Sub Filters & Search */}
@@ -915,13 +936,19 @@ export const AdminTournamentsPage: React.FC = () => {
           {loadingTournaments ? (
             <div className="py-20 flex flex-col items-center justify-center">
               <Spin size="large" />
-              <span className="text-xs text-slate-500 mt-3">Đang tải danh sách giải đấu từ server...</span>
+              <span className="text-xs text-slate-500 mt-3">
+                Đang tải danh sách giải đấu từ server...
+              </span>
             </div>
           ) : filteredTournaments.length === 0 ? (
             <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center">
               <TrophyOutlined className="text-4xl text-slate-300 mb-3" />
-              <h4 className="text-slate-800 font-bold text-sm mb-1">Chưa có giải đấu nào phù hợp</h4>
-              <p className="text-slate-500 text-xs mb-4">Bạn có thể tạo giải đấu mới bằng nút "Tạo Giải Đấu Mới" phía trên.</p>
+              <h4 className="text-slate-800 font-bold text-sm mb-1">
+                Chưa có giải đấu nào phù hợp
+              </h4>
+              <p className="text-slate-500 text-xs mb-4">
+                Bạn có thể tạo giải đấu mới bằng nút "Tạo Giải Đấu Mới" phía trên.
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -932,17 +959,61 @@ export const AdminTournamentsPage: React.FC = () => {
                 const getStatusTag = (status: TournamentStatus) => {
                   switch (status) {
                     case "draft":
-                      return <Tag color="default" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">Bản Nháp (DRAFT)</Tag>;
+                      return (
+                        <Tag
+                          color="default"
+                          className="!rounded-full !px-3 !py-0.5 !text-xs !font-black"
+                        >
+                          Bản Nháp (DRAFT)
+                        </Tag>
+                      );
                     case "registration_open":
-                      return <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1" />Đang Mở Đăng Ký</Tag>;
+                      return (
+                        <Tag
+                          color="green"
+                          className="!rounded-full !px-3 !py-0.5 !text-xs !font-black inline-flex items-center gap-1"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1" />
+                          Đang Mở Đăng Ký
+                        </Tag>
+                      );
                     case "in_progress":
-                      return <Tag color="error" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500 animate-ping mr-1" />Đang Diễn Ra</Tag>;
+                      return (
+                        <Tag
+                          color="error"
+                          className="!rounded-full !px-3 !py-0.5 !text-xs !font-black inline-flex items-center gap-1"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping mr-1" />
+                          Đang Diễn Ra
+                        </Tag>
+                      );
                     case "registration_closed":
-                      return <Tag color="warning" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">Đã Đóng Đăng Ký</Tag>;
+                      return (
+                        <Tag
+                          color="warning"
+                          className="!rounded-full !px-3 !py-0.5 !text-xs !font-black"
+                        >
+                          Đã Đóng Đăng Ký
+                        </Tag>
+                      );
                     case "completed":
-                      return <Tag color="purple" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">Đã Hoàn Thành</Tag>;
+                      return (
+                        <Tag
+                          color="purple"
+                          className="!rounded-full !px-3 !py-0.5 !text-xs !font-black"
+                        >
+                          Đã Hoàn Thành
+                        </Tag>
+                      );
                     default:
-                      return <Tag color="default" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">{status}</Tag>;
+                      return (
+                        <Tag
+                          color="default"
+                          className="!rounded-full !px-3 !py-0.5 !text-xs !font-black"
+                        >
+                          {status}
+                        </Tag>
+                      );
                   }
                 };
 
@@ -976,23 +1047,38 @@ export const AdminTournamentsPage: React.FC = () => {
                       <div className="space-y-1.5 text-xs text-slate-600 mb-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">Thể thức thi đấu:</span>
-                          <strong className="text-slate-800">{tourney.format || "Loại trực tiếp"} • Race to {tourney.raceToScore || 5}</strong>
+                          <strong className="text-slate-800">
+                            {tourney.format || "Loại trực tiếp"} • Race to{" "}
+                            {tourney.raceToScore || 5}
+                          </strong>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">Thời gian tổ chức:</span>
-                          <strong className="text-slate-800">{formatDateRange(tourney.startDate, tourney.endDate)}</strong>
+                          <strong className="text-slate-800">
+                            {formatDateRange(tourney.startDate, tourney.endDate)}
+                          </strong>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">Hạn đăng ký:</span>
-                          <strong className="text-slate-800">{tourney.registrationDeadline ? new Date(tourney.registrationDeadline).toLocaleDateString("vi-VN") : "---"}</strong>
+                          <strong className="text-slate-800">
+                            {tourney.registrationDeadline
+                              ? new Date(tourney.registrationDeadline).toLocaleDateString("vi-VN")
+                              : "---"}
+                          </strong>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">Lệ phí tham gia:</span>
-                          <strong className="text-emerald-700">{Number(tourney.registrationFee).toLocaleString("vi-VN")}đ</strong>
+                          <strong className="text-emerald-700">
+                            {Number(tourney.registrationFee).toLocaleString("vi-VN")}đ
+                          </strong>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">Bàn đấu chỉ định:</span>
-                          <strong className="text-slate-800">{tourney.assignedTables && tourney.assignedTables.length > 0 ? tourney.assignedTables.join(", ") : "Bàn CLB chỉ định"}</strong>
+                          <strong className="text-slate-800">
+                            {tourney.assignedTables && tourney.assignedTables.length > 0
+                              ? tourney.assignedTables.join(", ")
+                              : "Bàn CLB chỉ định"}
+                          </strong>
                         </div>
                       </div>
 
@@ -1071,7 +1157,9 @@ export const AdminTournamentsPage: React.FC = () => {
                           size="sm"
                           onClick={() => {
                             setActiveMainTab("referee_live");
-                            message.info(`Đang chuyển sang Bảng Điểm Trọng Tài cho giải "${tourney.name}"`);
+                            message.info(
+                              `Đang chuyển sang Bảng Điểm Trọng Tài cho giải "${tourney.name}"`,
+                            );
                           }}
                           leftIcon={<ThunderboltOutlined />}
                           className="!bg-slate-900 hover:!bg-slate-800 !border-slate-900 !rounded-xl !text-xs !h-9 font-bold text-white"
@@ -1088,7 +1176,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 2: BẢNG ĐIỂM TRỌNG TÀI BANK POOL (LIVE REFEREE SCORING) ────── */}
       {activeMainTab === "referee_live" && (
         <div className="space-y-6">
           {/* Match Context Bar */}
@@ -1113,7 +1200,10 @@ export const AdminTournamentsPage: React.FC = () => {
                 </span>
                 <span>•</span>
                 <span>
-                  Thể thức: <strong>Race to {activeMatch.raceTo} (Chạm {activeMatch.raceTo})</strong>
+                  Thể thức:{" "}
+                  <strong>
+                    Race to {activeMatch.raceTo} (Chạm {activeMatch.raceTo})
+                  </strong>
                 </span>
               </div>
             </div>
@@ -1166,11 +1256,17 @@ export const AdminTournamentsPage: React.FC = () => {
                     Cơ Thủ 1
                   </span>
                   {isPlayer1Active ? (
-                    <Tag color="green" className="!rounded-full !px-3 !py-1 !text-xs !font-black animate-pulse">
+                    <Tag
+                      color="green"
+                      className="!rounded-full !px-3 !py-1 !text-xs !font-black animate-pulse"
+                    >
                       ĐANG TỚI LƯỢT ĐÁNH
                     </Tag>
                   ) : (
-                    <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100">
+                    <Tag
+                      color="default"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100"
+                    >
                       CHỜ LƯỢT
                     </Tag>
                   )}
@@ -1275,8 +1371,8 @@ export const AdminTournamentsPage: React.FC = () => {
                     shotClockSeconds <= 5
                       ? "text-rose-600 animate-pulse"
                       : shotClockSeconds <= 10
-                      ? "text-amber-500"
-                      : "text-slate-900"
+                        ? "text-amber-500"
+                        : "text-slate-900"
                   }`}
                 >
                   {shotClockSeconds}s
@@ -1359,11 +1455,17 @@ export const AdminTournamentsPage: React.FC = () => {
                     Cơ Thủ 2
                   </span>
                   {isPlayer2Active ? (
-                    <Tag color="green" className="!rounded-full !px-3 !py-1 !text-xs !font-black animate-pulse">
+                    <Tag
+                      color="green"
+                      className="!rounded-full !px-3 !py-1 !text-xs !font-black animate-pulse"
+                    >
                       ĐANG TỚI LƯỢT ĐÁNH
                     </Tag>
                   ) : (
-                    <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100">
+                    <Tag
+                      color="default"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100"
+                    >
                       CHỜ LƯỢT
                     </Tag>
                   )}
@@ -1454,7 +1556,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 3: SƠ ĐỒ NHÁNH ĐẤU (TOURNAMENT BRACKET TREE) ──────────────── */}
       {activeMainTab === "brackets" && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
@@ -1473,7 +1574,6 @@ export const AdminTournamentsPage: React.FC = () => {
 
           {/* Bracket Tree Layout */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-            {/* Column 1: Tứ Kết (Quarter Finals) */}
             <div className="space-y-4">
               <span className="text-xs font-black uppercase text-slate-400 block tracking-wider text-center">
                 VÒNG TỨ KẾT (QF)
@@ -1544,7 +1644,6 @@ export const AdminTournamentsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Column 2: Bán Kết (Semi Finals) */}
             <div className="space-y-6">
               <span className="text-xs font-black uppercase text-rose-600 block tracking-wider text-center">
                 VÒNG BÁN KẾT (LIVE TRỌNG TÀI)
@@ -1619,7 +1718,6 @@ export const AdminTournamentsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Column 3: Chung Kết (Grand Final) */}
             <div className="space-y-4">
               <span className="text-xs font-black uppercase text-amber-500 block tracking-wider text-center">
                 TRẬN CHUNG KẾT TRANH CÚP VÀNG
@@ -1629,14 +1727,10 @@ export const AdminTournamentsPage: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-xl shadow-xs">
                   <TrophyOutlined />
                 </div>
-                <h4 className="font-black text-slate-900 text-base mb-1">
-                  Chung Kết Vô Địch Q2
-                </h4>
+                <h4 className="font-black text-slate-900 text-base mb-1">Chung Kết Vô Địch Q2</h4>
                 <div className="p-3 bg-white rounded-2xl border border-amber-200 text-slate-600 space-y-1">
                   <div>Thắng Bán Kết 1 vs Thắng Bán Kết 2</div>
-                  <div className="font-bold text-amber-800">
-                    Tranh Cúp & 8.000.000 VNĐ
-                  </div>
+                  <div className="font-bold text-amber-800">Tranh Cúp & 8.000.000 VNĐ</div>
                 </div>
                 <span className="text-[11px] text-slate-400 block">
                   Dự kiến khởi tranh lúc 17:00 hôm nay tại Bàn Match 13 (VAR)
@@ -1647,7 +1741,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 4: BẢNG XẾP HẠNG ELO CLB ───────────────────────────────────── */}
       {activeMainTab === "leaderboard" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1673,7 +1766,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── MODAL: TẠO GIẢI ĐẤU MỚI (SCRUM-151) ────────────────────────── */}
       <Modal
         open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
@@ -1703,9 +1795,7 @@ export const AdminTournamentsPage: React.FC = () => {
             <Input
               placeholder="Ví dụ: CueZone Bank Pool Championship Q4/2026"
               value={newTourneyForm.title}
-              onChange={(e) =>
-                setNewTourneyForm((prev) => ({ ...prev, title: e.target.value }))
-              }
+              onChange={(e) => setNewTourneyForm((prev) => ({ ...prev, title: e.target.value }))}
               className="!h-10 !rounded-xl text-xs"
             />
           </div>
@@ -1734,9 +1824,7 @@ export const AdminTournamentsPage: React.FC = () => {
               </label>
               <Select
                 value={newTourneyForm.maxParticipants}
-                onChange={(val) =>
-                  setNewTourneyForm((prev) => ({ ...prev, maxParticipants: val }))
-                }
+                onChange={(val) => setNewTourneyForm((prev) => ({ ...prev, maxParticipants: val }))}
                 className="!w-full !rounded-xl !text-xs !h-10"
                 options={[
                   { value: 8, label: "8 Cơ thủ (Vòng tứ kết)" },
@@ -1867,7 +1955,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL: XÁC NHẬN CHUYỂN TRẠNG THÁI MỞ ĐĂNG KÝ (SCRUM-155) ─────── */}
       <Modal
         open={statusConfirmModalVisible}
         onCancel={() => {
@@ -1895,12 +1982,29 @@ export const AdminTournamentsPage: React.FC = () => {
             <strong className="text-sm text-slate-900 block mb-1">
               {selectedTourneyForStatusChange?.name}
             </strong>
-            <div>Quy mô: <strong>{selectedTourneyForStatusChange?.maxPlayers} cơ thủ</strong></div>
-            <div>Lệ phí: <strong>{Number(selectedTourneyForStatusChange?.registrationFee).toLocaleString("vi-VN")}đ</strong></div>
-            <div>Hạn đăng ký: <strong>{selectedTourneyForStatusChange?.registrationDeadline ? new Date(selectedTourneyForStatusChange.registrationDeadline).toLocaleString("vi-VN") : "---"}</strong></div>
+            <div>
+              Quy mô: <strong>{selectedTourneyForStatusChange?.maxPlayers} cơ thủ</strong>
+            </div>
+            <div>
+              Lệ phí:{" "}
+              <strong>
+                {Number(selectedTourneyForStatusChange?.registrationFee).toLocaleString("vi-VN")}đ
+              </strong>
+            </div>
+            <div>
+              Hạn đăng ký:{" "}
+              <strong>
+                {selectedTourneyForStatusChange?.registrationDeadline
+                  ? new Date(selectedTourneyForStatusChange.registrationDeadline).toLocaleString(
+                      "vi-VN",
+                    )
+                  : "---"}
+              </strong>
+            </div>
           </div>
           <p className="text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[11px]">
-            ⚠️ Lưu ý: Khi đã mở đăng ký (REGISTRATION_OPEN), các hội viên có thể ghi danh và nộp lệ phí. Quy mô cơ thủ sẽ được khóa cố định.
+            ⚠️ Lưu ý: Khi đã mở đăng ký (REGISTRATION_OPEN), các hội viên có thể ghi danh và nộp lệ
+            phí. Quy mô cơ thủ sẽ được khóa cố định.
           </p>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -1929,7 +2033,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL: DUYỆT DANH SÁCH CƠ THỦ ĐĂNG KÝ ─────────────────────────── */}
       <Modal
         open={participantsModalVisible}
         onCancel={() => setParticipantsModalVisible(false)}
@@ -1959,7 +2062,8 @@ export const AdminTournamentsPage: React.FC = () => {
           </div>
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-            {(selectedTourneyForParticipants?.players && selectedTourneyForParticipants.players.length > 0) ? (
+            {selectedTourneyForParticipants?.players &&
+            selectedTourneyForParticipants.players.length > 0 ? (
               selectedTourneyForParticipants.players.map((p, idx) => (
                 <div
                   key={idx}
@@ -1972,7 +2076,8 @@ export const AdminTournamentsPage: React.FC = () => {
                     <div>
                       <span className="font-bold text-slate-900 block">{p.name}</span>
                       <span className="text-slate-400 text-[11px]">
-                        {p.phone || "---"} • Ngày ĐK: {new Date(p.registeredAt).toLocaleDateString("vi-VN")}
+                        {p.phone || "---"} • Ngày ĐK:{" "}
+                        {new Date(p.registeredAt).toLocaleDateString("vi-VN")}
                       </span>
                     </div>
                   </div>
@@ -2001,7 +2106,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL: CHỈNH SỬA GIẢI ĐẤU (SCRUM-153) ────────────────────────── */}
       <Modal
         open={editModalVisible}
         onCancel={() => {
@@ -2036,9 +2140,7 @@ export const AdminTournamentsPage: React.FC = () => {
             <Input
               placeholder="Ví dụ: CueZone Bank Pool Championship Q4/2026"
               value={editTourneyForm.title}
-              onChange={(e) =>
-                setEditTourneyForm((prev) => ({ ...prev, title: e.target.value }))
-              }
+              onChange={(e) => setEditTourneyForm((prev) => ({ ...prev, title: e.target.value }))}
               className="!h-10 !rounded-xl text-xs"
             />
           </div>
@@ -2204,7 +2306,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL: XÁC NHẬN XÓA GIẢI ĐẤU DRAFT ────────────────────────────── */}
       <Modal
         open={deleteConfirmModalVisible}
         onCancel={() => {
@@ -2225,13 +2326,9 @@ export const AdminTournamentsPage: React.FC = () => {
         }
       >
         <div className="py-4 space-y-3 text-xs text-slate-600">
-          <p>
-            Bạn có chắc chắn muốn xóa vĩnh viễn giải đấu bản nháp này?
-          </p>
+          <p>Bạn có chắc chắn muốn xóa vĩnh viễn giải đấu bản nháp này?</p>
           <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200 text-rose-900">
-            <strong className="text-sm block mb-0.5">
-              {selectedTourneyForDelete?.name}
-            </strong>
+            <strong className="text-sm block mb-0.5">{selectedTourneyForDelete?.name}</strong>
             <span className="text-[11px] text-rose-700">Trạng thái: Bản nháp (DRAFT)</span>
           </div>
           <p className="text-slate-500 text-[11px]">
@@ -2288,7 +2385,8 @@ export const AdminTournamentsPage: React.FC = () => {
               [Replay Bàn Match 13 - Góc máy băng dài số 2]
             </div>
             <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 font-bold text-xs">
-              KẾT LUẬN VAR: Bi mục tiêu dội băng hợp lệ trước khi chạm lỗ góc. Cú đánh đạt chuẩn Bank Pool!
+              KẾT LUẬN VAR: Bi mục tiêu dội băng hợp lệ trước khi chạm lỗ góc. Cú đánh đạt chuẩn
+              Bank Pool!
             </div>
           </div>
 
@@ -2308,7 +2406,6 @@ export const AdminTournamentsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL: KẾT THÚC TRẬN ĐẤU & ĐỒNG BỘ ELO ─────────────────────────── */}
       <Modal
         open={finishModalVisible}
         onCancel={() => setFinishModalVisible(false)}
@@ -2329,7 +2426,8 @@ export const AdminTournamentsPage: React.FC = () => {
               Cơ Thủ Chiến Thắng:{" "}
               {winnerId === activeMatch.player1.id
                 ? activeMatch.player1.name
-                : activeMatch.player2.name}!
+                : activeMatch.player2.name}
+              !
             </div>
             <div className="text-xs text-amber-800">
               Tỉ số chung cuộc:{" "}
@@ -2383,7 +2481,7 @@ export const AdminTournamentsPage: React.FC = () => {
               onClick={() => {
                 setFinishModalVisible(false);
                 message.success(
-                  "Đã lưu kết quả trận đấu, cập nhật nhánh đấu và đồng bộ bảng xếp hạng ELO!"
+                  "Đã lưu kết quả trận đấu, cập nhật nhánh đấu và đồng bộ bảng xếp hạng ELO!",
                 );
               }}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-5 !text-xs"

@@ -165,7 +165,9 @@ export const PosTableFloorPage: React.FC = () => {
 
   // 4. Checkout & Payment Modal
   const [checkoutModalVisible, setCheckoutModalVisible] = useState<boolean>(false);
-  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "cash" | "card" | "member_balance">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "cash" | "card" | "member_balance">(
+    "cash",
+  );
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [cashReceived, setCashReceived] = useState<number | null>(null);
   const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
@@ -187,7 +189,11 @@ export const PosTableFloorPage: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Focus search input on '/' or 'F3'
-      if ((e.key === "/" || e.key === "F3") && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+      if (
+        (e.key === "/" || e.key === "F3") &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
         e.preventDefault();
         const searchInput = document.querySelector<HTMLInputElement>(".pos-search-input input");
         if (searchInput) {
@@ -209,9 +215,16 @@ export const PosTableFloorPage: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // 5. Waitlist State (SRS UC21 & E2E-01) - Tích hợp lưu trữ LocalStorage & Chọn bàn linh hoạt
   const WAITLIST_STORAGE_KEY = "cuezone_pos_waitlist";
-  const getInitialWaitlist = (): Array<{ id: string; customerName: string; phone: string; guests: number; preferredType: string; joinedTime: string; note?: string }> => {
+  const getInitialWaitlist = (): Array<{
+    id: string;
+    customerName: string;
+    phone: string;
+    guests: number;
+    preferredType: string;
+    joinedTime: string;
+    note?: string;
+  }> => {
     try {
       const raw = localStorage.getItem(WAITLIST_STORAGE_KEY);
       if (raw) {
@@ -241,7 +254,17 @@ export const PosTableFloorPage: React.FC = () => {
     ];
   };
 
-  const saveWaitlistToStorage = (list: Array<{ id: string; customerName: string; phone: string; guests: number; preferredType: string; joinedTime: string; note?: string }>) => {
+  const saveWaitlistToStorage = (
+    list: Array<{
+      id: string;
+      customerName: string;
+      phone: string;
+      guests: number;
+      preferredType: string;
+      joinedTime: string;
+      note?: string;
+    }>,
+  ) => {
     try {
       localStorage.setItem(WAITLIST_STORAGE_KEY, JSON.stringify(list));
     } catch {}
@@ -284,25 +307,36 @@ export const PosTableFloorPage: React.FC = () => {
   };
 
   const handleAssignWaitlist = (
-    entry: { id: string; customerName: string; phone: string; guests: number; preferredType: string; joinedTime: string; note?: string },
-    chosenTableId?: string
+    entry: {
+      id: string;
+      customerName: string;
+      phone: string;
+      guests: number;
+      preferredType: string;
+      joinedTime: string;
+      note?: string;
+    },
+    chosenTableId?: string,
   ) => {
     let targetTable: PosTable | undefined;
 
-    // 1. Kiểm tra bàn thu ngân đã chủ động chọn từ Select
     if (chosenTableId) {
       targetTable = tables.find((t) => t.id === chosenTableId && t.status === "available");
     }
 
-    // 2. Nếu chưa chọn hoặc bàn đó không còn khả dụng, tự động gợi ý bàn trống phù hợp
     if (!targetTable) {
       targetTable =
-        tables.find((t) => t.status === "available" && (t.typeName === entry.preferredType || !entry.preferredType)) ||
-        tables.find((t) => t.status === "available");
+        tables.find(
+          (t) =>
+            t.status === "available" &&
+            (t.typeName === entry.preferredType || !entry.preferredType),
+        ) || tables.find((t) => t.status === "available");
     }
 
     if (!targetTable) {
-      message.warning(`Toàn quán hiện không còn bàn trống nào để xếp cho khách ${entry.customerName}!`);
+      message.warning(
+        `Toàn quán hiện không còn bàn trống nào để xếp cho khách ${entry.customerName}!`,
+      );
       return;
     }
 
@@ -313,7 +347,9 @@ export const PosTableFloorPage: React.FC = () => {
     setPendingWaitlistEntryId(entry.id);
     setOpenModalVisible(true);
     setWaitlistModalVisible(false);
-    message.info(`Đang xếp ${targetTable.name} cho khách ${entry.customerName}. Vui lòng bấm xác nhận mở bàn!`);
+    message.info(
+      `Đang xếp ${targetTable.name} cho khách ${entry.customerName}. Vui lòng bấm xác nhận mở bàn!`,
+    );
   };
 
   const handleRemoveWaitlist = (id: string) => {
@@ -347,7 +383,7 @@ export const PosTableFloorPage: React.FC = () => {
   useEffect(() => {
     const tableId = searchParams.get("tableId");
     if (loading || loadError || !tableId) return;
-    const table = tables.find(item => item.id === tableId);
+    const table = tables.find((item) => item.id === tableId);
     if (table?.status === "booked") {
       setSelectedTable(table);
       setCustomerName(table.bookedInfo?.customerName || "");
@@ -363,7 +399,6 @@ export const PosTableFloorPage: React.FC = () => {
     return calculateSplitPlayingDetails(table, pricingTiers, currentTime);
   };
 
-  // Helper tính số phút quá giờ hẹn của bàn đặt trước (SRS XIX E2E-03 & UC26)
   const getBookingOverdueMinutes = (timeStr?: string): number => {
     if (!timeStr) return 0;
     const match = timeStr.match(/(\d{1,2}):(\d{2})/);
@@ -377,7 +412,6 @@ export const PosTableFloorPage: React.FC = () => {
     return Math.floor(diffMs / 60000);
   };
 
-  // Helper chuẩn hóa tiếng Việt không dấu & loại bỏ ký tự phụ để tìm kiếm thông minh
   const normalizeSearchText = (str?: string): string => {
     return (str || "")
       .normalize("NFD")
@@ -388,7 +422,6 @@ export const PosTableFloorPage: React.FC = () => {
       .trim();
   };
 
-  // Filtered tables (Smart Search: Hỗ trợ tìm gõ không dấu "ban 2" khớp "Bàn 02", tên khách không dấu, SĐT)
   const filteredTables = useMemo(() => {
     const qRaw = searchQuery.trim().toLowerCase();
     const qNorm = normalizeSearchText(qRaw);
@@ -397,15 +430,20 @@ export const PosTableFloorPage: React.FC = () => {
     return tables.filter((t) => {
       const matchArea =
         filterArea === "all" ||
-        (filterArea === "standard" && (t.area?.toLowerCase().includes("phổ thông") || t.code.startsWith("STD"))) ||
-        (filterArea === "vip" && (t.area?.toLowerCase().includes("vip") || t.code.startsWith("VIP"))) ||
-        (filterArea === "match" && (t.area?.toLowerCase().includes("thi đấu") || t.code.startsWith("MTCH")));
+        (filterArea === "standard" &&
+          (t.area?.toLowerCase().includes("phổ thông") || t.code.startsWith("STD"))) ||
+        (filterArea === "vip" &&
+          (t.area?.toLowerCase().includes("vip") || t.code.startsWith("VIP"))) ||
+        (filterArea === "match" &&
+          (t.area?.toLowerCase().includes("thi đấu") || t.code.startsWith("MTCH")));
 
       const matchType =
         filterType === "all" ||
         t.type === filterType ||
-        (filterType === "pool" && (t.type === "pool" || t.typeName?.includes("Lỗ") || t.typeName?.includes("Pool"))) ||
-        (filterType === "carom" && (t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng"))) ||
+        (filterType === "pool" &&
+          (t.type === "pool" || t.typeName?.includes("Lỗ") || t.typeName?.includes("Pool"))) ||
+        (filterType === "carom" &&
+          (t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng"))) ||
         (filterType === "snooker" && (t.type === "snooker" || t.typeName?.includes("Snooker")));
 
       const matchStatus = filterStatus === "all" || t.status === filterStatus;
@@ -427,20 +465,14 @@ export const PosTableFloorPage: React.FC = () => {
       const bookedPhone = t.bookedInfo?.phone || "";
 
       const matchQuery =
-        // Khớp tên bàn: "ban 2", "ban 02", "bàn 2", "bàn 02"
         normName.includes(qNorm) ||
         normNameUnpadded.includes(qUnpadded) ||
         normName.includes(qRaw) ||
-        // Khớp mã bàn: "mtch 1", "std 2", "vip 1"
         normCode.includes(qNorm) ||
         normCodeUnpadded.includes(qUnpadded) ||
-        // Khớp khu vực / hạng bàn: "vip", "standard", "pho thong", "thi dau"
         normArea.includes(qNorm) ||
-        // Khớp tên khách không dấu & có dấu: "kien" -> "Đỗ Thế Kiên", "tuan" -> "Nguyễn Anh Tuấn"
         normCustomer.includes(qNorm) ||
-        // Khớp SĐT khách đang chơi
         phone.includes(qRaw) ||
-        // Khớp khách đặt trước
         normBookedCustomer.includes(qNorm) ||
         bookedPhone.includes(qRaw);
 
@@ -468,8 +500,10 @@ export const PosTableFloorPage: React.FC = () => {
 
     for (let i = 0; i < tables.length; i++) {
       const t = tables[i];
-      const isPool = t.type === "pool" || t.typeName?.includes("Lỗ") || t.typeName?.includes("Pool");
-      const isCarom = t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng");
+      const isPool =
+        t.type === "pool" || t.typeName?.includes("Lỗ") || t.typeName?.includes("Pool");
+      const isCarom =
+        t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng");
       const isSnooker = t.type === "snooker" || t.typeName?.includes("Snooker");
 
       if (t.status === "playing") playing++;
@@ -492,7 +526,8 @@ export const PosTableFloorPage: React.FC = () => {
 
       if (t.status === "playing" || t.status === "paused" || t.currentSession) {
         const { cost } = calculatePlayingDetails(t);
-        const fnbCost = t.currentSession?.orders?.reduce((acc, cur) => acc + cur.price * cur.quantity, 0) || 0;
+        const fnbCost =
+          t.currentSession?.orders?.reduce((acc, cur) => acc + cur.price * cur.quantity, 0) || 0;
         totalTempRevenue += cost + fnbCost;
       }
     }
@@ -593,10 +628,14 @@ export const PosTableFloorPage: React.FC = () => {
       return;
     }
 
-    const saved = await save(() => posService.open(selectedTable.id, {
-      customerName: customerName.trim(), customerPhone: customerPhone.trim(), note: sessionNote.trim(),
-      bookingId: selectedTable.bookedInfo?.bookingId,
-    }));
+    const saved = await save(() =>
+      posService.open(selectedTable.id, {
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        note: sessionNote.trim(),
+        bookingId: selectedTable.bookedInfo?.bookingId,
+      }),
+    );
     if (!saved) return;
 
     if (pendingWaitlistEntryId) {
@@ -620,7 +659,11 @@ export const PosTableFloorPage: React.FC = () => {
   const handleTogglePause = async (table: PosTable) => {
     if (!table.currentSession) return;
     if (await save(() => posService.pause(table))) {
-      message.success(table.currentSession.isPaused ? `Đã tiếp tục tính giờ ${table.name}` : `Đã tạm dừng tính giờ ${table.name}`);
+      message.success(
+        table.currentSession.isPaused
+          ? `Đã tiếp tục tính giờ ${table.name}`
+          : `Đã tạm dừng tính giờ ${table.name}`,
+      );
     }
   };
 
@@ -634,8 +677,10 @@ export const PosTableFloorPage: React.FC = () => {
     const targetTable = tables.find((t) => t.id === targetTableId);
     if (!targetTable) return;
 
-    if (!await save(() => posService.move(selectedTable, targetTableId, transferAction))) return;
-    message.success(`Đã ${transferAction === "transfer" ? "chuyển" : "gộp"} ${selectedTable.name} sang ${targetTable.name}!`);
+    if (!(await save(() => posService.move(selectedTable, targetTableId, transferAction)))) return;
+    message.success(
+      `Đã ${transferAction === "transfer" ? "chuyển" : "gộp"} ${selectedTable.name} sang ${targetTable.name}!`,
+    );
 
     setTransferModalVisible(false);
     setSelectedTable(null);
@@ -658,9 +703,7 @@ export const PosTableFloorPage: React.FC = () => {
     setCurrentOrderList((prev) => {
       const existing = prev.find((o) => o.id === stockItem.id);
       if (existing) {
-        return prev.map((o) =>
-          o.id === stockItem.id ? { ...o, quantity: o.quantity + 1 } : o
-        );
+        return prev.map((o) => (o.id === stockItem.id ? { ...o, quantity: o.quantity + 1 } : o));
       }
       return [
         ...prev,
@@ -679,8 +722,8 @@ export const PosTableFloorPage: React.FC = () => {
     // Reduce stock locally
     setFnbStock((prev) =>
       prev.map((item) =>
-        item.id === stockItem.id ? { ...item, stockQuantity: item.stockQuantity - 1 } : item
-      )
+        item.id === stockItem.id ? { ...item, stockQuantity: item.stockQuantity - 1 } : item,
+      ),
     );
   };
 
@@ -700,8 +743,10 @@ export const PosTableFloorPage: React.FC = () => {
     // Restore or reduce stock
     setFnbStock((prev) =>
       prev.map((item) =>
-        item.id === itemId ? { ...item, stockQuantity: Math.max(0, item.stockQuantity - delta) } : item
-      )
+        item.id === itemId
+          ? { ...item, stockQuantity: Math.max(0, item.stockQuantity - delta) }
+          : item,
+      ),
     );
   };
 
@@ -711,7 +756,7 @@ export const PosTableFloorPage: React.FC = () => {
       await posService.updateOrders(
         selectedTable.id,
         selectedTable.currentSession!.sessionId,
-        currentOrderList
+        currentOrderList,
       );
     });
     if (!saved) return;
@@ -738,33 +783,48 @@ export const PosTableFloorPage: React.FC = () => {
     setCheckoutModalVisible(false);
     setReceiptModalVisible(true);
     message.success(
-      `Đã lưu hóa đơn thanh toán (${paymentMethod === "vnpay" ? "Chuyển khoản QR" : "Tiền mặt"}) cho ${selectedTable.name}!`
+      `Đã lưu hóa đơn thanh toán (${paymentMethod === "vnpay" ? "Chuyển khoản QR" : "Tiền mặt"}) cho ${selectedTable.name}!`,
     );
   };
 
   return (
     <div className="space-y-4">
-      {/* ── TOP UNIFIED COMPACT COMMAND BAR (TIÊU ĐỀ, HÀNH ĐỘNG & BỘ LỌC 1-CHẠM) ───────── */}
-      <Card styles={{ body: { padding: "12px 18px" } }} className="!rounded-2xl !border-slate-200 shadow-2xs bg-white">
-        {/* Row 1: Header, Socket indicator, Occupancy & Tạm tính sàn */}
+      <Card
+        styles={{ body: { padding: "12px 18px" } }}
+        className="!rounded-2xl !border-slate-200 shadow-2xs bg-white"
+      >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className={`flex h-2.5 w-2.5 rounded-full ${socketConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-400"}`} />
+            <span
+              className={`flex h-2.5 w-2.5 rounded-full ${socketConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-400"}`}
+            />
             <Title level={4} className="!text-lg !font-black !text-slate-900 !mb-0 tracking-tight">
               Sơ Đồ Bàn Trực Tiếp
             </Title>
-            <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0">
+            <Tag
+              color="green"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
+            >
               TOÀN QUÁN • {stats.total} BÀN
             </Tag>
-            <Tag color={stats.occupancyRate > 70 ? "volcano" : "blue"} className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0">
+            <Tag
+              color={stats.occupancyRate > 70 ? "volcano" : "blue"}
+              className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
+            >
               LẤP ĐẦY: {stats.occupancyRate}%
             </Tag>
             {socketConnected ? (
-              <Tag color="cyan" className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-semibold !m-0 hidden sm:inline-flex items-center gap-1">
+              <Tag
+                color="cyan"
+                className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-semibold !m-0 hidden sm:inline-flex items-center gap-1"
+              >
                 <WifiOutlined /> Đồng bộ trực tiếp
               </Tag>
             ) : (
-              <Tag color="warning" className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-semibold !m-0 hidden sm:inline-flex items-center gap-1">
+              <Tag
+                color="warning"
+                className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-semibold !m-0 hidden sm:inline-flex items-center gap-1"
+              >
                 <SyncOutlined spin /> Đang kết nối...
               </Tag>
             )}
@@ -773,13 +833,17 @@ export const PosTableFloorPage: React.FC = () => {
           <div className="flex items-center gap-2.5 self-start md:self-center shrink-0">
             {/* Real-time temporary revenue badge */}
             <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-2 shadow-2xs">
-              <span className="text-[11px] font-semibold text-emerald-800">Doanh thu tạm tính:</span>
+              <span className="text-[11px] font-semibold text-emerald-800">
+                Doanh thu tạm tính:
+              </span>
               <span className="text-base font-black text-emerald-700 font-mono">
                 {stats.totalTempRevenue.toLocaleString("vi-VN")}đ
               </span>
             </div>
 
-            <Tooltip title={isFullscreen ? "Thoát toàn màn hình" : "Mở rộng toàn màn hình (Kiosk POS)"}>
+            <Tooltip
+              title={isFullscreen ? "Thoát toàn màn hình" : "Mở rộng toàn màn hình (Kiosk POS)"}
+            >
               <Button
                 variant="outline"
                 size="sm"
@@ -805,11 +869,11 @@ export const PosTableFloorPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Row 2: Thanh điều khiển & Bộ lọc tương tác 1-chạm (Cùng một hàng ngang thẳng tắp) */}
         <div className="pt-2.5 flex items-center justify-between gap-3 overflow-x-auto">
-          {/* Cụm trái: Khu vực, Thể loại & Trạng thái bàn thẳng hàng */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">Khu vực:</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+              Khu vực:
+            </span>
             <Select
               value={filterArea}
               onChange={(val) => setFilterArea(val as string)}
@@ -817,7 +881,9 @@ export const PosTableFloorPage: React.FC = () => {
               options={areaOptions}
             />
 
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">Thể loại:</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+              Thể loại:
+            </span>
             <Select
               value={filterType}
               onChange={(val) => setFilterType(val as string)}
@@ -836,7 +902,6 @@ export const PosTableFloorPage: React.FC = () => {
             />
           </div>
 
-          {/* Cụm phải: Danh sách chờ & Tìm kiếm nhanh */}
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
@@ -891,7 +956,9 @@ export const PosTableFloorPage: React.FC = () => {
             🔍
           </div>
           <div className="space-y-1">
-            <h4 className="font-bold text-slate-800 text-sm mb-0">Không tìm thấy bàn nào phù hợp</h4>
+            <h4 className="font-bold text-slate-800 text-sm mb-0">
+              Không tìm thấy bàn nào phù hợp
+            </h4>
             <p className="text-xs text-slate-500 mb-0">
               {filterStatus === "available"
                 ? "Hiện tại không còn bàn trống theo tiêu chí này. Bạn có thể thêm khách vào danh sách chờ."
@@ -929,7 +996,6 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── CẢNH BÁO HẾT BÀN & GỢI Ý DANH SÁCH CHỜ (SCRUM-92 & SRS UC21) ────────── */}
       {isTypeFull && !loading && !loadError && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3">
@@ -938,13 +1004,17 @@ export const PosTableFloorPage: React.FC = () => {
             </div>
             <div>
               <h5 className="font-bold text-slate-800 text-sm mb-0.5">
-                {filterType === "pool" ? "Toàn bộ Bàn Bida Lỗ (Pool) hiện đã kín khách!" :
-                 filterType === "carom" ? "Toàn bộ Bàn Bida Carom (Phăng) hiện đã kín khách!" :
-                 filterType === "snooker" ? "Toàn bộ Bàn Bida Snooker hiện đã kín khách!" :
-                 "Hiện tại toàn bộ bàn trong câu lạc bộ đã kín khách!"}
+                {filterType === "pool"
+                  ? "Toàn bộ Bàn Bida Lỗ (Pool) hiện đã kín khách!"
+                  : filterType === "carom"
+                    ? "Toàn bộ Bàn Bida Carom (Phăng) hiện đã kín khách!"
+                    : filterType === "snooker"
+                      ? "Toàn bộ Bàn Bida Snooker hiện đã kín khách!"
+                      : "Hiện tại toàn bộ bàn trong câu lạc bộ đã kín khách!"}
               </h5>
               <p className="text-xs text-slate-600 mb-0">
-                Khách walk-in cần loại bàn này? Hãy thêm khách vào <strong>Danh Sách Chờ (Waitlist)</strong> để tự động xếp bàn ngay khi có bàn trống.
+                Khách walk-in cần loại bàn này? Hãy thêm khách vào{" "}
+                <strong>Danh Sách Chờ (Waitlist)</strong> để tự động xếp bàn ngay khi có bàn trống.
               </p>
             </div>
           </div>
@@ -963,14 +1033,13 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── SƠ ĐỒ LƯỚI BÀN (ERGONOMIC TABLE CARDS GRID) ──────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredTables.map((table) => {
-          const { cost, formattedTime, minutes, timeSlots, isCrossed } = calculatePlayingDetails(table);
-          const fnbTotal = table.currentSession?.orders.reduce(
-            (acc, cur) => acc + cur.price * cur.quantity,
-            0
-          ) || 0;
+          const { cost, formattedTime, minutes, timeSlots, isCrossed } =
+            calculatePlayingDetails(table);
+          const fnbTotal =
+            table.currentSession?.orders.reduce((acc, cur) => acc + cur.price * cur.quantity, 0) ||
+            0;
           const totalTableBill = cost + fnbTotal;
 
           const isPlaying = table.status === "playing";
@@ -996,34 +1065,32 @@ export const PosTableFloorPage: React.FC = () => {
                 isPlaying
                   ? "!border-emerald-400/80 !bg-white ring-1 ring-emerald-500/15"
                   : isPaused
-                  ? "!border-amber-400/80 !bg-white ring-1 ring-amber-400/20"
-                  : isBooked
-                  ? overdueMinutes >= 15
-                    ? "!border-red-400/80 !bg-white ring-1 ring-red-400/30"
-                    : "!border-blue-400/80 !bg-white ring-1 ring-blue-400/20"
-                  : isMaintenance
-                  ? "!border-slate-200 !bg-slate-50 opacity-60"
-                  : "!border-slate-200 !bg-white hover:!border-emerald-300 hover:shadow-sm"
+                    ? "!border-amber-400/80 !bg-white ring-1 ring-amber-400/20"
+                    : isBooked
+                      ? overdueMinutes >= 15
+                        ? "!border-red-400/80 !bg-white ring-1 ring-red-400/30"
+                        : "!border-blue-400/80 !bg-white ring-1 ring-blue-400/20"
+                      : isMaintenance
+                        ? "!border-slate-200 !bg-slate-50 opacity-60"
+                        : "!border-slate-200 !bg-white hover:!border-emerald-300 hover:shadow-sm"
               }`}
             >
-              {/* 0. Top Accent Color Strip (Nhận diện trạng thái cực nhanh từ xa) */}
               <div
                 className={`h-1.5 w-full shrink-0 ${
                   isPlaying
                     ? "bg-emerald-500"
                     : isPaused
-                    ? "bg-amber-400"
-                    : isBooked
-                    ? overdueMinutes >= 15
-                      ? "bg-red-500"
-                      : "bg-blue-500"
-                    : isMaintenance
-                    ? "bg-rose-400"
-                    : "bg-slate-200"
+                      ? "bg-amber-400"
+                      : isBooked
+                        ? overdueMinutes >= 15
+                          ? "bg-red-500"
+                          : "bg-blue-500"
+                        : isMaintenance
+                          ? "bg-rose-400"
+                          : "bg-slate-200"
                 }`}
               />
 
-              {/* 1. Header: Tách 2 dòng chống cắt chữ */}
               <div className="px-3.5 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -1034,8 +1101,8 @@ export const PosTableFloorPage: React.FC = () => {
                       {table.code.startsWith("VIP")
                         ? `BÀN VIP ${table.code.replace("VIP-", "")}`
                         : table.code.startsWith("MTCH")
-                        ? `BÀN THI ĐẤU ${table.code.replace("MTCH-", "")}`
-                        : `BÀN ${table.code.replace("STD-", "")}`}
+                          ? `BÀN THI ĐẤU ${table.code.replace("MTCH-", "")}`
+                          : `BÀN ${table.code.replace("STD-", "")}`}
                     </span>
                   </div>
                   <div
@@ -1048,61 +1115,89 @@ export const PosTableFloorPage: React.FC = () => {
 
                 <div className="shrink-0 pt-0.5">
                   {isPlaying && (
-                    <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 shadow-2xs">
+                    <Tag
+                      color="green"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 shadow-2xs"
+                    >
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       ĐANG CHƠI
                     </Tag>
                   )}
                   {isPaused && (
-                    <Tag color="orange" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1">
+                    <Tag
+                      color="orange"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
+                    >
                       <PauseCircleOutlined className="text-[10px]" />
                       TẠM DỪNG
                     </Tag>
                   )}
-                  {isBooked && (
-                    overdueMinutes >= 15 ? (
-                      <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse">
+                  {isBooked &&
+                    (overdueMinutes >= 15 ? (
+                      <Tag
+                        color="error"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
+                      >
                         <AlertOutlined className="text-[10px]" />
                         QUÁ HẠN {overdueMinutes}P
                       </Tag>
                     ) : overdueMinutes > 0 ? (
-                      <Tag color="warning" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1">
+                      <Tag
+                        color="warning"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
+                      >
                         <ClockCircleOutlined className="text-[10px]" />
                         TRỄ {overdueMinutes}P
                       </Tag>
                     ) : (
-                      <Tag color="blue" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1">
+                      <Tag
+                        color="blue"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
+                      >
                         <CalendarOutlined className="text-[10px]" />
                         HẸN TRƯỚC
                       </Tag>
-                    )
-                  )}
+                    ))}
                   {isAvailable && (
-                    <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-600 border border-slate-200">
+                    <Tag
+                      color="default"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-600 border border-slate-200"
+                    >
                       BÀN TRỐNG
                     </Tag>
                   )}
                   {isMaintenance && (
-                    <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0">
+                    <Tag
+                      color="error"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
+                    >
                       BẢO TRÌ
                     </Tag>
                   )}
                 </div>
               </div>
 
-              {/* 2. Body: Thông tin phiên chơi & chi tiết bàn */}
               <div className="p-3.5 flex-1 flex flex-col justify-between min-h-[135px]">
                 {isPlaying || isPaused ? (
                   <div className="space-y-2.5">
                     {/* Timer row */}
                     <div className="flex items-baseline justify-between">
                       <div className="flex items-center gap-1.5">
-                        <ClockCircleOutlined className={isPaused ? "text-amber-500 text-sm" : "text-emerald-600 text-sm"} />
-                        <span className={`text-xl font-black font-mono tracking-wider ${isPaused ? "text-amber-600" : "text-slate-900"}`}>
+                        <ClockCircleOutlined
+                          className={
+                            isPaused ? "text-amber-500 text-sm" : "text-emerald-600 text-sm"
+                          }
+                        />
+                        <span
+                          className={`text-xl font-black font-mono tracking-wider ${isPaused ? "text-amber-600" : "text-slate-900"}`}
+                        >
                           {formattedTime}
                         </span>
                         {minutes >= 180 && (
-                          <Tag color="warning" className="!rounded-md !px-1.5 !py-0 !text-[9px] !font-bold !m-0 font-mono">
+                          <Tag
+                            color="warning"
+                            className="!rounded-md !px-1.5 !py-0 !text-[9px] !font-bold !m-0 font-mono"
+                          >
                             {minutes >= 240 ? "> 4h" : "> 3h"}
                           </Tag>
                         )}
@@ -1121,7 +1216,10 @@ export const PosTableFloorPage: React.FC = () => {
                             {table.currentSession?.customerName || "Khách vãng lai"}
                           </span>
                           {table.currentSession?.isMember && (
-                            <Tag color="gold" className="!text-[9px] !px-1.5 !py-0 !border-0 !m-0 !font-bold !rounded">
+                            <Tag
+                              color="gold"
+                              className="!text-[9px] !px-1.5 !py-0 !border-0 !m-0 !font-bold !rounded"
+                            >
                               {table.currentSession.memberRank || "VIP"}
                             </Tag>
                           )}
@@ -1147,7 +1245,10 @@ export const PosTableFloorPage: React.FC = () => {
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-slate-600">Tạm tính:</span>
                         {isCrossed && (
-                          <Tag color="purple" className="!rounded-md !px-1.5 !py-0 !text-[9px] !font-bold !m-0 border border-purple-200 shadow-2xs">
+                          <Tag
+                            color="purple"
+                            className="!rounded-md !px-1.5 !py-0 !text-[9px] !font-bold !m-0 border border-purple-200 shadow-2xs"
+                          >
                             ⚡ {timeSlots.length} Khung Giờ
                           </Tag>
                         )}
@@ -1158,7 +1259,6 @@ export const PosTableFloorPage: React.FC = () => {
                     </div>
                   </div>
                 ) : isBooked ? (
-                  /* Bàn đặt trước */
                   <div className="space-y-2 py-0.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -1176,7 +1276,10 @@ export const PosTableFloorPage: React.FC = () => {
                       <div className="flex justify-between items-center text-blue-900">
                         <span className="text-slate-600">Giờ hẹn:</span>
                         <span className="font-bold text-blue-800 font-mono">
-                          {table.bookedInfo?.time ? table.bookedInfo.time.replace(/\s*\(?hôm nay\)?\s*/gi, "").trim() : "20:30"} (Hôm nay)
+                          {table.bookedInfo?.time
+                            ? table.bookedInfo.time.replace(/\s*\(?hôm nay\)?\s*/gi, "").trim()
+                            : "20:30"}{" "}
+                          (Hôm nay)
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-blue-900">
@@ -1184,20 +1287,25 @@ export const PosTableFloorPage: React.FC = () => {
                         <span className="font-medium text-blue-800 text-[10px]">15 phút</span>
                       </div>
                       {overdueMinutes > 0 && (
-                        <div className={`flex justify-between items-center text-[10px] font-bold pt-1 border-t border-blue-200/60 ${overdueMinutes >= 15 ? "text-red-600" : "text-amber-700"}`}>
+                        <div
+                          className={`flex justify-between items-center text-[10px] font-bold pt-1 border-t border-blue-200/60 ${overdueMinutes >= 15 ? "text-red-600" : "text-amber-700"}`}
+                        >
                           <span>Tình trạng:</span>
-                          <span>{overdueMinutes >= 15 ? `Quá hạn ${overdueMinutes} phút (Khách chưa đến)` : `Trễ hẹn ${overdueMinutes} phút`}</span>
+                          <span>
+                            {overdueMinutes >= 15
+                              ? `Quá hạn ${overdueMinutes} phút (Khách chưa đến)`
+                              : `Trễ hẹn ${overdueMinutes} phút`}
+                          </span>
                         </div>
                       )}
                     </div>
                     <span className="text-[10px] text-slate-400 block text-center italic">
                       {overdueMinutes >= 15
                         ? "Đã quá hạn giữ bàn 15 phút. Có thể hủy để đón khách mới!"
-                        : "Khách đến? Bấm \"Khách Nhận Bàn\" bên dưới"}
+                        : 'Khách đến? Bấm "Khách Nhận Bàn" bên dưới'}
                     </span>
                   </div>
                 ) : (
-                  /* Bàn trống: Chạm vào thân thẻ để mở nhanh */
                   <div
                     onClick={() => {
                       setSelectedTable(table);
@@ -1209,17 +1317,17 @@ export const PosTableFloorPage: React.FC = () => {
                     title="Chạm để mở bàn tính giờ"
                   >
                     <div className="flex items-baseline justify-between p-2.5 rounded-xl bg-slate-50/90 border border-slate-100 group-hover:border-emerald-200 group-hover:bg-emerald-50/20 transition-all">
-                      <span className="text-xs font-semibold text-slate-500">
-                        Đơn giá giờ:
-                      </span>
+                      <span className="text-xs font-semibold text-slate-500">Đơn giá giờ:</span>
                       <span className="text-base font-black font-mono text-emerald-700">
-                        {table.pricePerHour.toLocaleString("vi-VN")}đ<span className="text-xs font-normal text-slate-400">/h</span>
+                        {table.pricePerHour.toLocaleString("vi-VN")}đ
+                        <span className="text-xs font-normal text-slate-400">/h</span>
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-0.5">
                       <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                        <CheckCircleOutlined className="text-emerald-600 text-xs" /> Bàn sẵn sàng đón khách
+                        <CheckCircleOutlined className="text-emerald-600 text-xs" /> Bàn sẵn sàng
+                        đón khách
                       </span>
                       <span className="text-[10px] font-medium text-slate-400 group-hover:text-emerald-600 transition-colors">
                         Bấm mở bàn ➔
@@ -1229,7 +1337,6 @@ export const PosTableFloorPage: React.FC = () => {
                 )}
               </div>
 
-              {/* 3. Footer: Action Buttons (Ghim đáy cố định, các nút luôn thẳng hàng ngang tuyệt đối) */}
               <div className="px-3.5 py-2.5 bg-slate-50/80 border-t border-slate-100 shrink-0 mt-auto">
                 {isBooked ? (
                   <div className="flex items-center gap-1.5">
@@ -1289,7 +1396,6 @@ export const PosTableFloorPage: React.FC = () => {
                       Thanh Toán
                     </Button>
 
-                    {/* F&B button (Gọi món nhanh) */}
                     <Tooltip title="Gọi thêm đồ uống & món">
                       <Button
                         variant="outline"
@@ -1302,7 +1408,6 @@ export const PosTableFloorPage: React.FC = () => {
                       </Button>
                     </Tooltip>
 
-                    {/* Pause/Resume button (Kích thước 36px an toàn) */}
                     <Tooltip title={isPaused ? "Tiếp tục tính giờ bàn này" : "Tạm dừng tính giờ"}>
                       <Button
                         variant="outline"
@@ -1319,7 +1424,6 @@ export const PosTableFloorPage: React.FC = () => {
                       />
                     </Tooltip>
 
-                    {/* Transfer/Merge button (Kích thước 36px an toàn) */}
                     <Tooltip title="Chuyển bàn hoặc gộp hóa đơn">
                       <Button
                         variant="outline"
@@ -1350,7 +1454,6 @@ export const PosTableFloorPage: React.FC = () => {
         })}
       </div>
 
-      {/* ── MODAL 1: MỞ BÀN TÍNH GIỜ (Open Table & Start Session) ────────────── */}
       <Modal
         open={openModalVisible}
         onCancel={() => {
@@ -1407,7 +1510,9 @@ export const PosTableFloorPage: React.FC = () => {
             />
           </div>
 
-          <Text type="secondary">💡 Thu ngân có thể chọn giảm giá hội viên hoặc áp dụng giờ vàng khi thanh toán.</Text>
+          <Text type="secondary">
+            💡 Thu ngân có thể chọn giảm giá hội viên hoặc áp dụng giờ vàng khi thanh toán.
+          </Text>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -1449,7 +1554,6 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL 2: ĐỔI BÀN / GỘP BÀN (Transfer / Merge Table) ──────────────── */}
       <Modal
         open={transferModalVisible}
         onCancel={() => setTransferModalVisible(false)}
@@ -1503,7 +1607,7 @@ export const PosTableFloorPage: React.FC = () => {
               options={tables
                 .filter((t) => t.id !== selectedTable?.id)
                 .filter((t) =>
-                  transferAction === "transfer" ? t.status === "available" : t.status === "playing"
+                  transferAction === "transfer" ? t.status === "available" : t.status === "playing",
                 )
                 .map((t) => ({
                   value: t.id,
@@ -1517,11 +1621,15 @@ export const PosTableFloorPage: React.FC = () => {
           <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 leading-relaxed">
             {transferAction === "transfer" ? (
               <p className="mb-0">
-                Khi chuyển bàn, toàn bộ thời gian chơi và các món đã gọi của <strong>{selectedTable?.name}</strong> sẽ được chuyển sang bàn mới. Bàn hiện tại sẽ trở về trạng thái bàn trống.
+                Khi chuyển bàn, toàn bộ thời gian chơi và các món đã gọi của{" "}
+                <strong>{selectedTable?.name}</strong> sẽ được chuyển sang bàn mới. Bàn hiện tại sẽ
+                trở về trạng thái bàn trống.
               </p>
             ) : (
               <p className="mb-0">
-                Khi gộp bàn, tiền giờ và các món đã gọi của <strong>{selectedTable?.name}</strong> sẽ được dồn vào hóa đơn bàn đích. Bàn hiện tại sẽ kết thúc phiên và trở về trạng thái bàn trống.
+                Khi gộp bàn, tiền giờ và các món đã gọi của <strong>{selectedTable?.name}</strong>{" "}
+                sẽ được dồn vào hóa đơn bàn đích. Bàn hiện tại sẽ kết thúc phiên và trở về trạng
+                thái bàn trống.
               </p>
             )}
           </div>
@@ -1549,7 +1657,6 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL 3: GỌI MÓN & ĐỒ UỐNG (Manage Orders) ─────────────────── */}
       <Modal
         open={fnbModalVisible}
         onCancel={() => setFnbModalVisible(false)}
@@ -1570,7 +1677,6 @@ export const PosTableFloorPage: React.FC = () => {
         }
       >
         <div className="py-2 grid grid-cols-1 md:grid-cols-12 gap-4">
-          {/* Cột Trái (7 cols): Thực Đơn & Danh Mục */}
           <div className="md:col-span-7 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800">Thực đơn & Đồ uống:</span>
@@ -1602,11 +1708,20 @@ export const PosTableFloorPage: React.FC = () => {
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-xs text-slate-900">{item.name}</span>
                         {item.stockQuantity <= 0 ? (
-                          <Tag color="error" className="!text-[9px] !px-1.5 !py-0 !border-0">HẾT HÀNG</Tag>
+                          <Tag color="error" className="!text-[9px] !px-1.5 !py-0 !border-0">
+                            HẾT HÀNG
+                          </Tag>
                         ) : item.stockQuantity < 10 ? (
-                          <Tag color="warning" className="!text-[9px] !px-1.5 !py-0 !border-0">Còn {item.stockQuantity}</Tag>
+                          <Tag color="warning" className="!text-[9px] !px-1.5 !py-0 !border-0">
+                            Còn {item.stockQuantity}
+                          </Tag>
                         ) : (
-                          <Tag color="default" className="!text-[9px] !px-1.5 !py-0 !border-0 !bg-slate-100">Còn {item.stockQuantity}</Tag>
+                          <Tag
+                            color="default"
+                            className="!text-[9px] !px-1.5 !py-0 !border-0 !bg-slate-100"
+                          >
+                            Còn {item.stockQuantity}
+                          </Tag>
                         )}
                       </div>
                       <span className="text-xs font-bold text-emerald-600 block mt-0.5 font-mono">
@@ -1629,7 +1744,6 @@ export const PosTableFloorPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Cột Phải (5 cols): Danh Sách Món Đang Chọn */}
           <div className="md:col-span-5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
@@ -1651,7 +1765,9 @@ export const PosTableFloorPage: React.FC = () => {
                       className="p-2.5 rounded-xl bg-white border border-slate-200/80 text-xs flex items-center justify-between"
                     >
                       <div className="pr-2 max-w-[130px]">
-                        <span className="font-semibold text-slate-800 block truncate">{order.name}</span>
+                        <span className="font-semibold text-slate-800 block truncate">
+                          {order.name}
+                        </span>
                         <span className="text-[11px] text-emerald-700 font-bold font-mono">
                           {(order.price * order.quantity).toLocaleString("vi-VN")}đ
                         </span>
@@ -1666,7 +1782,9 @@ export const PosTableFloorPage: React.FC = () => {
                         >
                           <MinusOutlined className="text-xs" />
                         </Button>
-                        <span className="font-bold text-xs w-5 text-center font-mono">{order.quantity}</span>
+                        <span className="font-bold text-xs w-5 text-center font-mono">
+                          {order.quantity}
+                        </span>
                         <Button
                           variant="outline"
                           size="sm"
@@ -1702,14 +1820,14 @@ export const PosTableFloorPage: React.FC = () => {
                 disabled={loading}
                 className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold text-xs !h-9 shadow-xs"
               >
-                Xác Nhận Thêm Món ({currentOrderList.reduce((acc, cur) => acc + cur.quantity, 0)} phần)
+                Xác Nhận Thêm Món ({currentOrderList.reduce((acc, cur) => acc + cur.quantity, 0)}{" "}
+                phần)
               </Button>
             </div>
           </div>
         </div>
       </Modal>
 
-      {/* ── MODAL 4: THANH TOÁN (Checkout & Process Payment) ────────────────── */}
       <Modal
         open={checkoutModalVisible}
         onCancel={() => setCheckoutModalVisible(false)}
@@ -1737,7 +1855,9 @@ export const PosTableFloorPage: React.FC = () => {
 
               <div className="flex justify-between text-slate-600">
                 <span>Khách hàng:</span>
-                <strong className="text-slate-900">{selectedTable.currentSession.customerName}</strong>
+                <strong className="text-slate-900">
+                  {selectedTable.currentSession.customerName}
+                </strong>
               </div>
 
               <div className="flex justify-between text-slate-600">
@@ -1748,35 +1868,47 @@ export const PosTableFloorPage: React.FC = () => {
               </div>
 
               {/* Split Time Rate Breakdown */}
-              {calculatePlayingDetails(selectedTable).timeSlots && calculatePlayingDetails(selectedTable).timeSlots.length > 0 && (
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200/90 space-y-1.5 shadow-2xs">
-                  <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1 text-indigo-700">
-                      <ClockCircleOutlined /> Chi tiết tính tiền theo khung giờ:
-                    </span>
-                    {calculatePlayingDetails(selectedTable).isCrossed && (
-                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-200">
-                        ⚡ Qua {calculatePlayingDetails(selectedTable).timeSlots.length} khung giờ
+              {calculatePlayingDetails(selectedTable).timeSlots &&
+                calculatePlayingDetails(selectedTable).timeSlots.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-white border border-slate-200/90 space-y-1.5 shadow-2xs">
+                    <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-indigo-700">
+                        <ClockCircleOutlined /> Chi tiết tính tiền theo khung giờ:
                       </span>
-                    )}
-                  </div>
-                  <div className="space-y-1 pt-1 border-t border-slate-100">
-                    {calculatePlayingDetails(selectedTable).timeSlots.map((slot, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-[11px] text-slate-600">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                          <span className="font-semibold text-slate-800 truncate">{slot.tierName}</span>
-                          <span className="text-slate-400 font-mono text-[10px] shrink-0">({slot.startTime} – {slot.endTime})</span>
+                      {calculatePlayingDetails(selectedTable).isCrossed && (
+                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-200">
+                          ⚡ Qua {calculatePlayingDetails(selectedTable).timeSlots.length} khung giờ
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1 pt-1 border-t border-slate-100">
+                      {calculatePlayingDetails(selectedTable).timeSlots.map((slot, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between text-[11px] text-slate-600"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                            <span className="font-semibold text-slate-800 truncate">
+                              {slot.tierName}
+                            </span>
+                            <span className="text-slate-400 font-mono text-[10px] shrink-0">
+                              ({slot.startTime} – {slot.endTime})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-slate-500 font-mono text-[10px]">
+                              {slot.minutes}p × {slot.pricePerHour.toLocaleString()}đ
+                            </span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {slot.cost.toLocaleString()}đ
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-slate-500 font-mono text-[10px]">{slot.minutes}p × {slot.pricePerHour.toLocaleString()}đ</span>
-                          <span className="font-mono font-bold text-slate-900">{slot.cost.toLocaleString()}đ</span>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               <div className="flex justify-between text-slate-600">
                 <span>Tiền đồ uống & món ({selectedTable.currentSession.orders.length} món):</span>
@@ -1804,11 +1936,19 @@ export const PosTableFloorPage: React.FC = () => {
                 />
               </div>
 
-              <Text>Tiền đặt cọc: {(selectedTable.currentSession.deposit || 0).toLocaleString("vi-VN")}đ</Text>
-              <Text type="secondary">💡 Tiền cọc (nếu có) sẽ được trừ trực tiếp vào hóa đơn. Số dư cọc sẽ được hoàn lại cho khách.</Text>
+              <Text>
+                Tiền đặt cọc: {(selectedTable.currentSession.deposit || 0).toLocaleString("vi-VN")}đ
+              </Text>
+              <Text type="secondary">
+                💡 Tiền cọc (nếu có) sẽ được trừ trực tiếp vào hóa đơn. Số dư cọc sẽ được hoàn lại
+                cho khách.
+              </Text>
               {(() => {
                 const playingDetailsObj = calculatePlayingDetails(selectedTable);
-                const fnbTotal = selectedTable.currentSession.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
+                const fnbTotal = selectedTable.currentSession.orders.reduce(
+                  (sum, item) => sum + item.price * item.quantity,
+                  0,
+                );
                 const subtotal = playingDetailsObj.cost + fnbTotal;
                 const discountAmount = Math.round(subtotal * (discountPercent / 100));
                 const depositAmount = selectedTable.currentSession.deposit || 0;
@@ -1882,7 +2022,6 @@ export const PosTableFloorPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Máy tính tiền thối khi chọn Tiền Mặt */}
                     {paymentMethod === "cash" && (
                       <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
                         <div className="flex items-center justify-between">
@@ -1892,14 +2031,15 @@ export const PosTableFloorPage: React.FC = () => {
                               type="number"
                               placeholder="0"
                               value={cashReceived !== null ? cashReceived : ""}
-                              onChange={(e) => setCashReceived(e.target.value ? Number(e.target.value) : null)}
+                              onChange={(e) =>
+                                setCashReceived(e.target.value ? Number(e.target.value) : null)
+                              }
                               className="!w-36 !h-8 !text-right font-mono font-bold !text-slate-900"
                             />
                             <span className="text-xs font-semibold text-slate-500">đ</span>
                           </div>
                         </div>
 
-                        {/* Phím gợi ý tiền chẵn nhanh */}
                         <div className="flex flex-wrap gap-1.5 pt-1">
                           <button
                             type="button"
@@ -1927,7 +2067,6 @@ export const PosTableFloorPage: React.FC = () => {
                           </button>
                         </div>
 
-                        {/* Tính tiền thừa trả lại */}
                         {cashReceived !== null && (
                           <div
                             className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
@@ -1937,7 +2076,9 @@ export const PosTableFloorPage: React.FC = () => {
                             }`}
                           >
                             <span className="font-semibold text-xs">
-                              {cashReceived >= finalAmount ? "Tiền thừa trả khách:" : "Khách đưa còn thiếu:"}
+                              {cashReceived >= finalAmount
+                                ? "Tiền thừa trả khách:"
+                                : "Khách đưa còn thiếu:"}
                             </span>
                             <span className="font-mono font-black text-sm">
                               {Math.abs(cashReceived - finalAmount).toLocaleString("vi-VN")}đ
@@ -1947,7 +2088,6 @@ export const PosTableFloorPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Chuyển khoản VietQR hiển thị khi chọn QR */}
                     {paymentMethod === "vnpay" && (
                       <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200 space-y-2.5">
                         <div className="flex items-center gap-3.5">
@@ -1960,19 +2100,31 @@ export const PosTableFloorPage: React.FC = () => {
                           </div>
                           <div className="flex-1 min-w-0 space-y-1 text-xs">
                             <div className="flex items-center gap-1.5">
-                              <Tag color="green" className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold !m-0">
+                              <Tag
+                                color="green"
+                                className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold !m-0"
+                              >
                                 VIETQR 24/7
                               </Tag>
-                              <span className="font-extrabold text-slate-900 text-xs">MB Bank (Quân Đội)</span>
+                              <span className="font-extrabold text-slate-900 text-xs">
+                                MB Bank (Quân Đội)
+                              </span>
                             </div>
                             <div className="text-[11px] text-slate-600">
-                              STK: <strong className="font-mono text-slate-900 font-bold">0901 234 567</strong>
+                              STK:{" "}
+                              <strong className="font-mono text-slate-900 font-bold">
+                                0901 234 567
+                              </strong>
                             </div>
                             <div className="text-[11px] text-slate-600 truncate">
-                              Chủ TK: <strong className="text-slate-900 font-bold">CLB BIDA CUEZONE</strong>
+                              Chủ TK:{" "}
+                              <strong className="text-slate-900 font-bold">CLB BIDA CUEZONE</strong>
                             </div>
                             <div className="text-[11px] text-slate-600">
-                              Số tiền: <strong className="font-mono text-emerald-700 font-black text-sm">{finalAmount.toLocaleString("vi-VN")}đ</strong>
+                              Số tiền:{" "}
+                              <strong className="font-mono text-emerald-700 font-black text-sm">
+                                {finalAmount.toLocaleString("vi-VN")}đ
+                              </strong>
                             </div>
                             <div className="text-[10px] text-slate-500 font-mono">
                               Nội dung: <strong>CueZone {selectedTable.code}</strong>
@@ -1981,7 +2133,10 @@ export const PosTableFloorPage: React.FC = () => {
                         </div>
                         <div className="p-2 rounded-lg bg-white/80 border border-emerald-200/80 text-[11px] text-emerald-800 flex items-center gap-1.5">
                           <CheckCircleOutlined className="text-emerald-600 shrink-0" />
-                          <span>Khách quét mã chuyển khoản thành công, nhấn <strong>Xác Nhận & In Hóa Đơn</strong> để hoàn tất.</span>
+                          <span>
+                            Khách quét mã chuyển khoản thành công, nhấn{" "}
+                            <strong>Xác Nhận & In Hóa Đơn</strong> để hoàn tất.
+                          </span>
                         </div>
                       </div>
                     )}
@@ -2015,7 +2170,6 @@ export const PosTableFloorPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── MODAL 5: PHIẾU HÓA ĐƠN IN NHIỆT (Print Receipt) ─────────────────── */}
       <Modal
         open={receiptModalVisible}
         onCancel={() => setReceiptModalVisible(false)}
@@ -2042,8 +2196,12 @@ export const PosTableFloorPage: React.FC = () => {
         {paidSummary && (
           <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 font-mono text-xs space-y-3">
             <div className="text-center pb-2 border-b border-slate-200">
-              <span className="text-sm font-black text-slate-900 block">CUEZONE BILLIARDS LOUNGE</span>
-              <span className="text-[10px] text-slate-500 block">123 Nguyễn Thị Minh Khai, Q.3, TP.HCM</span>
+              <span className="text-sm font-black text-slate-900 block">
+                CUEZONE BILLIARDS LOUNGE
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                123 Nguyễn Thị Minh Khai, Q.3, TP.HCM
+              </span>
               <span className="text-[10px] text-slate-500 block">Hotline: 1900 6868</span>
               <span className="text-[11px] font-bold text-slate-800 block mt-1">
                 HÓA ĐƠN THANH TOÁN ({paidSummary.invoiceCode})
@@ -2061,14 +2219,22 @@ export const PosTableFloorPage: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span>Thời gian chơi:</span>
-                <strong>{paidSummary.sessionStart} - {paidSummary.sessionEnd} ({paidSummary.durationFormatted})</strong>
+                <strong>
+                  {paidSummary.sessionStart} - {paidSummary.sessionEnd} (
+                  {paidSummary.durationFormatted})
+                </strong>
               </div>
               {paidSummary.timeSlots && paidSummary.timeSlots.length > 1 ? (
                 <div className="py-1 my-1 border-y border-dashed border-slate-200 space-y-1">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Chi tiết tính tiền theo khung giờ:</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">
+                    Chi tiết tính tiền theo khung giờ:
+                  </span>
                   {paidSummary.timeSlots.map((slot, idx) => (
                     <div key={idx} className="flex justify-between text-[10.5px]">
-                      <span>{slot.tierName} ({slot.startTime}–{slot.endTime}): {slot.minutes}p × {slot.pricePerHour.toLocaleString()}đ</span>
+                      <span>
+                        {slot.tierName} ({slot.startTime}–{slot.endTime}): {slot.minutes}p ×{" "}
+                        {slot.pricePerHour.toLocaleString()}đ
+                      </span>
                       <span className="font-bold">{slot.cost.toLocaleString()}đ</span>
                     </div>
                   ))}
@@ -2090,7 +2256,9 @@ export const PosTableFloorPage: React.FC = () => {
                 <span className="font-bold block mb-1">ĐỒ UỐNG & MÓN ĐÃ DÙNG:</span>
                 {paidSummary.orders.map((item: PosOrderItem, idx: number) => (
                   <div key={idx} className="flex justify-between">
-                    <span>{item.name} x{item.quantity}</span>
+                    <span>
+                      {item.name} x{item.quantity}
+                    </span>
                     <span>{(item.price * item.quantity).toLocaleString("vi-VN")}đ</span>
                   </div>
                 ))}
@@ -2113,10 +2281,16 @@ export const PosTableFloorPage: React.FC = () => {
                 </div>
               )}
               <Text>Tiền cọc đã trừ: {paidSummary.deposit.toLocaleString("vi-VN")}đ</Text>
-              {paidSummary.refundAmount > 0 && <Text type="danger">Cần hoàn lại khách: {paidSummary.refundAmount.toLocaleString("vi-VN")}đ</Text>}
+              {paidSummary.refundAmount > 0 && (
+                <Text type="danger">
+                  Cần hoàn lại khách: {paidSummary.refundAmount.toLocaleString("vi-VN")}đ
+                </Text>
+              )}
               <div className="flex justify-between font-black text-sm pt-1 border-t border-slate-200 text-slate-900">
                 <span>TỔNG THANH TOÁN:</span>
-                <span className="text-emerald-700">{paidSummary.finalAmount.toLocaleString("vi-VN")}đ</span>
+                <span className="text-emerald-700">
+                  {paidSummary.finalAmount.toLocaleString("vi-VN")}đ
+                </span>
               </div>
               <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
                 <span>Hình thức thanh toán:</span>
@@ -2133,7 +2307,6 @@ export const PosTableFloorPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── MODAL 6: QUẢN LÝ DANH SÁCH KHÁCH ĐANG CHỜ BÀN ── */}
       <Modal
         open={waitlistModalVisible}
         onCancel={() => setWaitlistModalVisible(false)}
@@ -2142,20 +2315,20 @@ export const PosTableFloorPage: React.FC = () => {
         title={
           <div className="flex items-center gap-2 flex-wrap pr-4">
             <UsergroupAddOutlined className="text-emerald-600 text-lg" />
-            <span className="font-bold text-slate-900 text-base">
-              Danh Sách Khách Đang Chờ Bàn
-            </span>
+            <span className="font-bold text-slate-900 text-base">Danh Sách Khách Đang Chờ Bàn</span>
             <Tag color="green" className="!rounded-full !px-2 !font-bold">
               {waitlist.length} khách đang đợi
             </Tag>
-            <Tag color={availableTables.length > 0 ? "blue" : "volcano"} className="!rounded-full !px-2 !font-bold">
+            <Tag
+              color={availableTables.length > 0 ? "blue" : "volcano"}
+              className="!rounded-full !px-2 !font-bold"
+            >
               Toàn quán: {availableTables.length} bàn trống
             </Tag>
           </div>
         }
       >
         <div className="space-y-4 pt-1">
-          {/* Form thêm khách vào hàng chờ */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <span className="font-bold text-xs text-slate-800 block mb-2.5">
               + Thêm khách vào danh sách chờ bàn
@@ -2243,7 +2416,6 @@ export const PosTableFloorPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Danh sách khách đang chờ */}
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
               <span className="font-bold text-xs text-slate-800">
@@ -2279,18 +2451,29 @@ export const PosTableFloorPage: React.FC = () => {
                           <span className="font-mono text-[11px] text-slate-500">
                             ({item.phone})
                           </span>
-                          <Tag color="cyan" className="!rounded-full !px-1.5 !py-0 !text-[10px] !m-0">
+                          <Tag
+                            color="cyan"
+                            className="!rounded-full !px-1.5 !py-0 !text-[10px] !m-0"
+                          >
                             {item.guests} người
                           </Tag>
                         </div>
                         <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-                          <span>Nhu cầu bàn: <strong className="text-slate-700">{item.preferredType}</strong></span>
+                          <span>
+                            Nhu cầu bàn:{" "}
+                            <strong className="text-slate-700">{item.preferredType}</strong>
+                          </span>
                           <span>•</span>
-                          <span>Thời gian vào: <strong className="text-slate-700 font-mono">{item.joinedTime}</strong></span>
+                          <span>
+                            Thời gian vào:{" "}
+                            <strong className="text-slate-700 font-mono">{item.joinedTime}</strong>
+                          </span>
                           {item.note && (
                             <>
                               <span>•</span>
-                              <span className="italic text-slate-400 truncate max-w-[150px]">"{item.note}"</span>
+                              <span className="italic text-slate-400 truncate max-w-[150px]">
+                                "{item.note}"
+                              </span>
                             </>
                           )}
                         </div>
@@ -2298,14 +2481,18 @@ export const PosTableFloorPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 self-end sm:self-center shrink-0">
-                      {/* Chọn bàn cụ thể muốn xếp cho khách */}
                       <Select
-                        placeholder={availableTables.length > 0 ? "-- Chọn bàn xếp khách --" : "Hết bàn trống"}
+                        placeholder={
+                          availableTables.length > 0 ? "-- Chọn bàn xếp khách --" : "Hết bàn trống"
+                        }
                         value={
                           selectedWaitlistTable[item.id] ||
-                          (availableTables.find((t) => t.typeName === item.preferredType)?.id ?? availableTables[0]?.id)
+                          (availableTables.find((t) => t.typeName === item.preferredType)?.id ??
+                            availableTables[0]?.id)
                         }
-                        onChange={(val) => setSelectedWaitlistTable((prev) => ({ ...prev, [item.id]: val }))}
+                        onChange={(val) =>
+                          setSelectedWaitlistTable((prev) => ({ ...prev, [item.id]: val }))
+                        }
                         disabled={availableTables.length === 0}
                         className="w-48 sm:w-60 !text-xs !h-8 font-medium"
                         options={getTableOptionsForGuest(item.preferredType)}
@@ -2318,7 +2505,8 @@ export const PosTableFloorPage: React.FC = () => {
                         onClick={() => {
                           const chosenId =
                             selectedWaitlistTable[item.id] ||
-                            (availableTables.find((t) => t.typeName === item.preferredType)?.id ?? availableTables[0]?.id);
+                            (availableTables.find((t) => t.typeName === item.preferredType)?.id ??
+                              availableTables[0]?.id);
                           handleAssignWaitlist(item, chosenId);
                         }}
                         leftIcon={<PlayCircleOutlined />}

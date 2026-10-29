@@ -17,12 +17,7 @@ import {
   ThunderboltOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
-import {
-  Button,
-  Card,
-  Tag,
-  Typography,
-} from "../../shared/ui";
+import { Button, Card, Tag, Typography } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
 import { posService } from "../../services/pos.service";
 import { getSocket } from "../../services/socket.service";
@@ -57,10 +52,26 @@ const PROMOTIONS = [
 ];
 
 const CLUB_AMENITIES = [
-  { icon: <SafetyCertificateOutlined className="text-xl text-emerald-600" />, title: "Bàn Thi Đấu Tiêu Chuẩn", desc: "Vải Simonis 860 chính hãng, băng cao su Artemis và bi Aramith Pro TV Cup." },
-  { icon: <VideoCameraOutlined className="text-xl text-emerald-600" />, title: "Camera VAR Góc Lỗ", desc: "Hệ thống quay chậm hỗ trợ trọng tài xác định bi chạm băng trong các trận thi đấu giải." },
-  { icon: <CoffeeOutlined className="text-xl text-emerald-600" />, title: "Menu F&B Phục Vụ Tại Bàn", desc: "Cà phê pha máy, nước ép nguyên chất, thức ăn nóng phục vụ liên tục." },
-  { icon: <TeamOutlined className="text-xl text-emerald-600" />, title: "Trọng Tài & Huấn Luyện Viên", desc: "Hỗ trợ xếp bi, bấm giờ và hướng dẫn kỹ thuật dội băng cho người mới." },
+  {
+    icon: <SafetyCertificateOutlined className="text-xl text-emerald-600" />,
+    title: "Bàn Thi Đấu Tiêu Chuẩn",
+    desc: "Vải Simonis 860 chính hãng, băng cao su Artemis và bi Aramith Pro TV Cup.",
+  },
+  {
+    icon: <VideoCameraOutlined className="text-xl text-emerald-600" />,
+    title: "Camera VAR Góc Lỗ",
+    desc: "Hệ thống quay chậm hỗ trợ trọng tài xác định bi chạm băng trong các trận thi đấu giải.",
+  },
+  {
+    icon: <CoffeeOutlined className="text-xl text-emerald-600" />,
+    title: "Menu F&B Phục Vụ Tại Bàn",
+    desc: "Cà phê pha máy, nước ép nguyên chất, thức ăn nóng phục vụ liên tục.",
+  },
+  {
+    icon: <TeamOutlined className="text-xl text-emerald-600" />,
+    title: "Trọng Tài & Huấn Luyện Viên",
+    desc: "Hỗ trợ xếp bi, bấm giờ và hướng dẫn kỹ thuật dội băng cho người mới.",
+  },
 ];
 
 const formatTableType = (name?: string, type?: string) => {
@@ -138,8 +149,10 @@ const CustomerHome = () => {
       else if (t.status === "playing" || t.status === "paused") playing++;
       else if (t.status === "booked") booked++;
 
-      const isPool = t.type === "pool" || t.typeName?.includes("Lỗ") || t.typeName?.includes("Pool");
-      const isCarom = t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng");
+      const isPool =
+        t.type === "pool" || t.typeName?.includes("Lỗ") || t.typeName?.includes("Pool");
+      const isCarom =
+        t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng");
       const isSnooker = t.type === "snooker" || t.typeName?.includes("Snooker");
       if (isPool) pool++;
       else if (isCarom) carom++;
@@ -158,9 +171,6 @@ const CustomerHome = () => {
 
   return (
     <div className="space-y-12">
-      {/* =========================================================================
-          1. HERO SECTION SÁNG SỦA, SANG TRỌNG (LUXURY BILLIARDS LOUNGE)
-          ========================================================================= */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-white via-[#f0fdf4] to-[#ecfdf5] border border-emerald-100 shadow-xs p-8 sm:p-12 xl:p-16">
         {/* Subtle decorative glow */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
@@ -172,7 +182,10 @@ const CustomerHome = () => {
             <span>HỆ THỐNG CLB BIDA & GIẢI ĐẤU BANK POOL ĐẲNG CẤP</span>
           </div>
 
-          <Title level={1} className="!text-3xl sm:!text-5xl !font-black !text-slate-900 !leading-tight !tracking-tight !mb-0">
+          <Title
+            level={1}
+            className="!text-3xl sm:!text-5xl !font-black !text-slate-900 !leading-tight !tracking-tight !mb-0"
+          >
             Trải Nghiệm Cơ Thủ Chuẩn Mực <br />
             <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 bg-clip-text text-transparent">
               Không Gian Thể Thao Đẳng Cấp
@@ -180,7 +193,9 @@ const CustomerHome = () => {
           </Title>
 
           <Paragraph className="!text-base !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
-            CueZone sở hữu hệ thống {stats.total > 0 ? stats.total : 27} bàn bida thi đấu quốc tế (Pool, Carom 3 băng, Snooker), hệ thống giải đấu Bank Pool hàng tuần có trọng tài chuyên nghiệp, và công nghệ đặt bàn realtime không cần cọc.
+            CueZone sở hữu hệ thống {stats.total > 0 ? stats.total : 27} bàn bida thi đấu quốc tế
+            (Pool, Carom 3 băng, Snooker), hệ thống giải đấu Bank Pool hàng tuần có trọng tài chuyên
+            nghiệp, và công nghệ đặt bàn realtime không cần cọc.
           </Paragraph>
 
           {/* Social Proof */}
@@ -231,7 +246,6 @@ const CustomerHome = () => {
           </div>
         </div>
 
-        {/* 4 Thống kê nổi bật bên dưới Hero */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10 pt-8 border-t border-emerald-200/60 relative z-10">
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
             <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold mb-1">
@@ -269,25 +283,22 @@ const CustomerHome = () => {
         </div>
       </section>
 
-      {/* =========================================================================
-          2. SƠ ĐỒ & BẢNG TRẠNG THÁI BÀN REALTIME (LIVE TABLE MAP - SCRUM-103 & SCRUM-106)
-          ========================================================================= */}
-      {/* =========================================================================
-          2. SƠ ĐỒ & BẢNG TRẠNG THÁI BÀN REALTIME (LIVE TABLE MAP - SCRUM-103 & SCRUM-106)
-          ========================================================================= */}
       <section className="space-y-4">
-        {/* Header: Tiêu đề bên trái, Trạng thái Socket + Nút Đặt Bàn bên phải */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               THEO DÕI THỜI GIAN THỰC
             </div>
-            <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0 tracking-tight">
+            <Title
+              level={2}
+              className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0 tracking-tight"
+            >
               Sơ Đồ Bàn Trực Tuyến
             </Title>
             <Text className="!text-xs sm:!text-sm !text-slate-500 block">
-              Xem bàn trống và thời gian thực trực tiếp tại CLB. Chọn bàn ưa thích và đặt trước nhanh chóng để không phải chờ đợi.
+              Xem bàn trống và thời gian thực trực tiếp tại CLB. Chọn bàn ưa thích và đặt trước
+              nhanh chóng để không phải chờ đợi.
             </Text>
           </div>
 
@@ -317,9 +328,7 @@ const CustomerHome = () => {
           </div>
         </div>
 
-        {/* Thanh công cụ tích hợp (Integrated Control Bar): Bộ lọc loại bàn bên trái + Chú thích trạng thái bên phải */}
         <div className="bg-white rounded-2xl border border-slate-200/90 p-2 sm:p-2.5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Nhóm nút lọc loại bàn */}
           <div className="flex flex-wrap items-center gap-1.5">
             {[
               { key: "all", label: `Tất cả (${stats.total})` },
@@ -336,8 +345,8 @@ const CustomerHome = () => {
                   filterType === item.key
                     ? "bg-slate-900 text-white shadow-xs"
                     : item.highlight
-                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
-                    : "bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900"
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                      : "bg-slate-50 text-slate-600 border border-slate-200/80 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
                 {item.highlight && filterType !== item.key && (
@@ -348,26 +357,30 @@ const CustomerHome = () => {
             ))}
           </div>
 
-          {/* Chú thích màu sắc & Thống kê nhanh (Legend) */}
           <div className="flex items-center gap-3.5 sm:gap-4 text-xs font-medium text-slate-600 px-2 border-t md:border-t-0 pt-2 md:pt-0 border-slate-100">
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
-              <span><strong className="text-slate-900 font-bold">{stats.available}</strong> Trống</span>
+              <span>
+                <strong className="text-slate-900 font-bold">{stats.available}</strong> Trống
+              </span>
             </span>
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-              <span><strong className="text-slate-900 font-bold">{stats.playing}</strong> Đang chơi</span>
+              <span>
+                <strong className="text-slate-900 font-bold">{stats.playing}</strong> Đang chơi
+              </span>
             </span>
             {stats.booked > 0 && (
               <span className="flex items-center gap-1.5 whitespace-nowrap">
                 <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                <span><strong className="text-slate-900 font-bold">{stats.booked}</strong> Đã đặt</span>
+                <span>
+                  <strong className="text-slate-900 font-bold">{stats.booked}</strong> Đã đặt
+                </span>
               </span>
             )}
           </div>
         </div>
 
-        {/* Lưới hiển thị các bàn */}
         {loadingTables && tables.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center gap-2 bg-white rounded-2xl border border-slate-200">
             <SyncOutlined spin className="text-emerald-600 text-2xl" />
@@ -380,7 +393,7 @@ const CustomerHome = () => {
               const isPlaying = table.status === "playing" || table.status === "paused";
               const isBooked = table.status === "booked";
               const cleanTableName = (table.name || "").split("•")[0].split("-")[0].trim();
-              
+
               return (
                 <div
                   key={table.id}
@@ -388,12 +401,12 @@ const CustomerHome = () => {
                     isAvail
                       ? "bg-white border-emerald-200/90 hover:border-emerald-500 hover:shadow-md ring-1 ring-emerald-500/10 cursor-pointer group"
                       : isPlaying
-                      ? table.isPaused
-                        ? "bg-amber-50/40 border-amber-200/80"
-                        : "bg-slate-50/80 border-slate-200/90 hover:border-slate-300"
-                      : isBooked
-                      ? "bg-blue-50/40 border-blue-200/80 hover:border-blue-300"
-                      : "bg-slate-100/60 border-slate-200/60 opacity-80"
+                        ? table.isPaused
+                          ? "bg-amber-50/40 border-amber-200/80"
+                          : "bg-slate-50/80 border-slate-200/90 hover:border-slate-300"
+                        : isBooked
+                          ? "bg-blue-50/40 border-blue-200/80 hover:border-blue-300"
+                          : "bg-slate-100/60 border-slate-200/60 opacity-80"
                   }`}
                 >
                   <div>
@@ -402,7 +415,9 @@ const CustomerHome = () => {
                         <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
                           {table.code}
                         </span>
-                        <span className={`font-bold text-sm whitespace-nowrap truncate ${isAvail ? "text-slate-900 group-hover:text-emerald-700" : "text-slate-800"} transition-colors`}>
+                        <span
+                          className={`font-bold text-sm whitespace-nowrap truncate ${isAvail ? "text-slate-900 group-hover:text-emerald-700" : "text-slate-800"} transition-colors`}
+                        >
                           {cleanTableName}
                         </span>
                       </div>
@@ -411,12 +426,12 @@ const CustomerHome = () => {
                           isAvail
                             ? "bg-emerald-500 ring-2 ring-emerald-200"
                             : isPlaying
-                            ? table.isPaused
-                              ? "bg-amber-500 ring-2 ring-amber-200"
-                              : "bg-rose-500 ring-2 ring-rose-200 animate-pulse"
-                            : isBooked
-                            ? "bg-blue-500 ring-2 ring-blue-200"
-                            : "bg-slate-400"
+                              ? table.isPaused
+                                ? "bg-amber-500 ring-2 ring-amber-200"
+                                : "bg-rose-500 ring-2 ring-rose-200 animate-pulse"
+                              : isBooked
+                                ? "bg-blue-500 ring-2 ring-blue-200"
+                                : "bg-slate-400"
                         }`}
                       />
                     </div>
@@ -428,7 +443,9 @@ const CustomerHome = () => {
 
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
                     <span className="text-xs font-black text-emerald-700 shrink-0">
-                      {table.pricePerHour ? `${table.pricePerHour.toLocaleString("vi-VN")}đ/h` : "60.000đ/h"}
+                      {table.pricePerHour
+                        ? `${table.pricePerHour.toLocaleString("vi-VN")}đ/h`
+                        : "60.000đ/h"}
                     </span>
                     {isAvail ? (
                       <Link
@@ -439,9 +456,15 @@ const CustomerHome = () => {
                         <span>→</span>
                       </Link>
                     ) : isPlaying ? (
-                      <div className={`text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap ${table.isPaused ? "text-amber-700" : "text-slate-600"}`}>
+                      <div
+                        className={`text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap ${table.isPaused ? "text-amber-700" : "text-slate-600"}`}
+                      >
                         <ClockCircleOutlined className="text-[10px]" />
-                        <span>{table.isPaused ? `Tạm dừng • ${table.durationFormatted || '0p'}` : `Chơi ${table.durationFormatted || '0p'}`}</span>
+                        <span>
+                          {table.isPaused
+                            ? `Tạm dừng • ${table.durationFormatted || "0p"}`
+                            : `Chơi ${table.durationFormatted || "0p"}`}
+                        </span>
                       </div>
                     ) : isBooked ? (
                       <div className="text-right flex flex-col items-end">
@@ -456,9 +479,7 @@ const CustomerHome = () => {
                         </Link>
                       </div>
                     ) : (
-                      <span className="text-[11px] text-slate-400 font-semibold">
-                        Bảo trì
-                      </span>
+                      <span className="text-[11px] text-slate-400 font-semibold">Bảo trì</span>
                     )}
                   </div>
                 </div>
@@ -468,9 +489,6 @@ const CustomerHome = () => {
         )}
       </section>
 
-      {/* =========================================================================
-          3. FEATURED TOURNAMENT (GIẢI ĐẤU NỔI BẬT NHẤT)
-          ========================================================================= */}
       <section className="rounded-3xl bg-slate-900 text-white p-8 sm:p-10 relative overflow-hidden shadow-xl border border-slate-800">
         <div className="absolute right-0 top-0 w-1/2 h-full opacity-20 pointer-events-none">
           <img
@@ -490,12 +508,17 @@ const CustomerHome = () => {
             </span>
           </div>
 
-          <Title level={2} className="!text-2xl sm:!text-4xl !font-black !text-white !mb-1 leading-tight">
+          <Title
+            level={2}
+            className="!text-2xl sm:!text-4xl !font-black !text-white !mb-1 leading-tight"
+          >
             CueZone Bank Pool Open Championship
           </Title>
 
           <Paragraph className="!text-sm !text-slate-300 !leading-relaxed !mb-0">
-            Giải đấu Bank Pool quy tụ 32 cơ thủ hàng đầu khu vực miền Nam. Tổng giá trị giải thưởng lên đến 15.000.000 VNĐ cùng Cúp Vô Địch và cộng 250 điểm ELO vào hệ thống hội viên CueZone.
+            Giải đấu Bank Pool quy tụ 32 cơ thủ hàng đầu khu vực miền Nam. Tổng giá trị giải thưởng
+            lên đến 15.000.000 VNĐ cùng Cúp Vô Địch và cộng 250 điểm ELO vào hệ thống hội viên
+            CueZone.
           </Paragraph>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 py-2">
@@ -546,9 +569,6 @@ const CustomerHome = () => {
         </div>
       </section>
 
-      {/* =========================================================================
-          4. KHÁM PHÁ BỘ LUẬT BANK POOL (CUSHION REQUIREMENT SHOWCASE)
-          ========================================================================= */}
       <section className="space-y-6">
         <div className="text-center max-w-xl mx-auto space-y-2">
           <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-md">
@@ -572,7 +592,8 @@ const CustomerHome = () => {
               Chạm Băng Bắt Buộc
             </Title>
             <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
-              Bi mục tiêu bắt buộc phải dội ít nhất <strong>01 băng</strong> trước khi vào lỗ. Đánh bi thẳng trực tiếp vào lỗ không được tính điểm.
+              Bi mục tiêu bắt buộc phải dội ít nhất <strong>01 băng</strong> trước khi vào lỗ. Đánh
+              bi thẳng trực tiếp vào lỗ không được tính điểm.
             </Paragraph>
           </Card>
 
@@ -584,7 +605,8 @@ const CustomerHome = () => {
               Gọi Bi & Gọi Lỗ
             </Title>
             <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
-              Trước cú đánh, cơ thủ phải tuyên bố rõ số bi mục tiêu và miệng lỗ định đưa bi vào. Không bắt buộc chỉ định số lần dội băng.
+              Trước cú đánh, cơ thủ phải tuyên bố rõ số bi mục tiêu và miệng lỗ định đưa bi vào.
+              Không bắt buộc chỉ định số lần dội băng.
             </Paragraph>
           </Card>
 
@@ -596,7 +618,8 @@ const CustomerHome = () => {
               Lỗi & Phạt Bi
             </Title>
             <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
-              Khi phạm quy (bi cái vào lỗ, bi văng khỏi bàn), cơ thủ bị trừ 01 bi điểm số đã ăn. Đối thủ nhận quyền bi trong tay (Ball in hand).
+              Khi phạm quy (bi cái vào lỗ, bi văng khỏi bàn), cơ thủ bị trừ 01 bi điểm số đã ăn. Đối
+              thủ nhận quyền bi trong tay (Ball in hand).
             </Paragraph>
           </Card>
 
@@ -608,7 +631,8 @@ const CustomerHome = () => {
               Chạm 5 Ván Thắng
             </Title>
             <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
-              Cơ thủ đầu tiên đưa thành công 5 bi mục tiêu hợp lệ vào lỗ sẽ chiến thắng ván đấu (Thể thức chuẩn Race to 5).
+              Cơ thủ đầu tiên đưa thành công 5 bi mục tiêu hợp lệ vào lỗ sẽ chiến thắng ván đấu (Thể
+              thức chuẩn Race to 5).
             </Paragraph>
           </Card>
         </div>
@@ -626,9 +650,6 @@ const CustomerHome = () => {
         </div>
       </section>
 
-      {/* =========================================================================
-          5. KHUYẾN MÃI & ƯU ĐÃI NỔI BẬT
-          ========================================================================= */}
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
@@ -661,10 +682,16 @@ const CustomerHome = () => {
               className="!rounded-2xl !border-slate-200 !bg-white hover:!shadow-lg transition-all flex flex-col justify-between"
             >
               <div className="space-y-2.5">
-                <Tag color={promo.tagColor} className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase">
+                <Tag
+                  color={promo.tagColor}
+                  className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase"
+                >
                   {promo.tag}
                 </Tag>
-                <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-1 leading-snug">
+                <Title
+                  level={3}
+                  className="!text-base !font-bold !text-slate-900 !mb-1 leading-snug"
+                >
                   {promo.title}
                 </Title>
                 <Paragraph className="!text-xs !text-slate-600 !leading-relaxed !mb-0">
@@ -673,9 +700,7 @@ const CustomerHome = () => {
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[11px] font-mono text-slate-400">
-                  {promo.valid}
-                </span>
+                <span className="text-[11px] font-mono text-slate-400">{promo.valid}</span>
                 <Link
                   to={user ? "/customer/booking" : "/register"}
                   className="text-xs font-bold text-emerald-600 hover:text-emerald-800 inline-flex items-center gap-1"
@@ -688,9 +713,6 @@ const CustomerHome = () => {
         </div>
       </section>
 
-      {/* =========================================================================
-          6. TIỆN ÍCH & DỊCH VỤ CLB CUEZONE
-          ========================================================================= */}
       <section className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-12 shadow-xs space-y-6">
         <div className="text-center max-w-lg mx-auto space-y-1.5">
           <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !mb-0">
@@ -710,23 +732,19 @@ const CustomerHome = () => {
               <Text strong className="!text-sm !text-slate-900 block">
                 {am.title}
               </Text>
-              <Text className="!text-xs !text-slate-500 leading-relaxed block">
-                {am.desc}
-              </Text>
+              <Text className="!text-xs !text-slate-500 leading-relaxed block">{am.desc}</Text>
             </div>
           ))}
         </div>
       </section>
 
-      {/* =========================================================================
-          7. CTA CUỐI TRANG: ĐĂNG KÝ HỘI VIÊN & ĐẶT BÀN
-          ========================================================================= */}
       <section className="rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-8 sm:p-10 text-center space-y-4 shadow-xl shadow-emerald-700/20">
         <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-white !mb-0">
           Sẵn Sàng Cho Trận Đấu Bida Đỉnh Cao?
         </Title>
         <Paragraph className="!text-xs sm:!text-sm !text-emerald-100 !max-w-xl !mx-auto !leading-relaxed !mb-0">
-          Đăng ký tài khoản hội viên CueZone miễn phí ngay hôm nay để nhận voucher giảm 20%, tích điểm sau mỗi giờ chơi và cập nhật thứ hạng ELO cơ thủ.
+          Đăng ký tài khoản hội viên CueZone miễn phí ngay hôm nay để nhận voucher giảm 20%, tích
+          điểm sau mỗi giờ chơi và cập nhật thứ hạng ELO cơ thủ.
         </Paragraph>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Button

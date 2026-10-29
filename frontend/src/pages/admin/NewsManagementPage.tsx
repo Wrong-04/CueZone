@@ -311,7 +311,10 @@ const NewsManagementPage: React.FC = () => {
   const [pushMessage, setPushMessage] = useState<string>("");
 
   // Category Configuration
-  const categoryMap: Record<NewsCategory, { label: string; color: NewsArticleItem["tagColor"]; icon: React.ReactNode }> = {
+  const categoryMap: Record<
+    NewsCategory,
+    { label: string; color: NewsArticleItem["tagColor"]; icon: React.ReactNode }
+  > = {
     promo: { label: "Khuyến Mãi", color: "red", icon: <GiftOutlined /> },
     tournament: { label: "Giải Đấu", color: "gold", icon: <TrophyOutlined /> },
     tips: { label: "Mẹo & Kỹ Thuật", color: "cyan", icon: <ThunderboltOutlined /> },
@@ -348,8 +351,8 @@ const NewsManagementPage: React.FC = () => {
         selectedStatus === "all"
           ? true
           : selectedStatus === "featured"
-          ? article.isFeatured
-          : article.status === selectedStatus;
+            ? article.isFeatured
+            : article.status === selectedStatus;
 
       return matchSearch && matchCategory && matchStatus;
     });
@@ -406,12 +409,14 @@ const NewsManagementPage: React.FC = () => {
         if (a.id === id) {
           const nextState = !a.isFeatured;
           message.success(
-            nextState ? `Đã ghim bài viết "${a.title.slice(0, 30)}..." lên vị trí nổi bật!` : `Đã bỏ ghim bài viết!`
+            nextState
+              ? `Đã ghim bài viết "${a.title.slice(0, 30)}..." lên vị trí nổi bật!`
+              : `Đã bỏ ghim bài viết!`,
           );
           return { ...a, isFeatured: nextState };
         }
         return a;
-      })
+      }),
     );
   };
 
@@ -470,7 +475,7 @@ const NewsManagementPage: React.FC = () => {
     message.success(
       formData.sendPush
         ? `Đã tạo bài viết và gửi thông báo đẩy đến toàn bộ khách hàng!`
-        : `Tạo bài viết mới thành công!`
+        : `Tạo bài viết mới thành công!`,
     );
   };
 
@@ -508,7 +513,7 @@ const NewsManagementPage: React.FC = () => {
           };
         }
         return a;
-      })
+      }),
     );
 
     setEditModalVisible(false);
@@ -519,7 +524,8 @@ const NewsManagementPage: React.FC = () => {
   const handleResetData = () => {
     Modal.confirm({
       title: "Khôi phục dữ liệu mẫu ban đầu?",
-      content: "Hành động này sẽ khôi phục 6 bài viết tin tức & thông báo chuẩn ban đầu của CueZone.",
+      content:
+        "Hành động này sẽ khôi phục 6 bài viết tin tức & thông báo chuẩn ban đầu của CueZone.",
       okText: "Khôi phục",
       cancelText: "Hủy",
       onOk: () => {
@@ -544,8 +550,8 @@ const NewsManagementPage: React.FC = () => {
       pushChannel === "all"
         ? "Toàn bộ Hội viên CueZone"
         : pushChannel === "vip"
-        ? "Hội viên Kim Cương & VIP"
-        : "Vận động viên thi đấu";
+          ? "Hội viên Kim Cương & VIP"
+          : "Vận động viên thi đấu";
 
     message.success(`Đã gửi thông báo đẩy khẩn cấp tới "${channelName}" thành công!`);
     setPushModalVisible(false);
@@ -578,7 +584,10 @@ const NewsManagementPage: React.FC = () => {
           </div>
           <div className="min-w-0 max-w-md">
             <div className="flex items-center gap-1.5 mb-1">
-              <Tag color={record.tagColor} className="!text-[11px] !px-1.5 !py-0 !leading-none font-bold">
+              <Tag
+                color={record.tagColor}
+                className="!text-[11px] !px-1.5 !py-0 !leading-none font-bold"
+              >
                 {record.categoryLabel}
               </Tag>
               {record.isFeatured && (
@@ -650,7 +659,11 @@ const NewsManagementPage: React.FC = () => {
             </Tag>
           );
         }
-        return <Tag color="blue" className="!font-bold">Lên lịch</Tag>;
+        return (
+          <Tag color="blue" className="!font-bold">
+            Lên lịch
+          </Tag>
+        );
       },
     },
     {
@@ -723,7 +736,10 @@ const NewsManagementPage: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <Title level={2} className="!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+                <Title
+                  level={2}
+                  className="!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+                >
                   Quản Lý Tin Tức & Bản Tin CLB
                 </Title>
                 <Tag color="green" className="!px-2.5 !py-0.5 !text-xs !font-black !rounded-full">
@@ -731,7 +747,8 @@ const NewsManagementPage: React.FC = () => {
                 </Tag>
               </div>
               <Text className="!text-xs md:!text-sm !text-slate-500">
-                Biên tập khuyến mãi giờ vàng, giải đấu cọ xát, cẩm nang kỹ thuật và chính sách hội viên VIP
+                Biên tập khuyến mãi giờ vàng, giải đấu cọ xát, cẩm nang kỹ thuật và chính sách hội
+                viên VIP
               </Text>
             </div>
           </div>
@@ -773,7 +790,9 @@ const NewsManagementPage: React.FC = () => {
           <div>
             <span className="text-xs text-slate-500 block font-medium">Tổng bài viết</span>
             <div className="text-2xl font-black text-slate-900 mt-1">{metrics.total}</div>
-            <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block">5 Chuyên mục nội dung</span>
+            <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block">
+              5 Chuyên mục nội dung
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
             <FileTextOutlined />
@@ -784,7 +803,9 @@ const NewsManagementPage: React.FC = () => {
           <div>
             <span className="text-xs text-slate-500 block font-medium">Đang xuất bản (Public)</span>
             <div className="text-2xl font-black text-teal-700 mt-1">{metrics.published}</div>
-            <span className="text-[11px] text-slate-500 mt-0.5 block">Hiển thị trên App Khách hàng</span>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">
+              Hiển thị trên App Khách hàng
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 text-xl">
             <CheckCircleOutlined />
@@ -795,7 +816,9 @@ const NewsManagementPage: React.FC = () => {
           <div>
             <span className="text-xs text-slate-500 block font-medium">Đã ghim nổi bật (Hot)</span>
             <div className="text-2xl font-black text-amber-700 mt-1">{metrics.featured}</div>
-            <span className="text-[11px] text-slate-500 mt-0.5 block">Ưu tiên vị trí Top Banner</span>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">
+              Ưu tiên vị trí Top Banner
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
             <PushpinOutlined />
@@ -808,7 +831,9 @@ const NewsManagementPage: React.FC = () => {
             <div className="text-2xl font-black text-indigo-700 mt-1">
               {metrics.totalViews.toLocaleString()}
             </div>
-            <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block">Tăng +24% tháng này</span>
+            <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 block">
+              Tăng +24% tháng này
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-xl">
             <EyeOutlined />
@@ -869,7 +894,11 @@ const NewsManagementPage: React.FC = () => {
               variant={viewMode === "grid" ? "primary" : "outline"}
               leftIcon={<AppstoreOutlined />}
               onClick={() => setViewMode("grid")}
-              className={viewMode === "grid" ? "!bg-emerald-600 font-bold" : "!border-slate-300 !text-slate-700"}
+              className={
+                viewMode === "grid"
+                  ? "!bg-emerald-600 font-bold"
+                  : "!border-slate-300 !text-slate-700"
+              }
             >
               Thẻ ảnh
             </Button>
@@ -878,7 +907,11 @@ const NewsManagementPage: React.FC = () => {
               variant={viewMode === "table" ? "primary" : "outline"}
               leftIcon={<BarsOutlined />}
               onClick={() => setViewMode("table")}
-              className={viewMode === "table" ? "!bg-emerald-600 font-bold" : "!border-slate-300 !text-slate-700"}
+              className={
+                viewMode === "table"
+                  ? "!bg-emerald-600 font-bold"
+                  : "!border-slate-300 !text-slate-700"
+              }
             >
               Danh sách
             </Button>
@@ -1061,7 +1094,12 @@ const NewsManagementPage: React.FC = () => {
           <Button key="cancel" variant="ghost" onClick={() => setCreateModalVisible(false)}>
             Hủy bỏ
           </Button>,
-          <Button key="save" variant="primary" onClick={handleSaveCreate} leftIcon={<CheckCircleOutlined />}>
+          <Button
+            key="save"
+            variant="primary"
+            onClick={handleSaveCreate}
+            leftIcon={<CheckCircleOutlined />}
+          >
             Đăng bài viết
           </Button>,
         ]}
@@ -1096,7 +1134,9 @@ const NewsManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Trạng thái phát hành</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Trạng thái phát hành
+              </label>
               <Select
                 value={formData.status}
                 onChange={(val) =>
@@ -1168,7 +1208,9 @@ const NewsManagementPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Tác giả biên tập</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Tác giả biên tập
+              </label>
               <Input
                 placeholder="VD: Ban Quản Lý CueZone"
                 value={formData.author}
@@ -1176,7 +1218,9 @@ const NewsManagementPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Thời gian đọc ước tính</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Thời gian đọc ước tính
+              </label>
               <Input
                 placeholder="VD: 3 phút đọc"
                 value={formData.readTime}
@@ -1193,7 +1237,9 @@ const NewsManagementPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
                 className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
               />
-              <span className="font-bold text-amber-700">Ghim bài viết lên vị trí Nổi Bật (Top Banner)</span>
+              <span className="font-bold text-amber-700">
+                Ghim bài viết lên vị trí Nổi Bật (Top Banner)
+              </span>
             </label>
 
             <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
@@ -1203,7 +1249,9 @@ const NewsManagementPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, sendPush: e.target.checked })}
                 className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
               />
-              <span>Gửi thông báo đẩy (Push Notification) đến toàn bộ ứng dụng khách hàng ngay khi đăng</span>
+              <span>
+                Gửi thông báo đẩy (Push Notification) đến toàn bộ ứng dụng khách hàng ngay khi đăng
+              </span>
             </label>
           </div>
         </div>
@@ -1234,7 +1282,12 @@ const NewsManagementPage: React.FC = () => {
           >
             Hủy bỏ
           </Button>,
-          <Button key="save" variant="primary" onClick={handleSaveEdit} leftIcon={<CheckCircleOutlined />}>
+          <Button
+            key="save"
+            variant="primary"
+            onClick={handleSaveEdit}
+            leftIcon={<CheckCircleOutlined />}
+          >
             Lưu thay đổi
           </Button>,
         ]}
@@ -1268,7 +1321,9 @@ const NewsManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Trạng thái phát hành</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Trạng thái phát hành
+              </label>
               <Select
                 value={formData.status}
                 onChange={(val) =>
@@ -1284,7 +1339,9 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Ảnh bìa bài viết</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Ảnh bìa bài viết
+            </label>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2">
               {AVAILABLE_COVERS.map((cov) => (
                 <div
@@ -1312,7 +1369,9 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Tóm tắt ngắn (Excerpt)</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Tóm tắt ngắn (Excerpt)
+            </label>
             <Input.TextArea
               rows={2}
               value={formData.excerpt}
@@ -1321,7 +1380,9 @@ const NewsManagementPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Nội dung chi tiết</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Nội dung chi tiết
+            </label>
             <Input.TextArea
               rows={6}
               value={formData.contentString}
@@ -1338,7 +1399,9 @@ const NewsManagementPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Thời gian đọc</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Thời gian đọc
+              </label>
               <Input
                 value={formData.readTime}
                 onChange={(e) => setFormData({ ...formData, readTime: e.target.value })}
@@ -1354,7 +1417,9 @@ const NewsManagementPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
                 className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
               />
-              <span className="font-bold text-amber-700">Ghim bài viết lên vị trí Nổi Bật (Top Banner)</span>
+              <span className="font-bold text-amber-700">
+                Ghim bài viết lên vị trí Nổi Bật (Top Banner)
+              </span>
             </label>
           </div>
         </div>
@@ -1432,7 +1497,10 @@ const NewsManagementPage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <Typography.Title level={3} className="!text-white !text-xl md:!text-2xl !font-black !mb-0 drop-shadow-md leading-tight">
+                <Typography.Title
+                  level={3}
+                  className="!text-white !text-xl md:!text-2xl !font-black !mb-0 drop-shadow-md leading-tight"
+                >
                   {selectedArticle.title}
                 </Typography.Title>
               </div>
@@ -1486,7 +1554,9 @@ const NewsManagementPage: React.FC = () => {
                   <ThunderboltOutlined />
                 </div>
                 <div>
-                  <div className="text-slate-900 text-xs font-bold">Ưu đãi áp dụng trên toàn hệ thống CueZone</div>
+                  <div className="text-slate-900 text-xs font-bold">
+                    Ưu đãi áp dụng trên toàn hệ thống CueZone
+                  </div>
                   <div className="text-[11px] text-slate-500">
                     Mở app để nhận thông báo giải đấu và đặt bàn trước
                   </div>
@@ -1569,8 +1639,8 @@ const NewsManagementPage: React.FC = () => {
           <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
             <ThunderboltOutlined className="text-base text-amber-600 shrink-0 mt-0.5" />
             <span>
-              Thông báo push sẽ được gửi tức thì qua dịch vụ Firebase Cloud Messaging (FCM) đến tất cả
-              thiết bị di động của hội viên đã cài đặt ứng dụng CueZone.
+              Thông báo push sẽ được gửi tức thì qua dịch vụ Firebase Cloud Messaging (FCM) đến tất
+              cả thiết bị di động của hội viên đã cài đặt ứng dụng CueZone.
             </span>
           </div>
         </div>

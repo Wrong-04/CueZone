@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, IsOptional, IsBoolean, IsArray, ValidateNested } from "class-validator";
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsArray,
+  ValidateNested,
+} from "class-validator";
 import { Type } from "class-transformer";
 
 export class PermissionDTO {

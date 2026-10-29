@@ -65,8 +65,8 @@ pnpm dev
 
 ### 4. Lệnh kiểm thử & Build
 ```bash
-pnpm build                        # Build kiểm tra cả 2 workspace trước khi commit
-pnpm --filter backend check:pos   # Chạy test suite xác thực Auth / POS / Transaction
+pnpm build
+pnpm --filter backend check:pos
 ```
 
 ---

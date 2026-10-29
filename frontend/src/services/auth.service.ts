@@ -4,7 +4,10 @@ import type { User, AuthResponse, ApiResponse } from "../types";
 export const authService = {
   async login(email: string, password: string): Promise<AuthResponse> {
     try {
-      const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/login", { email, password });
+      const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/login", {
+        email,
+        password,
+      });
       if (!data.success) throw new Error(data.message || "Đăng nhập thất bại");
       if (!data.data) throw new Error("Không nhận được dữ liệu xác thực từ máy chủ");
       return data.data;
@@ -14,13 +17,28 @@ export const authService = {
     }
   },
 
-  async register(name: string, email: string, password: string, phone?: string): Promise<AuthResponse> {
-    const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/register", { name, email, password, phone });
+  async register(
+    name: string,
+    email: string,
+    password: string,
+    phone?: string,
+  ): Promise<AuthResponse> {
+    const { data } = await api.post<ApiResponse<AuthResponse>>("/auth/register", {
+      name,
+      email,
+      password,
+      phone,
+    });
     if (!data.success) throw new Error(data.message);
     return data.data!;
   },
 
-  async sendVerificationCode(name: string, email: string, password: string, phone?: string): Promise<void> {
+  async sendVerificationCode(
+    name: string,
+    email: string,
+    password: string,
+    phone?: string,
+  ): Promise<void> {
     const { data } = await api.post<ApiResponse>("/auth/register/request", {
       name,
       email,

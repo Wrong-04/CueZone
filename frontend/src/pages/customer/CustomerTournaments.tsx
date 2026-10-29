@@ -10,19 +10,12 @@ import {
   InfoCircleOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
-import {
-  Button,
-  Card,
-  Tag,
-  Space,
-  Typography,
-  Tabs,
-  Modal,
-  Alert,
-  message,
-} from "../../shared/ui";
+import { Button, Card, Tag, Space, Typography, Tabs, Modal, Alert, message } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
-import { tournamentService, type TournamentItem as ApiTournament } from "../../services/tournament.service";
+import {
+  tournamentService,
+  type TournamentItem as ApiTournament,
+} from "../../services/tournament.service";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -63,17 +56,30 @@ const toTournamentCard = (item: ApiTournament): TournamentItem => {
   return {
     id: item._id,
     title: item.name,
-    badge: deadlinePassed && item.status === "registration_open" ? "Hết hạn ghi danh" : statusLabels[item.status],
+    badge:
+      deadlinePassed && item.status === "registration_open"
+        ? "Hết hạn ghi danh"
+        : statusLabels[item.status],
     badgeColor: open ? "green" : finished ? "default" : "gold",
     status: open ? "open" : finished ? "finished" : "upcoming",
     format: `${item.format}${item.raceToScore ? ` • Race to ${item.raceToScore}` : ""}`,
-    fee: item.registrationFee > 0 ? `${item.registrationFee.toLocaleString("vi-VN")} VNĐ / Cơ thủ` : "Miễn phí",
+    fee:
+      item.registrationFee > 0
+        ? `${item.registrationFee.toLocaleString("vi-VN")} VNĐ / Cơ thủ`
+        : "Miễn phí",
     feeAmount: item.registrationFee,
     prizePool: item.prizePool || "Chưa công bố",
     date: `${displayDate(item.startDate)} - ${displayDate(item.endDate)}`,
     participants: `${item.players?.length || 0}/${item.maxPlayers} cơ thủ đã ghi danh`,
-    feeDetail: item.description || (item.registrationFee > 0 ? `Lệ phí ${item.registrationFee.toLocaleString("vi-VN")}đ mỗi cơ thủ.` : "Giải đấu không thu lệ phí."),
-    rulesDetail: item.rules?.split(/\r?\n/).map((rule) => rule.trim()).filter(Boolean) || ["Điều lệ giải đấu chưa được cập nhật."],
+    feeDetail:
+      item.description ||
+      (item.registrationFee > 0
+        ? `Lệ phí ${item.registrationFee.toLocaleString("vi-VN")}đ mỗi cơ thủ.`
+        : "Giải đấu không thu lệ phí."),
+    rulesDetail: item.rules
+      ?.split(/\r?\n/)
+      .map((rule) => rule.trim())
+      .filter(Boolean) || ["Điều lệ giải đấu chưa được cập nhật."],
     firstPrize: item.firstPrize || "Chưa công bố",
     secondPrize: item.secondPrize || "Chưa công bố",
     thirdPrize: item.thirdPrize || "Chưa công bố",
@@ -103,18 +109,22 @@ const CustomerTournaments = () => {
     setLoadError("");
     try {
       const result = await tournamentService.getPublicTournaments();
-      setTournaments(result.items.map((item) => {
-        const card = toTournamentCard(item);
-        const isFull = (item.players?.length || 0) >= item.maxPlayers;
-        const isRegistered = Boolean(user && item.players?.some((player) => String(player.user) === user._id));
-        return {
-          ...card,
-          status: isFull && card.status === "open" ? "upcoming" : card.status,
-          badge: isFull && card.status === "open" ? "Đã đủ cơ thủ" : card.badge,
-          isFull,
-          isRegistered,
-        };
-      }));
+      setTournaments(
+        result.items.map((item) => {
+          const card = toTournamentCard(item);
+          const isFull = (item.players?.length || 0) >= item.maxPlayers;
+          const isRegistered = Boolean(
+            user && item.players?.some((player) => String(player.user) === user._id),
+          );
+          return {
+            ...card,
+            status: isFull && card.status === "open" ? "upcoming" : card.status,
+            badge: isFull && card.status === "open" ? "Đã đủ cơ thủ" : card.badge,
+            isFull,
+            isRegistered,
+          };
+        }),
+      );
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Không thể tải danh sách giải đấu");
     } finally {
@@ -127,9 +137,10 @@ const CustomerTournaments = () => {
     return () => window.clearTimeout(initialLoad);
   }, [loadTournaments]);
 
-  const filteredTournaments = filterStatus === "all"
-    ? tournaments
-    : tournaments.filter((tournament) => tournament.status === filterStatus);
+  const filteredTournaments =
+    filterStatus === "all"
+      ? tournaments
+      : tournaments.filter((tournament) => tournament.status === filterStatus);
 
   const handleConfirmRegistration = async () => {
     if (!registeringTourney) return;
@@ -169,7 +180,8 @@ const CustomerTournaments = () => {
             Giải Đấu & Thành Tích Cơ Thủ
           </Title>
           <Paragraph className="!text-sm !text-slate-600 !leading-relaxed !mb-0">
-            Xem các giải đang mở ghi danh, kiểm tra lệ phí và đăng ký bằng ví CueZone hoặc thanh toán tại quầy.
+            Xem các giải đang mở ghi danh, kiểm tra lệ phí và đăng ký bằng ví CueZone hoặc thanh
+            toán tại quầy.
           </Paragraph>
         </div>
       </div>
@@ -203,7 +215,6 @@ const CustomerTournaments = () => {
         />
       </div>
 
-      {/* TAB 1: Danh Sách Giải Đấu & Sơ đồ nhánh đấu */}
       {activeMainTab === "tournaments" && (
         <div className="space-y-8">
           {/* Sub Filter Status */}
@@ -214,9 +225,18 @@ const CustomerTournaments = () => {
               className="[&_.ant-tabs-nav]:!mb-0 [&_.ant-tabs-tab]:!text-xs [&_.ant-tabs-tab]:!font-bold [&_.ant-tabs-tab-active_.ant-tabs-tab-btn]:!text-emerald-700 [&_.ant-tabs-ink-bar]:!bg-emerald-600"
               items={[
                 { key: "all", label: `Tất Cả (${tournaments.length})` },
-                { key: "open", label: `Đang Mở Đăng Ký (${tournaments.filter((t) => t.status === "open").length})` },
-                { key: "upcoming", label: `Giải khác (${tournaments.filter((t) => t.status === "upcoming").length})` },
-                { key: "finished", label: `Đã Kết Thúc (${tournaments.filter((t) => t.status === "finished").length})` },
+                {
+                  key: "open",
+                  label: `Đang Mở Đăng Ký (${tournaments.filter((t) => t.status === "open").length})`,
+                },
+                {
+                  key: "upcoming",
+                  label: `Giải khác (${tournaments.filter((t) => t.status === "upcoming").length})`,
+                },
+                {
+                  key: "finished",
+                  label: `Đã Kết Thúc (${tournaments.filter((t) => t.status === "finished").length})`,
+                },
               ]}
             />
 
@@ -227,96 +247,121 @@ const CustomerTournaments = () => {
           </div>
 
           {/* Cards Grid */}
-          {loadingTournaments ? <div className="py-12 text-center text-sm text-slate-500">Đang tải danh sách giải đấu…</div> : loadError ? (
-            <Card className="!rounded-2xl !border-slate-200 !p-8 !text-center"><p className="mb-3 text-sm text-rose-600">{loadError}</p><Button variant="outline" onClick={() => void loadTournaments()}>Thử tải lại</Button></Card>
+          {loadingTournaments ? (
+            <div className="py-12 text-center text-sm text-slate-500">
+              Đang tải danh sách giải đấu…
+            </div>
+          ) : loadError ? (
+            <Card className="!rounded-2xl !border-slate-200 !p-8 !text-center">
+              <p className="mb-3 text-sm text-rose-600">{loadError}</p>
+              <Button variant="outline" onClick={() => void loadTournaments()}>
+                Thử tải lại
+              </Button>
+            </Card>
           ) : filteredTournaments.length === 0 ? (
-            <Card className="!rounded-2xl !border-slate-200 !p-8 !text-center text-sm text-slate-500">Hiện chưa có giải đấu phù hợp.</Card>
-          ) : <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {filteredTournaments.map((tourney) => (
-              <Card
-                key={tourney.id}
-                className="!rounded-2xl !border-slate-200 !bg-white hover:!shadow-md transition-all flex flex-col justify-between"
-              >
-                <div className="space-y-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <Tag color={tourney.badgeColor} className="!text-xs !font-bold !px-2.5 !py-0.5 !rounded-md uppercase">
-                      {tourney.badge}
-                    </Tag>
-                    <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
-                      <TeamOutlined className="text-slate-400" />
-                      {tourney.participants}
-                    </span>
-                  </div>
+            <Card className="!rounded-2xl !border-slate-200 !p-8 !text-center text-sm text-slate-500">
+              Hiện chưa có giải đấu phù hợp.
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {filteredTournaments.map((tourney) => (
+                <Card
+                  key={tourney.id}
+                  className="!rounded-2xl !border-slate-200 !bg-white hover:!shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <Tag
+                        color={tourney.badgeColor}
+                        className="!text-xs !font-bold !px-2.5 !py-0.5 !rounded-md uppercase"
+                      >
+                        {tourney.badge}
+                      </Tag>
+                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+                        <TeamOutlined className="text-slate-400" />
+                        {tourney.participants}
+                      </span>
+                    </div>
 
-                  <div>
-                    <Title level={3} className="!text-lg !font-bold !text-slate-900 !mb-1 leading-snug">
-                      {tourney.title}
-                    </Title>
-                    <Text className="!text-xs !text-slate-500 block">
-                      {tourney.format}
-                    </Text>
-                  </div>
-
-                  {/* Thông số giải */}
-                  <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
                     <div>
-                      <span className="text-slate-400 block text-[11px] font-medium">Lệ phí thi đấu</span>
-                      <strong className="text-amber-700 font-bold text-sm">{tourney.fee}</strong>
+                      <Title
+                        level={3}
+                        className="!text-lg !font-bold !text-slate-900 !mb-1 leading-snug"
+                      >
+                        {tourney.title}
+                      </Title>
+                      <Text className="!text-xs !text-slate-500 block">{tourney.format}</Text>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block text-[11px] font-medium">Tổng giải thưởng</span>
-                      <strong className="text-emerald-700 font-bold text-sm">{tourney.prizePool}</strong>
-                    </div>
-                    <div className="col-span-2 pt-2 border-t border-slate-200/60 flex items-center gap-2 text-slate-600">
-                      <CalendarOutlined className="text-slate-400 flex-shrink-0" />
-                      <span>Thời gian: {tourney.date}</span>
+
+                    <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[11px] font-medium">
+                          Lệ phí thi đấu
+                        </span>
+                        <strong className="text-amber-700 font-bold text-sm">{tourney.fee}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[11px] font-medium">
+                          Tổng giải thưởng
+                        </span>
+                        <strong className="text-emerald-700 font-bold text-sm">
+                          {tourney.prizePool}
+                        </strong>
+                      </div>
+                      <div className="col-span-2 pt-2 border-t border-slate-200/60 flex items-center gap-2 text-slate-600">
+                        <CalendarOutlined className="text-slate-400 flex-shrink-0" />
+                        <span>Thời gian: {tourney.date}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Actions */}
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedTournament(tourney)}
-                    className="!text-xs !font-bold !border-slate-300 !text-slate-700 hover:!border-emerald-600 hover:!text-emerald-700 !rounded-xl"
-                  >
-                    Xem Thể Lệ & Lệ Phí
-                  </Button>
-
-                  {tourney.isRegistered ? (
-                    <Tag color="green">Đã ghi danh</Tag>
-                  ) : tourney.status === "open" && !tourney.isFull ? (
+                  {/* Actions */}
+                  <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
                     <Button
-                      variant="primary"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setRegisteringTourney(tourney)}
-                      className="!text-xs !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white !rounded-xl shadow-xs"
+                      onClick={() => setSelectedTournament(tourney)}
+                      className="!text-xs !font-bold !border-slate-300 !text-slate-700 hover:!border-emerald-600 hover:!text-emerald-700 !rounded-xl"
                     >
-                      Đăng Ký Tham Gia
+                      Xem Thể Lệ & Lệ Phí
                     </Button>
-                  ) : (
-                    <span className="text-xs text-slate-400 font-medium">
-                      {tourney.isFull ? "Đã đủ cơ thủ" : tourney.badge}
-                    </span>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>}
 
+                    {tourney.isRegistered ? (
+                      <Tag color="green">Đã ghi danh</Tag>
+                    ) : tourney.status === "open" && !tourney.isFull ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setRegisteringTourney(tourney)}
+                        className="!text-xs !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white !rounded-xl shadow-xs"
+                      >
+                        Đăng Ký Tham Gia
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400 font-medium">
+                        {tourney.isFull ? "Đã đủ cơ thủ" : tourney.badge}
+                      </span>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {activeMainTab === "achievements" && (
         <Card className="!rounded-2xl !border-slate-200 !p-8 !text-center">
           <CrownOutlined className="text-3xl text-amber-500" />
-          <Title level={3} className="!mt-3 !text-lg">Thành tích cá nhân</Title>
-          <Text className="!text-slate-500">Kết quả trận đấu và điểm ELO sẽ hiển thị khi được lưu trong hệ thống.</Text>
+          <Title level={3} className="!mt-3 !text-lg">
+            Thành tích cá nhân
+          </Title>
+          <Text className="!text-slate-500">
+            Kết quả trận đấu và điểm ELO sẽ hiển thị khi được lưu trong hệ thống.
+          </Text>
         </Card>
       )}
-      {/* Modal ghi danh giải */}
+
       <Modal
         open={Boolean(registeringTourney)}
         onCancel={closeRegisterModal}
@@ -349,10 +394,24 @@ const CustomerTournaments = () => {
                       : ` Vui lòng thanh toán ${registeringTourney.feeAmount.toLocaleString("vi-VN")}đ tại quầy.`}
                 </p>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl inline-block text-left text-xs space-y-1">
-                  <div>Cơ thủ: <strong>{user?.name}</strong></div>
-                  <div>Trạng thái lệ phí: <Tag color={registeringTourney.feeAmount === 0 || paymentMethod === "wallet" ? "green" : "gold"} className="!text-[10px]">
-                    {registeringTourney.feeAmount === 0 || paymentMethod === "wallet" ? "ĐÃ THANH TOÁN" : "CHỜ THANH TOÁN TẠI QUẦY"}
-                  </Tag></div>
+                  <div>
+                    Cơ thủ: <strong>{user?.name}</strong>
+                  </div>
+                  <div>
+                    Trạng thái lệ phí:{" "}
+                    <Tag
+                      color={
+                        registeringTourney.feeAmount === 0 || paymentMethod === "wallet"
+                          ? "green"
+                          : "gold"
+                      }
+                      className="!text-[10px]"
+                    >
+                      {registeringTourney.feeAmount === 0 || paymentMethod === "wallet"
+                        ? "ĐÃ THANH TOÁN"
+                        : "CHỜ THANH TOÁN TẠI QUẦY"}
+                    </Tag>
+                  </div>
                 </div>
                 <div className="pt-2">
                   <Button
@@ -370,7 +429,9 @@ const CustomerTournaments = () => {
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Giải đấu:</span>
-                    <strong className="text-slate-800 text-right">{registeringTourney.title}</strong>
+                    <strong className="text-slate-800 text-right">
+                      {registeringTourney.title}
+                    </strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Thời gian khởi tranh:</span>
@@ -389,7 +450,9 @@ const CustomerTournaments = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <span className="font-bold text-slate-800 block">Chọn phương thức đóng lệ phí:</span>
+                  <span className="font-bold text-slate-800 block">
+                    Chọn phương thức đóng lệ phí:
+                  </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div
                       onClick={() => setPaymentMethod("wallet")}
@@ -459,7 +522,6 @@ const CustomerTournaments = () => {
         )}
       </Modal>
 
-      {/* Modal chi tiết Thể Lệ & Lệ Phí */}
       <Modal
         open={Boolean(selectedTournament)}
         onCancel={() => setSelectedTournament(null)}
@@ -482,7 +544,12 @@ const CustomerTournaments = () => {
                 setRegisteringTourney(cur);
               }
             }}
-            disabled={Boolean(selectedTournament && (selectedTournament.status !== "open" || selectedTournament.isFull || selectedTournament.isRegistered))}
+            disabled={Boolean(
+              selectedTournament &&
+              (selectedTournament.status !== "open" ||
+                selectedTournament.isFull ||
+                selectedTournament.isRegistered),
+            )}
             className="!text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
           >
             Đăng Ký Tham Gia Giải Này
@@ -491,15 +558,12 @@ const CustomerTournaments = () => {
         title={
           <Space align="center" size={8}>
             <TrophyOutlined className="text-amber-500 text-lg" />
-            <span className="text-slate-900 text-base font-bold">
-              {selectedTournament?.title}
-            </span>
+            <span className="text-slate-900 text-base font-bold">{selectedTournament?.title}</span>
           </Space>
         }
       >
         {selectedTournament && (
           <div className="space-y-5 py-2 text-xs text-slate-700">
-            {/* Lệ phí */}
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-1.5">
               <Space align="center" size={6}>
                 <DollarOutlined className="text-amber-600" />
@@ -507,12 +571,9 @@ const CustomerTournaments = () => {
                   Quy Định Lệ Phí Thi Đấu: {selectedTournament.fee}
                 </Text>
               </Space>
-              <p className="text-slate-600 leading-relaxed mb-0">
-                {selectedTournament.feeDetail}
-              </p>
+              <p className="text-slate-600 leading-relaxed mb-0">{selectedTournament.feeDetail}</p>
             </div>
 
-            {/* Cơ cấu giải thưởng */}
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-2">
               <Space align="center" size={6}>
                 <CrownOutlined className="text-emerald-700" />
@@ -523,20 +584,25 @@ const CustomerTournaments = () => {
               <ul className="space-y-1.5 text-slate-700 pl-1 mb-0">
                 <li className="flex items-center gap-2">
                   <CrownOutlined className="text-amber-500" />
-                  <span><strong>Giải Nhất:</strong> {selectedTournament.firstPrize}</span>
+                  <span>
+                    <strong>Giải Nhất:</strong> {selectedTournament.firstPrize}
+                  </span>
                 </li>
                 <li className="flex items-center gap-2">
                   <TrophyOutlined className="text-slate-400" />
-                  <span><strong>Giải Nhì:</strong> {selectedTournament.secondPrize}</span>
+                  <span>
+                    <strong>Giải Nhì:</strong> {selectedTournament.secondPrize}
+                  </span>
                 </li>
                 <li className="flex items-center gap-2">
                   <TrophyOutlined className="text-amber-700" />
-                  <span><strong>Giải Ba:</strong> {selectedTournament.thirdPrize}</span>
+                  <span>
+                    <strong>Giải Ba:</strong> {selectedTournament.thirdPrize}
+                  </span>
                 </li>
               </ul>
             </div>
 
-            {/* Điều lệ thi đấu */}
             <div>
               <Text strong className="!text-xs !text-slate-900 block mb-2">
                 Điều Lệ & Quy Định Bắt Buộc:

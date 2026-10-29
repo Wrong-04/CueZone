@@ -559,10 +559,10 @@ export const InvoicesManagementPage: React.FC = () => {
       newInvoiceForm.memberRank === "Diamond"
         ? 0.15
         : newInvoiceForm.memberRank === "Gold"
-        ? 0.1
-        : newInvoiceForm.memberRank === "Silver"
-        ? 0.05
-        : 0;
+          ? 0.1
+          : newInvoiceForm.memberRank === "Silver"
+            ? 0.05
+            : 0;
     const discountAmount = Math.round(subtotal * discountRate);
     const finalTotal = subtotal - discountAmount;
 
@@ -725,8 +725,8 @@ export const InvoicesManagementPage: React.FC = () => {
                   record.memberRank === "Diamond"
                     ? "purple"
                     : record.memberRank === "Gold"
-                    ? "gold"
-                    : "blue"
+                      ? "gold"
+                      : "blue"
                 }
                 className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold"
               >
@@ -778,9 +778,7 @@ export const InvoicesManagementPage: React.FC = () => {
           <span className="font-black text-emerald-800 text-base font-mono block">
             {total.toLocaleString("vi-VN")}đ
           </span>
-          <span className="text-[11px] text-slate-400">
-            {record.paymentMethodText}
-          </span>
+          <span className="text-[11px] text-slate-400">{record.paymentMethodText}</span>
         </div>
       ),
     },
@@ -793,20 +791,29 @@ export const InvoicesManagementPage: React.FC = () => {
       render: (status: string) => {
         if (status === "paid") {
           return (
-            <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1">
+            <Tag
+              color="green"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+            >
               <CheckCircleOutlined /> ĐÃ XONG
             </Tag>
           );
         }
         if (status === "pending") {
           return (
-            <Tag color="warning" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1">
+            <Tag
+              color="warning"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+            >
               <SyncOutlined spin /> ĐANG CHƠI
             </Tag>
           );
         }
         return (
-          <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1">
+          <Tag
+            color="error"
+            className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+          >
             <CloseCircleOutlined /> ĐÃ HỦY
           </Tag>
         );
@@ -843,7 +850,10 @@ export const InvoicesManagementPage: React.FC = () => {
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
                 <FileTextOutlined className="text-xl" />
               </div>
-              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Quản Lý Hóa Đơn & Thu Ngân Bida
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
@@ -851,7 +861,8 @@ export const InvoicesManagementPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Quản lý danh sách hóa đơn thanh toán bàn bida, dịch vụ F&B, tích hợp in phiếu bill nhiệt, quét mã VietQR và chiết khấu thành viên CLB.
+              Quản lý danh sách hóa đơn thanh toán bàn bida, dịch vụ F&B, tích hợp in phiếu bill
+              nhiệt, quét mã VietQR và chiết khấu thành viên CLB.
             </Text>
           </div>
 
@@ -1006,7 +1017,6 @@ export const InvoicesManagementPage: React.FC = () => {
         />
       </div>
 
-      {/* ── MODAL: CHI TIẾT & IN PHIẾU HÓA ĐƠN (PRINT BILL PREVIEW) ─────────── */}
       <Modal
         open={Boolean(selectedInvoice)}
         onCancel={() => setSelectedInvoice(null)}
@@ -1016,9 +1026,7 @@ export const InvoicesManagementPage: React.FC = () => {
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <FileTextOutlined className="text-emerald-600 text-lg" />
-              <span className="font-black text-slate-900 text-base">
-                Phiếu Thanh Toán Bida
-              </span>
+              <span className="font-black text-slate-900 text-base">Phiếu Thanh Toán Bida</span>
             </div>
             <Button
               variant="outline"
@@ -1068,9 +1076,7 @@ export const InvoicesManagementPage: React.FC = () => {
                 </div>
                 <div className="text-right">
                   Hạng thẻ:{" "}
-                  <strong className="text-purple-700">
-                    {selectedInvoice.memberRank}
-                  </strong>
+                  <strong className="text-purple-700">{selectedInvoice.memberRank}</strong>
                 </div>
                 <div>
                   Giờ vào: <strong>{selectedInvoice.timeIn}</strong>
@@ -1114,21 +1120,29 @@ export const InvoicesManagementPage: React.FC = () => {
               <div className="pt-3 border-t border-slate-300 space-y-1.5 text-xs">
                 <div className="flex justify-between">
                   <span>Tiền giờ bàn:</span>
-                  <span className="font-mono">{selectedInvoice.tableFee.toLocaleString("vi-VN")}đ</span>
+                  <span className="font-mono">
+                    {selectedInvoice.tableFee.toLocaleString("vi-VN")}đ
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Dịch vụ F&B & Đồ uống:</span>
-                  <span className="font-mono">{selectedInvoice.fnbFee.toLocaleString("vi-VN")}đ</span>
+                  <span className="font-mono">
+                    {selectedInvoice.fnbFee.toLocaleString("vi-VN")}đ
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tạm tính (Subtotal):</span>
-                  <span className="font-mono font-bold">{selectedInvoice.subtotal.toLocaleString("vi-VN")}đ</span>
+                  <span className="font-mono font-bold">
+                    {selectedInvoice.subtotal.toLocaleString("vi-VN")}đ
+                  </span>
                 </div>
 
                 {selectedInvoice.discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-700 font-medium">
                     <span>Ưu đãi hội viên ({selectedInvoice.discountPercent}%):</span>
-                    <span className="font-mono">-{selectedInvoice.discountAmount.toLocaleString("vi-VN")}đ</span>
+                    <span className="font-mono">
+                      -{selectedInvoice.discountAmount.toLocaleString("vi-VN")}đ
+                    </span>
                   </div>
                 )}
 
@@ -1180,7 +1194,6 @@ export const InvoicesManagementPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── MODAL: THANH TOÁN BÀN MỚI ──────────────────────────────────────── */}
       <Modal
         open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
@@ -1217,7 +1230,10 @@ export const InvoicesManagementPage: React.FC = () => {
                 { value: "Bàn 01 (Bàn Thường 9FT)", label: "Bàn 01 (Bàn Thường 9FT - 50k/h)" },
                 { value: "Bàn 02 (Bàn Thường 9FT)", label: "Bàn 02 (Bàn Thường 9FT - 50k/h)" },
                 { value: "Bàn VIP 10 (Bank Pool VIP)", label: "Bàn VIP 10 (Bank Pool - 70k/h)" },
-                { value: "Bàn Match 13 (K-Steel VAR)", label: "Bàn Match 13 (K-Steel VAR - 80k/h)" },
+                {
+                  value: "Bàn Match 13 (K-Steel VAR)",
+                  label: "Bàn Match 13 (K-Steel VAR - 80k/h)",
+                },
               ]}
             />
           </div>
@@ -1241,9 +1257,7 @@ export const InvoicesManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Số điện thoại:
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại:</label>
               <Input
                 placeholder="0908..."
                 value={newInvoiceForm.customerPhone}
@@ -1338,9 +1352,7 @@ export const InvoicesManagementPage: React.FC = () => {
 
           <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center text-xs">
             <div>
-              <span className="font-semibold text-emerald-800 block">
-                Tổng ước tính cần thu:
-              </span>
+              <span className="font-semibold text-emerald-800 block">Tổng ước tính cần thu:</span>
               <span className="text-[11px] text-emerald-600">
                 (Đã gồm tiền giờ bàn + F&B - Chiết khấu thẻ)
               </span>
@@ -1349,16 +1361,16 @@ export const InvoicesManagementPage: React.FC = () => {
               {(
                 Math.round(
                   newInvoiceForm.durationHours * newInvoiceForm.tableHourlyRate +
-                    newInvoiceForm.fnbTotal
+                    newInvoiceForm.fnbTotal,
                 ) *
                 (1 -
                   (newInvoiceForm.memberRank === "Diamond"
                     ? 0.15
                     : newInvoiceForm.memberRank === "Gold"
-                    ? 0.1
-                    : newInvoiceForm.memberRank === "Silver"
-                    ? 0.05
-                    : 0))
+                      ? 0.1
+                      : newInvoiceForm.memberRank === "Silver"
+                        ? 0.05
+                        : 0))
               ).toLocaleString("vi-VN")}
               đ
             </span>

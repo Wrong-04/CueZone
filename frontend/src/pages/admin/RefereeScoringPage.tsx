@@ -5,17 +5,8 @@ import {
   SwapOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons";
-import {
-  Button,
-  Tag,
-  Typography,
-  message,
-  Modal,
-} from "../../shared/ui";
-import {
-  INITIAL_TOURNAMENT_MATCH,
-  type TournamentMatchScore,
-} from "../../mock/posData";
+import { Button, Tag, Typography, message, Modal } from "../../shared/ui";
+import { INITIAL_TOURNAMENT_MATCH, type TournamentMatchScore } from "../../mock/posData";
 
 const { Title, Text } = Typography;
 
@@ -142,7 +133,10 @@ export const RefereeScoringPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <TrophyOutlined className="text-amber-500 text-xl" />
-              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Bảng Điểm Trọng Tài Bank Pool
               </Title>
               <Tag color="gold" className="!rounded-full !px-2.5 !py-0.5 !text-xs !font-bold">
@@ -150,7 +144,8 @@ export const RefereeScoringPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs !text-slate-500">
-              Chấm điểm ván đấu, ghi nhận bi ăn băng hợp lệ, lỗi phạm quy và cập nhật kết quả ELO giải đấu
+              Chấm điểm ván đấu, ghi nhận bi ăn băng hợp lệ, lỗi phạm quy và cập nhật kết quả ELO
+              giải đấu
             </Text>
           </div>
 
@@ -181,14 +176,15 @@ export const RefereeScoringPage: React.FC = () => {
           </div>
 
           <div>
-            Thể thức: <strong className="text-slate-900 font-mono">Race to {match.raceTo} (Chạm {match.raceTo})</strong>
+            Thể thức:{" "}
+            <strong className="text-slate-900 font-mono">
+              Race to {match.raceTo} (Chạm {match.raceTo})
+            </strong>
           </div>
         </div>
       </div>
 
-      {/* ── BẢNG TỈ SỐ ĐIỆN TỬ TRỰC TIẾP (DIGITAL SCOREBOARD) ──────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
-        {/* CƠ THỦ 1 (5 cols) */}
         <div
           className={`md:col-span-5 rounded-2xl border p-6 flex flex-col justify-between transition-all shadow-xs ${
             isPlayer1Active
@@ -199,13 +195,21 @@ export const RefereeScoringPage: React.FC = () => {
           <div>
             {/* Player badge & Turn indicator */}
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Cơ Thủ 1</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Cơ Thủ 1
+              </span>
               {isPlayer1Active ? (
-                <Tag color="green" className="!rounded-full !px-3 !py-1 !text-xs !font-bold animate-pulse">
+                <Tag
+                  color="green"
+                  className="!rounded-full !px-3 !py-1 !text-xs !font-bold animate-pulse"
+                >
                   ĐANG ĐẾN LƯỢT ĐÁNH
                 </Tag>
               ) : (
-                <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100">
+                <Tag
+                  color="default"
+                  className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100"
+                >
                   CHỜ LƯỢT
                 </Tag>
               )}
@@ -238,19 +242,17 @@ export const RefereeScoringPage: React.FC = () => {
               <span className="text-[11px] uppercase tracking-widest text-slate-400 block mb-1">
                 SỐ VÁN THẮNG
               </span>
-              <span className="text-6xl font-black text-emerald-400">
-                {match.player1.score}
-              </span>
-              <span className="text-xs text-slate-500 block mt-1">
-                / {match.raceTo} ván
-              </span>
+              <span className="text-6xl font-black text-emerald-400">{match.player1.score}</span>
+              <span className="text-xs text-slate-500 block mt-1">/ {match.raceTo} ván</span>
             </div>
 
             {/* Sub stats */}
             <div className="grid grid-cols-2 gap-2 text-xs mb-6">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
                 <span className="text-[11px] text-slate-500 block">Bi ăn băng hợp lệ</span>
-                <span className="text-base font-bold text-slate-900">{match.player1.bankShots} bi</span>
+                <span className="text-base font-bold text-slate-900">
+                  {match.player1.bankShots} bi
+                </span>
               </div>
               <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
                 <span className="text-[11px] text-rose-700 block">Lỗi phạm quy</span>
@@ -284,7 +286,6 @@ export const RefereeScoringPage: React.FC = () => {
           </div>
         </div>
 
-        {/* TRUNG TÂM: VS & ĐIỀU KHIỂN CHUYỂN LƯỢT (2 cols) */}
         <div className="md:col-span-2 flex flex-col items-center justify-center gap-4 py-6">
           <div className="h-16 w-16 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xl shadow-lg border-4 border-white">
             VS
@@ -304,12 +305,13 @@ export const RefereeScoringPage: React.FC = () => {
           {isFinished && (
             <div className="text-center p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
               <span className="font-bold block">Trận đấu đã kết thúc!</span>
-              <span>Người thắng: {match.winnerId === "P1" ? match.player1.name : match.player2.name}</span>
+              <span>
+                Người thắng: {match.winnerId === "P1" ? match.player1.name : match.player2.name}
+              </span>
             </div>
           )}
         </div>
 
-        {/* CƠ THỦ 2 (5 cols) */}
         <div
           className={`md:col-span-5 rounded-2xl border p-6 flex flex-col justify-between transition-all shadow-xs ${
             isPlayer2Active
@@ -320,13 +322,21 @@ export const RefereeScoringPage: React.FC = () => {
           <div>
             {/* Player badge & Turn indicator */}
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Cơ Thủ 2</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Cơ Thủ 2
+              </span>
               {isPlayer2Active ? (
-                <Tag color="green" className="!rounded-full !px-3 !py-1 !text-xs !font-bold animate-pulse">
+                <Tag
+                  color="green"
+                  className="!rounded-full !px-3 !py-1 !text-xs !font-bold animate-pulse"
+                >
                   ĐANG ĐẾN LƯỢT ĐÁNH
                 </Tag>
               ) : (
-                <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100">
+                <Tag
+                  color="default"
+                  className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !bg-slate-100"
+                >
                   CHỜ LƯỢT
                 </Tag>
               )}
@@ -359,19 +369,17 @@ export const RefereeScoringPage: React.FC = () => {
               <span className="text-[11px] uppercase tracking-widest text-slate-400 block mb-1">
                 SỐ VÁN THẮNG
               </span>
-              <span className="text-6xl font-black text-emerald-400">
-                {match.player2.score}
-              </span>
-              <span className="text-xs text-slate-500 block mt-1">
-                / {match.raceTo} ván
-              </span>
+              <span className="text-6xl font-black text-emerald-400">{match.player2.score}</span>
+              <span className="text-xs text-slate-500 block mt-1">/ {match.raceTo} ván</span>
             </div>
 
             {/* Sub stats */}
             <div className="grid grid-cols-2 gap-2 text-xs mb-6">
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
                 <span className="text-[11px] text-slate-500 block">Bi ăn băng hợp lệ</span>
-                <span className="text-base font-bold text-slate-900">{match.player2.bankShots} bi</span>
+                <span className="text-base font-bold text-slate-900">
+                  {match.player2.bankShots} bi
+                </span>
               </div>
               <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
                 <span className="text-[11px] text-rose-700 block">Lỗi phạm quy</span>
@@ -406,7 +414,6 @@ export const RefereeScoringPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── MODAL: CẬP NHẬT KẾT QUẢ TRẬN ĐẤU (Update Match Result) ─────────── */}
       <Modal
         open={finishModalVisible}
         onCancel={() => setFinishModalVisible(false)}
@@ -438,13 +445,17 @@ export const RefereeScoringPage: React.FC = () => {
             <div className="font-bold text-slate-900 mb-1">Cập nhật chỉ số ELO dự kiến:</div>
             <div className="flex justify-between">
               <span>{match.player1.name} (P1):</span>
-              <strong className={winnerPlayerId === "P1" ? "text-emerald-700 font-bold" : "text-rose-600"}>
+              <strong
+                className={winnerPlayerId === "P1" ? "text-emerald-700 font-bold" : "text-rose-600"}
+              >
                 {winnerPlayerId === "P1" ? "+25 ELO (Mới: 1,875)" : "-15 ELO (Mới: 1,835)"}
               </strong>
             </div>
             <div className="flex justify-between">
               <span>{match.player2.name} (P2):</span>
-              <strong className={winnerPlayerId === "P2" ? "text-emerald-700 font-bold" : "text-rose-600"}>
+              <strong
+                className={winnerPlayerId === "P2" ? "text-emerald-700 font-bold" : "text-rose-600"}
+              >
                 {winnerPlayerId === "P2" ? "+25 ELO (Mới: 1,845)" : "-15 ELO (Mới: 1,805)"}
               </strong>
             </div>

@@ -25,12 +25,14 @@ export class App {
     this.app.use("/api/v1", authMiddleware);
     this.app.use("/api/v1", protectedRouter);
 
-    this.app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      console.error("❌ Unhandled error:", err);
-      res.status(err.httpCode || 500).json({
-        success: false,
-        message: err.message || "Internal Server Error",
-      });
-    });
+    this.app.use(
+      (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        console.error("❌ Unhandled error:", err);
+        res.status(err.httpCode || 500).json({
+          success: false,
+          message: err.message || "Internal Server Error",
+        });
+      },
+    );
   }
 }

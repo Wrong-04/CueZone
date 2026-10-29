@@ -11,16 +11,7 @@ import {
   CrownOutlined,
   KeyOutlined,
 } from "@ant-design/icons";
-import {
-  Button,
-  Tag,
-  Input,
-  Typography,
-  message,
-  Space,
-  Modal,
-  Tabs,
-} from "../../shared/ui";
+import { Button, Tag, Input, Typography, message, Space, Modal, Tabs } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
 
 const { Title } = Typography;
@@ -28,15 +19,17 @@ const { Title } = Typography;
 export const CustomerProfile: React.FC = () => {
   const { user } = useAuth();
 
-  // Thông tin cá nhân
   const [name, setName] = useState<string>(user?.name || "Đặng Tuấn Anh");
   const email = user?.email || "customer@cuezone.com";
   const [phone, setPhone] = useState<string>(user?.phone || "0912 345 678");
-  const [favoriteClub, setFavoriteClub] = useState<string>("CueZone Chi Nhánh Q.3 (123 Nguyễn Thị Minh Khai)");
-  const [bio, setBio] = useState<string>("Cơ thủ bida Bank Pool phong trào, đam mê cọ xát và học hỏi kỹ thuật gậy cơ.");
+  const [favoriteClub, setFavoriteClub] = useState<string>(
+    "CueZone Chi Nhánh Q.3 (123 Nguyễn Thị Minh Khai)",
+  );
+  const [bio, setBio] = useState<string>(
+    "Cơ thủ bida Bank Pool phong trào, đam mê cọ xát và học hỏi kỹ thuật gậy cơ.",
+  );
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
 
-  // Đổi mật khẩu
   const [currentPassword, setCurrentPassword] = useState<string>("");
   const [newPassword, setNewPassword] = useState<string>("");
   const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
@@ -44,7 +37,6 @@ export const CustomerProfile: React.FC = () => {
   const [otpStep, setOtpStep] = useState<boolean>(false);
   const [otpCode, setOtpCode] = useState<string>("");
 
-  // Cài đặt thông báo
   const [notifyBooking, setNotifyBooking] = useState<boolean>(true);
   const [notifyWallet, setNotifyWallet] = useState<boolean>(true);
   const [notifyTournament, setNotifyTournament] = useState<boolean>(true);
@@ -110,7 +102,10 @@ export const CustomerProfile: React.FC = () => {
             <Title level={2} className="!text-2xl !font-bold !text-white !mb-0">
               {name}
             </Title>
-            <Tag color="gold" className="!rounded-md !px-2.5 !py-0.5 !text-xs !font-bold self-center sm:self-auto">
+            <Tag
+              color="gold"
+              className="!rounded-md !px-2.5 !py-0.5 !text-xs !font-bold self-center sm:self-auto"
+            >
               <CrownOutlined className="mr-1" /> DIAMOND VIP
             </Tag>
           </div>
@@ -120,16 +115,21 @@ export const CustomerProfile: React.FC = () => {
           </p>
 
           <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-400">
-            <span>Hạng ELO: <strong className="text-amber-400">Master 1850</strong></span>
+            <span>
+              Hạng ELO: <strong className="text-amber-400">Master 1850</strong>
+            </span>
             <span>•</span>
-            <span>Tỉ lệ thắng: <strong className="text-emerald-400">68%</strong></span>
+            <span>
+              Tỉ lệ thắng: <strong className="text-emerald-400">68%</strong>
+            </span>
             <span>•</span>
-            <span>Hội viên từ: <strong>01/2026</strong></span>
+            <span>
+              Hội viên từ: <strong>01/2026</strong>
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Tabs Quản Lý: Hồ Sơ Cá Nhân vs Đổi Mật Khẩu vs Cài Đặt Thông Báo */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs">
         <Tabs
           defaultActiveKey="profile"
@@ -168,7 +168,9 @@ export const CustomerProfile: React.FC = () => {
                         prefix={<MailOutlined className="text-slate-400 mr-1.5" />}
                         className="!h-10 !rounded-xl !bg-slate-50"
                       />
-                      <span className="text-[11px] text-slate-400 mt-1 block">Email dùng để nhận mã OTP và thông báo</span>
+                      <span className="text-[11px] text-slate-400 mt-1 block">
+                        Email dùng để nhận mã OTP và thông báo
+                      </span>
                     </div>
 
                     <div>
@@ -272,7 +274,8 @@ export const CustomerProfile: React.FC = () => {
 
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
                     <SafetyCertificateOutlined className="text-emerald-600 mr-1.5" />
-                    Để bảo vệ tài khoản, sau khi nhấn tiếp tục hệ thống sẽ gửi mã OTP 4 số về email của bạn để xác thực.
+                    Để bảo vệ tài khoản, sau khi nhấn tiếp tục hệ thống sẽ gửi mã OTP 4 số về email
+                    của bạn để xác thực.
                   </div>
 
                   <div className="pt-1">
@@ -299,8 +302,12 @@ export const CustomerProfile: React.FC = () => {
                 <div className="space-y-4 max-w-xl text-xs text-slate-700">
                   <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
                     <div>
-                      <strong className="block text-sm text-slate-900 mb-0.5">Nhắc nhở lịch đặt bàn</strong>
-                      <span className="text-slate-500">Thông báo trước 30 phút khi đến giờ bàn đã giữ chỗ</span>
+                      <strong className="block text-sm text-slate-900 mb-0.5">
+                        Nhắc nhở lịch đặt bàn
+                      </strong>
+                      <span className="text-slate-500">
+                        Thông báo trước 30 phút khi đến giờ bàn đã giữ chỗ
+                      </span>
                     </div>
                     <input
                       type="checkbox"
@@ -312,8 +319,12 @@ export const CustomerProfile: React.FC = () => {
 
                   <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
                     <div>
-                      <strong className="block text-sm text-slate-900 mb-0.5">Biến động số dư ví</strong>
-                      <span className="text-slate-500">Nhận thông báo khi nạp tiền, trừ tiền bàn và nhận hoàn tiền</span>
+                      <strong className="block text-sm text-slate-900 mb-0.5">
+                        Biến động số dư ví
+                      </strong>
+                      <span className="text-slate-500">
+                        Nhận thông báo khi nạp tiền, trừ tiền bàn và nhận hoàn tiền
+                      </span>
                     </div>
                     <input
                       type="checkbox"
@@ -325,8 +336,12 @@ export const CustomerProfile: React.FC = () => {
 
                   <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
                     <div>
-                      <strong className="block text-sm text-slate-900 mb-0.5">Giải đấu & Khuyến mãi</strong>
-                      <span className="text-slate-500">Cập nhật sớm giải đấu mở rộng và ưu đãi giờ vàng</span>
+                      <strong className="block text-sm text-slate-900 mb-0.5">
+                        Giải đấu & Khuyến mãi
+                      </strong>
+                      <span className="text-slate-500">
+                        Cập nhật sớm giải đấu mở rộng và ưu đãi giờ vàng
+                      </span>
                     </div>
                     <input
                       type="checkbox"
@@ -342,7 +357,6 @@ export const CustomerProfile: React.FC = () => {
         />
       </div>
 
-      {/* MODAL XÁC NHẬN OTP ĐỔI MẬT KHẨU */}
       <Modal
         open={otpStep}
         onCancel={() => setOtpStep(false)}

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
@@ -30,14 +29,10 @@ import {
 
 import { useAuth } from "../../contexts/AuthContext";
 import ConfirmModal from "../ui/ConfirmModal";
-import {
-  notificationService,
-  type Notification,
-} from "../../services/notification.service";
+import { notificationService, type Notification } from "../../services/notification.service";
 
 const SOCKET_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") ||
-  "http://localhost:5000";
+  import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
 interface MenuItemConfig {
   path: string;
@@ -84,7 +79,6 @@ const menuItems: MenuItemConfig[] = [
     roles: ["admin", "staff"],
   },
 
-  // 1. Kho hàng: xem tồn kho và tình trạng sản phẩm
   {
     path: "/inventory",
     label: "Kho hàng",
@@ -92,7 +86,6 @@ const menuItems: MenuItemConfig[] = [
     roles: ["admin", "staff"],
   },
 
-  // 2. Quản lý sản phẩm và danh mục
   {
     path: "/catalog-management",
     label: "Danh mục sản phẩm",
@@ -100,7 +93,6 @@ const menuItems: MenuItemConfig[] = [
     roles: ["admin"],
   },
 
-  // 3. Quản lý nhà cung cấp
   {
     path: "/suppliers",
     label: "Nhà cung cấp",
@@ -190,7 +182,6 @@ const AdminLayout = () => {
       setNotifications(data.notifications);
       setUnreadCount(data.unreadCount);
     } catch (error) {
-      // Không làm gián đoạn giao diện nếu API thông báo gặp lỗi.
       console.error("Không thể tải thông báo:", error);
     }
   };
@@ -222,10 +213,7 @@ const AdminLayout = () => {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        notifRef.current &&
-        !notifRef.current.contains(e.target as Node)
-      ) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotifPanel(false);
       }
     };
@@ -329,18 +317,12 @@ const AdminLayout = () => {
           {/* Navigation */}
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
             {menuItems
-              .filter(
-                (item) =>
-                  !item.roles ||
-                  (user?.role && item.roles.includes(user.role)),
-              )
+              .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role)))
               .map((item) => {
                 const isActive =
                   location.pathname === item.path ||
-                  (item.path === "/pos" &&
-                    location.pathname === "/admin/pos") ||
-                  (item.path === "/dashboard" &&
-                    location.pathname === "/admin");
+                  (item.path === "/pos" && location.pathname === "/admin/pos") ||
+                  (item.path === "/dashboard" && location.pathname === "/admin");
 
                 return (
                   <Link
@@ -353,15 +335,9 @@ const AdminLayout = () => {
                         : "text-gray-300 hover:bg-navy-700 hover:text-white"
                     }`}
                   >
-                    <span className="text-lg flex-shrink-0">
-                      {item.icon}
-                    </span>
+                    <span className="text-lg flex-shrink-0">{item.icon}</span>
 
-                    {sidebarOpen && (
-                      <span className="text-sm font-medium">
-                        {item.label}
-                      </span>
-                    )}
+                    {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
                   </Link>
                 );
               })}
@@ -436,9 +412,7 @@ const AdminLayout = () => {
                   <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-100 z-50 animate-scale-in">
                     {/* Header */}
                     <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                      <h3 className="font-semibold text-navy-800 text-sm">
-                        Thông báo
-                      </h3>
+                      <h3 className="font-semibold text-navy-800 text-sm">Thông báo</h3>
 
                       {unreadCount > 0 && (
                         <button
@@ -482,9 +456,7 @@ const AdminLayout = () => {
                                 <div className="flex items-center gap-2">
                                   <p
                                     className={`text-sm font-medium truncate ${
-                                      !n.isRead
-                                        ? "text-navy-800"
-                                        : "text-gray-700"
+                                      !n.isRead ? "text-navy-800" : "text-gray-700"
                                     }`}
                                   >
                                     {n.title}
@@ -521,9 +493,7 @@ const AdminLayout = () => {
                 </div>
 
                 <div className="hidden md:block">
-                  <p className="text-sm font-semibold text-gray-800 leading-tight">
-                    {user?.name}
-                  </p>
+                  <p className="text-sm font-semibold text-gray-800 leading-tight">{user?.name}</p>
 
                   <p className="text-xs text-gray-500 leading-tight">
                     {roleLabels[user?.role || ""] || user?.role}

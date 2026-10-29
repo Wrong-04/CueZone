@@ -1,8 +1,4 @@
-import {
-  Tournament,
-  ITournament,
-  TournamentStatus,
-} from "./tournament.model";
+import { Tournament, ITournament, TournamentStatus } from "./tournament.model";
 import {
   CreateTournamentDTO,
   UpdateTournamentDTO,
@@ -23,7 +19,11 @@ export class TournamentService {
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 50));
     const filter = { status: { $ne: TournamentStatus.DRAFT } };
     const [items, total] = await Promise.all([
-      Tournament.find(filter).sort({ startDate: 1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Tournament.find(filter)
+        .sort({ startDate: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
       Tournament.countDocuments(filter),
     ]);
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
@@ -38,8 +38,16 @@ export class TournamentService {
     }
 
     const result = await mongoose.connection.transaction(async (session) => {
-      const user = await User.findOne({ _id: userId, role: UserRole.CUSTOMER, isActive: true, isLocked: false }).session(session);
-      if (!user) throw Object.assign(new Error("Chỉ hội viên đang hoạt động mới được ghi danh"), { httpCode: 403 });
+      const user = await User.findOne({
+        _id: userId,
+        role: UserRole.CUSTOMER,
+        isActive: true,
+        isLocked: false,
+      }).session(session);
+      if (!user)
+        throw Object.assign(new Error("Chỉ hội viên đang hoạt động mới được ghi danh"), {
+          httpCode: 403,
+        });
       const tournament = await Tournament.findById(id).session(session);
       if (!tournament) throw Object.assign(new Error("Không tìm thấy giải đấu"), { httpCode: 404 });
       if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
@@ -48,7 +56,11 @@ export class TournamentService {
       if (tournament.registrationDeadline.getTime() < Date.now()) {
         throw Object.assign(new Error("Đã hết hạn ghi danh giải đấu"), { httpCode: 400 });
       }
-      if (tournament.players.some((player: { user: mongoose.Types.ObjectId }) => String(player.user) === userId)) {
+      if (
+        tournament.players.some(
+          (player: { user: mongoose.Types.ObjectId }) => String(player.user) === userId,
+        )
+      ) {
         throw Object.assign(new Error("Bạn đã ghi danh giải đấu này"), { httpCode: 409 });
       }
       if (tournament.players.length >= tournament.maxPlayers) {
@@ -57,7 +69,12 @@ export class TournamentService {
 
       const feePaid = tournament.registrationFee <= 0 || paymentMethod === "wallet";
       if (paymentMethod === "wallet" && tournament.registrationFee > 0) {
-        await walletService.chargeForTournament(userId, tournament.registrationFee, tournament.name, session);
+        await walletService.chargeForTournament(
+          userId,
+          tournament.registrationFee,
+          tournament.name,
+          session,
+        );
       }
       tournament.players.push({
         user: user._id,
@@ -75,33 +92,42 @@ export class TournamentService {
       ? `Lệ phí ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ đã được ghi nhận.`
       : `Ghi danh đã được tiếp nhận. Vui lòng thanh toán ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ tại quầy trước hạn.`;
     await Promise.all([
-      notifications.createForUser(userId, {
-        title: "Ghi danh giải đấu thành công",
-        content: `Bạn đã ghi danh giải ${result.tournament.name}. ${feeText}`,
-        type: NotificationType.TOURNAMENT,
-      }).catch(() => undefined),
-      notifications.create({
-        title: "Có cơ thủ ghi danh giải đấu",
-        content: `${result.user.name} đã ghi danh giải ${result.tournament.name}.`,
-        type: NotificationType.TOURNAMENT,
-      }).catch(() => undefined),
+      notifications
+        .createForUser(userId, {
+          title: "Ghi danh giải đấu thành công",
+          content: `Bạn đã ghi danh giải ${result.tournament.name}. ${feeText}`,
+          type: NotificationType.TOURNAMENT,
+        })
+        .catch(() => undefined),
+      notifications
+        .create({
+          title: "Có cơ thủ ghi danh giải đấu",
+          content: `${result.user.name} đã ghi danh giải ${result.tournament.name}.`,
+          type: NotificationType.TOURNAMENT,
+        })
+        .catch(() => undefined),
     ]);
     return result.tournament;
   }
 
   async getPendingFees() {
-    const tournaments = await Tournament.find({ registrationFee: { $gt: 0 }, "players.feePaid": false })
+    const tournaments = await Tournament.find({
+      registrationFee: { $gt: 0 },
+      "players.feePaid": false,
+    })
       .populate("players.user", "name email phone")
       .sort({ startDate: 1 });
-    return tournaments.flatMap((tournament: any) => tournament.players
-      .filter((player: any) => !player.feePaid)
-      .map((player: any) => ({
-        tournamentId: String(tournament._id),
-        tournamentName: tournament.name,
-        startDate: tournament.startDate,
-        amount: tournament.registrationFee,
-        player,
-      })));
+    return tournaments.flatMap((tournament: any) =>
+      tournament.players
+        .filter((player: any) => !player.feePaid)
+        .map((player: any) => ({
+          tournamentId: String(tournament._id),
+          tournamentName: tournament.name,
+          startDate: tournament.startDate,
+          amount: tournament.registrationFee,
+          player,
+        })),
+    );
   }
 
   async confirmPlayerFee(id: string, userId: string, reviewerId: string) {
@@ -111,8 +137,11 @@ export class TournamentService {
     const result = await mongoose.connection.transaction(async (session) => {
       const tournament = await Tournament.findById(id).session(session);
       if (!tournament) throw Object.assign(new Error("Không tìm thấy giải đấu"), { httpCode: 404 });
-      const player = tournament.players.find((entry: { user: mongoose.Types.ObjectId }) => String(entry.user) === userId);
-      if (!player) throw Object.assign(new Error("Cơ thủ chưa ghi danh giải này"), { httpCode: 404 });
+      const player = tournament.players.find(
+        (entry: { user: mongoose.Types.ObjectId }) => String(entry.user) === userId,
+      );
+      if (!player)
+        throw Object.assign(new Error("Cơ thủ chưa ghi danh giải này"), { httpCode: 404 });
       if (player.feePaid) return { tournament, player, changed: false };
       player.feePaid = true;
       await tournament.save({ session });
@@ -120,22 +149,18 @@ export class TournamentService {
     });
 
     if (result.changed) {
-      await notifications.createForUser(userId, {
-        title: "Đã xác nhận lệ phí giải đấu",
-        content: `Nhân viên đã ghi nhận khoản thanh toán ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ cho giải ${result.tournament.name}.`,
-        type: NotificationType.TOURNAMENT,
-      }).catch(() => undefined);
+      await notifications
+        .createForUser(userId, {
+          title: "Đã xác nhận lệ phí giải đấu",
+          content: `Nhân viên đã ghi nhận khoản thanh toán ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ cho giải ${result.tournament.name}.`,
+          type: NotificationType.TOURNAMENT,
+        })
+        .catch(() => undefined);
     }
     return result.tournament;
   }
 
-  /**
-   * Tạo giải đấu mới ở trạng thái DRAFT
-   */
-  async createTournament(
-    dto: CreateTournamentDTO,
-    userId?: string
-  ): Promise<ITournament> {
+  async createTournament(dto: CreateTournamentDTO, userId?: string): Promise<ITournament> {
     const validation = validateTournamentData(dto, false);
     if (!validation.isValid) {
       throw new Error(validation.errors.join("; "));
@@ -145,7 +170,10 @@ export class TournamentService {
     if (Array.isArray(dto.assignedTables)) {
       assignedTables = dto.assignedTables.map((t) => t.trim()).filter(Boolean);
     } else if (typeof dto.assignedTables === "string" && dto.assignedTables.trim()) {
-      assignedTables = dto.assignedTables.split(",").map((t) => t.trim()).filter(Boolean);
+      assignedTables = dto.assignedTables
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
     }
 
     const tournament = new Tournament({
@@ -173,15 +201,7 @@ export class TournamentService {
     return tournament;
   }
 
-  /**
-   * Lấy danh sách giải đấu (hỗ trợ lọc status & tìm kiếm)
-   */
-  async getTournaments(query: {
-    status?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  }) {
+  async getTournaments(query: { status?: string; search?: string; page?: number; limit?: number }) {
     const filter: Record<string, any> = {};
 
     if (query.status && query.status !== "all") {
@@ -198,11 +218,7 @@ export class TournamentService {
     const skip = (page - 1) * limit;
 
     const [items, total] = await Promise.all([
-      Tournament.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      Tournament.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Tournament.countDocuments(filter),
     ]);
 
@@ -215,31 +231,19 @@ export class TournamentService {
     };
   }
 
-  /**
-   * Lấy chi tiết giải đấu theo ID
-   */
   async getTournamentById(id: string): Promise<ITournament> {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error("Mã giải đấu không hợp lệ");
     }
 
-    const tournament = await Tournament.findById(id).populate(
-      "createdBy",
-      "name email avatar"
-    );
+    const tournament = await Tournament.findById(id).populate("createdBy", "name email avatar");
     if (!tournament) {
       throw new Error("Không tìm thấy giải đấu");
     }
     return tournament;
   }
 
-  /**
-   * Cập nhật thông tin giải đấu
-   */
-  async updateTournament(
-    id: string,
-    dto: UpdateTournamentDTO
-  ): Promise<ITournament> {
+  async updateTournament(id: string, dto: UpdateTournamentDTO): Promise<ITournament> {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error("Mã giải đấu không hợp lệ");
     }
@@ -254,13 +258,13 @@ export class TournamentService {
       throw new Error(validation.errors.join("; "));
     }
 
-    // Nếu đã ở trạng thái sau registration_open thì không cho đổi maxPlayers hoặc ngày thi đấu quan trọng
     if (
       tournament.status !== TournamentStatus.DRAFT &&
-      (dto.maxPlayers !== undefined && dto.maxPlayers !== tournament.maxPlayers)
+      dto.maxPlayers !== undefined &&
+      dto.maxPlayers !== tournament.maxPlayers
     ) {
       throw new Error(
-        "Không thể thay đổi quy mô giải đấu khi giải đấu đã mở đăng ký hoặc đang diễn ra"
+        "Không thể thay đổi quy mô giải đấu khi giải đấu đã mở đăng ký hoặc đang diễn ra",
       );
     }
 
@@ -271,8 +275,7 @@ export class TournamentService {
     if (dto.registrationDeadline !== undefined)
       tournament.registrationDeadline = new Date(dto.registrationDeadline);
     if (dto.maxPlayers !== undefined) tournament.maxPlayers = Number(dto.maxPlayers);
-    if (dto.registrationFee !== undefined)
-      tournament.registrationFee = Number(dto.registrationFee);
+    if (dto.registrationFee !== undefined) tournament.registrationFee = Number(dto.registrationFee);
     if (dto.prizePool !== undefined) tournament.prizePool = dto.prizePool.trim();
     if (dto.firstPrize !== undefined) tournament.firstPrize = dto.firstPrize.trim();
     if (dto.secondPrize !== undefined) tournament.secondPrize = dto.secondPrize.trim();
@@ -292,7 +295,6 @@ export class TournamentService {
       }
     }
 
-    // Kiểm tra tính hợp lệ của ngày tháng sau cập nhật
     if (tournament.endDate < tournament.startDate) {
       throw new Error("Ngày kết thúc thi đấu phải sau hoặc bằng ngày bắt đầu");
     }
@@ -304,13 +306,7 @@ export class TournamentService {
     return tournament;
   }
 
-  /**
-   * Chuyển đổi trạng thái vòng đời giải đấu
-   */
-  async changeStatus(
-    id: string,
-    nextStatus: TournamentStatus
-  ): Promise<ITournament> {
+  async changeStatus(id: string, nextStatus: TournamentStatus): Promise<ITournament> {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error("Mã giải đấu không hợp lệ");
     }
@@ -322,19 +318,16 @@ export class TournamentService {
 
     const currentStatus = tournament.status;
 
-    // Quy tắc chuyển trạng thái sang REGISTRATION_OPEN (SCRUM-152)
     if (nextStatus === TournamentStatus.REGISTRATION_OPEN) {
       if (currentStatus !== TournamentStatus.DRAFT) {
         throw new Error(
-          `Chỉ giải đấu ở trạng thái Bản nháp (draft) mới có thể mở đăng ký. Trạng thái hiện tại: ${currentStatus}`
+          `Chỉ giải đấu ở trạng thái Bản nháp (draft) mới có thể mở đăng ký. Trạng thái hiện tại: ${currentStatus}`,
         );
       }
 
       const now = new Date();
       if (tournament.registrationDeadline < now) {
-        throw new Error(
-          "Hạn đăng ký giải đấu đã hết hạn, không thể mở đăng ký"
-        );
+        throw new Error("Hạn đăng ký giải đấu đã hết hạn, không thể mở đăng ký");
       }
     }
 
@@ -349,18 +342,21 @@ export class TournamentService {
         [TournamentStatus.IN_PROGRESS]: "đang diễn ra",
         [TournamentStatus.COMPLETED]: "đã kết thúc",
       };
-      await Promise.all(tournament.players.map((player: { user: mongoose.Types.ObjectId }) => notifications.createForUser(String(player.user), {
-        title: "Cập nhật giải đấu",
-        content: `Giải ${tournament.name} đã chuyển sang trạng thái ${statusLabels[nextStatus]}.`,
-        type: NotificationType.TOURNAMENT,
-      }).catch(() => undefined)));
+      await Promise.all(
+        tournament.players.map((player: { user: mongoose.Types.ObjectId }) =>
+          notifications
+            .createForUser(String(player.user), {
+              title: "Cập nhật giải đấu",
+              content: `Giải ${tournament.name} đã chuyển sang trạng thái ${statusLabels[nextStatus]}.`,
+              type: NotificationType.TOURNAMENT,
+            })
+            .catch(() => undefined),
+        ),
+      );
     }
     return tournament;
   }
 
-  /**
-   * Xóa giải đấu (Chỉ cho phép xóa khi ở trạng thái DRAFT)
-   */
   async deleteTournament(id: string): Promise<void> {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new Error("Mã giải đấu không hợp lệ");

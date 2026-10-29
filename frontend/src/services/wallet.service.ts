@@ -38,7 +38,8 @@ export const walletService = {
 
   async requestTopup(amount: number): Promise<WalletInfo> {
     const { data } = await api.post<ApiResponse<WalletInfo>>("/wallet/topups", { amount });
-    if (!data.success || !data.data) throw new Error(data.message || "Không thể tạo yêu cầu nạp ví");
+    if (!data.success || !data.data)
+      throw new Error(data.message || "Không thể tạo yêu cầu nạp ví");
     return data.data;
   },
 
@@ -49,7 +50,9 @@ export const walletService = {
   },
 
   async reviewTopup(transactionId: string, status: "success" | "failed") {
-    const { data } = await api.patch<ApiResponse<unknown>>(`/wallet/topups/${transactionId}`, { status });
+    const { data } = await api.patch<ApiResponse<unknown>>(`/wallet/topups/${transactionId}`, {
+      status,
+    });
     if (!data.success) throw new Error(data.message || "Không thể cập nhật giao dịch");
     return data;
   },

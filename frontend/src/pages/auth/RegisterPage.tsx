@@ -11,13 +11,7 @@ import {
 } from "@ant-design/icons";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import {
-  Button,
-  Input,
-  Space,
-  Typography,
-  Alert,
-} from "../../shared/ui";
+import { Button, Input, Space, Typography, Alert } from "../../shared/ui";
 import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
 
 const { Title, Text } = Typography;
@@ -180,12 +174,7 @@ const RegisterPage: React.FC = () => {
         },
       }}
     >
-      <div
-        className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white"
-      >
-        {/* =========================================================================
-            CỘT TRÁI (52%): THƯƠNG HIỆU & ĐẶC QUYỀN HỘI VIÊN (ĐỒNG BỘ VỚI FORM LOGIN)
-            ========================================================================= */}
+      <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
         <AuthBrandingPanel
           badgeText="GIA NHẬP HỘI VIÊN CUEZONE CLUB"
           titlePrefix="Khởi Đầu Đam Mê,"
@@ -193,9 +182,6 @@ const RegisterPage: React.FC = () => {
           description="Đăng ký tài khoản ngay hôm nay để nhận voucher trải nghiệm 50.000đ, tham gia cộng đồng cơ thủ bida chuẩn quốc tế và tận hưởng quyền lợi độc quyền."
         />
 
-        {/* =========================================================================
-            CỘT PHẢI (48%): PORTAL ĐĂNG KÝ & XÁC MINH OTP
-            ========================================================================= */}
         <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-white border-l border-slate-200/80">
           {/* Header Mobile */}
           <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-200">
@@ -219,13 +205,15 @@ const RegisterPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Form Container Trung Tâm */}
           <div className="my-auto w-full max-w-md mx-auto py-4">
             {step === "form" ? (
               <>
                 {/* Header Form */}
                 <div className="mb-5">
-                  <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1">
+                  <Title
+                    level={2}
+                    className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1"
+                  >
                     Đăng Ký Tài Khoản
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
@@ -233,7 +221,6 @@ const RegisterPage: React.FC = () => {
                   </Text>
                 </div>
 
-                {/* Banner Ưu Đãi Tân Thủ */}
                 <div className="mb-5 rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3.5 flex items-start gap-2.5">
                   <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
                   <div>
@@ -241,12 +228,12 @@ const RegisterPage: React.FC = () => {
                       Ưu Đãi Hội Viên Mới
                     </Text>
                     <Text className="!text-[11px] !text-emerald-700 leading-snug">
-                      Nhận ngay voucher trải nghiệm 50.000đ trực tiếp vào tài khoản sau khi hoàn tất xác minh email.
+                      Nhận ngay voucher trải nghiệm 50.000đ trực tiếp vào tài khoản sau khi hoàn tất
+                      xác minh email.
                     </Text>
                   </div>
                 </div>
 
-                {/* Thông báo lỗi */}
                 {error && (
                   <div className="mb-4">
                     <Alert
@@ -258,7 +245,6 @@ const RegisterPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Form Đăng ký */}
                 <form onSubmit={handleSendCode} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -345,7 +331,6 @@ const RegisterPage: React.FC = () => {
                   </div>
                 </form>
 
-                {/* Footer Liên Kết Đăng Nhập */}
                 <div className="mt-6 pt-5 border-t border-slate-200 text-center text-xs text-slate-500">
                   <span>Đã có tài khoản hội viên? </span>
                   <Link
@@ -363,7 +348,10 @@ const RegisterPage: React.FC = () => {
                   <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 mb-3 shadow-xs">
                     <SafetyCertificateOutlined className="text-2xl" />
                   </div>
-                  <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1">
+                  <Title
+                    level={2}
+                    className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-1"
+                  >
                     Xác Minh Email
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
@@ -374,7 +362,6 @@ const RegisterPage: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Thông báo lỗi */}
                 {error && (
                   <div className="mb-4">
                     <Alert
@@ -386,7 +373,6 @@ const RegisterPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Form Nhập OTP */}
                 <form onSubmit={handleVerify} className="space-y-6">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-3 text-center">
@@ -448,7 +434,6 @@ const RegisterPage: React.FC = () => {
                   </div>
                 </form>
 
-                {/* Footer Liên Kết Đăng Nhập */}
                 <div className="mt-8 pt-5 border-t border-slate-200 text-center text-xs text-slate-500">
                   <span>Đã có tài khoản? </span>
                   <Link
@@ -462,7 +447,6 @@ const RegisterPage: React.FC = () => {
             )}
           </div>
 
-          {/* Footer Phải */}
           <div className="text-center text-[11px] text-slate-400 py-3 border-t border-slate-100">
             <span>CueZone Billiards Management & Bank Pool Tournament System • Phiên bản 2.0</span>
           </div>

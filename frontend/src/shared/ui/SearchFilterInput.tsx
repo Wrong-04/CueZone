@@ -1,15 +1,10 @@
-import { SearchOutlined } from '@ant-design/icons';
-import clsx from 'clsx';
-import type { ChangeEvent, FC } from 'react';
+import { SearchOutlined } from "@ant-design/icons";
+import clsx from "clsx";
+import type { ChangeEvent, FC } from "react";
 
-import { Input } from './Input';
-import { Tooltip } from './Tooltip';
+import { Input } from "./Input";
+import { Tooltip } from "./Tooltip";
 
-/**
- * Props của component SearchFilterInput.
- * - onOpenFilter: Callback khi người dùng click vào icon bộ lọc nâng cao ở góc phải ô tìm kiếm.
- * - hasActiveFilter: Bật chấm xanh báo hiệu đang có bộ lọc nâng cao được áp dụng.
- */
 export interface SearchFilterInputProps {
   value?: string;
   onChange?: (val: string) => void;
@@ -29,7 +24,7 @@ const FilterSlidersIcon: FC<{ className?: string }> = ({ className }) => (
     width="15"
     height="15"
     fill="currentColor"
-    className={className ?? 'text-brand'}
+    className={className ?? "text-brand"}
   >
     <path d="M3 5h10v2H3V5zm14 0h4v2h-4V5zm-2-2h2v6h-2V3zM3 11h4v2H3v-2zm8 0h10v2H11v-2zm-2-2h2v6H9V9zm-6 8h10v2H3v-2zm14 0h4v2h-4v-2zm-2-2h2v6h-2v-6z" />
   </svg>
@@ -37,18 +32,13 @@ const FilterSlidersIcon: FC<{ className?: string }> = ({ className }) => (
 
 const SEARCH_PREFIX_ICON = <SearchOutlined className="mr-1 text-[13.5px] text-text-muted" />;
 
-/**
- * Ô tìm kiếm kết hợp nút mở bộ lọc nâng cao (SearchFilterInput):
- * Tích hợp kính lúp tìm kiếm ở đầu và icon thanh trượt lọc ở cuối.
- * Khi có bộ lọc đang hoạt động (`hasActiveFilter = true`), icon lọc sẽ hiển thị chấm màu báo hiệu.
- */
 export const SearchFilterInput: FC<SearchFilterInputProps> = ({
-  value = '',
+  value = "",
   onChange,
   onSearch,
   onPressEnter,
   onOpenFilter,
-  placeholder = 'Tìm kiếm',
+  placeholder = "Tìm kiếm",
   allowClear = true,
   hasActiveFilter = false,
   className,
@@ -68,8 +58,8 @@ export const SearchFilterInput: FC<SearchFilterInputProps> = ({
 
   return (
     <div
-      style={{ width: typeof width === 'number' ? `${width}px` : width }}
-      className={clsx('relative inline-flex items-center', className)}
+      style={{ width: typeof width === "number" ? `${width}px` : width }}
+      className={clsx("relative inline-flex items-center", className)}
     >
       <Input
         value={value}

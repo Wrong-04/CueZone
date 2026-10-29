@@ -1,15 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ConfigProvider, theme } from "antd";
-import {
-  Lock,
-  Mail,
-  ArrowRight,
-  Sparkles,
-  ShieldCheck,
-  User,
-  Eye,
-} from "lucide-react";
+import { Lock, Mail, ArrowRight, Sparkles, ShieldCheck, User, Eye } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authService } from "../../services/auth.service";
 import { UserRole } from "../../types";
@@ -89,7 +81,6 @@ const LoginPage: React.FC = () => {
 
   const handleTabChange = useCallback((key: string) => {
     setActiveTab(key);
-
   }, []);
 
   const handleFormSubmit = useCallback(async () => {
@@ -131,14 +122,8 @@ const LoginPage: React.FC = () => {
       }}
     >
       <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
-        {/* =========================================================================
-            CỘT TRÁI (52%): SHOWCASE ĐẶC QUYỀN HỘI VIÊN & THẺ THÀNH VIÊN VIP LOUNGE
-            ========================================================================= */}
         <AuthBrandingPanel />
 
-        {/* =========================================================================
-            CỘT PHẢI (48%): PORTAL ĐĂNG NHẬP CHUẨN SHARED/UI (TABS KHÁCH HÀNG & NHÂN VIÊN)
-            ========================================================================= */}
         <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-white border-l border-slate-200/80">
           {/* Header Mobile */}
           <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-200">
@@ -162,12 +147,14 @@ const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Form Container Trung Tâm */}
           <div className="my-auto w-full max-w-md mx-auto py-4">
             {/* Header Form */}
             <div className="mb-5">
               <Space align="center" size={8} className="mb-1.5">
-                <Title level={2} className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-0">
+                <Title
+                  level={2}
+                  className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-0"
+                >
                   Chào Mừng Đến CueZone
                 </Title>
               </Space>
@@ -176,7 +163,6 @@ const LoginPage: React.FC = () => {
               </Text>
             </div>
 
-            {/* TAB CHUYỂN ĐỔI: [HỘI VIÊN / KHÁCH HÀNG] VS [NHÂN VIÊN & QUẢN TRỊ] */}
             <div className="mb-4">
               <Tabs
                 activeKey={activeTab}
@@ -186,7 +172,6 @@ const LoginPage: React.FC = () => {
               />
             </div>
 
-            {/* Thông báo bối cảnh của Tab được chọn */}
             {activeTab === "customer" ? (
               <div className="mb-4 rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3.5 flex items-start gap-2.5">
                 <Sparkles className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -213,7 +198,6 @@ const LoginPage: React.FC = () => {
               </div>
             )}
 
-            {/* FORM ĐĂNG NHẬP CHÍNH */}
             <Form
               layout="vertical"
               onFinish={handleFormSubmit}
@@ -223,7 +207,9 @@ const LoginPage: React.FC = () => {
               <Form.Item
                 label={
                   <Text className="!text-xs !font-semibold !text-slate-700">
-                    {activeTab === "customer" ? "Email hoặc Số điện thoại" : "Email tài khoản nội bộ"}
+                    {activeTab === "customer"
+                      ? "Email hoặc Số điện thoại"
+                      : "Email tài khoản nội bộ"}
                   </Text>
                 }
                 className="!mb-3"
@@ -282,11 +268,10 @@ const LoginPage: React.FC = () => {
               </Form.Item>
 
               <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
-                <Checkbox
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                >
-                  <Text className="!text-xs !text-slate-600">Ghi nhớ đăng nhập trên thiết bị này</Text>
+                <Checkbox checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)}>
+                  <Text className="!text-xs !text-slate-600">
+                    Ghi nhớ đăng nhập trên thiết bị này
+                  </Text>
                 </Checkbox>
               </div>
 
@@ -301,12 +286,11 @@ const LoginPage: React.FC = () => {
                 {loading
                   ? "Đang xác thực thông tin..."
                   : activeTab === "customer"
-                  ? "Đăng Nhập Hội Viên"
-                  : "Đăng Nhập Quản Trị"}
+                    ? "Đăng Nhập Hội Viên"
+                    : "Đăng Nhập Quản Trị"}
               </Button>
             </Form>
 
-            {/* Gợi ý tài khoản demo để đăng nhập nhanh */}
             <div className="mt-4 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600">
               <div className="font-semibold text-slate-800 mb-1 flex items-center justify-between">
                 <span>Tài khoản trải nghiệm hệ thống:</span>
@@ -314,7 +298,9 @@ const LoginPage: React.FC = () => {
               </div>
               {activeTab === "customer" ? (
                 <div className="flex items-center justify-between py-0.5">
-                  <span className="text-slate-500">Hội viên: <strong className="text-slate-700">customer1@gmail.com</strong></span>
+                  <span className="text-slate-500">
+                    Hội viên: <strong className="text-slate-700">customer1@gmail.com</strong>
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -329,7 +315,9 @@ const LoginPage: React.FC = () => {
               ) : (
                 <div className="space-y-1">
                   <div className="flex items-center justify-between py-0.5">
-                    <span className="text-slate-500">Admin: <strong className="text-slate-700">admin@cuezone.com</strong></span>
+                    <span className="text-slate-500">
+                      Admin: <strong className="text-slate-700">admin@cuezone.com</strong>
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
@@ -342,7 +330,9 @@ const LoginPage: React.FC = () => {
                     </button>
                   </div>
                   <div className="flex items-center justify-between py-0.5">
-                    <span className="text-slate-500">Thu ngân: <strong className="text-slate-700">staff1@cuezone.com</strong></span>
+                    <span className="text-slate-500">
+                      Thu ngân: <strong className="text-slate-700">staff1@cuezone.com</strong>
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
@@ -358,7 +348,6 @@ const LoginPage: React.FC = () => {
               )}
             </div>
 
-            {/* DÀNH CHO KHÁCH VÃNG LAI: KHÔNG CẦN TÀI KHOẢN VẪN TRA CỨU ĐƯỢC BÀN */}
             {activeTab === "customer" && (
               <div className="mt-4 pt-3 border-t border-slate-200">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 flex items-center justify-between shadow-2xs">
@@ -383,7 +372,6 @@ const LoginPage: React.FC = () => {
                   </Button>
                 </div>
 
-                {/* Link Đăng Ký Hội Viên Mới */}
                 <div className="mt-3.5 text-center text-xs text-slate-500">
                   <Text className="!text-xs !text-slate-500">Chưa có thẻ hội viên?</Text>{" "}
                   <Button
@@ -396,10 +384,8 @@ const LoginPage: React.FC = () => {
                 </div>
               </div>
             )}
-
           </div>
 
-          {/* Modal Quên mật khẩu qua OTP (Send OTP Reset Email -> Verify OTP) */}
           <Modal
             open={showForgotModal}
             onCancel={() => {
@@ -409,7 +395,9 @@ const LoginPage: React.FC = () => {
             footer={null}
             title={
               <span className="text-slate-900 font-bold text-sm">
-                {forgotStep === "email" ? "Khôi Phục Mật Khẩu Qua Email" : "Xác Thực OTP & Đặt Mật Khẩu Mới"}
+                {forgotStep === "email"
+                  ? "Khôi Phục Mật Khẩu Qua Email"
+                  : "Xác Thực OTP & Đặt Mật Khẩu Mới"}
               </span>
             }
           >
@@ -417,7 +405,8 @@ const LoginPage: React.FC = () => {
               {forgotStep === "email" ? (
                 <>
                   <p className="text-slate-600 text-xs leading-relaxed mb-0">
-                    Nhập địa chỉ email tài khoản CueZone của bạn. Hệ thống sẽ gửi mã xác thực OTP 4 chữ số để tiến hành đặt lại mật khẩu.
+                    Nhập địa chỉ email tài khoản CueZone của bạn. Hệ thống sẽ gửi mã xác thực OTP 4
+                    chữ số để tiến hành đặt lại mật khẩu.
                   </p>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -454,9 +443,13 @@ const LoginPage: React.FC = () => {
                         try {
                           const resMsg = await authService.forgotPassword(trimmedEmail);
                           setForgotStep("otp");
-                          message.success(resMsg || `Đã gửi mã xác thực OTP 6 chữ số về email: ${trimmedEmail}`);
+                          message.success(
+                            resMsg || `Đã gửi mã xác thực OTP 6 chữ số về email: ${trimmedEmail}`,
+                          );
                         } catch (err: any) {
-                          message.error(err.message || "Không thể gửi mã xác thực. Vui lòng thử lại!");
+                          message.error(
+                            err.message || "Không thể gửi mã xác thực. Vui lòng thử lại!",
+                          );
                         } finally {
                           setIsSendingOtp(false);
                         }
@@ -470,7 +463,8 @@ const LoginPage: React.FC = () => {
               ) : (
                 <>
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
-                    Mã OTP 6 số đã được gửi đến: <strong>{forgotEmail}</strong>. Vui lòng kiểm tra hộp thư email (kể cả thư rác/spam).
+                    Mã OTP 6 số đã được gửi đến: <strong>{forgotEmail}</strong>. Vui lòng kiểm tra
+                    hộp thư email (kể cả thư rác/spam).
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -526,7 +520,10 @@ const LoginPage: React.FC = () => {
                             message.warning("Mật khẩu mới phải có ít nhất 8 ký tự!");
                             return;
                           }
-                          if (!/[a-zA-Z]/.test(forgotNewPassword) || !/[0-9]/.test(forgotNewPassword)) {
+                          if (
+                            !/[a-zA-Z]/.test(forgotNewPassword) ||
+                            !/[0-9]/.test(forgotNewPassword)
+                          ) {
                             message.warning("Mật khẩu mới phải chứa cả chữ cái và chữ số!");
                             return;
                           }
@@ -535,15 +532,19 @@ const LoginPage: React.FC = () => {
                             const resMsg = await authService.resetPassword(
                               forgotEmail.trim(),
                               forgotOtp.trim(),
-                              forgotNewPassword
+                              forgotNewPassword,
                             );
-                            message.success(resMsg || "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.");
+                            message.success(
+                              resMsg || "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.",
+                            );
                             setShowForgotModal(false);
                             setForgotStep("email");
                             setForgotOtp("");
                             setForgotNewPassword("");
                           } catch (err: any) {
-                            message.error(err.message || "Đặt lại mật khẩu thất bại, vui lòng thử lại!");
+                            message.error(
+                              err.message || "Đặt lại mật khẩu thất bại, vui lòng thử lại!",
+                            );
                           } finally {
                             setIsResetting(false);
                           }
@@ -559,7 +560,6 @@ const LoginPage: React.FC = () => {
             </div>
           </Modal>
 
-          {/* Footer Bản Quyền */}
           <div className="pt-3 text-center text-[11px] text-slate-500">
             <Text className="!text-[11px] !text-slate-500">
               CueZone Billiards Management & Bank Pool Tournament System • Phiên bản 2.0
@@ -572,5 +572,3 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
-
-

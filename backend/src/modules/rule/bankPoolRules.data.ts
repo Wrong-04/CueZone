@@ -1,8 +1,3 @@
-/**
- * Dữ liệu chuẩn hóa quy định & thể thức thi đấu Bank Pool (WPA / BCA)
- * Phục vụ API công khai và giao diện tra cứu trực quan tại CueZone.
- */
-
 export interface BankPoolRuleScenario {
   id: string;
   name: string;
@@ -104,7 +99,7 @@ export const BANK_POOL_RULES_DATA: BankPoolRulesData = {
       cueBall: { x: 260, y: 260, label: "Bi cái" },
       objectBall: { x: 420, y: 210, label: "Bi #3" },
       aimPoint: { x: 420, y: 210, label: "Điểm tiếp xúc" },
-      cushionPoints: [{ x: 420, y: 40 }], // Chạm băng trên
+      cushionPoints: [{ x: 420, y: 40 }],
       targetPocket: { x: 400, y: 410, name: "Lỗ giữa dưới" },
     },
     {
@@ -120,8 +115,8 @@ export const BANK_POOL_RULES_DATA: BankPoolRulesData = {
       objectBall: { x: 460, y: 260, label: "Bi #7" },
       aimPoint: { x: 460, y: 260, label: "Điểm tiếp xúc" },
       cushionPoints: [
-        { x: 580, y: 40 }, // Băng 1: băng trên
-        { x: 760, y: 225 }, // Băng 2: băng phải
+        { x: 580, y: 40 },
+        { x: 760, y: 225 },
       ],
       targetPocket: { x: 740, y: 410, name: "Lỗ góc dưới phải" },
     },
@@ -137,7 +132,7 @@ export const BANK_POOL_RULES_DATA: BankPoolRulesData = {
       cueBall: { x: 300, y: 160, label: "Bi cái" },
       objectBall: { x: 500, y: 160, label: "Bi #5" },
       aimPoint: { x: 500, y: 160, label: "Điểm tiếp xúc" },
-      cushionPoints: [{ x: 760, y: 160 }], // Chạm băng ngắn phải
+      cushionPoints: [{ x: 760, y: 160 }],
       targetPocket: { x: 60, y: 160, name: "Lỗ góc trái" },
     },
     {
@@ -153,7 +148,7 @@ export const BANK_POOL_RULES_DATA: BankPoolRulesData = {
       cueBall: { x: 320, y: 280, label: "Bi cái" },
       objectBall: { x: 560, y: 360, label: "Bi #9" },
       aimPoint: { x: 560, y: 360, label: "Điểm tiếp xúc" },
-      cushionPoints: [], // Không chạm băng
+      cushionPoints: [],
       targetPocket: { x: 740, y: 410, name: "Lỗ góc dưới phải" },
     },
   ],
@@ -208,7 +203,8 @@ export const BANK_POOL_RULES_DATA: BankPoolRulesData = {
         "CÓ. Trong luật Bank Pool quốc tế, bạn chỉ cần chỉ định số bi và lỗ dự định đưa vào. Bi mục tiêu chạm từ 1 băng trở lên (1 băng, 2 băng, 3 băng dội) và rơi đúng lỗ đã gọi đều được tính là cú đánh hợp lệ và ghi 01 điểm.",
     },
     {
-      question: "Nếu bi mục tiêu va chạm vào bi khác (Kiss/Carom) trước khi dội băng thì có hợp lệ không?",
+      question:
+        "Nếu bi mục tiêu va chạm vào bi khác (Kiss/Carom) trước khi dội băng thì có hợp lệ không?",
       answer:
         "KHÔNG. Cú đánh Bank Pool chuẩn yêu cầu bi cái truyền lực trực tiếp vào bi mục tiêu, và bi mục tiêu dội vào băng sạch sẽ trước khi vào lỗ. Mọi va chạm không chủ ý làm đổi hướng trước khi chạm băng đều không được công nhận.",
     },

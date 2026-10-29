@@ -40,9 +40,9 @@ export interface WarehouseItem {
   stockQty: number;
   minThreshold: number;
   unit: string;
-  costPrice: number; // Giá vốn nhập kho
-  sellingPrice?: number; // Giá bán (nếu có)
-  location: string; // Vị trí kệ kho
+  costPrice: number;
+  sellingPrice?: number;
+  location: string;
   supplier: string;
 }
 
@@ -53,7 +53,7 @@ export interface InventorySlip {
   date: string;
   createdTime: string;
   creator: string;
-  partnerOrTarget: string; // Nhà cung cấp hoặc Bàn/Quầy tiếp nhận
+  partnerOrTarget: string;
   itemsCount: number;
   totalValue: number;
   status: "completed" | "pending";
@@ -143,7 +143,6 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     supplier: "Kamui Japan Official",
   },
 
-  // Table Supplies (Vải nỉ, bóng thi đấu, băng cao su)
   {
     id: "wh-06",
     sku: "TB-FELT-01",
@@ -187,7 +186,6 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     supplier: "K-Steel Korea Corp",
   },
 
-  // F&B Beverages (Thùng lưu kho)
   {
     id: "wh-09",
     sku: "FB-BEER-01",
@@ -208,7 +206,7 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     name: "Bia Corona Extra Chai 355ml (Thùng 24 chai)",
     category: "beverage",
     categoryName: "Đồ Uống Lưu Kho",
-    stockQty: 6, // Sắp hết
+    stockQty: 6,
     minThreshold: 10,
     unit: "Thùng",
     costPrice: 680000,
@@ -231,7 +229,6 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     supplier: "Coca-Cola Beverages Vietnam",
   },
 
-  // Ingredients (Nguyên liệu pha chế)
   {
     id: "wh-12",
     sku: "FB-INGR-01",
@@ -442,7 +439,7 @@ export const WarehouseInventoryPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // ── 2. MODALS ─────────────────────────────────────────────────────────────
-  // Modal: Nhập kho mới
+
   const [inwardModalVisible, setInwardModalVisible] = useState<boolean>(false);
   const [inwardForm, setInwardForm] = useState({
     sku: "TB-FELT-01",
@@ -452,7 +449,6 @@ export const WarehouseInventoryPage: React.FC = () => {
     note: "Nhập bổ sung định kỳ cho kho bàn bida",
   });
 
-  // Modal: Xuất kho
   const [outwardModalVisible, setOutwardModalVisible] = useState<boolean>(false);
   const [outwardForm, setOutwardForm] = useState({
     sku: "FB-BEER-01",
@@ -461,7 +457,6 @@ export const WarehouseInventoryPage: React.FC = () => {
     note: "Cấp phát hàng phục vụ khách cuối tuần",
   });
 
-  // Modal: Chi tiết phiếu
   const [selectedSlip, setSelectedSlip] = useState<InventorySlip | null>(null);
 
   // ── 3. ACTIONS ────────────────────────────────────────────────────────────
@@ -505,17 +500,15 @@ export const WarehouseInventoryPage: React.FC = () => {
     // Update stock quantity
     setStockList((prev) =>
       prev.map((i) =>
-        i.sku === targetItem.sku
-          ? { ...i, stockQty: i.stockQty + inwardForm.qty }
-          : i
-      )
+        i.sku === targetItem.sku ? { ...i, stockQty: i.stockQty + inwardForm.qty } : i,
+      ),
     );
 
     // Add slip
     setSlipsList((prev) => [newSlip, ...prev]);
 
     message.success(
-      `Đã lập phiếu nhập kho thành công! Cộng thêm +${inwardForm.qty} ${targetItem.unit} vào mặt hàng "${targetItem.name}".`
+      `Đã lập phiếu nhập kho thành công! Cộng thêm +${inwardForm.qty} ${targetItem.unit} vào mặt hàng "${targetItem.name}".`,
     );
     setInwardModalVisible(false);
   };
@@ -531,7 +524,7 @@ export const WarehouseInventoryPage: React.FC = () => {
 
     if (targetItem.stockQty < outwardForm.qty) {
       message.error(
-        `Không đủ tồn kho để xuất! Tồn hiện tại chỉ còn ${targetItem.stockQty} ${targetItem.unit}.`
+        `Không đủ tồn kho để xuất! Tồn hiện tại chỉ còn ${targetItem.stockQty} ${targetItem.unit}.`,
       );
       return;
     }
@@ -567,17 +560,15 @@ export const WarehouseInventoryPage: React.FC = () => {
     // Update stock quantity
     setStockList((prev) =>
       prev.map((i) =>
-        i.sku === targetItem.sku
-          ? { ...i, stockQty: i.stockQty - outwardForm.qty }
-          : i
-      )
+        i.sku === targetItem.sku ? { ...i, stockQty: i.stockQty - outwardForm.qty } : i,
+      ),
     );
 
     // Add slip
     setSlipsList((prev) => [newSlip, ...prev]);
 
     message.success(
-      `Đã lập phiếu xuất kho thành công! Trừ -${outwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`
+      `Đã lập phiếu xuất kho thành công! Trừ -${outwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
     );
     setOutwardModalVisible(false);
   };
@@ -616,12 +607,9 @@ export const WarehouseInventoryPage: React.FC = () => {
 
   const metrics = useMemo(() => {
     const totalItems = stockList.length;
-    const totalValue = stockList.reduce(
-      (acc, cur) => acc + cur.costPrice * cur.stockQty,
-      0
-    );
+    const totalValue = stockList.reduce((acc, cur) => acc + cur.costPrice * cur.stockQty, 0);
     const lowStockCount = stockList.filter(
-      (i) => i.stockQty > 0 && i.stockQty <= i.minThreshold
+      (i) => i.stockQty > 0 && i.stockQty <= i.minThreshold,
     ).length;
     const outStockCount = stockList.filter((i) => i.stockQty === 0).length;
     const totalSlips = slipsList.length;
@@ -754,20 +742,29 @@ export const WarehouseInventoryPage: React.FC = () => {
       render: (_: unknown, record: WarehouseItem) => {
         if (record.stockQty === 0) {
           return (
-            <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1">
+            <Tag
+              color="error"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+            >
               <CloseCircleOutlined /> HẾT HÀNG
             </Tag>
           );
         }
         if (record.stockQty <= record.minThreshold) {
           return (
-            <Tag color="warning" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1">
+            <Tag
+              color="warning"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+            >
               <WarningOutlined /> SẮP HẾT
             </Tag>
           );
         }
         return (
-          <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1">
+          <Tag
+            color="green"
+            className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+          >
             <CheckCircleOutlined /> DỒI DÀO
           </Tag>
         );
@@ -875,7 +872,10 @@ export const WarehouseInventoryPage: React.FC = () => {
       width: 130,
       align: "center",
       render: (status: string) => (
-        <Tag color={status === "completed" ? "green" : "gold"} className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold">
+        <Tag
+          color={status === "completed" ? "green" : "gold"}
+          className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold"
+        >
           {status === "completed" ? "ĐÃ HOÀN TẤT" : "CHỜ DUYỆT"}
         </Tag>
       ),
@@ -911,7 +911,10 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
                 <InboxOutlined className="text-xl" />
               </div>
-              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Quản Lý Tổng Kho & Vật Tư Thiết Bị Bida
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
@@ -919,7 +922,8 @@ export const WarehouseInventoryPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Kiểm soát vật tư bida chuyên dụng (cơ Predator, nỉ Simonis, bóng Aramith), đồ uống F&B lưu kho, lịch sử phiếu nhập xuất và biên bản kiểm kê cân bằng kho.
+              Kiểm soát vật tư bida chuyên dụng (cơ Predator, nỉ Simonis, bóng Aramith), đồ uống F&B
+              lưu kho, lịch sử phiếu nhập xuất và biên bản kiểm kê cân bằng kho.
             </Text>
           </div>
 
@@ -1034,7 +1038,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         />
       </div>
 
-      {/* ── TAB 1: TỒN KHO VẬT TƯ & THIẾT BỊ ───────────────────────────────── */}
       {activeTab === "stock" && (
         <div className="space-y-4">
           {/* Sub Filters */}
@@ -1096,7 +1099,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 2: LỊCH SỬ PHIẾU NHẬP KHO ──────────────────────────────────── */}
       {activeTab === "inward" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1128,7 +1130,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 3: PHIẾU XUẤT KHO & CẤP PHÁT ───────────────────────────────── */}
       {activeTab === "outward" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1160,7 +1161,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 4: KIỂM KÊ & CÂN BẰNG KHO ──────────────────────────────────── */}
       {activeTab === "audit" && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
@@ -1178,7 +1178,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               leftIcon={<FileDoneOutlined />}
               onClick={() =>
                 message.success(
-                  "Đã hoàn thành kiểm kê và cân bằng tồn kho! Dữ liệu đã được chốt sổ tháng."
+                  "Đã hoàn thành kiểm kê và cân bằng tồn kho! Dữ liệu đã được chốt sổ tháng.",
                 )
               }
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-xs"
@@ -1236,7 +1236,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── MODAL: TẠO PHIẾU NHẬP KHO ──────────────────────────────────────── */}
       <Modal
         open={inwardModalVisible}
         onCancel={() => setInwardModalVisible(false)}
@@ -1277,9 +1276,7 @@ export const WarehouseInventoryPage: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Số lượng nhập:
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Số lượng nhập:</label>
               <Input
                 type="number"
                 value={inwardForm.qty}
@@ -1317,22 +1314,16 @@ export const WarehouseInventoryPage: React.FC = () => {
             </label>
             <Input
               value={inwardForm.supplier}
-              onChange={(e) =>
-                setInwardForm((prev) => ({ ...prev, supplier: e.target.value }))
-              }
+              onChange={(e) => setInwardForm((prev) => ({ ...prev, supplier: e.target.value }))}
               className="!h-10 !rounded-xl text-xs"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Ghi chú nhập kho:
-            </label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú nhập kho:</label>
             <Input
               value={inwardForm.note}
-              onChange={(e) =>
-                setInwardForm((prev) => ({ ...prev, note: e.target.value }))
-              }
+              onChange={(e) => setInwardForm((prev) => ({ ...prev, note: e.target.value }))}
               className="!h-10 !rounded-xl text-xs"
             />
           </div>
@@ -1365,7 +1356,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL: TẠO PHIẾU XUẤT KHO ──────────────────────────────────────── */}
       <Modal
         open={outwardModalVisible}
         onCancel={() => setOutwardModalVisible(false)}
@@ -1397,9 +1387,7 @@ export const WarehouseInventoryPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Số lượng xuất:
-            </label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Số lượng xuất:</label>
             <Input
               type="number"
               value={outwardForm.qty}
@@ -1432,14 +1420,10 @@ export const WarehouseInventoryPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Ghi chú xuất kho:
-            </label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú xuất kho:</label>
             <Input
               value={outwardForm.note}
-              onChange={(e) =>
-                setOutwardForm((prev) => ({ ...prev, note: e.target.value }))
-              }
+              onChange={(e) => setOutwardForm((prev) => ({ ...prev, note: e.target.value }))}
               className="!h-10 !rounded-xl text-xs"
             />
           </div>
@@ -1465,7 +1449,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL: CHI TIẾT PHIẾU ─────────────────────────────────────────── */}
       <Modal
         open={Boolean(selectedSlip)}
         onCancel={() => setSelectedSlip(null)}
@@ -1485,12 +1468,17 @@ export const WarehouseInventoryPage: React.FC = () => {
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-2 text-slate-700">
               <div>
                 Loại phiếu:{" "}
-                <strong className={selectedSlip.type === "inward" ? "text-emerald-700" : "text-blue-700"}>
+                <strong
+                  className={selectedSlip.type === "inward" ? "text-emerald-700" : "text-blue-700"}
+                >
                   {selectedSlip.type === "inward" ? "PHIẾU NHẬP KHO" : "PHIẾU XUẤT KHO"}
                 </strong>
               </div>
               <div>
-                Ngày giờ: <strong>{selectedSlip.date} • {selectedSlip.createdTime}</strong>
+                Ngày giờ:{" "}
+                <strong>
+                  {selectedSlip.date} • {selectedSlip.createdTime}
+                </strong>
               </div>
               <div>
                 Người lập: <strong>{selectedSlip.creator}</strong>
@@ -1521,9 +1509,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <tbody className="divide-y divide-slate-100">
                     {selectedSlip.details.map((d) => (
                       <tr key={d.sku}>
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-600">
-                          {d.sku}
-                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-600">{d.sku}</td>
                         <td className="py-2.5 px-3 font-bold text-slate-900">{d.name}</td>
                         <td className="py-2.5 px-3 text-center font-bold">
                           {d.qty} {d.unit}

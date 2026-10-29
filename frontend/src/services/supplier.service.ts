@@ -1,4 +1,3 @@
-
 import api from "./api";
 import axios from "axios";
 
@@ -41,7 +40,7 @@ async function request<T>(
   options: {
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     body?: string;
-  } = {}
+  } = {},
 ): Promise<ApiEnvelope<T>> {
   try {
     const response = await api.request<ApiEnvelope<T>>({
@@ -67,15 +66,10 @@ async function request<T>(
     }
 
     if (axios.isAxiosError(error)) {
-      const responseData = error.response?.data as
-        | { message?: string }
-        | null
-        | undefined;
+      const responseData = error.response?.data as { message?: string } | null | undefined;
 
       throw new Error(
-        responseData?.message ||
-          error.message ||
-          "Không thể kết nối máy chủ nhà cung cấp."
+        responseData?.message || error.message || "Không thể kết nối máy chủ nhà cung cấp.",
       );
     }
 
@@ -89,7 +83,7 @@ export async function fetchSuppliers(
     status?: string;
     page?: number;
     limit?: number;
-  } = {}
+  } = {},
 ) {
   const query = new URLSearchParams();
 
@@ -101,24 +95,17 @@ export async function fetchSuppliers(
   query.set("page", String(params.page || 1));
   query.set("limit", String(params.limit || 20));
 
-  return request<Supplier[]>(
-    `/suppliers?${query.toString()}`
-  );
+  return request<Supplier[]>(`/suppliers?${query.toString()}`);
 }
 
-export async function createSupplier(
-  payload: SupplierPayload
-) {
+export async function createSupplier(payload: SupplierPayload) {
   return request<Supplier>("/suppliers", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function updateSupplier(
-  id: string,
-  payload: SupplierPayload
-) {
+export async function updateSupplier(id: string, payload: SupplierPayload) {
   return request<Supplier>(`/suppliers/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),

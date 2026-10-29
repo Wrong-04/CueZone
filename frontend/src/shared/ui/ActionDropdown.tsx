@@ -1,11 +1,8 @@
-import { CloseOutlined, DownOutlined } from '@ant-design/icons';
-import { Dropdown, type DropdownProps, type MenuProps } from 'antd';
-import clsx from 'clsx';
-import type { FC, ReactNode } from 'react';
+import { CloseOutlined, DownOutlined } from "@ant-design/icons";
+import { Dropdown, type DropdownProps, type MenuProps } from "antd";
+import clsx from "clsx";
+import type { FC, ReactNode } from "react";
 
-/**
- * Cấu hình cho từng mục trong menu hành động (nhãn, icon, sự kiện click,...).
- */
 export interface ActionItem {
   key: string;
   label: string;
@@ -15,40 +12,27 @@ export interface ActionItem {
   onClick?: () => void;
 }
 
-/**
- * Props của component ActionDropdown.
- * - actions: Danh sách các hành động cần hiển thị trong menu.
- * - onClose: Callback tùy chọn (nếu có, tự động thêm mục "Đóng" màu đỏ ở cuối danh sách).
- * - trigger: Kiểu thao tác mở menu ('click', 'hover',...).
- * - placement: Vị trí thả menu so với nút bấm.
- * - disabled: Vô hiệu hóa toàn bộ dropdown.
- */
 export interface ActionDropdownProps {
   actions: ActionItem[];
   onClose?: () => void;
-  trigger?: DropdownProps['trigger'];
-  placement?: DropdownProps['placement'];
+  trigger?: DropdownProps["trigger"];
+  placement?: DropdownProps["placement"];
   disabled?: boolean;
 }
 
-/**
- * Nút bấm dropdown "Hành động":
- * Hiển thị menu danh sách các thao tác có thể thực hiện trên dòng dữ liệu hoặc trang chi tiết.
- * Tự động gắn thêm nút "Đóng" nếu được truyền prop `onClose`.
- */
 export const ActionDropdown: FC<ActionDropdownProps> = ({
   actions,
   onClose,
-  trigger = ['click'],
-  placement = 'bottomLeft',
+  trigger = ["click"],
+  placement = "bottomLeft",
   disabled = false,
 }) => {
   const allActions: ActionItem[] = onClose
     ? [
         ...actions,
         {
-          key: 'close',
-          label: 'Đóng',
+          key: "close",
+          label: "Đóng",
           icon: <CloseOutlined />,
           danger: true,
           onClick: onClose,
@@ -56,7 +40,7 @@ export const ActionDropdown: FC<ActionDropdownProps> = ({
       ]
     : actions;
 
-  const items: MenuProps['items'] = allActions.map((action) => ({
+  const items: MenuProps["items"] = allActions.map((action) => ({
     key: action.key,
     label: action.label,
     icon: action.icon,
@@ -64,7 +48,7 @@ export const ActionDropdown: FC<ActionDropdownProps> = ({
     disabled: action.disabled,
   }));
 
-  const handleClick: MenuProps['onClick'] = ({ key }) => {
+  const handleClick: MenuProps["onClick"] = ({ key }) => {
     allActions.find((action) => action.key === key)?.onClick?.();
   };
 
@@ -79,8 +63,8 @@ export const ActionDropdown: FC<ActionDropdownProps> = ({
         type="button"
         disabled={disabled}
         className={clsx(
-          'inline-flex h-[40px] items-center gap-2 rounded-md border border-border-divider bg-white px-4 text-[13.5px] font-medium text-text-main transition-colors',
-          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-bg-app',
+          "inline-flex h-[40px] items-center gap-2 rounded-md border border-border-divider bg-white px-4 text-[13.5px] font-medium text-text-main transition-colors",
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-bg-app",
         )}
       >
         Hành động

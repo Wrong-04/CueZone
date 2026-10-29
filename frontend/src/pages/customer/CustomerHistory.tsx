@@ -7,17 +7,7 @@ import {
   DollarOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
-import {
-  Button,
-  Card,
-  Tag,
-  Typography,
-  Tabs,
-  Modal,
-  Input,
-  message,
-  Space,
-} from "../../shared/ui";
+import { Button, Card, Tag, Typography, Tabs, Modal, Input, message, Space } from "../../shared/ui";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -161,18 +151,15 @@ export const CustomerHistory: React.FC = () => {
   const [bookings, setBookings] = useState<BookingItem[]>(INITIAL_BOOKINGS);
   const [sessions, setSessions] = useState<SessionItem[]>(INITIAL_SESSIONS);
 
-  // State cho việc Hủy đặt bàn (Cancel Booking)
   const [cancellingBooking, setCancellingBooking] = useState<BookingItem | null>(null);
   const [cancelReason, setCancelReason] = useState<string>("");
   const [isSubmittingCancel, setIsSubmittingCancel] = useState<boolean>(false);
 
-  // State cho việc Đánh giá phiên chơi (Submit Service Review)
   const [reviewingSession, setReviewingSession] = useState<SessionItem | null>(null);
   const [reviewRating, setReviewRating] = useState<number>(5);
   const [reviewComment, setReviewComment] = useState<string>("");
   const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
 
-  // Chi tiết booking
   const [viewingBooking, setViewingBooking] = useState<BookingItem | null>(null);
 
   const handleConfirmCancel = () => {
@@ -186,10 +173,8 @@ export const CustomerHistory: React.FC = () => {
     setTimeout(() => {
       setBookings((prev) =>
         prev.map((b) =>
-          b.id === cancellingBooking.id
-            ? { ...b, status: "cancelled", statusLabel: "Đã Hủy" }
-            : b
-        )
+          b.id === cancellingBooking.id ? { ...b, status: "cancelled", statusLabel: "Đã Hủy" } : b,
+        ),
       );
       setIsSubmittingCancel(false);
       setCancellingBooking(null);
@@ -211,8 +196,8 @@ export const CustomerHistory: React.FC = () => {
                 rating: reviewRating,
                 reviewComment: reviewComment || "Rất hài lòng với dịch vụ CLB!",
               }
-            : s
-        )
+            : s,
+        ),
       );
       setIsSubmittingReview(false);
       setReviewingSession(null);
@@ -228,15 +213,18 @@ export const CustomerHistory: React.FC = () => {
         <Tag color="green" className="!text-xs !font-bold !px-3 !py-1 !rounded-md uppercase">
           <CalendarOutlined className="mr-1.5" /> HOẠT ĐỘNG & LỊCH SỬ HỘI VIÊN
         </Tag>
-        <Title level={1} className="!text-2xl sm:!text-4xl !font-black !text-slate-900 !mb-1 tracking-tight">
+        <Title
+          level={1}
+          className="!text-2xl sm:!text-4xl !font-black !text-slate-900 !mb-1 tracking-tight"
+        >
           Lịch Đặt Bàn & Lịch Sử Phiên Chơi
         </Title>
         <Paragraph className="!text-xs sm:!text-sm !text-slate-500 max-w-3xl leading-relaxed !mb-0">
-          Theo dõi các lượt đặt bàn sắp tới, quản lý hủy lịch giữ chỗ và xem lại nhật ký các trận cơ cùng hóa đơn chi tiết tại CueZone.
+          Theo dõi các lượt đặt bàn sắp tới, quản lý hủy lịch giữ chỗ và xem lại nhật ký các trận cơ
+          cùng hóa đơn chi tiết tại CueZone.
         </Paragraph>
       </div>
 
-      {/* Tabs Chuyển Đổi: Lịch Đặt Bàn vs Lịch Sử Phiên Chơi */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs">
         <Tabs
           activeKey={activeTab}
@@ -248,7 +236,9 @@ export const CustomerHistory: React.FC = () => {
               label: (
                 <Space size={6} align="center">
                   <CalendarOutlined />
-                  <span>Lịch Đặt Bàn Của Tôi ({bookings.filter((b) => b.status === "confirmed").length})</span>
+                  <span>
+                    Lịch Đặt Bàn Của Tôi ({bookings.filter((b) => b.status === "confirmed").length})
+                  </span>
                 </Space>
               ),
             },
@@ -264,7 +254,6 @@ export const CustomerHistory: React.FC = () => {
           ]}
         />
 
-        {/* TAB 1: DANH SÁCH LỊCH ĐẶT BÀN */}
         {activeTab === "bookings" && (
           <div className="space-y-4">
             {bookings.length === 0 ? (
@@ -289,8 +278,8 @@ export const CustomerHistory: React.FC = () => {
                             booking.status === "confirmed"
                               ? "green"
                               : booking.status === "completed"
-                              ? "blue"
-                              : "default"
+                                ? "blue"
+                                : "default"
                           }
                           className="!text-xs !font-bold !px-2.5 !py-0.5 !rounded-md uppercase"
                         >
@@ -299,7 +288,9 @@ export const CustomerHistory: React.FC = () => {
                         <span className="font-mono text-xs font-bold text-slate-400">
                           {booking.code}
                         </span>
-                        <span className="text-xs text-slate-400">• Đặt lúc: {booking.createdAt}</span>
+                        <span className="text-xs text-slate-400">
+                          • Đặt lúc: {booking.createdAt}
+                        </span>
                       </div>
 
                       <div className="flex items-baseline gap-3">
@@ -355,7 +346,6 @@ export const CustomerHistory: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: LỊCH SỬ PHIÊN CHƠI */}
         {activeTab === "sessions" && (
           <div className="space-y-4">
             {sessions.map((session) => (
@@ -366,7 +356,10 @@ export const CustomerHistory: React.FC = () => {
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
                   <div className="space-y-2.5">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <Tag color="cyan" className="!text-xs !font-bold !px-2.5 !py-0.5 !rounded-md uppercase">
+                      <Tag
+                        color="cyan"
+                        className="!text-xs !font-bold !px-2.5 !py-0.5 !rounded-md uppercase"
+                      >
                         ĐÃ THANH TOÁN
                       </Tag>
                       <span className="font-mono text-xs font-bold text-slate-400">
@@ -379,15 +372,15 @@ export const CustomerHistory: React.FC = () => {
                       <Title level={4} className="!text-lg !font-bold !text-slate-900 !mb-0">
                         {session.tableName}
                       </Title>
-                      <Text className="!text-xs !text-slate-500">
-                        {session.tableType}
-                      </Text>
+                      <Text className="!text-xs !text-slate-500">{session.tableType}</Text>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <div>
                         <span className="text-slate-400 block text-[11px]">Thời gian chơi:</span>
-                        <strong>{session.startTime} - {session.endTime} ({session.durationHours}h)</strong>
+                        <strong>
+                          {session.startTime} - {session.endTime} ({session.durationHours}h)
+                        </strong>
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[11px]">Tiền giờ bàn:</span>
@@ -399,7 +392,9 @@ export const CustomerHistory: React.FC = () => {
                       </div>
                       <div>
                         <span className="text-slate-400 block text-[11px]">Tổng hóa đơn:</span>
-                        <strong className="text-emerald-700 text-sm">{session.totalCost.toLocaleString("vi-VN")}đ</strong>
+                        <strong className="text-emerald-700 text-sm">
+                          {session.totalCost.toLocaleString("vi-VN")}đ
+                        </strong>
                       </div>
                     </div>
 
@@ -409,7 +404,9 @@ export const CustomerHistory: React.FC = () => {
                           {Array.from({ length: session.rating || 5 }).map((_, i) => (
                             <StarFilled key={i} />
                           ))}
-                          <span className="text-slate-700 font-semibold ml-1">Đánh giá của bạn:</span>
+                          <span className="text-slate-700 font-semibold ml-1">
+                            Đánh giá của bạn:
+                          </span>
                         </div>
                         <p className="text-xs text-slate-600 italic !mb-0">
                           "{session.reviewComment}"
@@ -434,7 +431,10 @@ export const CustomerHistory: React.FC = () => {
                         Đánh Giá Trải Nghiệm
                       </Button>
                     ) : (
-                      <Tag color="green" className="!px-3 !py-1 !text-xs !rounded-lg !border-emerald-200 font-semibold">
+                      <Tag
+                        color="green"
+                        className="!px-3 !py-1 !text-xs !rounded-lg !border-emerald-200 font-semibold"
+                      >
                         <CheckCircleOutlined className="mr-1" /> Đã gửi đánh giá
                       </Tag>
                     )}
@@ -446,7 +446,6 @@ export const CustomerHistory: React.FC = () => {
         )}
       </div>
 
-      {/* MODAL 1: XEM CHI TIẾT LỊCH ĐẶT BÀN */}
       <Modal
         open={!!viewingBooking}
         onCancel={() => setViewingBooking(null)}
@@ -476,11 +475,15 @@ export const CustomerHistory: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Bàn thi đấu:</span>
-                <span className="font-bold text-slate-900">{viewingBooking.tableName} ({viewingBooking.tableType})</span>
+                <span className="font-bold text-slate-900">
+                  {viewingBooking.tableName} ({viewingBooking.tableType})
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Ngày giờ chơi:</span>
-                <span className="font-semibold text-slate-900">{viewingBooking.time} ({viewingBooking.date})</span>
+                <span className="font-semibold text-slate-900">
+                  {viewingBooking.time} ({viewingBooking.date})
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Thời lượng dự kiến:</span>
@@ -488,21 +491,25 @@ export const CustomerHistory: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Chi phí tạm tính:</span>
-                <span className="font-bold text-emerald-600">{viewingBooking.totalCost.toLocaleString("vi-VN")} VNĐ</span>
+                <span className="font-bold text-emerald-600">
+                  {viewingBooking.totalCost.toLocaleString("vi-VN")} VNĐ
+                </span>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-2">
                 <span className="text-slate-500">Địa chỉ CLB:</span>
-                <span className="font-medium text-slate-800 text-right">123 Nguyễn Thị Minh Khai, Q.3, TP.HCM</span>
+                <span className="font-medium text-slate-800 text-right">
+                  123 Nguyễn Thị Minh Khai, Q.3, TP.HCM
+                </span>
               </div>
             </div>
             <p className="text-slate-500 leading-relaxed">
-              Vui lòng đến đúng giờ để nhận bàn. CLB hỗ trợ giữ bàn tối đa 15 phút. Nếu cần hỗ trợ khẩn cấp, vui lòng gọi hotline <strong>1900 6868</strong>.
+              Vui lòng đến đúng giờ để nhận bàn. CLB hỗ trợ giữ bàn tối đa 15 phút. Nếu cần hỗ trợ
+              khẩn cấp, vui lòng gọi hotline <strong>1900 6868</strong>.
             </p>
           </div>
         )}
       </Modal>
 
-      {/* MODAL 2: HỦY ĐẶT BÀN & NHẬP LÝ DO (Cancel Booking with Reason) */}
       <Modal
         open={!!cancellingBooking}
         onCancel={() => setCancellingBooking(null)}
@@ -535,7 +542,10 @@ export const CustomerHistory: React.FC = () => {
         {cancellingBooking && (
           <div className="space-y-4 py-2 text-xs text-slate-700">
             <p className="text-slate-600 leading-relaxed">
-              Bạn có chắc chắn muốn hủy lịch giữ chỗ cho <strong>{cancellingBooking.tableName}</strong> lúc <strong>{cancellingBooking.time}</strong> ngày <strong>{cancellingBooking.date}</strong> không?
+              Bạn có chắc chắn muốn hủy lịch giữ chỗ cho{" "}
+              <strong>{cancellingBooking.tableName}</strong> lúc{" "}
+              <strong>{cancellingBooking.time}</strong> ngày{" "}
+              <strong>{cancellingBooking.date}</strong> không?
             </p>
 
             <div>
@@ -552,13 +562,13 @@ export const CustomerHistory: React.FC = () => {
             </div>
 
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 leading-relaxed">
-              Lưu ý: Hủy bàn trước 2 tiếng sẽ không ảnh hưởng đến tỷ lệ uy tín đặt bàn và điểm tích lũy của bạn tại CueZone.
+              Lưu ý: Hủy bàn trước 2 tiếng sẽ không ảnh hưởng đến tỷ lệ uy tín đặt bàn và điểm tích
+              lũy của bạn tại CueZone.
             </div>
           </div>
         )}
       </Modal>
 
-      {/* MODAL 3: ĐÁNH GIÁ DỊCH VỤ PHIÊN CHƠI (Submit Service Review) */}
       <Modal
         open={!!reviewingSession}
         onCancel={() => setReviewingSession(null)}
@@ -591,10 +601,10 @@ export const CustomerHistory: React.FC = () => {
         {reviewingSession && (
           <div className="space-y-4 py-2 text-xs text-slate-700">
             <p className="text-slate-600">
-              Trải nghiệm của bạn tại <strong>{reviewingSession.tableName}</strong> vào ngày <strong>{reviewingSession.date}</strong> thế nào?
+              Trải nghiệm của bạn tại <strong>{reviewingSession.tableName}</strong> vào ngày{" "}
+              <strong>{reviewingSession.date}</strong> thế nào?
             </p>
 
-            {/* Chọn Sao */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2">
               <span className="text-xs text-slate-500 font-medium block">
                 Mức độ hài lòng của bạn:
@@ -608,9 +618,7 @@ export const CustomerHistory: React.FC = () => {
                     className="p-1 transition-transform hover:scale-125 focus:outline-none"
                   >
                     <StarFilled
-                      className={
-                        star <= reviewRating ? "text-amber-400" : "text-slate-200"
-                      }
+                      className={star <= reviewRating ? "text-amber-400" : "text-slate-200"}
                     />
                   </button>
                 ))}
@@ -619,14 +627,13 @@ export const CustomerHistory: React.FC = () => {
                 {reviewRating === 5
                   ? "Tuyệt vời! Bàn nỉ & cơ chuẩn thi đấu"
                   : reviewRating === 4
-                  ? "Hài lòng, dịch vụ tốt"
-                  : reviewRating === 3
-                  ? "Bình thường"
-                  : "Cần cải thiện thêm"}
+                    ? "Hài lòng, dịch vụ tốt"
+                    : reviewRating === 3
+                      ? "Bình thường"
+                      : "Cần cải thiện thêm"}
               </span>
             </div>
 
-            {/* Ý kiến đóng góp */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Nhận xét chi tiết (chất lượng bàn, ánh sáng, phục vụ, đồ uống):

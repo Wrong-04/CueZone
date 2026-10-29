@@ -44,8 +44,8 @@ export interface TablePricingRule {
   id: string;
   tableType: string;
   tableTypeName: string;
-  regularHourRate: number; // VNĐ/h
-  goldHourRate: number; // VNĐ/h
+  regularHourRate: number;
+  goldHourRate: number;
   description: string;
 }
 
@@ -83,8 +83,8 @@ export interface ClubSettingsData {
   pricingRules: TablePricingRule[];
 
   // Membership Points
-  earnPointsRate: number; // 10,000đ = 1 pt
-  redeemPointsRate: number; // 100 pt = 10,000đ
+  earnPointsRate: number;
+  redeemPointsRate: number;
   memberTiers: MemberTierPolicy[];
 
   // Hardware & Peripherals
@@ -293,7 +293,10 @@ const SettingsManagementPage: React.FC = () => {
 
   // Test hardware actions
   const handleTestPrinter = () => {
-    message.loading({ content: "Đang gửi lệnh in thử đến máy in nhiệt K80 (192.168.1.200)...", key: "print" });
+    message.loading({
+      content: "Đang gửi lệnh in thử đến máy in nhiệt K80 (192.168.1.200)...",
+      key: "print",
+    });
     setTimeout(() => {
       message.success({
         content: "Lệnh in test thành công! Giấy in K80 đã được cắt tự động.",
@@ -304,7 +307,8 @@ const SettingsManagementPage: React.FC = () => {
   };
 
   const handleTestRelay = (action: "all_on" | "all_off") => {
-    const actText = action === "all_on" ? "BẬT TOÀN BỘ 20 RƠ-LE ĐÈN BÀN" : "TẮT TOÀN BỘ RƠ-LE ĐÈN BÀN";
+    const actText =
+      action === "all_on" ? "BẬT TOÀN BỘ 20 RƠ-LE ĐÈN BÀN" : "TẮT TOÀN BỘ RƠ-LE ĐÈN BÀN";
     message.loading({ content: `Đang gửi tín hiệu Modbus TCP tới ${actText}...`, key: "relay" });
     setTimeout(() => {
       message.success({ content: `Thao tác thành công: ${actText}!`, key: "relay", duration: 3 });
@@ -321,7 +325,9 @@ const SettingsManagementPage: React.FC = () => {
     if (!editingPriceRule) return;
     setSettings((prev) => ({
       ...prev,
-      pricingRules: prev.pricingRules.map((r) => (r.id === editingPriceRule.id ? editingPriceRule : r)),
+      pricingRules: prev.pricingRules.map((r) =>
+        r.id === editingPriceRule.id ? editingPriceRule : r,
+      ),
     }));
     setPriceModalVisible(false);
     message.success(`Đã cập nhật bảng giá cho ${editingPriceRule.tableTypeName}!`);
@@ -368,7 +374,12 @@ const SettingsManagementPage: React.FC = () => {
       key: "actions",
       width: 110,
       render: (_, r) => (
-        <Button size="sm" variant="outline" onClick={() => handleOpenEditPricing(r)} className="!border-slate-300 font-semibold">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleOpenEditPricing(r)}
+          className="!border-slate-300 font-semibold"
+        >
           Sửa giá
         </Button>
       ),
@@ -438,7 +449,10 @@ const SettingsManagementPage: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <Title level={2} className="!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+                <Title
+                  level={2}
+                  className="!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+                >
                   Cài Đặt Hệ Thống & Cấu Hình CLB
                 </Title>
                 <Tag color="green" className="!px-2.5 !py-0.5 !text-xs !font-black !rounded-full">
@@ -446,7 +460,8 @@ const SettingsManagementPage: React.FC = () => {
                 </Tag>
               </div>
               <Text className="!text-xs md:!text-sm !text-slate-500">
-                Quản lý thông tin câu lạc bộ, bảng giá giờ chơi, thẻ hội viên, rơ-le đèn tự động và cổng thanh toán
+                Quản lý thông tin câu lạc bộ, bảng giá giờ chơi, thẻ hội viên, rơ-le đèn tự động và
+                cổng thanh toán
               </Text>
             </div>
           </div>
@@ -482,7 +497,9 @@ const SettingsManagementPage: React.FC = () => {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               Đang trực tuyến (Online)
             </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">{settings.totalTables} Bàn hoạt động</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">
+              {settings.totalTables} Bàn hoạt động
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
             <ThunderboltOutlined />
@@ -495,7 +512,9 @@ const SettingsManagementPage: React.FC = () => {
             <div className="text-base font-black text-teal-700 mt-1 flex items-center gap-1.5">
               <CheckCircleOutlined /> Modbus TCP
             </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">20/20 Cổng rơ-le sẵn sàng</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">
+              20/20 Cổng rơ-le sẵn sàng
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 text-xl">
             <BulbOutlined />
@@ -508,7 +527,9 @@ const SettingsManagementPage: React.FC = () => {
             <div className="text-base font-black text-blue-700 mt-1 flex items-center gap-1.5">
               <PrinterOutlined /> Khổ K80 (80mm)
             </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">{settings.printerIpAddress}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">
+              {settings.printerIpAddress}
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl">
             <PrinterOutlined />
@@ -521,7 +542,9 @@ const SettingsManagementPage: React.FC = () => {
             <div className="text-base font-black text-amber-800 mt-1 flex items-center gap-1.5">
               <BankOutlined /> MB Bank Quầy
             </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">STK: {settings.bankAccountNo}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">
+              STK: {settings.bankAccountNo}
+            </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
             <QrcodeOutlined />
@@ -640,7 +663,9 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Khẩu hiệu / Slogan</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Khẩu hiệu / Slogan
+                </label>
                 <Input
                   value={settings.slogan}
                   onChange={(e) => setSettings({ ...settings, slogan: e.target.value })}
@@ -671,7 +696,9 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email hỗ trợ</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Email hỗ trợ
+                  </label>
                   <Input
                     prefix={<MailOutlined className="text-slate-400" />}
                     value={settings.email}
@@ -702,7 +729,9 @@ const SettingsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Tên mạng Wifi (SSID)</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Tên mạng Wifi (SSID)
+                  </label>
                   <Input
                     value={settings.wifiSSID}
                     onChange={(e) => setSettings({ ...settings, wifiSSID: e.target.value })}
@@ -710,7 +739,9 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Mật khẩu Wifi</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Mật khẩu Wifi
+                  </label>
                   <Input
                     value={settings.wifiPassword}
                     onChange={(e) => setSettings({ ...settings, wifiPassword: e.target.value })}
@@ -862,7 +893,9 @@ const SettingsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Làm tròn thời gian</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Làm tròn thời gian
+                </label>
                 <Select
                   value={settings.roundBillingMinutes.toString()}
                   onChange={(val) =>
@@ -1043,14 +1076,21 @@ const SettingsManagementPage: React.FC = () => {
                   Máy In Hóa Đơn Nhiệt (K80 / K58)
                 </Title>
               </div>
-              <Button size="sm" variant="outline" onClick={handleTestPrinter} className="!border-slate-300 font-semibold">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleTestPrinter}
+                className="!border-slate-300 font-semibold"
+              >
                 In thử hóa đơn
               </Button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Loại máy in</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Loại máy in
+                </label>
                 <Input
                   value={settings.printerType}
                   onChange={(e) => setSettings({ ...settings, printerType: e.target.value })}
@@ -1059,7 +1099,9 @@ const SettingsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Khổ giấy in</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Khổ giấy in
+                  </label>
                   <Select
                     value={settings.printerPaperWidth}
                     onChange={(val) => setSettings({ ...settings, printerPaperWidth: val })}
@@ -1072,7 +1114,9 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Địa chỉ IP máy in LAN</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Địa chỉ IP máy in LAN
+                  </label>
                   <Input
                     value={settings.printerIpAddress}
                     onChange={(e) => setSettings({ ...settings, printerIpAddress: e.target.value })}
@@ -1128,7 +1172,12 @@ const SettingsManagementPage: React.FC = () => {
                 </Title>
               </div>
               <div className="flex items-center gap-1.5">
-                <Button size="sm" variant="outline" onClick={() => handleTestRelay("all_on")} className="!border-slate-300 font-semibold">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTestRelay("all_on")}
+                  className="!border-slate-300 font-semibold"
+                >
                   Bật tất cả
                 </Button>
                 <Button size="sm" variant="danger" onClick={() => handleTestRelay("all_off")}>
@@ -1140,7 +1189,9 @@ const SettingsManagementPage: React.FC = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Giao thức điều khiển</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Giao thức điều khiển
+                  </label>
                   <Input
                     value={settings.relayProtocol}
                     onChange={(e) => setSettings({ ...settings, relayProtocol: e.target.value })}
@@ -1148,7 +1199,9 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Địa chỉ Gateway Modbus TCP</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Địa chỉ Gateway Modbus TCP
+                  </label>
                   <Input
                     value={settings.relayControllerIp}
                     onChange={(e) =>
@@ -1347,8 +1400,8 @@ const SettingsManagementPage: React.FC = () => {
                 </label>
 
                 <div className="text-[11px] text-slate-500 leading-relaxed">
-                  Hệ thống tự động kích hoạt Web Audio API phát âm thanh "Ding" tại quầy thu ngân giúp nhân
-                  viên không bỏ lỡ lịch đặt bàn giờ vàng của hội viên.
+                  Hệ thống tự động kích hoạt Web Audio API phát âm thanh "Ding" tại quầy thu ngân
+                  giúp nhân viên không bỏ lỡ lịch đặt bàn giờ vàng của hội viên.
                 </div>
               </div>
             </div>
@@ -1423,7 +1476,9 @@ const SettingsManagementPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Mô tả loại bàn</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Mô tả loại bàn
+              </label>
               <Input
                 value={editingPriceRule.description}
                 onChange={(e) =>
@@ -1501,7 +1556,9 @@ const SettingsManagementPage: React.FC = () => {
           </div>
 
           <div className="text-center pt-2 space-y-1">
-            <div className="text-[10px] text-slate-600">STK: {settings.bankAccountNo} ({settings.bankName})</div>
+            <div className="text-[10px] text-slate-600">
+              STK: {settings.bankAccountNo} ({settings.bankName})
+            </div>
             <div className="text-[10px] font-bold">CẢMƠN QUÝ KHÁCH & HẸN GẶP LẠI!</div>
           </div>
         </div>

@@ -92,5 +92,3 @@ export const getPublicTables = async (req: Request, res: Response) => {
     return res.json({ success: false, message: error.message });
   }
 };
-
-

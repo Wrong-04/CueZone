@@ -45,7 +45,7 @@ export interface ClubEmployee {
   phone: string;
   shift: "morning" | "evening" | "night" | "fulltime";
   shiftName: string;
-  assignedArea: string; // e.g. "Bàn 01 - 06", "Khu VIP 10 - 12", "Bàn Match 13 - 14 VAR"
+  assignedArea: string;
   onDutyStatus: "on_duty" | "off_duty" | "leave";
   isActive: boolean;
   isLocked: boolean;
@@ -81,7 +81,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-01",
     code: "NV-001",
     name: "Nguyễn Hải Long",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
     role: UserRole.ADMIN,
     roleName: "Quản Lý Điều Hành CLB",
     position: "Club General Manager",
@@ -102,7 +103,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-02",
     code: "NV-002",
     name: "Trần Đình Trọng",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
     role: UserRole.CASHIER,
     roleName: "Thu Ngân Trưởng",
     position: "Head Cashier (Ca Sáng)",
@@ -123,7 +125,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-03",
     code: "NV-003",
     name: "Lê Văn Hùng",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80",
     role: UserRole.CASHIER,
     roleName: "Thu Ngân Ca Tối",
     position: "Senior Cashier (Ca Chiều/Tối)",
@@ -144,7 +147,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-04",
     code: "NV-004",
     name: "Bùi Quốc Bảo",
-    avatar: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80",
     role: UserRole.REFEREE,
     roleName: "Trọng Tài Bank Pool Quốc Gia",
     position: "Chief Tournament Referee",
@@ -165,7 +169,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-05",
     code: "NV-005",
     name: "Nguyễn Văn Nam",
-    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80",
     role: UserRole.WAREHOUSE,
     roleName: "Thủ Kho Vật Tư Bida & F&B",
     position: "Warehouse & Inventory Specialist",
@@ -186,7 +191,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-06",
     code: "NV-006",
     name: "Vũ Minh Quân",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80",
     role: UserRole.STAFF,
     roleName: "Nhân Viên Phục Vụ Bàn VIP",
     position: "VIP Area Table Runner",
@@ -207,7 +213,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-07",
     code: "NV-007",
     name: "Phan Hải Đăng",
-    avatar: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=150&q=80",
     role: UserRole.STAFF,
     roleName: "Nhân Viên Phục Vụ Bàn Thường",
     position: "Table Attendant (Ca Chiều)",
@@ -228,7 +235,8 @@ const INITIAL_EMPLOYEES: ClubEmployee[] = [
     id: "emp-08",
     code: "NV-008",
     name: "Đỗ Tuấn Kiệt",
-    avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80",
+    avatar:
+      "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80",
     role: UserRole.STAFF,
     roleName: "Nhân Viên Phục Vụ Ca Đêm",
     position: "Night Shift Table Attendant",
@@ -443,7 +451,8 @@ export const EmployeesPage: React.FC = () => {
       id: `emp-${Date.now()}`,
       code: newCode,
       name: empForm.name.trim(),
-      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
+      avatar:
+        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
       role: empForm.role,
       roleName: roleNameMap[empForm.role] || "Nhân viên",
       position: empForm.position.trim() || "Nhân viên",
@@ -503,8 +512,8 @@ export const EmployeesPage: React.FC = () => {
               shiftName: shiftNameMap[empForm.shift] || e.shiftName,
               assignedArea: empForm.assignedArea.trim(),
             }
-          : e
-      )
+          : e,
+      ),
     );
 
     message.success(`Đã cập nhật thông tin nhân viên "${empForm.name}"!`);
@@ -515,7 +524,7 @@ export const EmployeesPage: React.FC = () => {
   const handleToggleLock = (emp: ClubEmployee) => {
     const nextLocked = !emp.isLocked;
     setEmployeesList((prev) =>
-      prev.map((e) => (e.id === emp.id ? { ...e, isLocked: nextLocked } : e))
+      prev.map((e) => (e.id === emp.id ? { ...e, isLocked: nextLocked } : e)),
     );
     if (nextLocked) {
       message.warning(`Đã tạm khóa tài khoản nhân viên ${emp.name}!`);
@@ -527,7 +536,7 @@ export const EmployeesPage: React.FC = () => {
   const handleToggleDuty = (emp: ClubEmployee) => {
     const nextDuty = emp.onDutyStatus === "on_duty" ? "off_duty" : "on_duty";
     setEmployeesList((prev) =>
-      prev.map((e) => (e.id === emp.id ? { ...e, onDutyStatus: nextDuty } : e))
+      prev.map((e) => (e.id === emp.id ? { ...e, onDutyStatus: nextDuty } : e)),
     );
     if (nextDuty === "on_duty") {
       message.success(`Điểm danh: ${emp.name} đã vào ca trực!`);
@@ -566,7 +575,7 @@ export const EmployeesPage: React.FC = () => {
     const onDutyCount = employeesList.filter((e) => e.onDutyStatus === "on_duty").length;
     const waiterCount = employeesList.filter((e) => e.role === UserRole.STAFF).length;
     const specialistCount = employeesList.filter(
-      (e) => e.role === UserRole.CASHIER || e.role === UserRole.REFEREE
+      (e) => e.role === UserRole.CASHIER || e.role === UserRole.REFEREE,
     ).length;
 
     return { totalStaff, onDutyCount, waiterCount, specialistCount };
@@ -652,7 +661,10 @@ export const EmployeesPage: React.FC = () => {
           [UserRole.WAREHOUSE]: "purple",
         };
         return (
-          <Tag color={colorMap[role] || "default"} className="!rounded-md !px-2 !py-0.5 !text-xs !font-bold">
+          <Tag
+            color={colorMap[role] || "default"}
+            className="!rounded-md !px-2 !py-0.5 !text-xs !font-bold"
+          >
             {record.roleName}
           </Tag>
         );
@@ -757,7 +769,10 @@ export const EmployeesPage: React.FC = () => {
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
                 <TeamOutlined className="text-xl" />
               </div>
-              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Quản Lý Nhân Sự, Phân Ca & Phân Quyền CLB
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
@@ -765,7 +780,8 @@ export const EmployeesPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Quản lý đội ngũ nhân viên phục vụ bàn bida, thu ngân, trọng tài giải đấu, thủ kho, bảng phân ca trực hàng ngày và chấm công thời gian thực.
+              Quản lý đội ngũ nhân viên phục vụ bàn bida, thu ngân, trọng tài giải đấu, thủ kho,
+              bảng phân ca trực hàng ngày và chấm công thời gian thực.
             </Text>
           </div>
 
@@ -881,7 +897,6 @@ export const EmployeesPage: React.FC = () => {
         />
       </div>
 
-      {/* ── TAB 1: HỒ SƠ NHÂN SỰ CLB ───────────────────────────────────────── */}
       {activeTab === "staff" && (
         <div className="space-y-4">
           {/* Sub Filters */}
@@ -942,7 +957,6 @@ export const EmployeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 2: PHÂN CA TRỰC HÔM NAY ────────────────────────────────────── */}
       {activeTab === "shifts" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -962,17 +976,19 @@ export const EmployeesPage: React.FC = () => {
                         shift.status === "active"
                           ? "green"
                           : shift.status === "completed"
-                          ? "default"
-                          : "blue"
+                            ? "default"
+                            : "blue"
                       }
                       className="!rounded-full !px-3 !py-0.5 !text-xs !font-bold inline-flex items-center gap-1"
                     >
-                      {shift.status === "active" && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mr-1" />}
+                      {shift.status === "active" && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping mr-1" />
+                      )}
                       {shift.status === "active"
                         ? "ĐANG DIỄN RA"
                         : shift.status === "completed"
-                        ? "ĐÃ BÀN GIAO"
-                        : "CHUẨN BỊ CA"}
+                          ? "ĐÃ BÀN GIAO"
+                          : "CHUẨN BỊ CA"}
                     </Tag>
 
                     <span className="font-mono text-xs font-bold text-slate-500">
@@ -1066,7 +1082,6 @@ export const EmployeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 3: MA TRẬN PHÂN QUYỀN ROLE ─────────────────────────────────── */}
       {activeTab === "permissions" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1158,7 +1173,6 @@ export const EmployeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 4: HIỆU SUẤT & ĐÁNH GIÁ PHỤC VỤ ────────────────────────────── */}
       {activeTab === "performance" && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -1167,7 +1181,8 @@ export const EmployeesPage: React.FC = () => {
                 Bảng Đánh Giá Hiệu Suất & Đóng Góp Nhân Viên
               </h3>
               <p className="text-xs text-slate-500 mb-0">
-                Thống kê số lượng lượt phục vụ bàn bida, món F&B order và điểm đánh giá hài lòng từ khách
+                Thống kê số lượng lượt phục vụ bàn bida, món F&B order và điểm đánh giá hài lòng từ
+                khách
               </p>
             </div>
             <Tag color="gold" className="!rounded-full !px-3 !py-1 !text-xs !font-bold">
@@ -1219,7 +1234,6 @@ export const EmployeesPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── MODAL: THÊM / CHỈNH SỬA NHÂN VIÊN ──────────────────────────────── */}
       <Modal
         open={createModalVisible || editModalVisible}
         onCancel={() => {

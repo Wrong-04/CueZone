@@ -5,7 +5,6 @@ import { optionalAuthMiddleware } from "../../middlewares/auth.middleware";
 
 const bookingService = new BookingService();
 
-// Public routes cho đặt bàn (khách vãng lai hoặc hội viên)
 export const bookingPublicRoutes = Router();
 bookingPublicRoutes.post("/public/bookings", optionalAuthMiddleware, async (req, res, next) => {
   try {
@@ -16,6 +15,5 @@ bookingPublicRoutes.post("/public/bookings", optionalAuthMiddleware, async (req,
   }
 });
 
-// Protected routes cho quản lý đặt bàn (nhân viên, thu ngân, admin)
 export const bookingProtectedRoutes = Router();
 bookingProtectedRoutes.use("/bookings", bookingRouter);

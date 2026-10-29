@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "concurrently -c \"cyan,magenta\" \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
     "build": "pnpm --filter backend build && pnpm --filter frontend build",
+    "format": "prettier --write \"package.json\" \"backend/**/*.{ts,js,cjs,json}\" \"frontend/**/*.{ts,tsx,js,jsx,css,html,json}\"",
+    "format:check": "prettier --check \"package.json\" \"backend/**/*.{ts,js,cjs,json}\" \"frontend/**/*.{ts,tsx,js,jsx,css,html,json}\"",
     "install:all": "pnpm install"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6"
+    "concurrently": "^10.0.6",
+    "prettier": "^3.9.10"
   },
   "dependencies": {
     "cloudinary": "^2.11.0"

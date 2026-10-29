@@ -1,8 +1,6 @@
-
 import axios from "axios";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
 
 const api = axios.create({
   baseURL: API_URL,
@@ -53,7 +51,7 @@ api.interceptors.response.use(
         const refreshResponse = await axios.post(
           `${API_URL}/auth/refresh-token`,
           { refreshToken },
-          { timeout: 15000 }
+          { timeout: 15000 },
         );
 
         const envelope = refreshResponse?.data;
@@ -72,15 +70,11 @@ api.interceptors.response.use(
         localStorage.setItem("accessToken", newAccessToken);
 
         if (envelope.data.refreshToken) {
-          localStorage.setItem(
-            "refreshToken",
-            envelope.data.refreshToken
-          );
+          localStorage.setItem("refreshToken", envelope.data.refreshToken);
         }
 
         originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers.Authorization =
-          `Bearer ${newAccessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
         return api(originalRequest);
       } catch (refreshError) {
@@ -97,7 +91,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

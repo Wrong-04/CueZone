@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import {
   Truck,
@@ -57,22 +52,13 @@ type SupplierStatusInfo = {
 const inputClass =
   "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-50";
 
-const labelClass =
-  "mb-2 block text-sm font-semibold text-slate-700";
+const labelClass = "mb-2 block text-sm font-semibold text-slate-700";
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string
-): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : fallback;
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function getSupplierStatus(
-  supplier: Supplier,
-  filterStatus: string
-): boolean {
+function getSupplierStatus(supplier: Supplier, filterStatus: string): boolean {
   const item = supplier as Supplier & SupplierStatusInfo;
 
   if (
@@ -84,17 +70,12 @@ function getSupplierStatus(
     return false;
   }
 
-  if (
-    item.isActive === true ||
-    item.active === true
-  ) {
+  if (item.isActive === true || item.active === true) {
     return true;
   }
 
   if (typeof item.status === "string") {
-    const normalized = item.status
-      .trim()
-      .toLowerCase();
+    const normalized = item.status.trim().toLowerCase();
 
     if (
       [
@@ -126,8 +107,6 @@ function getSupplierStatus(
     }
   }
 
-  // API đã lọc theo trạng thái nếu backend không trả
-  // trường isActive/status trong từng nhà cung cấp.
   if (filterStatus === "inactive") {
     return false;
   }
@@ -135,11 +114,7 @@ function getSupplierStatus(
   return true;
 }
 
-function StatusBadge({
-  active,
-}: {
-  active: boolean;
-}) {
+function StatusBadge({ active }: { active: boolean }) {
   return (
     <span
       className={[
@@ -151,11 +126,7 @@ function StatusBadge({
           : "border-rose-200 bg-rose-50 text-rose-700",
       ].join(" ")}
     >
-      {active ? (
-        <CheckCircle2 size={14} />
-      ) : (
-        <Clock3 size={14} />
-      )}
+      {active ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}
 
       {active ? "Đang hợp tác" : "Ngừng hợp tác"}
     </span>
@@ -219,19 +190,10 @@ export default function SupplierManagementPage() {
         limit: 100,
       });
 
-      setSuppliers(
-        Array.isArray(result?.data)
-          ? result.data
-          : []
-      );
+      setSuppliers(Array.isArray(result?.data) ? result.data : []);
     } catch (error) {
       setSuppliers([]);
-      setLoadError(
-        getErrorMessage(
-          error,
-          "Không thể tải danh sách nhà cung cấp."
-        )
-      );
+      setLoadError(getErrorMessage(error, "Không thể tải danh sách nhà cung cấp."));
     } finally {
       setLoading(false);
     }
@@ -258,9 +220,7 @@ export default function SupplierManagementPage() {
     setEditing(null);
   };
 
-  const handleStatusChange = async (
-    supplier: Supplier
-  ) => {
+  const handleStatusChange = async (supplier: Supplier) => {
     const active = getSupplierStatus(supplier, status);
 
     const message = active
@@ -288,25 +248,20 @@ export default function SupplierManagementPage() {
           error,
           active
             ? "Không thể ngừng hợp tác với nhà cung cấp."
-            : "Không thể khôi phục nhà cung cấp."
-        )
+            : "Không thể khôi phục nhà cung cấp.",
+        ),
       );
     } finally {
       setActionLoadingId("");
     }
   };
 
-  const activeCount = suppliers.filter((supplier) =>
-    getSupplierStatus(supplier, status)
-  ).length;
+  const activeCount = suppliers.filter((supplier) => getSupplierStatus(supplier, status)).length;
 
   const inactiveCount = suppliers.length - activeCount;
 
   return (
-    <div
-      className="min-h-full space-y-6 pb-8"
-      style={{ color: "var(--text-main)" }}
-    >
+    <div className="min-h-full space-y-6 pb-8" style={{ color: "var(--text-main)" }}>
       {/* Header */}
       <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-start gap-4">
@@ -327,8 +282,8 @@ export default function SupplierManagementPage() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Quản lý đối tác, thông tin liên hệ và tình trạng
-              hợp tác của quán trên một giao diện thống nhất.
+              Quản lý đối tác, thông tin liên hệ và tình trạng hợp tác của quán trên một giao diện
+              thống nhất.
             </p>
           </div>
         </div>
@@ -353,9 +308,7 @@ export default function SupplierManagementPage() {
           <div className="flex items-start gap-3">
             <AlertCircle size={19} className="mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold">
-                Không thể tải dữ liệu
-              </p>
+              <p className="font-semibold">Không thể tải dữ liệu</p>
               <p className="mt-1 break-words">{loadError}</p>
             </div>
           </div>
@@ -376,15 +329,11 @@ export default function SupplierManagementPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-slate-500">
-                Kết quả hiển thị
-              </p>
+              <p className="text-sm font-medium text-slate-500">Kết quả hiển thị</p>
               <p className="mt-2 text-3xl font-bold tracking-tight text-slate-800">
                 {loading ? "—" : suppliers.length}
               </p>
-              <p className="mt-1 text-xs text-slate-400">
-                Tối đa 100 nhà cung cấp
-              </p>
+              <p className="mt-1 text-xs text-slate-400">Tối đa 100 nhà cung cấp</p>
             </div>
 
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
@@ -396,15 +345,11 @@ export default function SupplierManagementPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-slate-500">
-                Đang hợp tác trong kết quả
-              </p>
+              <p className="text-sm font-medium text-slate-500">Đang hợp tác trong kết quả</p>
               <p className="mt-2 text-3xl font-bold tracking-tight text-emerald-700">
                 {loading ? "—" : activeCount}
               </p>
-              <p className="mt-1 text-xs text-slate-400">
-                Theo dữ liệu hiện đang hiển thị
-              </p>
+              <p className="mt-1 text-xs text-slate-400">Theo dữ liệu hiện đang hiển thị</p>
             </div>
 
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
@@ -416,15 +361,11 @@ export default function SupplierManagementPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-slate-500">
-                Ngừng hợp tác trong kết quả
-              </p>
+              <p className="text-sm font-medium text-slate-500">Ngừng hợp tác trong kết quả</p>
               <p className="mt-2 text-3xl font-bold tracking-tight text-rose-600">
                 {loading ? "—" : inactiveCount}
               </p>
-              <p className="mt-1 text-xs text-slate-400">
-                Theo dữ liệu hiện đang hiển thị
-              </p>
+              <p className="mt-1 text-xs text-slate-400">Theo dữ liệu hiện đang hiển thị</p>
             </div>
 
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
@@ -438,9 +379,7 @@ export default function SupplierManagementPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-slate-800">
-              Danh sách đối tác
-            </h2>
+            <h2 className="text-base font-bold text-slate-800">Danh sách đối tác</h2>
             <p className="mt-1 text-sm text-slate-500">
               Tìm kiếm và quản lý thông tin nhà cung cấp.
             </p>
@@ -452,10 +391,7 @@ export default function SupplierManagementPage() {
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
           >
-            <RefreshCw
-              size={16}
-              className={loading ? "animate-spin" : ""}
-            />
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             Làm mới
           </button>
         </div>
@@ -543,9 +479,7 @@ export default function SupplierManagementPage() {
 
             {status !== "active" && (
               <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-                {status === "inactive"
-                  ? "Ngừng hợp tác"
-                  : "Tất cả trạng thái"}
+                {status === "inactive" ? "Ngừng hợp tác" : "Tất cả trạng thái"}
               </span>
             )}
 
@@ -567,12 +501,8 @@ export default function SupplierManagementPage() {
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
-            <h2 className="font-bold text-slate-800">
-              Nhà cung cấp
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Thông tin liên hệ và trạng thái hợp tác
-            </p>
+            <h2 className="font-bold text-slate-800">Nhà cung cấp</h2>
+            <p className="mt-1 text-xs text-slate-500">Thông tin liên hệ và trạng thái hợp tác</p>
           </div>
 
           <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
@@ -587,9 +517,7 @@ export default function SupplierManagementPage() {
             className="mx-4 mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 sm:mx-5"
           >
             <AlertCircle size={17} className="mt-0.5 shrink-0" />
-            <span className="min-w-0 flex-1 break-words">
-              {actionError}
-            </span>
+            <span className="min-w-0 flex-1 break-words">{actionError}</span>
             <button
               type="button"
               onClick={() => setActionError("")}
@@ -604,27 +532,13 @@ export default function SupplierManagementPage() {
           <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
             <thead>
               <tr className="bg-slate-50/90 text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-5 py-4 font-bold">
-                  Nhà cung cấp
-                </th>
-                <th className="px-4 py-4 font-bold">
-                  Người liên hệ
-                </th>
-                <th className="px-4 py-4 font-bold">
-                  Điện thoại
-                </th>
-                <th className="px-4 py-4 font-bold">
-                  Email
-                </th>
-                <th className="px-4 py-4 font-bold">
-                  Địa chỉ
-                </th>
-                <th className="px-4 py-4 font-bold">
-                  Trạng thái
-                </th>
-                <th className="px-5 py-4 text-center font-bold">
-                  Thao tác
-                </th>
+                <th className="px-5 py-4 font-bold">Nhà cung cấp</th>
+                <th className="px-4 py-4 font-bold">Người liên hệ</th>
+                <th className="px-4 py-4 font-bold">Điện thoại</th>
+                <th className="px-4 py-4 font-bold">Email</th>
+                <th className="px-4 py-4 font-bold">Địa chỉ</th>
+                <th className="px-4 py-4 font-bold">Trạng thái</th>
+                <th className="px-5 py-4 text-center font-bold">Thao tác</th>
               </tr>
             </thead>
 
@@ -633,16 +547,11 @@ export default function SupplierManagementPage() {
                 <tr>
                   <td colSpan={7} className="px-5 py-16">
                     <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
-                      <Loader2
-                        size={30}
-                        className="animate-spin text-emerald-600"
-                      />
+                      <Loader2 size={30} className="animate-spin text-emerald-600" />
                       <p className="text-sm font-medium text-slate-600">
                         Đang tải danh sách nhà cung cấp...
                       </p>
-                      <p className="text-xs">
-                        Vui lòng đợi trong giây lát.
-                      </p>
+                      <p className="text-xs">Vui lòng đợi trong giây lát.</p>
                     </div>
                   </td>
                 </tr>
@@ -650,13 +559,9 @@ export default function SupplierManagementPage() {
 
               {!loading &&
                 suppliers.map((supplier) => {
-                  const active = getSupplierStatus(
-                    supplier,
-                    status
-                  );
+                  const active = getSupplierStatus(supplier, status);
 
-                  const actionLoading =
-                    actionLoadingId === supplier._id;
+                  const actionLoading = actionLoadingId === supplier._id;
 
                   return (
                     <tr
@@ -680,19 +585,14 @@ export default function SupplierManagementPage() {
                             <p className="max-w-[220px] break-words font-semibold leading-5 text-slate-800">
                               {supplier.name || "Chưa có tên"}
                             </p>
-                            <p className="mt-1 text-xs text-slate-400">
-                              Nhà cung cấp
-                            </p>
+                            <p className="mt-1 text-xs text-slate-400">Nhà cung cấp</p>
                           </div>
                         </div>
                       </td>
 
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2 text-slate-600">
-                          <Users
-                            size={15}
-                            className="shrink-0 text-slate-400"
-                          />
+                          <Users size={15} className="shrink-0 text-slate-400" />
                           <span className="max-w-[160px] break-words">
                             {supplier.contactPerson || "—"}
                           </span>
@@ -705,10 +605,7 @@ export default function SupplierManagementPage() {
                             href={`tel:${supplier.phone}`}
                             className="inline-flex items-center gap-2 whitespace-nowrap text-slate-600 transition hover:text-emerald-700"
                           >
-                            <Phone
-                              size={15}
-                              className="shrink-0 text-slate-400"
-                            />
+                            <Phone size={15} className="shrink-0 text-slate-400" />
                             {supplier.phone}
                           </a>
                         ) : (
@@ -723,13 +620,8 @@ export default function SupplierManagementPage() {
                             title={supplier.email}
                             className="inline-flex max-w-[200px] items-center gap-2 text-slate-600 transition hover:text-emerald-700"
                           >
-                            <Mail
-                              size={15}
-                              className="shrink-0 text-slate-400"
-                            />
-                            <span className="truncate">
-                              {supplier.email}
-                            </span>
+                            <Mail size={15} className="shrink-0 text-slate-400" />
+                            <span className="truncate">{supplier.email}</span>
                           </a>
                         ) : (
                           <span className="text-slate-400">—</span>
@@ -742,10 +634,7 @@ export default function SupplierManagementPage() {
                             title={supplier.address}
                             className="flex max-w-[220px] items-start gap-2 text-slate-600"
                           >
-                            <MapPin
-                              size={15}
-                              className="mt-0.5 shrink-0 text-slate-400"
-                            />
+                            <MapPin size={15} className="mt-0.5 shrink-0 text-slate-400" />
                             <span className="line-clamp-2 break-words leading-5">
                               {supplier.address}
                             </span>
@@ -763,30 +652,19 @@ export default function SupplierManagementPage() {
                         <div className="flex items-center justify-center gap-2">
                           <IconButton
                             title="Chỉnh sửa nhà cung cấp"
-                            onClick={() =>
-                              openEditModal(supplier)
-                            }
+                            onClick={() => openEditModal(supplier)}
                           >
                             <Pencil size={16} />
                           </IconButton>
 
                           <IconButton
-                            title={
-                              active
-                                ? "Ngừng hợp tác"
-                                : "Khôi phục hợp tác"
-                            }
+                            title={active ? "Ngừng hợp tác" : "Khôi phục hợp tác"}
                             danger={active}
                             disabled={actionLoading}
-                            onClick={() =>
-                              void handleStatusChange(supplier)
-                            }
+                            onClick={() => void handleStatusChange(supplier)}
                           >
                             {actionLoading ? (
-                              <Loader2
-                                size={16}
-                                className="animate-spin"
-                              />
+                              <Loader2 size={16} className="animate-spin" />
                             ) : active ? (
                               <Power size={17} />
                             ) : (
@@ -804,11 +682,7 @@ export default function SupplierManagementPage() {
                   <td colSpan={7} className="px-5 py-16">
                     <div className="mx-auto flex max-w-sm flex-col items-center text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
-                        {loadError ? (
-                          <AlertCircle size={32} />
-                        ) : (
-                          <PackageOpen size={32} />
-                        )}
+                        {loadError ? <AlertCircle size={32} /> : <PackageOpen size={32} />}
                       </div>
 
                       <h3 className="mt-4 font-bold text-slate-700">
@@ -830,9 +704,7 @@ export default function SupplierManagementPage() {
                       {loadError ? (
                         <button
                           type="button"
-                          onClick={() =>
-                            setReloadKey((value) => value + 1)
-                          }
+                          onClick={() => setReloadKey((value) => value + 1)}
                           className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
                           style={{ background: "var(--brand)" }}
                         >
@@ -868,11 +740,8 @@ export default function SupplierManagementPage() {
 
         <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
-            Hiển thị{" "}
-            <span className="font-semibold text-slate-700">
-              {suppliers.length}
-            </span>{" "}
-            nhà cung cấp trong kết quả hiện tại
+            Hiển thị <span className="font-semibold text-slate-700">{suppliers.length}</span> nhà
+            cung cấp trong kết quả hiện tại
           </p>
 
           <p className="inline-flex items-center gap-1.5 text-xs text-slate-400">
@@ -933,10 +802,7 @@ function SupplierModal({
     };
   }, [onClose, saving]);
 
-  const changeField = (
-    field: keyof SupplierForm,
-    value: string
-  ) => {
+  const changeField = (field: keyof SupplierForm, value: string) => {
     setForm((previous) => ({
       ...previous,
       [field]: value,
@@ -947,9 +813,7 @@ function SupplierModal({
     }
   };
 
-  const submit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!form.name.trim()) {
@@ -957,10 +821,7 @@ function SupplierModal({
       return;
     }
 
-    if (
-      form.email.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
-    ) {
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       setError("Địa chỉ email không hợp lệ.");
       return;
     }
@@ -986,12 +847,7 @@ function SupplierModal({
 
       await onSaved();
     } catch (error) {
-      setError(
-        getErrorMessage(
-          error,
-          "Không thể lưu thông tin nhà cung cấp."
-        )
-      );
+      setError(getErrorMessage(error, "Không thể lưu thông tin nhà cung cấp."));
     } finally {
       setSaving(false);
     }
@@ -1001,10 +857,7 @@ function SupplierModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-[3px] sm:p-6"
       onMouseDown={(event) => {
-        if (
-          event.target === event.currentTarget &&
-          !saving
-        ) {
+        if (event.target === event.currentTarget && !saving) {
           onClose();
         }
       }}
@@ -1019,11 +872,7 @@ function SupplierModal({
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 via-white to-white px-5 py-5 sm:px-7 sm:py-6">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-              {supplier ? (
-                <Pencil size={21} />
-              ) : (
-                <Building2 size={22} />
-              )}
+              {supplier ? <Pencil size={21} /> : <Building2 size={22} />}
             </div>
 
             <div className="min-w-0">
@@ -1031,9 +880,7 @@ function SupplierModal({
                 id="supplier-modal-title"
                 className="text-xl font-bold tracking-tight text-slate-800"
               >
-                {supplier
-                  ? "Chỉnh sửa nhà cung cấp"
-                  : "Thêm nhà cung cấp"}
+                {supplier ? "Chỉnh sửa nhà cung cấp" : "Thêm nhà cung cấp"}
               </h2>
 
               <p className="mt-1 text-sm leading-5 text-slate-500">
@@ -1062,10 +909,7 @@ function SupplierModal({
                 role="alert"
                 className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700"
               >
-                <AlertCircle
-                  size={18}
-                  className="mt-0.5 shrink-0"
-                />
+                <AlertCircle size={18} className="mt-0.5 shrink-0" />
                 <span className="break-words">{error}</span>
               </div>
             )}
@@ -1073,16 +917,13 @@ function SupplierModal({
             <section>
               <div className="mb-4 flex items-center gap-2">
                 <div className="h-5 w-1 rounded-full bg-emerald-500" />
-                <h3 className="font-bold text-slate-800">
-                  Thông tin cơ bản
-                </h3>
+                <h3 className="font-bold text-slate-800">Thông tin cơ bản</h3>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="sm:col-span-2">
                   <span className={labelClass}>
-                    Tên nhà cung cấp{" "}
-                    <span className="text-rose-500">*</span>
+                    Tên nhà cung cấp <span className="text-rose-500">*</span>
                   </span>
 
                   <input
@@ -1091,18 +932,14 @@ function SupplierModal({
                     maxLength={150}
                     className={inputClass}
                     value={form.name}
-                    onChange={(event) =>
-                      changeField("name", event.target.value)
-                    }
+                    onChange={(event) => changeField("name", event.target.value)}
                     placeholder="Ví dụ: Công ty phân phối..."
                     disabled={saving}
                   />
                 </label>
 
                 <label>
-                  <span className={labelClass}>
-                    Người liên hệ
-                  </span>
+                  <span className={labelClass}>Người liên hệ</span>
 
                   <span className="relative block">
                     <Users
@@ -1114,12 +951,7 @@ function SupplierModal({
                       maxLength={100}
                       className={`${inputClass} pl-10`}
                       value={form.contactPerson}
-                      onChange={(event) =>
-                        changeField(
-                          "contactPerson",
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => changeField("contactPerson", event.target.value)}
                       placeholder="Họ và tên"
                       disabled={saving}
                     />
@@ -1127,9 +959,7 @@ function SupplierModal({
                 </label>
 
                 <label>
-                  <span className={labelClass}>
-                    Số điện thoại
-                  </span>
+                  <span className={labelClass}>Số điện thoại</span>
 
                   <span className="relative block">
                     <Phone
@@ -1142,12 +972,7 @@ function SupplierModal({
                       maxLength={30}
                       className={`${inputClass} pl-10`}
                       value={form.phone}
-                      onChange={(event) =>
-                        changeField(
-                          "phone",
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => changeField("phone", event.target.value)}
                       placeholder="Nhập số điện thoại"
                       disabled={saving}
                     />
@@ -1155,9 +980,7 @@ function SupplierModal({
                 </label>
 
                 <label className="sm:col-span-2">
-                  <span className={labelClass}>
-                    Email
-                  </span>
+                  <span className={labelClass}>Email</span>
 
                   <span className="relative block">
                     <Mail
@@ -1170,12 +993,7 @@ function SupplierModal({
                       maxLength={150}
                       className={`${inputClass} pl-10`}
                       value={form.email}
-                      onChange={(event) =>
-                        changeField(
-                          "email",
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => changeField("email", event.target.value)}
                       placeholder="email@congty.com"
                       disabled={saving}
                     />
@@ -1187,16 +1005,12 @@ function SupplierModal({
             <section>
               <div className="mb-4 flex items-center gap-2">
                 <div className="h-5 w-1 rounded-full bg-emerald-500" />
-                <h3 className="font-bold text-slate-800">
-                  Địa chỉ và ghi chú
-                </h3>
+                <h3 className="font-bold text-slate-800">Địa chỉ và ghi chú</h3>
               </div>
 
               <div className="space-y-4">
                 <label className="block">
-                  <span className={labelClass}>
-                    Địa chỉ
-                  </span>
+                  <span className={labelClass}>Địa chỉ</span>
 
                   <span className="relative block">
                     <MapPin
@@ -1208,12 +1022,7 @@ function SupplierModal({
                       maxLength={300}
                       className={`${inputClass} pl-10`}
                       value={form.address}
-                      onChange={(event) =>
-                        changeField(
-                          "address",
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => changeField("address", event.target.value)}
                       placeholder="Số nhà, đường, phường/xã, tỉnh/thành phố"
                       disabled={saving}
                     />
@@ -1221,9 +1030,7 @@ function SupplierModal({
                 </label>
 
                 <label className="block">
-                  <span className={labelClass}>
-                    Ghi chú
-                  </span>
+                  <span className={labelClass}>Ghi chú</span>
 
                   <span className="relative block">
                     <FileText
@@ -1236,12 +1043,7 @@ function SupplierModal({
                       maxLength={1000}
                       className={`${inputClass} resize-y pl-10`}
                       value={form.note}
-                      onChange={(event) =>
-                        changeField(
-                          "note",
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => changeField("note", event.target.value)}
                       placeholder="Thông tin bổ sung về nhà cung cấp..."
                       disabled={saving}
                     />
@@ -1273,20 +1075,9 @@ function SupplierModal({
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: "var(--brand)" }}
             >
-              {saving ? (
-                <Loader2
-                  size={17}
-                  className="animate-spin"
-                />
-              ) : (
-                <Save size={17} />
-              )}
+              {saving ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
 
-              {saving
-                ? "Đang lưu..."
-                : supplier
-                  ? "Lưu thay đổi"
-                  : "Tạo nhà cung cấp"}
+              {saving ? "Đang lưu..." : supplier ? "Lưu thay đổi" : "Tạo nhà cung cấp"}
             </button>
           </div>
         </form>

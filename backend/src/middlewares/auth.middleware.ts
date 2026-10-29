@@ -6,7 +6,11 @@ import { TokenPayload } from "../modules/auth/auth.service";
 import { User, UserRole } from "../modules/user/user.model";
 import { Role } from "../modules/role/role.model";
 
-export const authMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const authMiddleware = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     res.status(401).json({ success: false, message: "Không có token xác thực" });
@@ -57,10 +61,6 @@ export const optionalAuthMiddleware = (req: Request, res: Response, next: NextFu
   }
 };
 
-/**
- * Middleware kiểm tra vai trò người dùng (Role-based access control)
- * Tự động truy vấn lại database để đảm bảo trạng thái isActive và isLocked mới nhất.
- */
 export const requireRole = (...allowedRoles: UserRole[]) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.userId;
@@ -84,7 +84,9 @@ export const requireRole = (...allowedRoles: UserRole[]) => {
         return;
       }
       if (!allowedRoles.includes(user.role)) {
-        res.status(403).json({ success: false, message: "Bạn không có quyền thực hiện thao tác này" });
+        res
+          .status(403)
+          .json({ success: false, message: "Bạn không có quyền thực hiện thao tác này" });
         return;
       }
       (req as any).currentUser = user;
@@ -95,9 +97,6 @@ export const requireRole = (...allowedRoles: UserRole[]) => {
   };
 };
 
-/**
- * Middleware kiểm tra quyền thao tác chi tiết theo module (Permission-based access control)
- */
 export const requirePermission = (moduleName: string, actionName: string) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.userId;
@@ -113,7 +112,6 @@ export const requirePermission = (moduleName: string, actionName: string) => {
         return;
       }
 
-      // Admin luôn có toàn quyền bypass
       if (user.role === UserRole.ADMIN) {
         (req as any).currentUser = user;
         next();
@@ -122,16 +120,22 @@ export const requirePermission = (moduleName: string, actionName: string) => {
 
       const roleDoc = await Role.findOne({ name: user.role.toLowerCase() });
       if (!roleDoc) {
-        res.status(403).json({ success: false, message: "Không tìm thấy cấu hình quyền cho vai trò này" });
+        res
+          .status(403)
+          .json({ success: false, message: "Không tìm thấy cấu hình quyền cho vai trò này" });
         return;
       }
 
       const hasPerm = roleDoc.permissions.some(
-        (p) => p.module === moduleName && (p.actions.includes(actionName) || p.actions.includes("*"))
+        (p) =>
+          p.module === moduleName && (p.actions.includes(actionName) || p.actions.includes("*")),
       );
 
       if (!hasPerm) {
-        res.status(403).json({ success: false, message: `Bạn không có quyền ${actionName} trên module ${moduleName}` });
+        res.status(403).json({
+          success: false,
+          message: `Bạn không có quyền ${actionName} trên module ${moduleName}`,
+        });
         return;
       }
 

@@ -20,7 +20,8 @@ const positiveInteger = (value: unknown, fallback: number, max?: number): number
   if (value === undefined) return fallback;
   if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 1 || (max !== undefined && parsed > max)) return null;
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || (max !== undefined && parsed > max))
+    return null;
   return parsed;
 };
 
@@ -65,7 +66,10 @@ export const create = async (req: Request, res: Response) => {
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
   const type = req.body?.type;
   if (
-    !title || title.length > 120 || !content || content.length > 1000 ||
+    !title ||
+    title.length > 120 ||
+    !content ||
+    content.length > 1000 ||
     (type !== undefined && !Object.values(NotificationType).includes(type))
   ) {
     return res.status(400).json({

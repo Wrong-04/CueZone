@@ -6,20 +6,15 @@ interface BankPoolTable2DProps {
   onSelectScenario?: (scenario: BankPoolRuleScenario) => void;
 }
 
-export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
-  scenario,
-}) => {
+export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({ scenario }) => {
   const { cueBall, objectBall, cushionPoints, targetPocket, isLegal } = scenario;
 
-  // Xây dựng path SVG cho quỹ đạo bi mục tiêu
-  // Bắt đầu từ vị trí bi mục tiêu -> qua các điểm chạm băng -> vào lỗ đích
   let objectBallPath = `M ${objectBall.x} ${objectBall.y}`;
   cushionPoints.forEach((pt) => {
     objectBallPath += ` L ${pt.x} ${pt.y}`;
   });
   objectBallPath += ` L ${targetPocket.x} ${targetPocket.y}`;
 
-  // Đường bi cái đi đến bi mục tiêu
   const cueBallPath = `M ${cueBall.x} ${cueBall.y} L ${objectBall.x} ${objectBall.y}`;
 
   return (
@@ -42,9 +37,7 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
                 : "Không Chạm Băng"}
             </span>
           </div>
-          <h4 className="text-base sm:text-lg font-bold text-white mt-1">
-            {scenario.name}
-          </h4>
+          <h4 className="text-base sm:text-lg font-bold text-white mt-1">{scenario.name}</h4>
         </div>
 
         <div className="flex items-center gap-4 text-xs text-slate-300">
@@ -63,28 +56,20 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
         </div>
       </div>
 
-      {/* SVG Canvas bàn bida 2D */}
       <div className="relative w-full aspect-[800/450] bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
-        <svg
-          viewBox="0 0 800 450"
-          className="w-full h-full"
-          preserveAspectRatio="xMidYMid meet"
-        >
+        <svg viewBox="0 0 800 450" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
           <defs>
-            {/* Lớp nền nỉ bida xanh Simonis */}
             <radialGradient id="feltGrad" cx="50%" cy="50%" r="65%">
               <stop offset="0%" stopColor="#047857" />
               <stop offset="100%" stopColor="#064e3b" />
             </radialGradient>
 
-            {/* Khung gỗ thành bàn */}
             <linearGradient id="woodGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#451a03" />
               <stop offset="50%" stopColor="#78350f" />
               <stop offset="100%" stopColor="#292524" />
             </linearGradient>
 
-            {/* Mũi tên dẫn hướng */}
             <marker
               id="arrowValid"
               markerWidth="8"
@@ -95,29 +80,14 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             >
               <path d="M 0 0 L 8 4 L 0 8 z" fill="#34d399" />
             </marker>
-            <marker
-              id="arrowFoul"
-              markerWidth="8"
-              markerHeight="8"
-              refX="6"
-              refY="4"
-              orient="auto"
-            >
+            <marker id="arrowFoul" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
               <path d="M 0 0 L 8 4 L 0 8 z" fill="#f87171" />
             </marker>
-            <marker
-              id="arrowCue"
-              markerWidth="8"
-              markerHeight="8"
-              refX="6"
-              refY="4"
-              orient="auto"
-            >
+            <marker id="arrowCue" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
               <path d="M 0 0 L 8 4 L 0 8 z" fill="#ffffff" />
             </marker>
           </defs>
 
-          {/* 1. KHUNG GỖ THÀNH BÀN (Outer Cushion Frame) */}
           <rect
             x="10"
             y="10"
@@ -129,17 +99,8 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             strokeWidth="4"
           />
 
-          {/* 2. MẶT NỈ THI ĐẤU (Inner Playing Felt Surface) */}
-          <rect
-            x="40"
-            y="40"
-            width="720"
-            height="370"
-            rx="8"
-            fill="url(#feltGrad)"
-          />
+          <rect x="40" y="40" width="720" height="370" rx="8" fill="url(#feltGrad)" />
 
-          {/* 3. VẠCH LẰN GIAO BÓNG (Head String / Kitchen Area) */}
           <line
             x1="220"
             y1="40"
@@ -161,10 +122,8 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             KITCHEN / KHU VỰC BI CÁI
           </text>
 
-          {/* 4. ĐIỂM CHÂN BÀN & ĐIỂM TÂM BÀN (Foot Spot & Center Spot) */}
-          {/* Tâm bàn */}
           <circle cx="400" cy="225" r="3" fill="rgba(255, 255, 255, 0.4)" />
-          {/* Điểm chân bàn (Foot spot) */}
+
           <circle cx="580" cy="225" r="4" fill="rgba(255, 255, 255, 0.7)" />
           <text
             x="580"
@@ -177,15 +136,13 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             FOOT SPOT
           </text>
 
-          {/* 5. CÁC NÚT ĐIỂM BĂNG (Diamonds) TRÊN THÀNH BÀN */}
-          {/* Băng trên & Băng dưới */}
           {[130, 220, 310, 400, 490, 580, 670].map((dx, i) => (
             <React.Fragment key={`dia-top-${i}`}>
               <circle cx={dx} cy="25" r="2.5" fill="#fef08a" />
               <circle cx={dx} cy="425" r="2.5" fill="#fef08a" />
             </React.Fragment>
           ))}
-          {/* Băng trái & Băng phải */}
+
           {[132, 225, 318].map((dy, i) => (
             <React.Fragment key={`dia-side-${i}`}>
               <circle cx="25" cy={dy} r="2.5" fill="#fef08a" />
@@ -193,18 +150,14 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             </React.Fragment>
           ))}
 
-          {/* 6. CÁC TÚI LỖ (Pockets) */}
-          {/* 4 Lỗ góc */}
           <circle cx="44" cy="44" r="16" fill="#09090b" stroke="#27272a" strokeWidth="2" />
           <circle cx="756" cy="44" r="16" fill="#09090b" stroke="#27272a" strokeWidth="2" />
           <circle cx="44" cy="406" r="16" fill="#09090b" stroke="#27272a" strokeWidth="2" />
           <circle cx="756" cy="406" r="16" fill="#09090b" stroke="#27272a" strokeWidth="2" />
-          {/* 2 Lỗ giữa */}
+
           <circle cx="400" cy="38" r="14" fill="#09090b" stroke="#27272a" strokeWidth="2" />
           <circle cx="400" cy="412" r="14" fill="#09090b" stroke="#27272a" strokeWidth="2" />
 
-          {/* 7. QUỸ ĐẠO CÚ ĐÁNH (Shot Trajectories) */}
-          {/* Đường chạy của bi cái đến bi mục tiêu */}
           <path
             d={cueBallPath}
             fill="none"
@@ -214,7 +167,6 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             markerEnd="url(#arrowCue)"
           />
 
-          {/* Quỹ đạo bi mục tiêu */}
           <path
             d={objectBallPath}
             fill="none"
@@ -225,17 +177,9 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             markerEnd={isLegal ? "url(#arrowValid)" : "url(#arrowFoul)"}
           />
 
-          {/* Các điểm chạm băng (Cushion contact points) */}
           {cushionPoints.map((cp, idx) => (
             <g key={`cp-${idx}`}>
-              <circle
-                cx={cp.x}
-                cy={cp.y}
-                r="7"
-                fill="#10b981"
-                stroke="#ffffff"
-                strokeWidth="2"
-              />
+              <circle cx={cp.x} cy={cp.y} r="7" fill="#10b981" stroke="#ffffff" strokeWidth="2" />
               <text
                 x={cp.x}
                 y={cp.y > 225 ? cp.y - 12 : cp.y + 18}
@@ -249,8 +193,6 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             </g>
           ))}
 
-          {/* 8. CÁC BI BIDA TRÊN MẶT BÀN */}
-          {/* Bi cái (Cue Ball) */}
           <circle
             cx={cueBall.x}
             cy={cueBall.y}
@@ -271,7 +213,6 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             {cueBall.label}
           </text>
 
-          {/* Bi mục tiêu (Object Ball) */}
           <circle
             cx={objectBall.x}
             cy={objectBall.y}
@@ -301,7 +242,6 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
             {objectBall.label}
           </text>
 
-          {/* Lỗ mục tiêu được gọi (Target Pocket Glow) */}
           <circle
             cx={targetPocket.x}
             cy={targetPocket.y}
@@ -324,15 +264,12 @@ export const BankPoolTable2D: React.FC<BankPoolTable2DProps> = ({
         </svg>
       </div>
 
-      {/* Chú giải tình huống bên dưới sơ đồ */}
       <div className="mt-4 p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-1">
         <p className="font-semibold text-slate-200">
           Diễn giải: <span className="font-normal text-slate-300">{scenario.description}</span>
         </p>
         {!isLegal && scenario.foulReason && (
-          <p className="text-rose-400 font-medium">
-            ⚠️ Lý do phạm quy: {scenario.foulReason}
-          </p>
+          <p className="text-rose-400 font-medium">⚠️ Lý do phạm quy: {scenario.foulReason}</p>
         )}
       </div>
     </div>

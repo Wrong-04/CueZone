@@ -14,12 +14,7 @@ import {
   AppstoreOutlined,
   RiseOutlined,
 } from "@ant-design/icons";
-import {
-  Card,
-  Button,
-  Tag,
-  Typography,
-} from "../../shared/ui";
+import { Card, Button, Tag, Typography } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   INITIAL_POS_TABLES,
@@ -87,7 +82,10 @@ export const AdminDashboard: React.FC = () => {
     if (!table.currentSession) return { minutes: 0, cost: 0, formattedTime: "00:00:00" };
     const session = table.currentSession;
     const effectiveNow = session.isPaused && session.pausedAt ? session.pausedAt : currentTime;
-    const totalElapsedMs = Math.max(0, effectiveNow - session.startedAt - (session.totalPausedMs || 0));
+    const totalElapsedMs = Math.max(
+      0,
+      effectiveNow - session.startedAt - (session.totalPausedMs || 0),
+    );
     const totalMinutes = Math.max(1, Math.round(totalElapsedMs / 60000));
 
     const hours = Math.floor(totalElapsedMs / 3600000);
@@ -113,7 +111,10 @@ export const AdminDashboard: React.FC = () => {
     tables.forEach((t) => {
       if (t.currentSession) {
         const { cost } = calculatePlayingDetails(t);
-        const fnbCost = t.currentSession.orders.reduce((acc, cur) => acc + cur.price * cur.quantity, 0);
+        const fnbCost = t.currentSession.orders.reduce(
+          (acc, cur) => acc + cur.price * cur.quantity,
+          0,
+        );
         totalTempRevenue += cost + fnbCost;
       }
     });
@@ -148,7 +149,9 @@ export const AdminDashboard: React.FC = () => {
 
   // Active playing/paused tables for the live cockpit
   const activeTables = useMemo(() => {
-    return tables.filter((t) => t.status === "playing" || t.status === "paused" || t.status === "booked");
+    return tables.filter(
+      (t) => t.status === "playing" || t.status === "paused" || t.status === "booked",
+    );
   }, [tables]);
 
   // Pending bookings count
@@ -171,20 +174,30 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* ── 1. EXECUTIVE WELCOME & QUICK ACTION BAR ─────────────────────────── */}
-      <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden">
+      <Card
+        styles={{ body: { padding: 0 } }}
+        className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden"
+      >
         <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white">
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <Title level={3} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={3}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Xin chào, {user?.name || "Nguyễn Tiến Dũng (Chủ CLB)"}
               </Title>
-              <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0">
+              <Tag
+                color="green"
+                className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0"
+              >
                 CHỦ CLB • SIMONIS EMERALD
               </Tag>
             </div>
             <Text className="!text-xs !text-slate-500 block">
-              Trung tâm giám sát điều hành toàn diện, kiểm soát doanh thu thời gian thực và quản trị sàn bida
+              Trung tâm giám sát điều hành toàn diện, kiểm soát doanh thu thời gian thực và quản trị
+              sàn bida
             </Text>
           </div>
 
@@ -221,8 +234,10 @@ export const AdminDashboard: React.FC = () => {
 
       {/* ── 2. HIGH-DENSITY EXECUTIVE KPI CARDS ──────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Doanh Thu Hôm Nay */}
-        <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all">
+        <Card
+          styles={{ body: { padding: 0 } }}
+          className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all"
+        >
           <div className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -243,14 +258,26 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Tạm tính sàn: <strong className="text-emerald-700 font-mono">{floorStats.totalTempRevenue.toLocaleString("vi-VN")}đ</strong></span>
-              <span>Đã thu: <strong className="text-slate-800 font-mono">{(floorStats.paidRevenueToday / 1000000).toFixed(1)}M</strong></span>
+              <span>
+                Tạm tính sàn:{" "}
+                <strong className="text-emerald-700 font-mono">
+                  {floorStats.totalTempRevenue.toLocaleString("vi-VN")}đ
+                </strong>
+              </span>
+              <span>
+                Đã thu:{" "}
+                <strong className="text-slate-800 font-mono">
+                  {(floorStats.paidRevenueToday / 1000000).toFixed(1)}M
+                </strong>
+              </span>
             </div>
           </div>
         </Card>
 
-        {/* KPI 2: Tỉ Lệ Lấp Đầy Sàn */}
-        <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all">
+        <Card
+          styles={{ body: { padding: 0 } }}
+          className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all"
+        >
           <div className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -266,7 +293,8 @@ export const AdminDashboard: React.FC = () => {
                 {floorStats.occupancyRate}%
               </span>
               <span className="text-xs font-semibold text-slate-500">
-                ({floorStats.playing + floorStats.paused + floorStats.booked}/{floorStats.total} bàn đang mở)
+                ({floorStats.playing + floorStats.paused + floorStats.booked}/{floorStats.total} bàn
+                đang mở)
               </span>
             </div>
 
@@ -291,8 +319,10 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </Card>
 
-        {/* KPI 3: Lượt Khách & Hội Viên */}
-        <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all">
+        <Card
+          styles={{ body: { padding: 0 } }}
+          className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all"
+        >
           <div className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -313,14 +343,20 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Hội viên CLB: <strong className="text-slate-800">24 (63%)</strong></span>
-              <span>Khách vãng lai: <strong className="text-slate-800">14</strong></span>
+              <span>
+                Hội viên CLB: <strong className="text-slate-800">24 (63%)</strong>
+              </span>
+              <span>
+                Khách vãng lai: <strong className="text-slate-800">14</strong>
+              </span>
             </div>
           </div>
         </Card>
 
-        {/* KPI 4: Trọng Tài & Cảnh Báo Kho */}
-        <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all">
+        <Card
+          styles={{ body: { padding: 0 } }}
+          className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white hover:shadow-sm transition-all"
+        >
           <div className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -335,14 +371,19 @@ export const AdminDashboard: React.FC = () => {
               <span className="text-2xl sm:text-3xl font-black text-amber-700 font-mono tracking-tight">
                 {lowStockItems.length + pendingBookingsCount} Việc
               </span>
-              <Tag color={pendingBookingsCount > 0 ? "orange" : "default"} className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+              <Tag
+                color={pendingBookingsCount > 0 ? "orange" : "default"}
+                className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+              >
                 CẦN XỬ LÝ
               </Tag>
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>{pendingBookingsCount} Lịch hẹn chờ duyệt</span>
-              <span className="text-amber-700 font-medium">{lowStockItems.length} Món sắp hết kho</span>
+              <span className="text-amber-700 font-medium">
+                {lowStockItems.length} Món sắp hết kho
+              </span>
             </div>
           </div>
         </Card>
@@ -350,17 +391,21 @@ export const AdminDashboard: React.FC = () => {
 
       {/* ── 3. CORE OPERATIONAL SECTION (7 COLS / 5 COLS) ───────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* CỘT TRÁI (7 COLS): BÀN ĐANG HOẠT ĐỘNG & LỊCH HẸN HÔM NAY */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Card: Bàn Đang Hoạt Động (Live POS Floor Monitor) */}
-          <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white">
+          <Card
+            styles={{ body: { padding: 0 } }}
+            className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white"
+          >
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <ThunderboltOutlined className="text-base" />
                 </div>
                 <div>
-                  <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight">
+                  <Title
+                    level={4}
+                    className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight"
+                  >
                     Bàn Đang Hoạt Động (Live Floor)
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
@@ -384,7 +429,11 @@ export const AdminDashboard: React.FC = () => {
             <div className="divide-y divide-slate-100">
               {activeTables.map((table) => {
                 const { cost, formattedTime } = calculatePlayingDetails(table);
-                const fnbTotal = table.currentSession?.orders.reduce((acc, cur) => acc + cur.price * cur.quantity, 0) || 0;
+                const fnbTotal =
+                  table.currentSession?.orders.reduce(
+                    (acc, cur) => acc + cur.price * cur.quantity,
+                    0,
+                  ) || 0;
                 const totalBill = cost + fnbTotal;
                 const isPlaying = table.status === "playing";
                 const isPaused = table.status === "paused";
@@ -411,19 +460,30 @@ export const AdminDashboard: React.FC = () => {
                           <span className="font-bold text-sm text-slate-900 truncate">
                             {table.name}
                           </span>
-                          <span className="text-xs text-slate-400 hidden sm:inline">• {table.typeName}</span>
+                          <span className="text-xs text-slate-400 hidden sm:inline">
+                            • {table.typeName}
+                          </span>
                           {isPlaying && (
-                            <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+                            <Tag
+                              color="green"
+                              className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                            >
                               ĐANG CHƠI
                             </Tag>
                           )}
                           {isPaused && (
-                            <Tag color="orange" className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+                            <Tag
+                              color="orange"
+                              className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                            >
                               TẠM DỪNG
                             </Tag>
                           )}
                           {isBooked && (
-                            <Tag color="blue" className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+                            <Tag
+                              color="blue"
+                              className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                            >
                               ĐÃ ĐẶT
                             </Tag>
                           )}
@@ -437,15 +497,23 @@ export const AdminDashboard: React.FC = () => {
                                 {table.currentSession?.customerName}
                               </span>
                               {table.currentSession?.isMember && (
-                                <Tag color="gold" className="!text-[9px] !px-1 !py-0 !border-0 !m-0 !font-bold">
+                                <Tag
+                                  color="gold"
+                                  className="!text-[9px] !px-1 !py-0 !border-0 !m-0 !font-bold"
+                                >
                                   VIP
                                 </Tag>
                               )}
                               <span className="text-slate-300">•</span>
-                              <span className="font-mono text-slate-600">Từ {table.currentSession?.sessionStart}</span>
+                              <span className="font-mono text-slate-600">
+                                Từ {table.currentSession?.sessionStart}
+                              </span>
                             </>
                           ) : (
-                            <span>Hẹn khách: <strong>{table.bookedInfo?.customerName}</strong> ({table.bookedInfo?.time})</span>
+                            <span>
+                              Hẹn khách: <strong>{table.bookedInfo?.customerName}</strong> (
+                              {table.bookedInfo?.time})
+                            </span>
                           )}
                         </div>
                       </div>
@@ -455,7 +523,9 @@ export const AdminDashboard: React.FC = () => {
                       {isPlaying || isPaused ? (
                         <div>
                           <div className="flex items-center justify-end gap-1.5">
-                            <ClockCircleOutlined className={isPaused ? "text-amber-500" : "text-emerald-600"} />
+                            <ClockCircleOutlined
+                              className={isPaused ? "text-amber-500" : "text-emerald-600"}
+                            />
                             <span className="font-mono font-bold text-sm text-slate-900">
                               {formattedTime}
                             </span>
@@ -465,9 +535,7 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </div>
                       ) : (
-                        <div className="text-xs text-blue-700 font-medium">
-                          Đã cọc 100k
-                        </div>
+                        <div className="text-xs text-blue-700 font-medium">Đã cọc 100k</div>
                       )}
 
                       <Button
@@ -484,7 +552,9 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Còn <strong>{floorStats.available} bàn trống</strong> sẵn sàng phục vụ khách</span>
+              <span>
+                Còn <strong>{floorStats.available} bàn trống</strong> sẵn sàng phục vụ khách
+              </span>
               <Button
                 variant="link"
                 size="sm"
@@ -496,15 +566,20 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </Card>
 
-          {/* Card: Lịch Đặt Bàn Trong Ngày (Upcoming Bookings) */}
-          <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white">
+          <Card
+            styles={{ body: { padding: 0 } }}
+            className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white"
+          >
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                   <CalendarOutlined className="text-base" />
                 </div>
                 <div>
-                  <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight">
+                  <Title
+                    level={4}
+                    className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight"
+                  >
                     Lịch Đặt Bàn Trong Ngày
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
@@ -526,27 +601,42 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="divide-y divide-slate-100">
               {bookings.slice(0, 4).map((b) => (
-                <div key={b.id} className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors">
+                <div
+                  key={b.id}
+                  className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
+                >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-900 truncate">{b.customerName}</span>
+                      <span className="font-bold text-sm text-slate-900 truncate">
+                        {b.customerName}
+                      </span>
                       <span className="text-xs font-mono text-slate-500">({b.phone})</span>
                       {b.status === "approved" ? (
-                        <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+                        <Tag
+                          color="green"
+                          className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                        >
                           ĐÃ DUYỆT
                         </Tag>
                       ) : b.status === "pending" ? (
-                        <Tag color="orange" className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+                        <Tag
+                          color="orange"
+                          className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                        >
                           CHỜ DUYỆT
                         </Tag>
                       ) : (
-                        <Tag color="error" className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
+                        <Tag
+                          color="error"
+                          className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                        >
                           TỪ CHỐI
                         </Tag>
                       )}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
-                      Bàn yêu cầu: <strong className="text-slate-800">{b.tableName}</strong> • {b.duration} giờ chơi
+                      Bàn yêu cầu: <strong className="text-slate-800">{b.tableName}</strong> •{" "}
+                      {b.duration} giờ chơi
                     </div>
                   </div>
 
@@ -564,17 +654,21 @@ export const AdminDashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* CỘT PHẢI (5 COLS): BIỂU ĐỒ GIỜ VÀNG, BANK POOL & CẢNH BÁO KHO F&B */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Card: Biểu Đồ Doanh Thu Khung Giờ Vàng */}
-          <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white">
+          <Card
+            styles={{ body: { padding: 0 } }}
+            className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white"
+          >
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <RiseOutlined className="text-base" />
                 </div>
                 <div>
-                  <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight">
+                  <Title
+                    level={4}
+                    className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight"
+                  >
                     Khung Giờ Vàng (Peak Hours)
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
@@ -591,7 +685,10 @@ export const AdminDashboard: React.FC = () => {
               {/* Bar Chart Visual */}
               <div className="h-44 flex items-stretch justify-between gap-2 pt-6 pb-2 border-b border-slate-200">
                 {hourlyData.map((d, idx) => (
-                  <div key={idx} className="flex-1 h-full flex flex-col justify-end items-center gap-1 group relative">
+                  <div
+                    key={idx}
+                    className="flex-1 h-full flex flex-col justify-end items-center gap-1 group relative"
+                  >
                     {/* Tooltip on hover */}
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2 bg-slate-900 text-white text-[10px] py-1 px-1.5 rounded font-mono pointer-events-none whitespace-nowrap z-10 shadow-xs">
                       {(d.revenue / 1000).toLocaleString()}k
@@ -632,15 +729,20 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </Card>
 
-          {/* Card: Trận Đấu Bank Pool & Cảnh Báo Kho Hàng */}
-          <Card styles={{ body: { padding: 0 } }} className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white">
+          <Card
+            styles={{ body: { padding: 0 } }}
+            className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white"
+          >
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                   <TrophyOutlined className="text-base" />
                 </div>
                 <div>
-                  <Title level={4} className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight">
+                  <Title
+                    level={4}
+                    className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight"
+                  >
                     Giải Đấu & Trọng Tài Bank Pool
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
@@ -668,7 +770,9 @@ export const AdminDashboard: React.FC = () => {
                       L
                     </div>
                     <div>
-                      <span className="text-xs font-bold text-slate-900 block">Nguyễn Hoàng Long</span>
+                      <span className="text-xs font-bold text-slate-900 block">
+                        Nguyễn Hoàng Long
+                      </span>
                       <span className="text-[10px] text-slate-500">Rank A • ELO 1520</span>
                     </div>
                   </div>
@@ -689,7 +793,9 @@ export const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Trọng tài: <strong>Bùi Quốc Tuấn</strong></span>
+                  <span className="text-slate-500">
+                    Trọng tài: <strong>Bùi Quốc Tuấn</strong>
+                  </span>
                   <Button
                     variant="link"
                     size="sm"
@@ -706,8 +812,12 @@ export const AdminDashboard: React.FC = () => {
                 <div className="flex items-center gap-2 text-xs">
                   <AlertOutlined className="text-amber-600 text-sm" />
                   <div>
-                    <span className="font-bold text-amber-950 block">Kho Hàng F&B: 2 Món Sắp Hết</span>
-                    <span className="text-amber-800 text-[11px]">Bò khô cháy tỏi (còn 3), Bia Heineken (còn 8)</span>
+                    <span className="font-bold text-amber-950 block">
+                      Kho Hàng F&B: 2 Món Sắp Hết
+                    </span>
+                    <span className="text-amber-800 text-[11px]">
+                      Bò khô cháy tỏi (còn 3), Bia Heineken (còn 8)
+                    </span>
                   </div>
                 </div>
 

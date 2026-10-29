@@ -1,18 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Newspaper,
-  Calendar,
-  Filter,
-  ArrowRight,
-  ChevronRight,
-} from "lucide-react";
-import {
-  Button,
-  Card,
-  Tag,
-  Typography,
-} from "../../shared/ui";
+import { Newspaper, Calendar, Filter, ArrowRight, ChevronRight } from "lucide-react";
+import { Button, Card, Tag, Typography } from "../../shared/ui";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -103,9 +92,7 @@ const CustomerNews = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   const filteredArticles =
-    selectedCategory === "all"
-      ? ARTICLES
-      : ARTICLES.filter((a) => a.category === selectedCategory);
+    selectedCategory === "all" ? ARTICLES : ARTICLES.filter((a) => a.category === selectedCategory);
 
   const featuredArticle = ARTICLES.find((a) => a.featured);
 
@@ -121,7 +108,8 @@ const CustomerNews = () => {
           Tin Tức, Ưu Đãi & Cẩm Nang Bida
         </Title>
         <Paragraph className="!text-sm !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
-          Cập nhật liên tục các ưu đãi giờ vàng, lịch trình giải đấu mở rộng và các bài viết kỹ thuật chia sẻ từ các huấn luyện viên bida giàu kinh nghiệm.
+          Cập nhật liên tục các ưu đãi giờ vàng, lịch trình giải đấu mở rộng và các bài viết kỹ
+          thuật chia sẻ từ các huấn luyện viên bida giàu kinh nghiệm.
         </Paragraph>
       </div>
 
@@ -152,7 +140,10 @@ const CustomerNews = () => {
                 <span className="text-emerald-700 font-semibold">{featuredArticle.author}</span>
               </div>
 
-              <Title level={2} className="!text-xl sm:!text-2xl !font-bold !text-slate-900 !mb-0 leading-snug">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-bold !text-slate-900 !mb-0 leading-snug"
+              >
                 {featuredArticle.title}
               </Title>
 
@@ -218,7 +209,6 @@ const CustomerNews = () => {
         </Text>
       </div>
 
-      {/* Grid bài viết */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredArticles.map((art) => (
           <Card
@@ -236,7 +226,10 @@ const CustomerNews = () => {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute top-3 left-3">
-                  <Tag color={art.tagColor} className="!text-[10px] !font-bold !px-2.5 !py-0.5 !rounded-md uppercase backdrop-blur-md">
+                  <Tag
+                    color={art.tagColor}
+                    className="!text-[10px] !font-bold !px-2.5 !py-0.5 !rounded-md uppercase backdrop-blur-md"
+                  >
                     {art.categoryLabel}
                   </Tag>
                 </div>
@@ -250,7 +243,10 @@ const CustomerNews = () => {
                   <span>{art.author}</span>
                 </div>
 
-                <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-1 leading-snug group-hover:!text-emerald-700 transition-colors">
+                <Title
+                  level={3}
+                  className="!text-base !font-bold !text-slate-900 !mb-1 leading-snug group-hover:!text-emerald-700 transition-colors"
+                >
                   {art.title}
                 </Title>
 
@@ -262,7 +258,13 @@ const CustomerNews = () => {
 
             <div className="p-5 pt-0 border-t border-slate-100 mt-2 flex items-center justify-between">
               <Link
-                to={art.category === "promo" ? "/register" : art.category === "tournament" ? "/customer/tournaments" : "/customer/rules"}
+                to={
+                  art.category === "promo"
+                    ? "/register"
+                    : art.category === "tournament"
+                      ? "/customer/tournaments"
+                      : "/customer/rules"
+                }
                 className="text-xs font-bold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"
               >
                 Xem chi tiết <ChevronRight className="h-3.5 w-3.5" />

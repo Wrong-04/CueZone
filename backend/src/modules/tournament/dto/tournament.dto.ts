@@ -32,7 +32,7 @@ export interface TournamentValidationResult {
 
 export function validateTournamentData(
   dto: Partial<CreateTournamentDTO>,
-  isUpdate: boolean = false
+  isUpdate: boolean = false,
 ): TournamentValidationResult {
   const errors: string[] = [];
 

@@ -389,7 +389,7 @@ export const ReportsAnalyticsPage: React.FC = () => {
     const totalCustomers = WEEKLY_REVENUE_DATA.reduce((acc, cur) => acc + cur.customerCount, 0);
     const avgOccupancy = Math.round(
       WEEKLY_REVENUE_DATA.reduce((acc, cur) => acc + cur.occupancyRate, 0) /
-        WEEKLY_REVENUE_DATA.length
+        WEEKLY_REVENUE_DATA.length,
     );
     const grossProfit = Math.round(tableRev * 0.85 + fnbRev * 0.58);
 
@@ -520,9 +520,7 @@ export const ReportsAnalyticsPage: React.FC = () => {
       key: "tableRevenue",
       width: 140,
       render: (rev: number) => (
-        <span className="font-mono text-slate-700 text-xs">
-          {rev.toLocaleString("vi-VN")}đ
-        </span>
+        <span className="font-mono text-slate-700 text-xs">{rev.toLocaleString("vi-VN")}đ</span>
       ),
     },
     {
@@ -590,9 +588,7 @@ export const ReportsAnalyticsPage: React.FC = () => {
       key: "unitPrice",
       width: 120,
       render: (p: number) => (
-        <span className="font-mono text-slate-600 text-xs">
-          {p.toLocaleString("vi-VN")}đ
-        </span>
+        <span className="font-mono text-slate-600 text-xs">{p.toLocaleString("vi-VN")}đ</span>
       ),
     },
     {
@@ -613,7 +609,10 @@ export const ReportsAnalyticsPage: React.FC = () => {
       width: 120,
       align: "center",
       render: (m: number) => (
-        <Tag color="green" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold font-mono">
+        <Tag
+          color="green"
+          className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold font-mono"
+        >
           +{m}%
         </Tag>
       ),
@@ -643,11 +642,7 @@ export const ReportsAnalyticsPage: React.FC = () => {
           <div className="flex items-center gap-2 mt-0.5">
             <Tag
               color={
-                record.tier === "Diamond"
-                  ? "purple"
-                  : record.tier === "Gold"
-                  ? "gold"
-                  : "blue"
+                record.tier === "Diamond" ? "purple" : record.tier === "Gold" ? "gold" : "blue"
               }
               className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold"
             >
@@ -683,18 +678,14 @@ export const ReportsAnalyticsPage: React.FC = () => {
       key: "visitCount",
       width: 130,
       align: "center",
-      render: (v: number) => (
-        <span className="font-bold text-slate-900 font-mono">{v} lần</span>
-      ),
+      render: (v: number) => <span className="font-bold text-slate-900 font-mono">{v} lần</span>,
     },
     {
       title: "Lần Chơi Gần Nhất",
       dataIndex: "lastVisit",
       key: "lastVisit",
       width: 150,
-      render: (visit: string) => (
-        <span className="text-xs text-slate-500">{visit}</span>
-      ),
+      render: (visit: string) => <span className="text-xs text-slate-500">{visit}</span>,
     },
   ];
 
@@ -710,7 +701,10 @@ export const ReportsAnalyticsPage: React.FC = () => {
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
                 <LineChartOutlined className="text-xl" />
               </div>
-              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Báo Cáo Doanh Thu & Hiệu Suất CLB Bida
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
@@ -718,7 +712,8 @@ export const ReportsAnalyticsPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Phân tích cơ cấu doanh thu tiền giờ bida, hiệu suất sử dụng bàn (Occupancy Rate), danh mục F&B bán chạy và chỉ số chi tiêu hội viên thân thiết CueZone.
+              Phân tích cơ cấu doanh thu tiền giờ bida, hiệu suất sử dụng bàn (Occupancy Rate), danh
+              mục F&B bán chạy và chỉ số chi tiêu hội viên thân thiết CueZone.
             </Text>
           </div>
 
@@ -851,7 +846,6 @@ export const ReportsAnalyticsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── TAB 1: DOANH THU & BIỂU ĐỒ TUẦN ─────────────────────────────────── */}
       {activeTab === "revenue" && (
         <div className="space-y-6">
           {/* Visual Bar Chart (Simulated CSS Bar Chart) */}
@@ -884,7 +878,10 @@ export const ReportsAnalyticsPage: React.FC = () => {
                 const fnbHeightPercent = Math.round((item.fnbRevenue / maxVal) * 100);
 
                 return (
-                  <div key={item.date} className="flex flex-col items-center gap-2 h-full justify-end group">
+                  <div
+                    key={item.date}
+                    className="flex flex-col items-center gap-2 h-full justify-end group"
+                  >
                     <span className="font-mono text-[10.5px] font-bold text-slate-800 opacity-0 group-hover:opacity-100 transition-opacity">
                       {(item.totalRevenue / 1000000).toFixed(1)}M
                     </span>
@@ -906,8 +903,12 @@ export const ReportsAnalyticsPage: React.FC = () => {
                     </div>
 
                     <div className="text-center pt-1 border-t border-slate-100 w-full">
-                      <span className="font-bold text-slate-900 text-xs block">{item.dayOfWeek.replace("Thứ ", "T")}</span>
-                      <span className="text-[10px] text-slate-400 block">{item.date.slice(0, 5)}</span>
+                      <span className="font-bold text-slate-900 text-xs block">
+                        {item.dayOfWeek.replace("Thứ ", "T")}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">
+                        {item.date.slice(0, 5)}
+                      </span>
                     </div>
                   </div>
                 );
@@ -954,7 +955,10 @@ export const ReportsAnalyticsPage: React.FC = () => {
                         {d.customerCount} lượt
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <Tag color={d.occupancyRate >= 85 ? "green" : "blue"} className="!rounded-full font-mono">
+                        <Tag
+                          color={d.occupancyRate >= 85 ? "green" : "blue"}
+                          className="!rounded-full font-mono"
+                        >
                           {d.occupancyRate}%
                         </Tag>
                       </td>
@@ -967,7 +971,6 @@ export const ReportsAnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 2: HIỆU SUẤT TỪNG BÀN BIDA ─────────────────────────────────── */}
       {activeTab === "tables" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -993,7 +996,6 @@ export const ReportsAnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 3: TOP F&B & MÓN BÁN CHẠY ──────────────────────────────────── */}
       {activeTab === "fnb" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1019,7 +1021,6 @@ export const ReportsAnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 4: KHÁCH HÀNG & VIP SPENDING ────────────────────────────────── */}
       {activeTab === "members" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1045,7 +1046,6 @@ export const ReportsAnalyticsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── MODAL: XUẤT FILE BÁO CÁO EXCEL ─────────────────────────────────── */}
       <Modal
         open={exportModalVisible}
         onCancel={() => setExportModalVisible(false)}
@@ -1054,9 +1054,7 @@ export const ReportsAnalyticsPage: React.FC = () => {
         title={
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
             <DownloadOutlined className="text-emerald-600 text-lg" />
-            <span className="font-black text-slate-900 text-base">
-              Xuất Báo Cáo Doanh Thu Bida
-            </span>
+            <span className="font-black text-slate-900 text-base">Xuất Báo Cáo Doanh Thu Bida</span>
           </div>
         }
       >
@@ -1070,16 +1068,17 @@ export const ReportsAnalyticsPage: React.FC = () => {
               className="!w-full !rounded-xl !text-xs !h-10"
               options={[
                 { value: "excel", label: "Microsoft Excel (.xlsx) - Đầy đủ công thức & biểu đồ" },
-                { value: "pdf", label: "Tài liệu PDF (.pdf) - Chuẩn in ấn báo cáo hội đồng quản trị" },
+                {
+                  value: "pdf",
+                  label: "Tài liệu PDF (.pdf) - Chuẩn in ấn báo cáo hội đồng quản trị",
+                },
                 { value: "csv", label: "Tệp CSV (.csv) - Đồng bộ phần mềm kế toán" },
               ]}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Phạm vi số liệu:
-            </label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Phạm vi số liệu:</label>
             <Select
               defaultValue="all"
               className="!w-full !rounded-xl !text-xs !h-10"

@@ -6,7 +6,12 @@ import { NotificationType } from "../notification/notification.model";
 const notificationService = new NotificationService();
 
 export class UserService {
-  async getAll(filters?: { role?: string; isActive?: string; search?: string; excludeCustomers?: string }): Promise<IUser[]> {
+  async getAll(filters?: {
+    role?: string;
+    isActive?: string;
+    search?: string;
+    excludeCustomers?: string;
+  }): Promise<IUser[]> {
     const query: any = {};
     if (filters?.role) {
       query.role = filters.role;
@@ -40,11 +45,13 @@ export class UserService {
     const existing = await User.findOne({ email: dto.email });
     if (existing) throw new Error("Email đã được sử dụng");
     const user = await User.create(dto);
-    notificationService.create({
-      title: "Tạo tài khoản nhân viên",
-      message: `Đã tạo tài khoản "${user.name}" (${user.email}) với vai trò ${user.role}.`,
-      type: NotificationType.USER,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: "Tạo tài khoản nhân viên",
+        message: `Đã tạo tài khoản "${user.name}" (${user.email}) với vai trò ${user.role}.`,
+        type: NotificationType.USER,
+      })
+      .catch(() => {});
     const userObj = user.toObject();
     delete (userObj as any).password;
     return userObj as Omit<IUser, "password">;
@@ -61,11 +68,13 @@ export class UserService {
     if (!user) throw new Error("Không tìm thấy người dùng");
     user.isLocked = !user.isLocked;
     await user.save();
-    notificationService.create({
-      title: user.isLocked ? "Khóa tài khoản" : "Mở khóa tài khoản",
-      message: `Tài khoản "${user.name}" (${user.email}) đã ${user.isLocked ? "bị khóa" : "được mở khóa"}.`,
-      type: NotificationType.USER,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: user.isLocked ? "Khóa tài khoản" : "Mở khóa tài khoản",
+        message: `Tài khoản "${user.name}" (${user.email}) đã ${user.isLocked ? "bị khóa" : "được mở khóa"}.`,
+        type: NotificationType.USER,
+      })
+      .catch(() => {});
     return user;
   }
 
@@ -74,11 +83,13 @@ export class UserService {
     if (!user) throw new Error("Không tìm thấy người dùng");
     user.isActive = !user.isActive;
     await user.save();
-    notificationService.create({
-      title: user.isActive ? "Kích hoạt tài khoản" : "Vô hiệu hóa tài khoản",
-      message: `Tài khoản "${user.name}" (${user.email}) đã ${user.isActive ? "được kích hoạt" : "bị vô hiệu hóa"}.`,
-      type: NotificationType.USER,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: user.isActive ? "Kích hoạt tài khoản" : "Vô hiệu hóa tài khoản",
+        message: `Tài khoản "${user.name}" (${user.email}) đã ${user.isActive ? "được kích hoạt" : "bị vô hiệu hóa"}.`,
+        type: NotificationType.USER,
+      })
+      .catch(() => {});
     return user;
   }
 
@@ -87,23 +98,24 @@ export class UserService {
     if (!user) throw new Error("Không tìm thấy người dùng");
     if (user.role === UserRole.ADMIN) {
       const adminCount = await User.countDocuments({ role: UserRole.ADMIN });
-      if (adminCount <= 1) throw new Error("Không thể xóa tài khoản Admin cuối cùng trong hệ thống");
+      if (adminCount <= 1)
+        throw new Error("Không thể xóa tài khoản Admin cuối cùng trong hệ thống");
     }
     await User.findByIdAndDelete(id);
-    notificationService.create({
-      title: "Xóa tài khoản",
-      message: `Đã xóa tài khoản "${user.name}" (${user.email}).`,
-      type: NotificationType.USER,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: "Xóa tài khoản",
+        message: `Đã xóa tài khoản "${user.name}" (${user.email}).`,
+        type: NotificationType.USER,
+      })
+      .catch(() => {});
   }
 
   async getStats() {
     const total = await User.countDocuments();
     const active = await User.countDocuments({ isActive: true, isLocked: false });
     const locked = await User.countDocuments({ isLocked: true });
-    const byRole = await User.aggregate([
-      { $group: { _id: "$role", count: { $sum: 1 } } },
-    ]);
+    const byRole = await User.aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }]);
     return { total, active, locked, byRole };
   }
 }

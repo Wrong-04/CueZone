@@ -1,11 +1,3 @@
-/**
- * CUEZONE BILLIARDS — DATABASE SEED MASTER SCRIPT (v4.3 COMPLETE)
- * Đồng bộ toàn diện 100% theo SRS v4.1 & Stitch Design Patterns (deginPatten.txt)
- * Chứa đầy đủ Master Data + Operational Transactional Data cho tất cả 22 Mongoose Models.
- *
- * Chạy lệnh: npm run seed (hoặc: node seed.js) từ thư mục backend/
- */
-
 require("dotenv").config({ path: require("path").resolve(__dirname, ".env") });
 const dns = require("dns");
 try {
@@ -14,8 +6,7 @@ try {
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const MONGO_URI =
-  process.env.MONGO_URI || "mongodb://localhost:27017/cuezone_db";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/cuezone_db";
 
 // ==============================================================================
 // 1.1 Role Schema (module: role - RBAC)
@@ -137,16 +128,7 @@ const NotificationSchema = new mongoose.Schema(
     message: { type: String, required: true, trim: true },
     type: {
       type: String,
-      enum: [
-        "user",
-        "table",
-        "pricing",
-        "role",
-        "system",
-        "order",
-        "booking",
-        "wallet",
-      ],
+      enum: ["user", "table", "pricing", "role", "system", "order", "booking", "wallet"],
       default: "system",
     },
     isRead: { type: Boolean, default: false },
@@ -154,7 +136,6 @@ const NotificationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// 1.6 Product & F&B Catalog Schema (Hợp nhất Kho hàng + Menu gọi món POS thành 1 nguồn duy nhất)
 const ProductSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -190,7 +171,6 @@ const SupplierSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// 1.9 Tournament Player SubSchema (nhúng trực tiếp vào Tournament theo chuẩn NoSQL)
 const TournamentPlayerSubSchema = new mongoose.Schema(
   {
     player: {
@@ -369,7 +349,6 @@ const SessionPauseSchema = new mongoose.Schema(
   { _id: false },
 );
 
-// Session Review SubSchema (Gộp Đánh giá dịch vụ trực tiếp vào phiên chơi theo chuẩn NoSQL 1-1)
 const SessionReviewSchema = new mongoose.Schema(
   {
     rating: { type: Number, required: true, min: 1, max: 5 },
@@ -449,15 +428,7 @@ const OrderSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true },
     status: {
       type: String,
-      enum: [
-        "pending",
-        "confirmed",
-        "preparing",
-        "ready",
-        "served",
-        "paid",
-        "cancelled",
-      ],
+      enum: ["pending", "confirmed", "preparing", "ready", "served", "paid", "cancelled"],
       default: "pending",
     },
     confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -483,7 +454,6 @@ const InvoiceItemSchema = new mongoose.Schema(
   { _id: false },
 );
 
-// 1.16 Payment SubSchema (nhúng trực tiếp vào Invoice để hợp nhất luồng Checkout/Thanh toán)
 const PaymentSubSchema = new mongoose.Schema(
   {
     method: {
@@ -528,14 +498,7 @@ const InvoiceSchema = new mongoose.Schema(
     paidAmount: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: [
-        "open",
-        "pending_payment",
-        "paid",
-        "void",
-        "refunded",
-        "partially_refunded",
-      ],
+      enum: ["open", "pending_payment", "paid", "void", "refunded", "partially_refunded"],
       default: "open",
     },
     voucher: { type: mongoose.Schema.Types.ObjectId, ref: "Voucher" },
@@ -555,7 +518,6 @@ const InvoiceSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// 1.18b Wallet Schema (module: wallet - Phương án B)
 const WalletSchema = new mongoose.Schema(
   {
     userId: {
@@ -572,7 +534,7 @@ const WalletSchema = new mongoose.Schema(
       default: "active",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // 1.19 WalletTransaction Schema (module: wallet)
@@ -691,70 +653,48 @@ const AuditLogSchema = new mongoose.Schema(
 );
 
 // ==============================================================================
-// 1.23. Integrity indexes (phòng duplicate/idempotency ở tầng DB)
-// Lưu ý: index không thay thế business-service transaction/concurrency check.
+
 // ==============================================================================
 UserSchema.index({ email: 1 }, { unique: true });
 TableSchema.index({ code: 1 }, { unique: true });
-WalletTransactionSchema.index(
-  { idempotencyKey: 1 },
-  { unique: true, sparse: true },
-);
+WalletTransactionSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 InvoiceSchema.index({ invoiceNumber: 1 }, { unique: true });
 OrderSchema.index({ orderCode: 1 }, { unique: true });
 ImportReceiptSchema.index({ receiptNumber: 1 }, { unique: true });
-MatchSchema.index(
-  { tournament: 1, round: 1, matchNumber: 1 },
-  { unique: true },
-);
+MatchSchema.index({ tournament: 1, round: 1, matchNumber: 1 }, { unique: true });
 
 // Mongoose Models
 const Role = mongoose.models.Role || mongoose.model("Role", RoleSchema);
-const PricingTier =
-  mongoose.models.PricingTier ||
-  mongoose.model("PricingTier", PricingTierSchema);
+const PricingTier = mongoose.models.PricingTier || mongoose.model("PricingTier", PricingTierSchema);
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 const Table = mongoose.models.Table || mongoose.model("Table", TableSchema);
 const Notification =
-  mongoose.models.Notification ||
-  mongoose.model("Notification", NotificationSchema);
-const Product =
-  mongoose.models.Product || mongoose.model("Product", ProductSchema);
-const Supplier =
-  mongoose.models.Supplier || mongoose.model("Supplier", SupplierSchema);
-const Tournament =
-  mongoose.models.Tournament || mongoose.model("Tournament", TournamentSchema);
+  mongoose.models.Notification || mongoose.model("Notification", NotificationSchema);
+const Product = mongoose.models.Product || mongoose.model("Product", ProductSchema);
+const Supplier = mongoose.models.Supplier || mongoose.model("Supplier", SupplierSchema);
+const Tournament = mongoose.models.Tournament || mongoose.model("Tournament", TournamentSchema);
 const Match = mongoose.models.Match || mongoose.model("Match", MatchSchema);
 const News = mongoose.models.News || mongoose.model("News", NewsSchema);
-const Voucher =
-  mongoose.models.Voucher || mongoose.model("Voucher", VoucherSchema);
-const Booking =
-  mongoose.models.Booking || mongoose.model("Booking", BookingSchema);
+const Voucher = mongoose.models.Voucher || mongoose.model("Voucher", VoucherSchema);
+const Booking = mongoose.models.Booking || mongoose.model("Booking", BookingSchema);
 const TableSession =
-  mongoose.models.TableSession ||
-  mongoose.model("TableSession", TableSessionSchema);
+  mongoose.models.TableSession || mongoose.model("TableSession", TableSessionSchema);
 const Order = mongoose.models.Order || mongoose.model("Order", OrderSchema);
-const Invoice =
-  mongoose.models.Invoice || mongoose.model("Invoice", InvoiceSchema);
-const Wallet =
-  mongoose.models.Wallet || mongoose.model("Wallet", WalletSchema);
+const Invoice = mongoose.models.Invoice || mongoose.model("Invoice", InvoiceSchema);
+const Wallet = mongoose.models.Wallet || mongoose.model("Wallet", WalletSchema);
 const WalletTransaction =
-  mongoose.models.WalletTransaction ||
-  mongoose.model("WalletTransaction", WalletTransactionSchema);
+  mongoose.models.WalletTransaction || mongoose.model("WalletTransaction", WalletTransactionSchema);
 const InventoryTransaction =
   mongoose.models.InventoryTransaction ||
   mongoose.model("InventoryTransaction", InventoryTransactionSchema);
 const ImportReceipt =
-  mongoose.models.ImportReceipt ||
-  mongoose.model("ImportReceipt", ImportReceiptSchema);
-const AuditLog =
-  mongoose.models.AuditLog || mongoose.model("AuditLog", AuditLogSchema);
+  mongoose.models.ImportReceipt || mongoose.model("ImportReceipt", ImportReceiptSchema);
+const AuditLog = mongoose.models.AuditLog || mongoose.model("AuditLog", AuditLogSchema);
 
 // ==============================================================================
 // 2. SEED DATA DEFINITIONS
 // ==============================================================================
 
-// 2.2. Bảng giá theo khung giờ (SRS v4.1 UC44 & TablesManagementPage)
 const pricingTiersData = [
   {
     name: "Khung Giờ Tiêu Chuẩn (Ban Ngày T2–T6)",
@@ -790,7 +730,6 @@ const pricingTiersData = [
   },
 ];
 
-// 2.3. Tài khoản người dùng (Mật khẩu test chuẩn: admin123)
 const defaultHashedPassword = bcrypt.hashSync("admin123", 10);
 
 const usersData = [
@@ -800,8 +739,7 @@ const usersData = [
     password: defaultHashedPassword,
     role: "admin",
     phone: "0901234567",
-    avatar:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
     branch: "CueZone Club - Cơ sở 1",
     position: "Chủ CLB & Quản trị hệ thống",
     isActive: true,
@@ -815,8 +753,7 @@ const usersData = [
     password: defaultHashedPassword,
     role: "staff",
     phone: "0902345678",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
     branch: "CueZone Club - Cơ sở 1",
     position: "Thu ngân ca sáng",
     isActive: true,
@@ -830,8 +767,7 @@ const usersData = [
     password: defaultHashedPassword,
     role: "staff",
     phone: "0903456789",
-    avatar:
-      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
     branch: "CueZone Club - Cơ sở 1",
     position: "Nhân viên phục vụ / Thu ngân ca tối",
     isActive: true,
@@ -1141,9 +1077,7 @@ const usersData = [
   },
 ];
 
-// 2.4. Danh sách 27 BÀN CHƠI CHUẨN (Khớp 100% với deginPatten.txt: 3x3 Grid, 9 bàn/trang, 3 trang)
 const buildTablesData = (pricingTierId) => [
-  // ─── KHU VIP: 8 BÀN (Mã: VIP-01 -> VIP-08) ───
   {
     code: "VIP-01",
     name: "BÀN 01 • VIP",
@@ -1233,7 +1167,6 @@ const buildTablesData = (pricingTierId) => [
     pricingTier: pricingTierId,
   },
 
-  // ─── KHU PHỔ THÔNG: 15 BÀN (Mã: STD-01 -> STD-15) ───
   {
     code: "STD-01",
     name: "BÀN 01 • PHỔ THÔNG",
@@ -1400,7 +1333,6 @@ const buildTablesData = (pricingTierId) => [
     pricingTier: pricingTierId,
   },
 
-  // ─── KHU THI ĐẤU: 4 BÀN (Mã: MTCH-01 -> MTCH-04) ───
   {
     code: "MTCH-01",
     name: "BÀN 01 • THI ĐẤU",
@@ -1447,7 +1379,6 @@ const buildTablesData = (pricingTierId) => [
   },
 ];
 
-// 2.5. Thông báo hệ thống (Notification - SRS v4.2 UC05 hỗ trợ cả thông báo cá nhân & public)
 function buildNotificationsData(adminUser, staff1User, staff2User, customers) {
   return [
     {
@@ -1461,8 +1392,7 @@ function buildNotificationsData(adminUser, staff1User, staff2User, customers) {
     {
       user: staff2User._id,
       title: "Yêu cầu đặt bàn trực tuyến mới",
-      message:
-        "Khách hàng Trần Quốc Đạt vừa gửi yêu cầu đặt BÀN 03 • VIP lúc 19:30 tối nay.",
+      message: "Khách hàng Trần Quốc Đạt vừa gửi yêu cầu đặt BÀN 03 • VIP lúc 19:30 tối nay.",
       type: "booking",
       isRead: false,
     },
@@ -1477,8 +1407,7 @@ function buildNotificationsData(adminUser, staff1User, staff2User, customers) {
     {
       user: customers[0] ? customers[0]._id : null,
       title: "Xác nhận đặt bàn thành công",
-      message:
-        "Yêu cầu đặt BÀN 01 • VIP của bạn đã được xác nhận. Hẹn gặp bạn tại CueZone Club!",
+      message: "Yêu cầu đặt BÀN 01 • VIP của bạn đã được xác nhận. Hẹn gặp bạn tại CueZone Club!",
       type: "booking",
       isRead: true,
     },
@@ -1509,10 +1438,7 @@ function buildNotificationsData(adminUser, staff1User, staff2User, customers) {
   ];
 }
 
-// 2.6. Kho hàng & Phụ kiện bida (SRS v4.1 UC31, UC32, UC37)
-// 2.6. Kho hàng & F&B Menu Catalog (Hợp nhất 100% Phụ kiện, Đồ uống, Đồ ăn & Nguyên liệu)
 const productsData = [
-  // --- 1. Phụ kiện bida & dịch vụ bàn ---
   {
     name: "Lơ bida Master Blue",
     sku: "ACC-002",
@@ -1522,8 +1448,7 @@ const productsData = [
     salePrice: 10000,
     stock: 48,
     minStock: 20,
-    imageUrl:
-      "https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?w=150",
     description: "Lơ bida nhập khẩu bám bi tốt, tăng ma sát cho đầu cơ",
     isForSale: true,
     isActive: true,
@@ -1537,8 +1462,7 @@ const productsData = [
     salePrice: 30000,
     stock: 40,
     minStock: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=150",
     description: "Đầu cơ bida da nhiều lớp Kamui Nhật Bản chuẩn thi đấu",
     isForSale: true,
     isActive: true,
@@ -1566,8 +1490,7 @@ const productsData = [
     salePrice: 60000,
     stock: 25,
     minStock: 5,
-    imageUrl:
-      "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=150",
     description: "Khăn chuyên dụng vệ sinh mặt vải nỉ bàn bida",
     isForSale: true,
     isActive: true,
@@ -1587,7 +1510,6 @@ const productsData = [
     isActive: true,
   },
 
-  // --- 2. Đồ uống đóng chai / lon ---
   {
     name: "Nước tăng lực RedBull lon 250ml",
     sku: "DRK-001",
@@ -1597,8 +1519,7 @@ const productsData = [
     salePrice: 20000,
     stock: 120,
     minStock: 36,
-    imageUrl:
-      "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=150",
     description: "Lon 250ml ướp lạnh kèm ly đá",
     isForSale: true,
     isActive: true,
@@ -1626,8 +1547,7 @@ const productsData = [
     salePrice: 15000,
     stock: 90,
     minStock: 24,
-    imageUrl:
-      "https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1625772299848-391b6a87d7b3?w=150",
     description: "Nước ngọt có ga vị chanh mát lạnh",
     isForSale: true,
     isActive: true,
@@ -1655,8 +1575,7 @@ const productsData = [
     salePrice: 25000,
     stock: 180,
     minStock: 48,
-    imageUrl:
-      "https://images.unsplash.com/photo-1608270192802-990ff5b090bc?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1608270192802-990ff5b090bc?w=150",
     description: "Lon 330ml ướp lạnh sâu",
     isForSale: true,
     isActive: true,
@@ -1670,8 +1589,7 @@ const productsData = [
     salePrice: 30000,
     stock: 160,
     minStock: 48,
-    imageUrl:
-      "https://images.unsplash.com/photo-1618886614638-80e3c15cd819?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1618886614638-80e3c15cd819?w=150",
     description: "Lon 330ml êm đằm dễ uống",
     isForSale: true,
     isActive: true,
@@ -1685,14 +1603,12 @@ const productsData = [
     salePrice: 22000,
     stock: 12,
     minStock: 48,
-    imageUrl:
-      "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=150",
     description: "Chai thủy tinh 330ml ướp xô đá",
     isForSale: true,
     isActive: true,
   },
 
-  // --- 3. Đồ uống pha chế (Coffee & Tea) ---
   {
     name: "Cà phê muối đặc biệt",
     sku: "DRK-008",
@@ -1702,8 +1618,7 @@ const productsData = [
     salePrice: 35000,
     stock: 50,
     minStock: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=150",
     description: "Cà phê phin đậm vị kết hợp lớp kem muối béo ngậy",
     isForSale: true,
     isActive: true,
@@ -1717,8 +1632,7 @@ const productsData = [
     salePrice: 25000,
     stock: 50,
     minStock: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=150",
     description: "Robusta nguyên chất đậm vị truyền thống",
     isForSale: true,
     isActive: true,
@@ -1752,7 +1666,6 @@ const productsData = [
     isActive: true,
   },
 
-  // --- 4. Món ăn chế biến (Food) ---
   {
     name: "Mì bò trứng xúc xích",
     sku: "FOD-001",
@@ -1762,8 +1675,7 @@ const productsData = [
     salePrice: 45000,
     stock: 35,
     minStock: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1612927601601-6638404737ce?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1612927601601-6638404737ce?w=150",
     description: "Mì tôm thơm ngon kèm bò viên, trứng ốp la và xúc xích nướng",
     isForSale: true,
     isActive: true,
@@ -1777,8 +1689,7 @@ const productsData = [
     salePrice: 25000,
     stock: 30,
     minStock: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=150",
     description: "2 lát bánh mì giòn rụm béo thơm",
     isForSale: true,
     isActive: true,
@@ -1792,14 +1703,12 @@ const productsData = [
     salePrice: 35000,
     stock: 30,
     minStock: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1576107232684-1279f3908594?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1576107232684-1279f3908594?w=150",
     description: "Khoai tây vàng giòn kèm sốt tương cà tương ớt",
     isForSale: true,
     isActive: true,
   },
 
-  // --- 5. Đồ ăn vặt (Snacks) ---
   {
     name: "Hạt hướng dương rang muối",
     sku: "SNK-001",
@@ -1809,8 +1718,7 @@ const productsData = [
     salePrice: 25000,
     stock: 60,
     minStock: 15,
-    imageUrl:
-      "https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?w=150",
     description: "Gói 200g thơm ngon nhâm nhi khi chơi",
     isForSale: true,
     isActive: true,
@@ -1824,14 +1732,12 @@ const productsData = [
     salePrice: 40000,
     stock: 40,
     minStock: 10,
-    imageUrl:
-      "https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=150",
     description: "Hạt điều nguyên hạt giòn béo ngậy gói 150g",
     isForSale: true,
     isActive: true,
   },
 
-  // --- 6. Nguyên liệu thô (Internal Ingredients - Không hiển thị bán lẻ) ---
   {
     name: "Cà phê hạt Robusta rang xay 1kg",
     sku: "ING-001",
@@ -1855,8 +1761,7 @@ const productsData = [
     salePrice: 0,
     stock: 30,
     minStock: 12,
-    imageUrl:
-      "https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?w=150",
+    imageUrl: "https://images.unsplash.com/photo-1528750997573-59b89d56f4f7?w=150",
     description: "Nguyên liệu sữa đặc pha chế",
     isForSale: false,
     isActive: true,
@@ -1877,7 +1782,6 @@ const productsData = [
   },
 ];
 
-// 2.7. Nhà cung cấp (SRS v4.1 UC33)
 const suppliersData = [
   {
     name: "Công ty Phụ kiện Bida Thành Công",
@@ -1913,7 +1817,6 @@ const suppliersData = [
   },
 ];
 
-// 2.9. Giải đấu Bank Pool (SRS v4.1 UC47, UC48, UC49)
 const tournamentsData = [
   {
     name: "Giải Bank Pool Mở Rộng 2026 (CueZone Cup)",
@@ -1945,8 +1848,7 @@ const tournamentsData = [
     registrationDeadline: new Date("2026-12-02T23:59:00"),
     maxPlayers: 16,
     registrationFee: 150000,
-    prizePool:
-      "Tổng giá trị 8.000.000 VNĐ + 01 Cơ Bida Custom CueZone",
+    prizePool: "Tổng giá trị 8.000.000 VNĐ + 01 Cơ Bida Custom CueZone",
     firstPrize: "4.000.000đ + 01 Cơ Bida Custom",
     secondPrize: "2.500.000đ + Voucher",
     thirdPrize: "750.000đ x 2",
@@ -1996,16 +1898,13 @@ const tournamentsData = [
   },
 ];
 
-// 2.10. Tin tức & Sự kiện (SRS v4.1 UC18, UC46)
 const newsData = [
   {
-    title:
-      "Khai trương phòng VIP Bank Pool cao cấp với bàn K-Steel tiêu chuẩn!",
+    title: "Khai trương phòng VIP Bank Pool cao cấp với bàn K-Steel tiêu chuẩn!",
     content:
       "CLB CueZone hân hạnh thông báo hoàn tất nâng cấp 8 bàn VIP riêng biệt với đầy đủ điều hoà hai chiều, ghế nỉ sofa cao cấp và hệ thống bóng bida Aramith Pro Cup TV phục vụ cơ thủ.",
     category: "news",
-    imageUrl:
-      "https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?w=500",
+    imageUrl: "https://images.unsplash.com/photo-1577471488278-16eec37ffcc2?w=500",
     isPublished: true,
   },
   {
@@ -2029,13 +1928,11 @@ const newsData = [
     content:
       "Bank Pool đòi hỏi sự tính toán góc phản xạ và lực tiếp xúc cực kỳ chuẩn xác. Cùng chuyên gia CueZone phân tích cách đánh băng dài, băng ngắn và kỹ thuật ép phê góc đôi.",
     category: "rule",
-    imageUrl:
-      "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=500",
+    imageUrl: "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=500",
     isPublished: true,
   },
 ];
 
-// 2.11. Voucher & Khuyến mãi (SRS v4.1 UC27)
 const vouchersData = [
   {
     code: "CUEZONE2026",
@@ -2091,7 +1988,7 @@ const vouchersData = [
 
 // ==============================================================================
 // 2.12. BUSINESS DATA INTEGRITY VALIDATION
-// Chặn seed tạo dữ liệu tự mâu thuẫn trước khi insert transactional data.
+
 // ==============================================================================
 function toMinutes(hhmm) {
   const [h, m] = String(hhmm).split(":").map(Number);
@@ -2126,17 +2023,13 @@ function assertSeedIntegrity({
   const tableIds = new Set(tables.map((t) => String(t._id)));
   const activeSessionByTable = new Set();
   sessions.forEach((s) => {
-    if (!tableIds.has(String(s.table)))
-      fail(`Session references unknown table: ${s.table}`);
+    if (!tableIds.has(String(s.table))) fail(`Session references unknown table: ${s.table}`);
     if (["active", "paused"].includes(s.status)) {
       const key = String(s.table);
       if (activeSessionByTable.has(key))
         fail(`More than one active/paused session for table ${key}`);
       activeSessionByTable.add(key);
-      if (
-        s.status === "paused" &&
-        (!s.pauses?.length || !s.pauses[s.pauses.length - 1].pauseStart)
-      )
+      if (s.status === "paused" && (!s.pauses?.length || !s.pauses[s.pauses.length - 1].pauseStart))
         fail(`Paused session missing pauseStart for table ${key}`);
     }
   });
@@ -2144,11 +2037,7 @@ function assertSeedIntegrity({
   const liveStatuses = new Set(["pending", "confirmed", "approved", "checked_in"]);
   const bookingGroups = new Map();
   bookings.forEach((b) => {
-    if (
-      !b.startTime ||
-      !b.endTime ||
-      toMinutes(b.startTime) >= toMinutes(b.endTime)
-    )
+    if (!b.startTime || !b.endTime || toMinutes(b.startTime) >= toMinutes(b.endTime))
       fail(`Invalid booking time: ${b.startTime}-${b.endTime}`);
     if (b.table && liveStatuses.has(b.status)) {
       const key = `${String(b.table)}|${new Date(b.bookingDate).toISOString().slice(0, 10)}`;
@@ -2167,36 +2056,23 @@ function assertSeedIntegrity({
   const tableStatus = new Map(tables.map((t) => [String(t._id), t.status]));
   sessions.forEach((s) => {
     const st = tableStatus.get(String(s.table));
-    if (
-      ["active", "paused"].includes(s.status) &&
-      !["playing", "paused"].includes(st)
-    )
-      fail(
-        `Session/table status mismatch for ${s.table}: session=${s.status}, table=${st}`,
-      );
+    if (["active", "paused"].includes(s.status) && !["playing", "paused"].includes(st))
+      fail(`Session/table status mismatch for ${s.table}: session=${s.status}, table=${st}`);
   });
 
   invoices.forEach((inv) => {
-    const itemSum = inv.items.reduce(
-      (sum, i) => sum + Number(i.amount || 0),
-      0,
-    );
+    const itemSum = inv.items.reduce((sum, i) => sum + Number(i.amount || 0), 0);
     const expected = inv.subtotal - (inv.discount || 0) + (inv.tax || 0);
-    if (itemSum !== inv.subtotal)
-      fail(`Invoice ${inv.invoiceNumber}: item sum != subtotal`);
+    if (itemSum !== inv.subtotal) fail(`Invoice ${inv.invoiceNumber}: item sum != subtotal`);
     if (inv.totalAmount !== expected)
       fail(`Invoice ${inv.invoiceNumber}: total != subtotal-discount+tax`);
     if (inv.paidAmount < 0 || inv.paidAmount > inv.totalAmount)
       fail(`Invoice ${inv.invoiceNumber}: invalid paidAmount`);
     if (inv.status === "paid") {
       if (inv.paidAmount !== inv.totalAmount)
-        fail(
-          `Invoice ${inv.invoiceNumber}: PAID but paidAmount != totalAmount`,
-        );
+        fail(`Invoice ${inv.invoiceNumber}: PAID but paidAmount != totalAmount`);
       if (!inv.payment)
-        fail(
-          `Invoice ${inv.invoiceNumber}: PAID but missing embedded payment info`,
-        );
+        fail(`Invoice ${inv.invoiceNumber}: PAID but missing embedded payment info`);
       if (inv.payment.amount !== inv.paidAmount)
         fail(`Invoice ${inv.invoiceNumber}: payment.amount != paidAmount`);
       if (
@@ -2210,10 +2086,7 @@ function assertSeedIntegrity({
   vouchers.forEach((v) => {
     if (v.usedCount < 0 || v.usedCount > v.maxUses)
       fail(`Voucher ${v.code}: usedCount out of quota`);
-    if (
-      v.discountType === "percent" &&
-      (v.discountValue <= 0 || v.discountValue > 100)
-    )
+    if (v.discountType === "percent" && (v.discountValue <= 0 || v.discountValue > 100))
       fail(`Voucher ${v.code}: invalid percent`);
     if (v.discountType === "fixed" && v.discountValue <= 0)
       fail(`Voucher ${v.code}: invalid fixed discount`);
@@ -2225,31 +2098,25 @@ function assertSeedIntegrity({
     const prev = walletByUser.get(key);
     if (prev != null && tx.balanceBefore !== prev)
       fail(`Wallet ledger discontinuity for user ${key}`);
-    const expectedAfter = ["top_up", "refund", "adjustment", "bonus"].includes(
-      tx.type,
-    )
+    const expectedAfter = ["top_up", "refund", "adjustment", "bonus"].includes(tx.type)
       ? tx.balanceBefore + tx.amount
       : tx.balanceBefore - tx.amount;
     if (tx.balanceAfter !== expectedAfter)
       fail(`Wallet transaction arithmetic error for user ${key}`);
-    if (tx.balanceAfter < 0)
-      fail(`Wallet ledger would become negative for user ${key}`);
+    if (tx.balanceAfter < 0) fail(`Wallet ledger would become negative for user ${key}`);
     walletByUser.set(key, tx.balanceAfter);
   });
   users.forEach((u) => {
     const finalBalance = walletByUser.get(String(u._id));
     if (finalBalance != null && finalBalance !== u.wallet)
-      fail(
-        `User wallet mismatch for ${u.email}: user=${u.wallet}, ledger=${finalBalance}`,
-      );
+      fail(`User wallet mismatch for ${u.email}: user=${u.wallet}, ledger=${finalBalance}`);
   });
 
   const productMap = new Map(products.map((p) => [String(p._id), p]));
   const lastStock = new Map();
   inventoryTxs.forEach((tx) => {
     const p = productMap.get(String(tx.product));
-    if (!p)
-      fail(`Inventory transaction references unknown product ${tx.product}`);
+    if (!p) fail(`Inventory transaction references unknown product ${tx.product}`);
     const last = lastStock.get(String(tx.product));
     if (last != null && tx.previousStock !== last)
       fail(`Inventory ledger discontinuity for ${p.sku}`);
@@ -2262,16 +2129,12 @@ function assertSeedIntegrity({
   products.forEach((p) => {
     const finalStock = lastStock.get(String(p._id));
     if (finalStock != null && finalStock !== p.stock)
-      fail(
-        `Product stock mismatch for ${p.sku}: product=${p.stock}, ledger=${finalStock}`,
-      );
+      fail(`Product stock mismatch for ${p.sku}: product=${p.stock}, ledger=${finalStock}`);
     if (p.stock < 0) fail(`Negative stock for ${p.sku}`);
   });
 
   tournaments.forEach((t) => {
-    const activePlayers = (t.players || []).filter(
-      (p) => p.registrationStatus !== "cancelled",
-    );
+    const activePlayers = (t.players || []).filter((p) => p.registrationStatus !== "cancelled");
     if (activePlayers.length > t.maxPlayers)
       fail(`Tournament ${t.name}: player count exceeds maxPlayers`);
     (t.players || []).forEach((p) => {
@@ -2280,10 +2143,7 @@ function assertSeedIntegrity({
     });
     if (new Date(t.registrationDeadline) > new Date(t.startDate))
       fail(`Tournament ${t.name}: registrationDeadline after startDate`);
-    if (
-      ["completed"].includes(t.status) &&
-      new Date(t.endDate) > new Date("2026-09-30T23:59:59")
-    )
+    if (["completed"].includes(t.status) && new Date(t.endDate) > new Date("2026-09-30T23:59:59"))
       fail(`Completed tournament ${t.name} ends in the future`);
   });
 
@@ -2302,26 +2162,22 @@ function assertSeedIntegrity({
 // 3. MAIN SEED FUNCTION
 // ==============================================================================
 async function runSeed() {
-  // Seed legacy xóa dữ liệu và dùng tên collection cũ; thay bằng migration không phá hủy.
-  throw new Error("Seed legacy đã bị khóa. Dùng pnpm db:migrate để chuyển schema và giữ dữ liệu hiện có.");
+  throw new Error(
+    "Seed legacy đã bị khóa. Dùng pnpm db:migrate để chuyển schema và giữ dữ liệu hiện có.",
+  );
   try {
     console.log("==================================================");
     console.log("🎱 CUEZONE BILLIARDS — DATABASE RE-SEED MASTER (v4.3)");
     console.log("==================================================");
-    console.log(
-      `🔌 Connecting to MongoDB: ${MONGO_URI.replace(/:([^@]+)@/, ":****@")}...`,
-    );
+    console.log(`🔌 Connecting to MongoDB: ${MONGO_URI.replace(/:([^@]+)@/, ":****@")}...`);
 
     await mongoose.connect(MONGO_URI);
     console.log("✅ MongoDB connected successfully!\n");
 
-    // 1. Dọn dẹp tất cả các collections cũ (NGOẠI TRỪ BẢNG USERS)
-    console.log(
-      "🗑️  Cleaning up previous data across all collections (PRESERVING USERS)...",
-    );
+    console.log("🗑️  Cleaning up previous data across all collections (PRESERVING USERS)...");
     await Promise.all([
       PricingTier.deleteMany({}),
-      // User.deleteMany({}) -> GIỮ NGUYÊN BẢNG USERS THEO YÊU CẦU!
+
       Table.deleteMany({}),
       Notification.deleteMany({}),
       Product.deleteMany({}),
@@ -2369,9 +2225,7 @@ async function runSeed() {
         .drop()
         .catch(() => {}),
     ]);
-    console.log(
-      "✅ All old operational collections cleared (Users preserved).\n",
-    );
+    console.log("✅ All old operational collections cleared (Users preserved).\n");
 
     // 1.5 Seed Roles
     console.log("🌱 1/23. Seeding Roles (RBAC)...");
@@ -2379,8 +2233,7 @@ async function runSeed() {
       {
         name: "admin",
         displayName: "Quản trị viên",
-        description:
-          "Toàn quyền quản trị hệ thống, nhân sự, tài chính, báo cáo",
+        description: "Toàn quyền quản trị hệ thống, nhân sự, tài chính, báo cáo",
         permissions: [
           { module: "users", actions: ["create", "read", "update", "delete"] },
           { module: "tables", actions: ["create", "read", "update", "delete"] },
@@ -2421,8 +2274,7 @@ async function runSeed() {
       {
         name: "staff",
         displayName: "Nhân viên phục vụ & Thu ngân",
-        description:
-          "Vận hành phiên bàn, tiếp nhận gọi món F&B, lập hóa đơn thanh toán",
+        description: "Vận hành phiên bàn, tiếp nhận gọi món F&B, lập hóa đơn thanh toán",
         permissions: [
           { module: "tables", actions: ["read", "update"] },
           { module: "orders", actions: ["create", "read", "update"] },
@@ -2434,8 +2286,7 @@ async function runSeed() {
       {
         name: "customer",
         displayName: "Khách hàng / Hội viên",
-        description:
-          "Đặt bàn trực tuyến, gọi món tại bàn qua QR, nạp ví, đăng ký giải đấu",
+        description: "Đặt bàn trực tuyến, gọi món tại bàn qua QR, nạp ví, đăng ký giải đấu",
         permissions: [
           { module: "tables", actions: ["read"] },
           { module: "bookings", actions: ["create", "read"] },
@@ -2456,15 +2307,10 @@ async function runSeed() {
     // 2. Seed Pricing Tiers
     console.log("🌱 2/23. Seeding Pricing Tiers...");
     const createdPricingTiers = await PricingTier.insertMany(pricingTiersData);
-    console.log(
-      `   ✅ Pricing Tiers seeded: ${createdPricingTiers.length} records`,
-    );
+    console.log(`   ✅ Pricing Tiers seeded: ${createdPricingTiers.length} records`);
     const defaultTierId = createdPricingTiers[0]._id;
 
-    // 3. Seed Users: GIỮ NGUYÊN TẤT CẢ USER HIỆN CÓ TRÊN MONGODB, CHỈ ĐỒNG BỘ CÁC USER MẪU NẾU CẦN
-    console.log(
-      "🌱 3/23. Synchronizing Users (Preserving existing user accounts)...",
-    );
+    console.log("🌱 3/23. Synchronizing Users (Preserving existing user accounts)...");
     const createdUsers = [];
     for (const u of usersData) {
       let existing = await User.findOne({ email: u.email.toLowerCase() });
@@ -2472,7 +2318,6 @@ async function runSeed() {
       if (!existing) {
         existing = await User.create({ ...u, roleId: targetRoleId });
       } else {
-        // Đồng bộ số dư ví và điểm để khớp với sổ cái ledger trong seed
         existing.wallet = u.wallet;
         existing.points = u.points;
         if (!existing.role) existing.role = u.role;
@@ -2496,40 +2341,23 @@ async function runSeed() {
     );
 
     const adminUser = createdUsers.find((u) => u.role === "admin");
-    const staff1User = createdUsers.find(
-      (u) => u.email === "staff1@cuezone.com",
-    );
-    const staff2User = createdUsers.find(
-      (u) => u.email === "staff2@cuezone.com",
-    );
+    const staff1User = createdUsers.find((u) => u.email === "staff1@cuezone.com");
+    const staff2User = createdUsers.find((u) => u.email === "staff2@cuezone.com");
     const customers = createdUsers.filter((u) => u.role === "customer");
 
-    // 5. Seed Tables (27 bàn chuẩn 3x3 layout)
-    console.log(
-      "🌱 4/22. Seeding Tables (Strictly 27 tables: 8 VIP, 15 Standard, 4 Match)...",
-    );
+    console.log("🌱 4/22. Seeding Tables (Strictly 27 tables: 8 VIP, 15 Standard, 4 Match)...");
     const tablesData = buildTablesData(defaultTierId);
     const createdTables = await Table.insertMany(tablesData);
     console.log(`   ✅ Tables seeded: ${createdTables.length} records`);
 
     // 6. Seed Notifications
     console.log("🌱 5/22. Seeding Notifications...");
-    const notificationsData = buildNotificationsData(
-      adminUser,
-      staff1User,
-      staff2User,
-      customers,
-    );
-    const createdNotifications =
-      await Notification.insertMany(notificationsData);
-    console.log(
-      `   ✅ Notifications seeded: ${createdNotifications.length} records`,
-    );
+    const notificationsData = buildNotificationsData(adminUser, staff1User, staff2User, customers);
+    const createdNotifications = await Notification.insertMany(notificationsData);
+    console.log(`   ✅ Notifications seeded: ${createdNotifications.length} records`);
 
     // 7. Seed Inventory Products
-    console.log(
-      "🌱 6/22. Seeding Products (Warehouse & F&B with low stock alerts)...",
-    );
+    console.log("🌱 6/22. Seeding Products (Warehouse & F&B with low stock alerts)...");
     const createdProducts = await Product.insertMany(productsData);
     console.log(`   ✅ Products seeded: ${createdProducts.length} records`);
 
@@ -2539,9 +2367,7 @@ async function runSeed() {
     console.log(`   ✅ Suppliers seeded: ${createdSuppliers.length} records`);
 
     // 10. Seed Tournaments
-    console.log(
-      "🌱 9/20. Seeding Tournaments (Bank Pool with embedded players)...",
-    );
+    console.log("🌱 9/20. Seeding Tournaments (Bank Pool with embedded players)...");
     const tournamentPlayersData = customers.slice(0, 8).map((cust, idx) => ({
       player: cust._id,
       user: cust._id,
@@ -2588,9 +2414,7 @@ async function runSeed() {
         players: tournamentPlayersData,
       },
     ];
-    const createdTournaments = await Tournament.insertMany(
-      tournamentsDataWithCreator,
-    );
+    const createdTournaments = await Tournament.insertMany(tournamentsDataWithCreator);
     console.log(
       `   ✅ Tournaments seeded: ${createdTournaments.length} records (with embedded players)`,
     );
@@ -2598,12 +2422,11 @@ async function runSeed() {
     const activeTournament = createdTournaments[0]; // CueZone Cup (registration_open)
     const draftTournament = createdTournaments[1]; // Junior Cup (draft)
     const inProgressTournament = createdTournaments[2]; // Weekend Challenge (in_progress)
-    const completedTournament = createdTournaments[3]; // Mùa Thu 2026 (completed)
+    const completedTournament = createdTournaments[3];
 
     // 12. Seed Matches (Bracket Rounds)
     console.log("🌱 11/22. Seeding Tournament Matches (Bracket)...");
     const matchesData = [
-      // Tứ kết (Round 1)
       {
         tournament: completedTournament._id,
         round: 1,
@@ -2656,7 +2479,7 @@ async function runSeed() {
         scheduledAt: new Date("2026-09-02T20:30:00"),
         table: createdTables[26]._id,
       }, // MTCH-04
-      // Bán kết (Round 2)
+
       {
         tournament: completedTournament._id,
         round: 2,
@@ -2686,7 +2509,7 @@ async function runSeed() {
         completedAt: new Date("2026-09-04T21:30:00"),
         table: createdTables[25]._id,
       },
-      // Chung kết (Round 3)
+
       {
         tournament: completedTournament._id,
         round: 3,
@@ -2723,9 +2546,15 @@ async function runSeed() {
     const tableStd13 = createdTables.find((t) => t.code === "STD-13");
     const tableVip7 = createdTables.find((t) => t.code === "VIP-07");
 
-    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
-    const tomorrowStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(Date.now() + 86400000));
-    const yesterdayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(Date.now() - 86400000));
+    const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+      new Date(),
+    );
+    const tomorrowStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+      new Date(Date.now() + 86400000),
+    );
+    const yesterdayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+      new Date(Date.now() - 86400000),
+    );
 
     const bookingsData = [
       {
@@ -2830,7 +2659,6 @@ async function runSeed() {
     const createdBookings = await Booking.insertMany(bookingsData);
     console.log(`   ✅ Bookings seeded: ${createdBookings.length} records`);
 
-    // Đồng bộ bookedInfo vào tài liệu Table tương ứng trong MongoDB
     for (const b of createdBookings) {
       if (b.table && (b.status === "confirmed" || b.status === "approved")) {
         const cust = customers.find((c) => String(c._id) === String(b.customer));
@@ -2840,27 +2668,24 @@ async function runSeed() {
             $set: {
               status: "booked",
               bookedInfo: {
-                customerName: cust ? cust.name : (b.customerName || "Khách đặt trước"),
-                phone: cust ? cust.phone : (b.phone || "0900000000"),
+                customerName: cust ? cust.name : b.customerName || "Khách đặt trước",
+                phone: cust ? cust.phone : b.phone || "0900000000",
                 time: `${b.time || b.startTime} (Hôm nay)`,
                 bookingId: String(b._id),
               },
             },
-          }
+          },
         );
       }
     }
 
     // 16. Seed TableSessions
-    console.log(
-      "🌱 15/22. Seeding Table Sessions (Active, Paused, Completed)...",
-    );
+    console.log("🌱 15/22. Seeding Table Sessions (Active, Paused, Completed)...");
     const playingTables = createdTables.filter((t) => t.status === "playing");
     const pausedTables = createdTables.filter((t) => t.status === "paused");
 
     const sessionsData = [];
 
-    // Active Sessions cho 14 bàn playing
     playingTables.forEach((tbl, idx) => {
       sessionsData.push({
         table: tbl._id,
@@ -2877,7 +2702,6 @@ async function runSeed() {
       });
     });
 
-    // Paused Sessions cho 2 bàn paused
     pausedTables.forEach((tbl, idx) => {
       sessionsData.push({
         table: tbl._id,
@@ -2895,7 +2719,6 @@ async function runSeed() {
       });
     });
 
-    // Completed Sessions lịch sử
     const completedSessionsData = [
       {
         table: createdTables[0]._id,
@@ -2913,8 +2736,7 @@ async function runSeed() {
         },
         review: {
           rating: 5,
-          comment:
-            "Bàn VIP 01 rất êm, điều hoà mát lạnh và nhân viên phục vụ cực kỳ tận tình!",
+          comment: "Bàn VIP 01 rất êm, điều hoà mát lạnh và nhân viên phục vụ cực kỳ tận tình!",
           reviewedAt: new Date(Date.now() - 3600000),
         },
       },
@@ -2934,8 +2756,7 @@ async function runSeed() {
         },
         review: {
           rating: 5,
-          comment:
-            "Giá tiền hợp lý, nước uống lạnh ngon. Sẽ quay lại thường xuyên!",
+          comment: "Giá tiền hợp lý, nước uống lạnh ngon. Sẽ quay lại thường xuyên!",
           reviewedAt: new Date(Date.now() - 3600000),
         },
       },
@@ -2975,8 +2796,7 @@ async function runSeed() {
         },
         review: {
           rating: 5,
-          comment:
-            "Giải Bank Pool tổ chức rất chuyên nghiệp. Rất hào hứng cho vòng tiếp theo.",
+          comment: "Giải Bank Pool tổ chức rất chuyên nghiệp. Rất hào hứng cho vòng tiếp theo.",
           reviewedAt: new Date(Date.now() - 10800000),
         },
       },
@@ -2986,14 +2806,13 @@ async function runSeed() {
       ...sessionsData,
       ...completedSessionsData,
     ]);
-    console.log(
-      `   ✅ Table Sessions seeded: ${createdSessions.length} records`,
-    );
+    console.log(`   ✅ Table Sessions seeded: ${createdSessions.length} records`);
 
-    // Đồng bộ currentSession vào tài liệu Table tương ứng trong MongoDB theo chuẩn POS
     for (let idx = 0; idx < playingTables.length; idx++) {
       const tbl = playingTables[idx];
-      const s = sessionsData.find((sd) => String(sd.table) === String(tbl._id) && sd.status === "active");
+      const s = sessionsData.find(
+        (sd) => String(sd.table) === String(tbl._id) && sd.status === "active",
+      );
       const cust = customers.find((c) => String(c._id) === String(s.customer)) || customers[0];
       const startedAt = s.startTime.getTime();
       await Table.updateOne(
@@ -3032,13 +2851,15 @@ async function runSeed() {
               deposit: 0,
             },
           },
-        }
+        },
       );
     }
 
     for (let idx = 0; idx < pausedTables.length; idx++) {
       const tbl = pausedTables[idx];
-      const s = sessionsData.find((sd) => String(sd.table) === String(tbl._id) && sd.status === "paused");
+      const s = sessionsData.find(
+        (sd) => String(sd.table) === String(tbl._id) && sd.status === "paused",
+      );
       const cust = customers.find((c) => String(c._id) === String(s.customer)) || customers[0];
       const startedAt = s.startTime.getTime();
       const pausedAt = s.pauses[0].pauseStart.getTime();
@@ -3079,27 +2900,18 @@ async function runSeed() {
               deposit: 0,
             },
           },
-        }
+        },
       );
     }
 
     // 16. Seed Orders (F&B State Machine - UC10, UC23-UC25, UC34)
     console.log("🌱 13/20. Seeding F&B Orders (Order State Machine)...");
-    const pRedbull =
-      createdProducts.find((p) => p.sku === "DRK-REDBULL") ||
-      createdProducts[0];
-    const pNoodle =
-      createdProducts.find((p) => p.sku === "FOD-NOODLE") || createdProducts[1];
-    const pTiger =
-      createdProducts.find((p) => p.sku === "DRK-TIGER") || createdProducts[2];
-    const pSausage =
-      createdProducts.find((p) => p.sku === "FOD-SAUSAGE") ||
-      createdProducts[3];
-    const pCoffee =
-      createdProducts.find((p) => p.sku === "DRK-COFFEE-M") ||
-      createdProducts[4];
-    const pChips =
-      createdProducts.find((p) => p.sku === "SNK-CHIPS") || createdProducts[5];
+    const pRedbull = createdProducts.find((p) => p.sku === "DRK-REDBULL") || createdProducts[0];
+    const pNoodle = createdProducts.find((p) => p.sku === "FOD-NOODLE") || createdProducts[1];
+    const pTiger = createdProducts.find((p) => p.sku === "DRK-TIGER") || createdProducts[2];
+    const pSausage = createdProducts.find((p) => p.sku === "FOD-SAUSAGE") || createdProducts[3];
+    const pCoffee = createdProducts.find((p) => p.sku === "DRK-COFFEE-M") || createdProducts[4];
+    const pChips = createdProducts.find((p) => p.sku === "SNK-CHIPS") || createdProducts[5];
 
     const ordersData = [
       {
@@ -3164,7 +2976,7 @@ async function runSeed() {
           },
         ],
         subtotal: pTiger.salePrice * 4,
-        status: "pending", // Đang chờ nhân viên duyệt (Test UC25)
+        status: "pending",
         notes: "Chờ nhân viên quầy POS xác nhận",
       },
       {
@@ -3183,7 +2995,7 @@ async function runSeed() {
           },
         ],
         subtotal: pSausage.salePrice * 2,
-        status: "confirmed", // Đã duyệt, đã kích hoạt trừ kho (Test UC34)
+        status: "confirmed",
         confirmedBy: staff2User._id,
         confirmedAt: new Date(Date.now() - 5 * 60 * 1000),
         notes: "Đã trừ tồn kho theo UC34",
@@ -3226,7 +3038,7 @@ async function runSeed() {
           },
         ],
         subtotal: pChips.salePrice,
-        status: "cancelled", // Test UC24 (Hủy món)
+        status: "cancelled",
         cancelledAt: new Date(Date.now() - 15 * 60 * 1000),
         cancelReason: "Khách đổi ý muốn dùng xúc xích thay vì snack",
       },
@@ -3242,7 +3054,6 @@ async function runSeed() {
     const sampleVoucher = createdVouchers[0];
 
     const invoicesData = [
-      // Open Invoices cho các bàn chơi
       {
         invoiceNumber: "INV-2026-0001",
         session: createdSessions[0]._id,
@@ -3306,7 +3117,7 @@ async function runSeed() {
         paidAmount: 0,
         status: "open",
       },
-      // Paid Invoices cho các phiên hoàn thành
+
       {
         invoiceNumber: "INV-2026-0003",
         session: createdSessions[16]._id, // completed session 1
@@ -3444,9 +3255,7 @@ async function runSeed() {
       },
     ];
     const createdWalletTxs = await WalletTransaction.insertMany(walletTxData);
-    console.log(
-      `   ✅ Wallet Transactions seeded: ${createdWalletTxs.length} records`,
-    );
+    console.log(`   ✅ Wallet Transactions seeded: ${createdWalletTxs.length} records`);
 
     // 21. Seed Inventory Transactions & Import Receipts
     console.log("🌱 20/22. Seeding Inventory Transactions...");
@@ -3498,9 +3307,7 @@ async function runSeed() {
       },
     ];
     const createdInvTxs = await InventoryTransaction.insertMany(invTxData);
-    console.log(
-      `   ✅ Inventory Transactions seeded: ${createdInvTxs.length} records`,
-    );
+    console.log(`   ✅ Inventory Transactions seeded: ${createdInvTxs.length} records`);
 
     console.log("🌱 21/22. Seeding Warehouse Import Receipts...");
     const importReceiptsData = [
@@ -3555,11 +3362,8 @@ async function runSeed() {
         completedAt: new Date(),
       },
     ];
-    const createdImportReceipts =
-      await ImportReceipt.insertMany(importReceiptsData);
-    console.log(
-      `   ✅ Import Receipts seeded: ${createdImportReceipts.length} records`,
-    );
+    const createdImportReceipts = await ImportReceipt.insertMany(importReceiptsData);
+    console.log(`   ✅ Import Receipts seeded: ${createdImportReceipts.length} records`);
 
     // 21.5. Validate cross-collection integrity before creating audit trail
     assertSeedIntegrity({
@@ -3635,22 +3439,12 @@ async function runSeed() {
     console.log("==================================================");
     console.log("📋 SYSTEM ACCOUNTS SUMMARY (Password for all: Cuezone@2026):");
     console.log("   • Admin:      admin@cuezone.com     (Quản trị viên & Kho)");
-    console.log(
-      "   • Staff 1:    staff1@cuezone.com    (Nhân viên phục vụ / Thu ngân ca sáng)",
-    );
-    console.log(
-      "   • Staff 2:    staff2@cuezone.com    (Nhân viên phục vụ / Thu ngân ca tối)",
-    );
-    console.log(
-      "   • Customers:  customer1@gmail.com -> customer8@gmail.com (8 Hội viên)",
-    );
+    console.log("   • Staff 1:    staff1@cuezone.com    (Nhân viên phục vụ / Thu ngân ca sáng)");
+    console.log("   • Staff 2:    staff2@cuezone.com    (Nhân viên phục vụ / Thu ngân ca tối)");
+    console.log("   • Customers:  customer1@gmail.com -> customer8@gmail.com (8 Hội viên)");
     console.log("--------------------------------------------------");
-    console.log(
-      "🎱 SEEDED COLLECTIONS OVERVIEW (Total: 18 Seeded Collections):",
-    );
-    console.log(
-      `   1. PricingTiers:           ${createdPricingTiers.length} records`,
-    );
+    console.log("🎱 SEEDED COLLECTIONS OVERVIEW (Total: 18 Seeded Collections):");
+    console.log(`   1. PricingTiers:           ${createdPricingTiers.length} records`);
     console.log(`   2. Users:                  ${createdUsers.length} records`);
     console.log(
       `   3. Tables:                 ${createdTables.length} records (27 bàn 3x3 layout)`,
@@ -3661,22 +3455,14 @@ async function runSeed() {
     console.log(
       `   5. Products:               ${createdProducts.length} records (Unified Inventory & F&B Menu)`,
     );
-    console.log(
-      `   6. Suppliers:              ${createdSuppliers.length} records`,
-    );
+    console.log(`   6. Suppliers:              ${createdSuppliers.length} records`);
     console.log(
       `   7. Tournaments:            ${createdTournaments.length} records (embedded players)`,
     );
-    console.log(
-      `   8. Matches:                ${createdMatches.length} records`,
-    );
+    console.log(`   8. Matches:                ${createdMatches.length} records`);
     console.log(`   9. News:                   ${createdNews.length} records`);
-    console.log(
-      `   10. Vouchers:              ${createdVouchers.length} records`,
-    );
-    console.log(
-      `   11. Bookings:              ${createdBookings.length} records`,
-    );
+    console.log(`   10. Vouchers:              ${createdVouchers.length} records`);
+    console.log(`   11. Bookings:              ${createdBookings.length} records`);
     console.log(
       `   12. TableSessions:         ${createdSessions.length} records (Active/Paused/Completed + Reviews embedded)`,
     );
@@ -3686,18 +3472,10 @@ async function runSeed() {
     console.log(
       `   14. Invoices:              ${createdInvoices.length} records (Payment merged in invoice)`,
     );
-    console.log(
-      `   15. WalletTransactions:    ${createdWalletTxs.length} records`,
-    );
-    console.log(
-      `   16. InventoryTransactions: ${createdInvTxs.length} records`,
-    );
-    console.log(
-      `   17. ImportReceipts:        ${createdImportReceipts.length} records`,
-    );
-    console.log(
-      `   18. AuditLogs:             ${createdAuditLogs.length} records`,
-    );
+    console.log(`   15. WalletTransactions:    ${createdWalletTxs.length} records`);
+    console.log(`   16. InventoryTransactions: ${createdInvTxs.length} records`);
+    console.log(`   17. ImportReceipts:        ${createdImportReceipts.length} records`);
+    console.log(`   18. AuditLogs:             ${createdAuditLogs.length} records`);
     console.log("==================================================");
   } catch (error) {
     console.error("\n❌ SEED FAILED WITH ERROR:", error);

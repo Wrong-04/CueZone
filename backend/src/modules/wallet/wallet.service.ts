@@ -2,16 +2,12 @@ import mongoose, { ClientSession, Types } from "mongoose";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 import { User } from "../user/user.model";
-import {
-  IWallet,
-  Wallet,
-  WalletTransactionStatus,
-  WalletTransactionType,
-} from "./wallet.model";
+import { IWallet, Wallet, WalletTransactionStatus, WalletTransactionType } from "./wallet.model";
 
 const notifications = new NotificationService();
 
-const httpError = (message: string, httpCode = 400) => Object.assign(new Error(message), { httpCode });
+const httpError = (message: string, httpCode = 400) =>
+  Object.assign(new Error(message), { httpCode });
 
 export class WalletService {
   async getForUser(userId: string) {
@@ -19,7 +15,7 @@ export class WalletService {
     const wallet = await Wallet.findOneAndUpdate(
       { userId },
       { $setOnInsert: { userId, balance: 0, transactions: [] } },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { new: true, upsert: true, setDefaultsOnInsert: true },
     );
     return wallet;
   }
@@ -29,7 +25,12 @@ export class WalletService {
     if (!Number.isSafeInteger(amount) || Number(amount) < 50_000 || Number(amount) > 20_000_000) {
       throw httpError("Số tiền nạp phải từ 50.000đ đến 20.000.000đ");
     }
-    const user = await User.findOne({ _id: userId, role: "customer", isActive: true, isLocked: false });
+    const user = await User.findOne({
+      _id: userId,
+      role: "customer",
+      isActive: true,
+      isLocked: false,
+    });
     if (!user) throw httpError("Chỉ hội viên đang hoạt động mới được tạo yêu cầu nạp ví", 403);
 
     const referenceCode = `CZ${Date.now().toString(36).toUpperCase()}${new Types.ObjectId().toString().slice(-5).toUpperCase()}`;
@@ -48,16 +49,20 @@ export class WalletService {
       return current;
     });
 
-    await notifications.createForUser(userId, {
-      title: "Đã tiếp nhận yêu cầu nạp ví",
-      content: `Yêu cầu nạp ${Number(amount).toLocaleString("vi-VN")}đ (${referenceCode}) đang chờ nhân viên xác nhận. Số dư chưa thay đổi.`,
-      type: NotificationType.WALLET,
-    }).catch(() => undefined);
-    await notifications.create({
-      title: "Có yêu cầu nạp ví mới",
-      content: `${user.name} yêu cầu nạp ${Number(amount).toLocaleString("vi-VN")}đ. Mã giao dịch: ${referenceCode}.`,
-      type: NotificationType.WALLET,
-    }).catch(() => undefined);
+    await notifications
+      .createForUser(userId, {
+        title: "Đã tiếp nhận yêu cầu nạp ví",
+        content: `Yêu cầu nạp ${Number(amount).toLocaleString("vi-VN")}đ (${referenceCode}) đang chờ nhân viên xác nhận. Số dư chưa thay đổi.`,
+        type: NotificationType.WALLET,
+      })
+      .catch(() => undefined);
+    await notifications
+      .create({
+        title: "Có yêu cầu nạp ví mới",
+        content: `${user.name} yêu cầu nạp ${Number(amount).toLocaleString("vi-VN")}đ. Mã giao dịch: ${referenceCode}.`,
+        type: NotificationType.WALLET,
+      })
+      .catch(() => undefined);
     return wallet;
   }
 
@@ -65,13 +70,19 @@ export class WalletService {
     const wallets = await Wallet.find({ "transactions.type": WalletTransactionType.TOPUP })
       .populate("userId", "name email phone")
       .sort({ updatedAt: -1 });
-    return wallets.flatMap((wallet) => (wallet.transactions as any[])
-      .filter((transaction: any) => transaction.type === WalletTransactionType.TOPUP && transaction.status === WalletTransactionStatus.PENDING)
-      .map((transaction: any) => ({
-        walletId: String(wallet._id),
-        user: wallet.userId,
-        transaction,
-      })));
+    return wallets.flatMap((wallet) =>
+      (wallet.transactions as any[])
+        .filter(
+          (transaction: any) =>
+            transaction.type === WalletTransactionType.TOPUP &&
+            transaction.status === WalletTransactionStatus.PENDING,
+        )
+        .map((transaction: any) => ({
+          walletId: String(wallet._id),
+          user: wallet.userId,
+          transaction,
+        })),
+    );
   }
 
   async reviewTopup(transactionId: string, reviewerId: string, status: "success" | "failed") {
@@ -80,16 +91,24 @@ export class WalletService {
     }
     const result = await mongoose.connection.transaction(async (session) => {
       const wallet = await Wallet.findOne({
-        transactions: { $elemMatch: { _id: transactionId, type: WalletTransactionType.TOPUP, status: WalletTransactionStatus.PENDING } },
+        transactions: {
+          $elemMatch: {
+            _id: transactionId,
+            type: WalletTransactionType.TOPUP,
+            status: WalletTransactionStatus.PENDING,
+          },
+        },
       }).session(session);
       if (!wallet) throw httpError("Không tìm thấy yêu cầu nạp đang chờ xử lý", 404);
       const transaction = wallet.transactions.id(transactionId);
       if (!transaction) throw httpError("Không tìm thấy giao dịch", 404);
       if (status === "success") wallet.balance += transaction.amount;
-      transaction.status = status === "success" ? WalletTransactionStatus.SUCCESS : WalletTransactionStatus.FAILED;
-      transaction.description = status === "success"
-        ? "Nạp tiền ví đã được nhân viên đối soát"
-        : "Yêu cầu nạp tiền không được xác nhận";
+      transaction.status =
+        status === "success" ? WalletTransactionStatus.SUCCESS : WalletTransactionStatus.FAILED;
+      transaction.description =
+        status === "success"
+          ? "Nạp tiền ví đã được nhân viên đối soát"
+          : "Yêu cầu nạp tiền không được xác nhận";
       transaction.balanceAfter = wallet.balance;
       transaction.reviewedBy = new Types.ObjectId(reviewerId);
       transaction.reviewedAt = new Date();
@@ -98,20 +117,29 @@ export class WalletService {
     });
 
     const amount = result.transaction.amount.toLocaleString("vi-VN");
-    await notifications.createForUser(String(result.wallet.userId), {
-      title: status === "success" ? "Nạp ví thành công" : "Yêu cầu nạp ví chưa được xác nhận",
-      content: status === "success"
-        ? `Yêu cầu ${result.transaction.referenceCode} đã được xác nhận. ${amount}đ đã được cộng vào ví.`
-        : `Yêu cầu ${result.transaction.referenceCode} chưa được xác nhận. Số dư ví không thay đổi; vui lòng liên hệ quầy nếu cần hỗ trợ.`,
-      type: NotificationType.WALLET,
-    }).catch(() => undefined);
+    await notifications
+      .createForUser(String(result.wallet.userId), {
+        title: status === "success" ? "Nạp ví thành công" : "Yêu cầu nạp ví chưa được xác nhận",
+        content:
+          status === "success"
+            ? `Yêu cầu ${result.transaction.referenceCode} đã được xác nhận. ${amount}đ đã được cộng vào ví.`
+            : `Yêu cầu ${result.transaction.referenceCode} chưa được xác nhận. Số dư ví không thay đổi; vui lòng liên hệ quầy nếu cần hỗ trợ.`,
+        type: NotificationType.WALLET,
+      })
+      .catch(() => undefined);
     return result;
   }
 
-  async chargeForTournament(userId: string, amount: number, tournamentName: string, session: ClientSession) {
+  async chargeForTournament(
+    userId: string,
+    amount: number,
+    tournamentName: string,
+    session: ClientSession,
+  ) {
     if (amount <= 0) return null;
     const wallet = await Wallet.findOne({ userId }).session(session);
-    if (!wallet || wallet.balance < amount) throw httpError("Số dư ví không đủ để thanh toán lệ phí giải đấu", 400);
+    if (!wallet || wallet.balance < amount)
+      throw httpError("Số dư ví không đủ để thanh toán lệ phí giải đấu", 400);
     wallet.balance -= amount;
     wallet.transactions.push({
       type: WalletTransactionType.PAYMENT,

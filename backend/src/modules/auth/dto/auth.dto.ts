@@ -1,4 +1,12 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum, Matches } from "class-validator";
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+  Matches,
+} from "class-validator";
 import { UserRole } from "../../user/user.model";
 
 export class RegisterDTO {
@@ -68,4 +76,3 @@ export class ChangePasswordDTO {
   @MinLength(8, { message: "Mật khẩu mới phải có ít nhất 8 ký tự" })
   newPassword!: string;
 }
-

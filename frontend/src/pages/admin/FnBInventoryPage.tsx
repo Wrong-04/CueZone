@@ -149,9 +149,7 @@ export const FnBInventoryPage: React.FC = () => {
       .catch((error: unknown) => {
         if (isMounted) {
           message.error(
-            error instanceof Error
-              ? error.message
-              : "Không thể tải danh sách món trên menu khách",
+            error instanceof Error ? error.message : "Không thể tải danh sách món trên menu khách",
           );
         }
       })
@@ -177,20 +175,13 @@ export const FnBInventoryPage: React.FC = () => {
 
     setIsUploadingProductImage(true);
     try {
-      const updatedProduct = await productService.uploadProductImage(
-        selectedImageProductId,
-        file,
-      );
+      const updatedProduct = await productService.uploadProductImage(selectedImageProductId, file);
       setImageTargets((current) =>
-        current.map((product) =>
-          product._id === updatedProduct._id ? updatedProduct : product,
-        ),
+        current.map((product) => (product._id === updatedProduct._id ? updatedProduct : product)),
       );
       message.success(`Đã cập nhật ảnh Cloudinary cho món ${updatedProduct.name}`);
     } catch (error: unknown) {
-      message.error(
-        error instanceof Error ? error.message : "Không thể tải ảnh lên Cloudinary",
-      );
+      message.error(error instanceof Error ? error.message : "Không thể tải ảnh lên Cloudinary");
     } finally {
       setIsUploadingProductImage(false);
     }
@@ -215,12 +206,12 @@ export const FnBInventoryPage: React.FC = () => {
 
     setStockList((prev) =>
       prev.map((i) =>
-        i.id === selectedItemForAdjust.id ? { ...i, stockQuantity: adjustedQty } : i
-      )
+        i.id === selectedItemForAdjust.id ? { ...i, stockQuantity: adjustedQty } : i,
+      ),
     );
 
     message.success(
-      `Đã cập nhật tồn kho món "${selectedItemForAdjust.name}" thành ${adjustedQty} ${selectedItemForAdjust.unit}!`
+      `Đã cập nhật tồn kho món "${selectedItemForAdjust.name}" thành ${adjustedQty} ${selectedItemForAdjust.unit}!`,
     );
     setAdjustModalVisible(false);
     setSelectedItemForAdjust(null);
@@ -229,7 +220,7 @@ export const FnBInventoryPage: React.FC = () => {
   const handleToggleZeroStock = (item: FnbStockItem) => {
     const nextQty = item.stockQuantity > 0 ? 0 : Math.max(item.minThreshold + 10, 15);
     setStockList((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, stockQuantity: nextQty } : i))
+      prev.map((i) => (i.id === item.id ? { ...i, stockQuantity: nextQty } : i)),
     );
     if (nextQty === 0) {
       message.info(`Đã cập nhật: Hết hàng món "${item.name}".`);
@@ -284,8 +275,7 @@ export const FnBInventoryPage: React.FC = () => {
       equipment: "Phụ Kiện",
     };
 
-    const finalCategoryName =
-      categoryMap[editingItemData.category || "coffee"] || "Khác";
+    const finalCategoryName = categoryMap[editingItemData.category || "coffee"] || "Khác";
 
     const itemToSave: FnbStockItem = {
       id: editingItemData.id || `fnb-${Date.now()}`,
@@ -305,9 +295,7 @@ export const FnBInventoryPage: React.FC = () => {
       setStockList((prev) => [itemToSave, ...prev]);
       message.success(`Đã thêm mới thành công món "${itemToSave.name}" vào thực đơn!`);
     } else {
-      setStockList((prev) =>
-        prev.map((i) => (i.id === itemToSave.id ? itemToSave : i))
-      );
+      setStockList((prev) => prev.map((i) => (i.id === itemToSave.id ? itemToSave : i)));
       message.success(`Đã cập nhật thông tin món "${itemToSave.name}"!`);
     }
 
@@ -323,11 +311,9 @@ export const FnBInventoryPage: React.FC = () => {
   // ── 3. FILTER & SEARCH ────────────────────────────────────────────────────
   const filteredItems = useMemo(() => {
     return stockList.filter((item) => {
-      const matchCat =
-        selectedCategory === "all" || item.category === selectedCategory;
+      const matchCat = selectedCategory === "all" || item.category === selectedCategory;
       const isOutOfStock = item.stockQuantity === 0;
-      const isLowStock =
-        item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
+      const isLowStock = item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
       const isInStock = item.stockQuantity > item.minThreshold;
 
       let matchStockStatus = true;
@@ -350,13 +336,13 @@ export const FnBInventoryPage: React.FC = () => {
   const metrics = useMemo(() => {
     const totalItems = stockList.length;
     const lowStockCount = stockList.filter(
-      (i) => i.stockQuantity > 0 && i.stockQuantity <= i.minThreshold
+      (i) => i.stockQuantity > 0 && i.stockQuantity <= i.minThreshold,
     ).length;
     const outOfStockCount = stockList.filter((i) => i.stockQuantity === 0).length;
     const inStockCount = stockList.filter((i) => i.stockQuantity > i.minThreshold).length;
     const totalInventoryValue = stockList.reduce(
       (acc, cur) => acc + cur.price * cur.stockQuantity,
-      0
+      0,
     );
 
     return {
@@ -482,11 +468,7 @@ export const FnBInventoryPage: React.FC = () => {
             <div className="flex items-center justify-between text-xs">
               <span
                 className={`font-black text-sm ${
-                  isOutOfStock
-                    ? "text-rose-600"
-                    : isLowStock
-                    ? "text-amber-600"
-                    : "text-slate-800"
+                  isOutOfStock ? "text-rose-600" : isLowStock ? "text-amber-600" : "text-slate-800"
                 }`}
               >
                 {qty} {record.unit}
@@ -499,11 +481,7 @@ export const FnBInventoryPage: React.FC = () => {
             <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
-                  isOutOfStock
-                    ? "bg-rose-500 w-0"
-                    : isLowStock
-                    ? "bg-amber-500"
-                    : "bg-emerald-500"
+                  isOutOfStock ? "bg-rose-500 w-0" : isLowStock ? "bg-amber-500" : "bg-emerald-500"
                 }`}
                 style={{ width: `${isOutOfStock ? 0 : Math.max(8, percent)}%` }}
               />
@@ -604,7 +582,10 @@ export const FnBInventoryPage: React.FC = () => {
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
                 <InboxOutlined className="text-xl" />
               </div>
-              <Title level={2} className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight">
+              <Title
+                level={2}
+                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+              >
                 Thực Đơn Món Ăn & Quản Lý Kho F&B
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
@@ -612,7 +593,8 @@ export const FnBInventoryPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Quản lý hình ảnh thực đơn món ăn sắc nét, kiểm soát định mức tồn kho, cảnh báo hết hàng và đồng bộ món phục vụ trực tiếp cho quầy POS bida.
+              Quản lý hình ảnh thực đơn món ăn sắc nét, kiểm soát định mức tồn kho, cảnh báo hết
+              hàng và đồng bộ món phục vụ trực tiếp cho quầy POS bida.
             </Text>
           </div>
 
@@ -768,7 +750,10 @@ export const FnBInventoryPage: React.FC = () => {
           {imageTargets.find((product) => product._id === selectedImageProductId) && (
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
               <Image
-                src={imageTargets.find((product) => product._id === selectedImageProductId)?.imageUrl || "/fnb/fnb-peach-tea.jpg"}
+                src={
+                  imageTargets.find((product) => product._id === selectedImageProductId)
+                    ?.imageUrl || "/fnb/fnb-peach-tea.jpg"
+                }
                 fallback="/fnb/fnb-peach-tea.jpg"
                 alt="Ảnh món đang chọn"
                 width={48}
@@ -780,9 +765,7 @@ export const FnBInventoryPage: React.FC = () => {
                 <Text strong className="!text-xs !text-slate-800 block truncate">
                   {imageTargets.find((product) => product._id === selectedImageProductId)?.name}
                 </Text>
-                <Text className="!text-[11px] !text-slate-500">
-                  Ảnh hiện tại của sản phẩm
-                </Text>
+                <Text className="!text-[11px] !text-slate-500">Ảnh hiện tại của sản phẩm</Text>
               </div>
             </div>
           )}
@@ -865,7 +848,6 @@ export const FnBInventoryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── VIEW MODE 1: DẠNG THẺ CÓ HÌNH ẢNH MÓN ĂN (VISUAL CARD GRID) ───── */}
       {viewMode === "grid" && (
         <div>
           {filteredItems.length === 0 ? (
@@ -888,7 +870,7 @@ export const FnBInventoryPage: React.FC = () => {
                   item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
                 const percent = Math.min(
                   100,
-                  Math.round((item.stockQuantity / (item.minThreshold * 2.5 || 20)) * 100)
+                  Math.round((item.stockQuantity / (item.minThreshold * 2.5 || 20)) * 100),
                 );
 
                 return (
@@ -948,9 +930,7 @@ export const FnBInventoryPage: React.FC = () => {
                           <span className="font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
                             {item.code}
                           </span>
-                          <span className="font-semibold text-slate-500">
-                            ĐVT: {item.unit}
-                          </span>
+                          <span className="font-semibold text-slate-500">ĐVT: {item.unit}</span>
                         </div>
 
                         {/* Title */}
@@ -974,8 +954,8 @@ export const FnBInventoryPage: React.FC = () => {
                               isOutOfStock
                                 ? "text-rose-600 font-bold"
                                 : isLowStock
-                                ? "text-amber-600 font-bold"
-                                : "text-slate-700"
+                                  ? "text-amber-600 font-bold"
+                                  : "text-slate-700"
                             }
                           >
                             Tồn kho: {item.stockQuantity} {item.unit}
@@ -990,8 +970,8 @@ export const FnBInventoryPage: React.FC = () => {
                               isOutOfStock
                                 ? "bg-rose-500 w-0"
                                 : isLowStock
-                                ? "bg-amber-500"
-                                : "bg-emerald-500"
+                                  ? "bg-amber-500"
+                                  : "bg-emerald-500"
                             }`}
                             style={{
                               width: `${isOutOfStock ? 0 : Math.max(8, percent)}%`,
@@ -1046,7 +1026,6 @@ export const FnBInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── VIEW MODE 2: DẠNG BẢNG KIỂM KHO (INVENTORY SPREADSHEET TABLE) ──── */}
       {viewMode === "table" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <Table<FnbStockItem>
@@ -1063,7 +1042,6 @@ export const FnBInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── MODAL 1: ĐIỀU CHỈNH TỒN KHO & NHẬP KHO NHANH ───────────────────── */}
       <Modal
         open={adjustModalVisible}
         onCancel={() => setAdjustModalVisible(false)}
@@ -1165,16 +1143,12 @@ export const FnBInventoryPage: React.FC = () => {
 
             {/* Quick Presets */}
             <div className="space-y-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">
-                Thao tác nhanh:
-              </span>
+              <span className="text-[11px] font-semibold text-slate-500">Thao tác nhanh:</span>
               <div className="flex flex-wrap gap-1.5">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() =>
-                    setAdjustedQty(selectedItemForAdjust.stockQuantity + 20)
-                  }
+                  onClick={() => setAdjustedQty(selectedItemForAdjust.stockQuantity + 20)}
                   className="!rounded-lg !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !text-xs"
                 >
                   Nhập thêm +20
@@ -1182,9 +1156,7 @@ export const FnBInventoryPage: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() =>
-                    setAdjustedQty(selectedItemForAdjust.stockQuantity + 50)
-                  }
+                  onClick={() => setAdjustedQty(selectedItemForAdjust.stockQuantity + 50)}
                   className="!rounded-lg !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !text-xs"
                 >
                   Nhập thêm +50
@@ -1192,9 +1164,7 @@ export const FnBInventoryPage: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() =>
-                    setAdjustedQty(selectedItemForAdjust.minThreshold * 2)
-                  }
+                  onClick={() => setAdjustedQty(selectedItemForAdjust.minThreshold * 2)}
                   className="!rounded-lg !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !text-xs"
                 >
                   Lên mức an toàn (x2 Min)
@@ -1238,7 +1208,6 @@ export const FnBInventoryPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── MODAL 2: THÊM MỚI / CHỈNH SỬA THÔNG TIN & ẢNH MÓN ĂN ───────────── */}
       <Modal
         open={editItemModalVisible}
         onCancel={() => setEditItemModalVisible(false)}
@@ -1272,9 +1241,7 @@ export const FnBInventoryPage: React.FC = () => {
               <Input
                 placeholder="Ví dụ: Cà Phê Muối CueZone Signature"
                 value={editingItemData.name || ""}
-                onChange={(e) =>
-                  setEditingItemData((prev) => ({ ...prev, name: e.target.value }))
-                }
+                onChange={(e) => setEditingItemData((prev) => ({ ...prev, name: e.target.value }))}
                 className="!h-10 !rounded-xl text-xs"
               />
             </div>
@@ -1322,15 +1289,11 @@ export const FnBInventoryPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Đơn vị tính:
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Đơn vị tính:</label>
               <Input
                 placeholder="Ly, Dĩa, Lon, Chai, Hũ, Cục..."
                 value={editingItemData.unit || "Ly"}
-                onChange={(e) =>
-                  setEditingItemData((prev) => ({ ...prev, unit: e.target.value }))
-                }
+                onChange={(e) => setEditingItemData((prev) => ({ ...prev, unit: e.target.value }))}
                 className="!h-10 !rounded-xl text-xs"
               />
             </div>
@@ -1419,9 +1382,7 @@ export const FnBInventoryPage: React.FC = () => {
                 return (
                   <div
                     key={preset.url}
-                    onClick={() =>
-                      setEditingItemData((prev) => ({ ...prev, image: preset.url }))
-                    }
+                    onClick={() => setEditingItemData((prev) => ({ ...prev, image: preset.url }))}
                     className={`cursor-pointer rounded-2xl border-2 p-1.5 transition-all flex flex-col items-center gap-1.5 bg-white relative group ${
                       isSelected
                         ? "border-emerald-600 shadow-xs ring-2 ring-emerald-100"
@@ -1458,9 +1419,7 @@ export const FnBInventoryPage: React.FC = () => {
               <Input
                 placeholder="https://... hoặc /fnb/..."
                 value={editingItemData.image || ""}
-                onChange={(e) =>
-                  setEditingItemData((prev) => ({ ...prev, image: e.target.value }))
-                }
+                onChange={(e) => setEditingItemData((prev) => ({ ...prev, image: e.target.value }))}
                 className="!h-9 !rounded-xl text-xs font-mono"
               />
             </div>

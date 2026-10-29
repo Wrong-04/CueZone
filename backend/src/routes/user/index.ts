@@ -6,6 +6,5 @@ import { UserRole } from "../../modules/user/user.model";
 
 export const rbacProtectedRoutes = Router();
 
-// Quản lý người dùng và vai trò phân quyền (RBAC) - Chỉ dành riêng cho ADMIN
 rbacProtectedRoutes.use("/users", requireRole(UserRole.ADMIN), userRouter);
 rbacProtectedRoutes.use("/roles", requireRole(UserRole.ADMIN), roleRouter);

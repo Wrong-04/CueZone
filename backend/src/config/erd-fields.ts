@@ -1,41 +1,296 @@
 import { Schema } from "mongoose";
 
-// Hợp đồng đối chiếu đủ 22 thực thể từ ERD. ID dùng ObjectId; tên field camelCase.
-// Không dùng tên đăng nhập thay họ tên, không suy đoán Price từ nhiều mức giá.
 export const erdEntities = [
-  { entity: "USER", model: "User", path: "", fields: { ID: "_id", UserName: "userName", Password: "password", Email: "email", Status: "status", DateOfBirth: "dateOfBirth", PhoneNumber: "phone" } },
-  { entity: "TRANSACTION", model: "Transaction", path: "", fields: { ID: "_id", Amount: "amount", PaymentMethod: "paymentMethod", TransactionCode: "transactionCode", CreatedAt: "createdAt" } },
-  { entity: "ORDER", model: "Order", path: "", fields: { ID: "_id", TransactionID: "transactionId", UserID: "customer", Name: "name", Status: "status", PaymentType: "paymentType" } },
-  { entity: "BOOKING", model: "Booking", path: "", fields: { ID: "_id", StaffID: "staff", CustomerID: "customer", TableID: "table", CustomerName: "customerName", PhoneNumber: "phone", Status: "status", Note: "note", StartDate: "startDate", EndDate: "endDate" } },
-  { entity: "POOL_TABLE", model: "Table", path: "", fields: { ID: "_id", TypeID: "pricingTier", Name: "name", Status: "status" } },
-  { entity: "PRICING_TYPE", model: "PricingTier", path: "", fields: { ID: "_id", Name: "name", Status: "status", Type: "type", Price: "price", StartTime: "startTime", EndTime: "endTime", PriceType: "priceType", Note: "note" } },
-  { entity: "TABLE_SESSION", model: "TableSession", path: "", fields: { ID: "_id", VoucherID: "voucher", OrderID: "order", UserID: "openedBy", TableID: "table", Status: "status", StartTime: "startTime", EndTime: "endTime" } },
-  { entity: "VOUCHER", model: "Voucher", path: "", fields: { ID: "_id", Name: "name", Discount: "discountValue", Code: "code", Date: "date" } },
-  { entity: "SESSION_ORDER_DETAIL", model: "TableSession", path: "items", fields: { TableSessionID: "tableSessionId", ProductAndFoodID: "product", Quantity: "quantity", Total: "totalPrice" } },
-  { entity: "PRODUCT_AND_FOOD", model: "Product", path: "", fields: { ID: "_id", Name: "name", Price: "salePrice", Quantity: "stock" } },
-  { entity: "GOODS_RECEIPT", model: "GoodsReceipt", path: "", fields: { ID: "_id", UserID: "createdBy", Name: "name", Total: "totalAmount", StartDate: "startDate" } },
-  { entity: "GOODS_RECEIPT_DETAIL", model: "GoodsReceipt", path: "items", fields: { GoodsReceiptID: "goodsReceiptId", ProductAndFoodID: "product", Count: "quantity", Total: "totalPrice" } },
-  { entity: "NEWS", model: "News", path: "", fields: { ID: "_id", UserID: "author", Title: "title", Content: "content", Time: "time", Category: "category", Status: "status" } },
-  { entity: "TOURNAMENT", model: "Tournament", path: "", fields: { ID: "_id", CreatedBy: "createdBy", Name: "name", Description: "description", Format: "format", GameType: "gameType", Status: "status", StartDate: "startDate", EndDate: "endDate", RegCloseAt: "registrationDeadline", MinPlayer: "minPlayers", EntryFee: "registrationFee", PrizePool: "prizePoolAmount", CreatedAt: "createdAt" } },
-  { entity: "TOURNAMENT_REGISTRATION", model: "Tournament", path: "players", fields: { ID: "_id", TournamentID: "tournamentId", UserID: "user", GroupID: "groupId", TransactionID: "transactionId", Seed: "seed", Status: "registrationStatus", RegisteredAt: "registeredAt" } },
-  { entity: "TOURNAMENT_GROUP", model: "Tournament", path: "groups", fields: { ID: "_id", TournamentID: "tournamentId", Name: "name", QualifySlots: "qualifySlots" } },
-  { entity: "TOURNAMENT_ROUND", model: "Tournament", path: "rounds", fields: { ID: "_id", TournamentID: "tournamentId", RoundNo: "roundNo", Name: "name", Stage: "stage", RaceTo: "raceTo" } },
-  { entity: "MATCH", model: "Match", path: "", fields: { ID: "_id", TournamentID: "tournament", RoundID: "roundId", TableID: "table", RefereeID: "referee", WinnerRegID: "winnerRegistrationId", NextMatchID: "nextMatchId", NextMatchSlot: "nextMatchSlot", Code: "code", ScheduledAt: "scheduledAt", StartedAt: "startedAt", EndedAt: "completedAt", Status: "status" } },
-  { entity: "MATCH_PARTICIPANT", model: "Match", path: "participants", fields: { ID: "_id", MatchID: "matchId", RegistrationID: "registrationId", Slot: "slot", Score: "score", IsWinner: "isWinner" } },
-  { entity: "MATCH_FRAME", model: "MatchFrame", path: "", fields: { ID: "_id", MatchID: "match", FrameNo: "frameNo", WinnerRegID: "winnerRegistrationId", HighestBreak: "highestBreak", DurationSec: "durationSec" } },
-  { entity: "TOURNAMENT_PRIZE", model: "Tournament", path: "prizes", fields: { ID: "_id", TournamentID: "tournamentId", Rank: "rank", Reward: "reward", Amount: "amount" } },
-  { entity: "TOURNAMENT_RESULT", model: "Tournament", path: "players.result", fields: { ID: "_id", TournamentID: "tournamentId", RegistrationID: "registrationId", FinalRank: "finalRank", PrizeAmount: "prizeAmount" } },
+  {
+    entity: "USER",
+    model: "User",
+    path: "",
+    fields: {
+      ID: "_id",
+      UserName: "userName",
+      Password: "password",
+      Email: "email",
+      Status: "status",
+      DateOfBirth: "dateOfBirth",
+      PhoneNumber: "phone",
+    },
+  },
+  {
+    entity: "TRANSACTION",
+    model: "Transaction",
+    path: "",
+    fields: {
+      ID: "_id",
+      Amount: "amount",
+      PaymentMethod: "paymentMethod",
+      TransactionCode: "transactionCode",
+      CreatedAt: "createdAt",
+    },
+  },
+  {
+    entity: "ORDER",
+    model: "Order",
+    path: "",
+    fields: {
+      ID: "_id",
+      TransactionID: "transactionId",
+      UserID: "customer",
+      Name: "name",
+      Status: "status",
+      PaymentType: "paymentType",
+    },
+  },
+  {
+    entity: "BOOKING",
+    model: "Booking",
+    path: "",
+    fields: {
+      ID: "_id",
+      StaffID: "staff",
+      CustomerID: "customer",
+      TableID: "table",
+      CustomerName: "customerName",
+      PhoneNumber: "phone",
+      Status: "status",
+      Note: "note",
+      StartDate: "startDate",
+      EndDate: "endDate",
+    },
+  },
+  {
+    entity: "POOL_TABLE",
+    model: "Table",
+    path: "",
+    fields: { ID: "_id", TypeID: "pricingTier", Name: "name", Status: "status" },
+  },
+  {
+    entity: "PRICING_TYPE",
+    model: "PricingTier",
+    path: "",
+    fields: {
+      ID: "_id",
+      Name: "name",
+      Status: "status",
+      Type: "type",
+      Price: "price",
+      StartTime: "startTime",
+      EndTime: "endTime",
+      PriceType: "priceType",
+      Note: "note",
+    },
+  },
+  {
+    entity: "TABLE_SESSION",
+    model: "TableSession",
+    path: "",
+    fields: {
+      ID: "_id",
+      VoucherID: "voucher",
+      OrderID: "order",
+      UserID: "openedBy",
+      TableID: "table",
+      Status: "status",
+      StartTime: "startTime",
+      EndTime: "endTime",
+    },
+  },
+  {
+    entity: "VOUCHER",
+    model: "Voucher",
+    path: "",
+    fields: { ID: "_id", Name: "name", Discount: "discountValue", Code: "code", Date: "date" },
+  },
+  {
+    entity: "SESSION_ORDER_DETAIL",
+    model: "TableSession",
+    path: "items",
+    fields: {
+      TableSessionID: "tableSessionId",
+      ProductAndFoodID: "product",
+      Quantity: "quantity",
+      Total: "totalPrice",
+    },
+  },
+  {
+    entity: "PRODUCT_AND_FOOD",
+    model: "Product",
+    path: "",
+    fields: { ID: "_id", Name: "name", Price: "salePrice", Quantity: "stock" },
+  },
+  {
+    entity: "GOODS_RECEIPT",
+    model: "GoodsReceipt",
+    path: "",
+    fields: {
+      ID: "_id",
+      UserID: "createdBy",
+      Name: "name",
+      Total: "totalAmount",
+      StartDate: "startDate",
+    },
+  },
+  {
+    entity: "GOODS_RECEIPT_DETAIL",
+    model: "GoodsReceipt",
+    path: "items",
+    fields: {
+      GoodsReceiptID: "goodsReceiptId",
+      ProductAndFoodID: "product",
+      Count: "quantity",
+      Total: "totalPrice",
+    },
+  },
+  {
+    entity: "NEWS",
+    model: "News",
+    path: "",
+    fields: {
+      ID: "_id",
+      UserID: "author",
+      Title: "title",
+      Content: "content",
+      Time: "time",
+      Category: "category",
+      Status: "status",
+    },
+  },
+  {
+    entity: "TOURNAMENT",
+    model: "Tournament",
+    path: "",
+    fields: {
+      ID: "_id",
+      CreatedBy: "createdBy",
+      Name: "name",
+      Description: "description",
+      Format: "format",
+      GameType: "gameType",
+      Status: "status",
+      StartDate: "startDate",
+      EndDate: "endDate",
+      RegCloseAt: "registrationDeadline",
+      MinPlayer: "minPlayers",
+      EntryFee: "registrationFee",
+      PrizePool: "prizePoolAmount",
+      CreatedAt: "createdAt",
+    },
+  },
+  {
+    entity: "TOURNAMENT_REGISTRATION",
+    model: "Tournament",
+    path: "players",
+    fields: {
+      ID: "_id",
+      TournamentID: "tournamentId",
+      UserID: "user",
+      GroupID: "groupId",
+      TransactionID: "transactionId",
+      Seed: "seed",
+      Status: "registrationStatus",
+      RegisteredAt: "registeredAt",
+    },
+  },
+  {
+    entity: "TOURNAMENT_GROUP",
+    model: "Tournament",
+    path: "groups",
+    fields: { ID: "_id", TournamentID: "tournamentId", Name: "name", QualifySlots: "qualifySlots" },
+  },
+  {
+    entity: "TOURNAMENT_ROUND",
+    model: "Tournament",
+    path: "rounds",
+    fields: {
+      ID: "_id",
+      TournamentID: "tournamentId",
+      RoundNo: "roundNo",
+      Name: "name",
+      Stage: "stage",
+      RaceTo: "raceTo",
+    },
+  },
+  {
+    entity: "MATCH",
+    model: "Match",
+    path: "",
+    fields: {
+      ID: "_id",
+      TournamentID: "tournament",
+      RoundID: "roundId",
+      TableID: "table",
+      RefereeID: "referee",
+      WinnerRegID: "winnerRegistrationId",
+      NextMatchID: "nextMatchId",
+      NextMatchSlot: "nextMatchSlot",
+      Code: "code",
+      ScheduledAt: "scheduledAt",
+      StartedAt: "startedAt",
+      EndedAt: "completedAt",
+      Status: "status",
+    },
+  },
+  {
+    entity: "MATCH_PARTICIPANT",
+    model: "Match",
+    path: "participants",
+    fields: {
+      ID: "_id",
+      MatchID: "matchId",
+      RegistrationID: "registrationId",
+      Slot: "slot",
+      Score: "score",
+      IsWinner: "isWinner",
+    },
+  },
+  {
+    entity: "MATCH_FRAME",
+    model: "MatchFrame",
+    path: "",
+    fields: {
+      ID: "_id",
+      MatchID: "match",
+      FrameNo: "frameNo",
+      WinnerRegID: "winnerRegistrationId",
+      HighestBreak: "highestBreak",
+      DurationSec: "durationSec",
+    },
+  },
+  {
+    entity: "TOURNAMENT_PRIZE",
+    model: "Tournament",
+    path: "prizes",
+    fields: {
+      ID: "_id",
+      TournamentID: "tournamentId",
+      Rank: "rank",
+      Reward: "reward",
+      Amount: "amount",
+    },
+  },
+  {
+    entity: "TOURNAMENT_RESULT",
+    model: "Tournament",
+    path: "players.result",
+    fields: {
+      ID: "_id",
+      TournamentID: "tournamentId",
+      RegistrationID: "registrationId",
+      FinalRank: "finalRank",
+      PrizeAmount: "prizeAmount",
+    },
+  },
 ] as const;
 
-// Dùng cùng hợp đồng cho document mới và kiểm tra migration, tránh bỏ sót field tùy chọn.
 export function applyErdDefaults(schema: Schema, model: string) {
-  for (const entity of erdEntities.filter(entry => entry.model === model)) {
+  for (const entity of erdEntities.filter((entry) => entry.model === model)) {
     let target = schema;
-    for (const part of entity.path.split('.').filter(Boolean)) target = (target.path(part) as any).schema;
+    for (const part of entity.path.split(".").filter(Boolean))
+      target = (target.path(part) as any).schema;
     for (const field of Object.values(entity.fields)) {
       const property = target.path(field) as any;
       if (!property) throw new Error(`Thiếu field ${entity.entity}.${field}`);
-      if (field !== '_id' && !property.isRequired && property.defaultValue === undefined) property.default(null);
+      if (field !== "_id" && !property.isRequired && property.defaultValue === undefined)
+        property.default(null);
     }
   }
 }

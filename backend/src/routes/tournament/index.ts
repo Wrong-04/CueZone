@@ -4,7 +4,6 @@ import { TournamentService } from "../../modules/tournament/tournament.service";
 
 const tournamentService = new TournamentService();
 
-// Public routes cho giải đấu (danh sách giải đấu công khai)
 export const tournamentPublicRoutes = Router();
 tournamentPublicRoutes.get("/public/tournaments", async (req, res, next) => {
   try {
@@ -15,6 +14,5 @@ tournamentPublicRoutes.get("/public/tournaments", async (req, res, next) => {
   }
 });
 
-// Protected routes cho quản lý giải đấu (tạo giải, duyệt phí, sinh sơ đồ nhánh đấu)
 export const tournamentProtectedRoutes = Router();
 tournamentProtectedRoutes.use("/tournaments", tournamentRouter);

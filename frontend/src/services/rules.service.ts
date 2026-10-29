@@ -221,7 +221,8 @@ export const FALLBACK_RULES_DATA: BankPoolRulesData = {
         "CÓ. Trong luật Bank Pool quốc tế, bạn chỉ cần chỉ định số bi và lỗ dự định đưa vào. Bi mục tiêu chạm từ 1 băng trở lên (1 băng, 2 băng, 3 băng dội) và rơi đúng lỗ đã gọi đều được tính là cú đánh hợp lệ và ghi 01 điểm.",
     },
     {
-      question: "Nếu bi mục tiêu va chạm vào bi khác (Kiss/Carom) trước khi dội băng thì có hợp lệ không?",
+      question:
+        "Nếu bi mục tiêu va chạm vào bi khác (Kiss/Carom) trước khi dội băng thì có hợp lệ không?",
       answer:
         "KHÔNG. Cú đánh Bank Pool chuẩn yêu cầu bi cái truyền lực trực tiếp vào bi mục tiêu, và bi mục tiêu dội vào băng sạch sẽ trước khi vào lỗ. Mọi va chạm không chủ ý làm đổi hướng trước khi chạm băng đều không được công nhận.",
     },

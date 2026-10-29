@@ -30,22 +30,25 @@ function resolveDays(dayType?: string, daysOfWeek?: number[]): number[] {
 
 async function validatePricingTier(
   tierData: Partial<IPricingTier> & { standardPrice?: number; vipPrice?: number },
-  excludeId?: string
+  excludeId?: string,
 ): Promise<void> {
-  const { startTime, endTime, dayType, daysOfWeek, prices, standardPrice, vipPrice, name } = tierData as any;
+  const { startTime, endTime, dayType, daysOfWeek, prices, standardPrice, vipPrice, name } =
+    tierData as any;
 
   if (startTime && endTime) {
     const startMins = toMinutes(startTime);
     const endMins = toMinutes(endTime);
 
     if (startMins >= endMins) {
-      throw new Error(`Thời gian bắt đầu (${startTime}) phải trước thời gian kết thúc (${endTime}).`);
+      throw new Error(
+        `Thời gian bắt đầu (${startTime}) phải trước thời gian kết thúc (${endTime}).`,
+      );
     }
 
     const targetDays = resolveDays(dayType, daysOfWeek);
 
     const existingTiers = await PricingTier.find(
-      excludeId ? { _id: { $ne: excludeId }, isActive: true } : { isActive: true }
+      excludeId ? { _id: { $ne: excludeId }, isActive: true } : { isActive: true },
     );
 
     for (const existing of existingTiers) {
@@ -59,7 +62,7 @@ async function validatePricingTier(
         const isOverlap = Math.max(startMins, existStart) < Math.min(endMins, existEnd);
         if (isOverlap) {
           throw new Error(
-            `Khung giờ "${name || "đang tạo"}" (${startTime} – ${endTime}) bị chồng lấn thời gian với khung giờ "${existing.name}" (${existing.startTime} – ${existing.endTime}) trong cùng ngày áp dụng.`
+            `Khung giờ "${name || "đang tạo"}" (${startTime} – ${endTime}) bị chồng lấn thời gian với khung giờ "${existing.name}" (${existing.startTime} – ${existing.endTime}) trong cùng ngày áp dụng.`,
           );
         }
       }
@@ -102,11 +105,13 @@ export class PricingTierService {
       daysOfWeek: dto.daysOfWeek || [],
       prices,
     });
-    notificationService.create({
-      title: "Thêm khung giờ giá mới",
-      message: `Đã thêm khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
-      type: NotificationType.PRICING,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: "Thêm khung giờ giá mới",
+        message: `Đã thêm khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
+        type: NotificationType.PRICING,
+      })
+      .catch(() => {});
     return tier;
   }
 
@@ -142,11 +147,13 @@ export class PricingTierService {
     }
     const tier = await PricingTier.findByIdAndUpdate(id, updateData, { new: true });
     if (!tier) throw new Error("Không tìm thấy khung giờ");
-    notificationService.create({
-      title: "Cập nhật khung giờ giá",
-      message: `Đã cập nhật khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
-      type: NotificationType.PRICING,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: "Cập nhật khung giờ giá",
+        message: `Đã cập nhật khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
+        type: NotificationType.PRICING,
+      })
+      .catch(() => {});
     return tier;
   }
 
@@ -154,22 +161,30 @@ export class PricingTierService {
     const tier = await PricingTier.findById(id);
     if (!tier) throw new Error("Không tìm thấy khung giờ");
     await PricingTier.findByIdAndDelete(id);
-    notificationService.create({
-      title: "Xóa khung giờ giá",
-      message: `Đã xóa khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
-      type: NotificationType.PRICING,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: "Xóa khung giờ giá",
+        message: `Đã xóa khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
+        type: NotificationType.PRICING,
+      })
+      .catch(() => {});
   }
 
   async activate(id: string): Promise<IPricingTier> {
     await PricingTier.updateMany({}, { isCurrentlyActive: false });
-    const tier = await PricingTier.findByIdAndUpdate(id, { isCurrentlyActive: true }, { new: true });
+    const tier = await PricingTier.findByIdAndUpdate(
+      id,
+      { isCurrentlyActive: true },
+      { new: true },
+    );
     if (!tier) throw new Error("Không tìm thấy khung giờ");
-    notificationService.create({
-      title: "Kích hoạt khung giờ giá",
-      message: `Đang áp dụng khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
-      type: NotificationType.PRICING,
-    }).catch(() => {});
+    notificationService
+      .create({
+        title: "Kích hoạt khung giờ giá",
+        message: `Đang áp dụng khung giờ "${tier.name}" (${tier.startTime} – ${tier.endTime}).`,
+        type: NotificationType.PRICING,
+      })
+      .catch(() => {});
     return tier;
   }
 }

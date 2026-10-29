@@ -58,8 +58,8 @@ const CustomerBooking = () => {
         daysOffset === 0
           ? `Hôm nay (${dd}/${mm})`
           : daysOffset === 1
-          ? `Ngày mai (${dd}/${mm})`
-          : `Ngày kia (${dd}/${mm})`;
+            ? `Ngày mai (${dd}/${mm})`
+            : `Ngày kia (${dd}/${mm})`;
       return { value: iso, label };
     };
     return [formatVn(0), formatVn(1), formatVn(2)];
@@ -106,8 +106,8 @@ const CustomerBooking = () => {
                 (t.type === "carom"
                   ? "Bàn Bida Carom (Phăng)"
                   : t.type === "snooker"
-                  ? "Bàn Bida Snooker"
-                  : "Bàn Bida Lỗ (Pool)"),
+                    ? "Bàn Bida Snooker"
+                    : "Bàn Bida Lỗ (Pool)"),
               price: t.pricePerHour || 60000,
               priceFormatted: `${(t.pricePerHour || 60000).toLocaleString("vi-VN")}đ/h`,
               status: t.status,
@@ -181,7 +181,6 @@ const CustomerBooking = () => {
       setShowSuccessModal(true);
       message.success("Đặt bàn thành công! Hệ thống đã ghi nhận lịch hẹn.");
 
-      // Cập nhật lại danh sách bàn để hiển thị trạng thái đã đặt
       const refreshed = await posService.getPublicTables();
       if (Array.isArray(refreshed)) {
         const mapped: BookingTableItem[] = refreshed.map((t) => {
@@ -196,8 +195,8 @@ const CustomerBooking = () => {
               (t.type === "carom"
                 ? "Bàn Bida Carom (Phăng)"
                 : t.type === "snooker"
-                ? "Bàn Bida Snooker"
-                : "Bàn Bida Lỗ (Pool)"),
+                  ? "Bàn Bida Snooker"
+                  : "Bàn Bida Lỗ (Pool)"),
             price: t.pricePerHour || 60000,
             priceFormatted: `${(t.pricePerHour || 60000).toLocaleString("vi-VN")}đ/h`,
             status: t.status,
@@ -207,7 +206,8 @@ const CustomerBooking = () => {
         setTablesList(mapped);
       }
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
+      const errMsg =
+        err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
       message.error(errMsg);
     } finally {
       setLoading(false);
@@ -228,12 +228,12 @@ const CustomerBooking = () => {
           Đặt Bàn Bida Chuẩn Thi Đấu
         </Title>
         <Paragraph className="!text-sm !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
-          Chọn bàn bida ưa thích, xác định thời gian chơi và hoàn tất giữ chỗ chỉ trong 30 giây. Bàn được giữ tối đa 15 phút sau giờ hẹn.
+          Chọn bàn bida ưa thích, xác định thời gian chơi và hoàn tất giữ chỗ chỉ trong 30 giây. Bàn
+          được giữ tối đa 15 phút sau giờ hẹn.
         </Paragraph>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Cột trái: Chọn bàn trực quan */}
         <div className="lg:col-span-7 space-y-6">
           <Card className="!rounded-3xl !border-slate-200 !bg-white p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -248,7 +248,9 @@ const CustomerBooking = () => {
             {loadingTables ? (
               <div className="py-12 flex flex-col items-center justify-center gap-2">
                 <SyncOutlined spin className="text-emerald-600 text-2xl" />
-                <span className="text-xs text-slate-500">Đang đồng bộ danh sách bàn từ hệ thống...</span>
+                <span className="text-xs text-slate-500">
+                  Đang đồng bộ danh sách bàn từ hệ thống...
+                </span>
               </div>
             ) : tablesList.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
@@ -277,7 +279,9 @@ const CustomerBooking = () => {
                             <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
                               {t.code}
                             </span>
-                            <span className={`font-black text-sm whitespace-nowrap truncate ${isSelected ? "text-emerald-800" : "text-slate-800"}`}>
+                            <span
+                              className={`font-black text-sm whitespace-nowrap truncate ${isSelected ? "text-emerald-800" : "text-slate-800"}`}
+                            >
                               {t.name}
                             </span>
                           </div>
@@ -291,12 +295,14 @@ const CustomerBooking = () => {
                       </div>
 
                       <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span className="font-bold text-emerald-700">
-                          {t.priceFormatted}
-                        </span>
+                        <span className="font-bold text-emerald-700">{t.priceFormatted}</span>
                         {isBooked ? (
                           <span className="text-[10px] text-blue-600 font-semibold whitespace-nowrap">
-                            {t.bookedTime ? (t.bookedTime.startsWith("Đặt") ? t.bookedTime : `Hẹn ${t.bookedTime}`) : "Đã đặt"}
+                            {t.bookedTime
+                              ? t.bookedTime.startsWith("Đặt")
+                                ? t.bookedTime
+                                : `Hẹn ${t.bookedTime}`
+                              : "Đã đặt"}
                           </span>
                         ) : isPlaying ? (
                           <span className="text-[10px] text-rose-500 font-semibold whitespace-nowrap">
@@ -315,28 +321,34 @@ const CustomerBooking = () => {
             )}
           </Card>
 
-          {/* Tiêu chuẩn dịch vụ */}
           <div className="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex items-start gap-3">
             <SafetyCertificateOutlined className="text-lg text-emerald-700 flex-shrink-0 mt-0.5" />
             <div className="space-y-1 text-xs text-slate-700 leading-relaxed">
-              <strong className="text-emerald-900 block font-bold">Cam kết chất lượng từ CueZone:</strong>
+              <strong className="text-emerald-900 block font-bold">
+                Cam kết chất lượng từ CueZone:
+              </strong>
               <p>
-                Mọi bàn đặt trước đều được nhân viên làm sạch mặt vải Simonis, chải bụi, đánh bóng bộ bi Aramith và chuẩn bị sẵn khay cơ trước giờ hẹn 10 phút.
+                Mọi bàn đặt trước đều được nhân viên làm sạch mặt vải Simonis, chải bụi, đánh bóng
+                bộ bi Aramith và chuẩn bị sẵn khay cơ trước giờ hẹn 10 phút.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Cột phải: Thông tin đặt & Tạm tính tiền */}
         <div className="lg:col-span-5 space-y-6">
           <Card className="!rounded-3xl !border-slate-200 !bg-white p-6 shadow-sm space-y-5">
-            <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0 pb-3 border-b border-slate-100">
+            <Title
+              level={3}
+              className="!text-base !font-bold !text-slate-900 !mb-0 pb-3 border-b border-slate-100"
+            >
               2. Thông Tin Khung Giờ & Liên Hệ
             </Title>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Họ và tên cơ thủ *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Họ và tên cơ thủ *
+                </label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -347,7 +359,9 @@ const CustomerBooking = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại nhận tin giữ bàn *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Số điện thoại nhận tin giữ bàn *
+                </label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -380,7 +394,9 @@ const CustomerBooking = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Dự kiến số giờ chơi</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Dự kiến số giờ chơi
+                </label>
                 <div className="grid grid-cols-4 gap-2">
                   {[1, 2, 3, 4].map((h) => (
                     <button
@@ -400,7 +416,9 @@ const CustomerBooking = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú đặc biệt (Tùy chọn)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Ghi chú đặc biệt (Tùy chọn)
+                </label>
                 <Input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -409,12 +427,13 @@ const CustomerBooking = () => {
                 />
               </div>
 
-              {/* Tóm tắt tiền tạm tính */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Bàn đã chọn:</span>
                   <strong className="text-slate-900">
-                    {selectedTable ? `${selectedTable.name} (${selectedTable.typeName})` : "Đang tải dữ liệu bàn..."}
+                    {selectedTable
+                      ? `${selectedTable.name} (${selectedTable.typeName})`
+                      : "Đang tải dữ liệu bàn..."}
                   </strong>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
@@ -423,11 +442,15 @@ const CustomerBooking = () => {
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Thời lượng:</span>
-                  <span>{duration} tiếng ({time} - {selectedDateLabel})</span>
+                  <span>
+                    {duration} tiếng ({time} - {selectedDateLabel})
+                  </span>
                 </div>
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between font-bold text-sm">
                   <span className="text-slate-900">Chi phí tạm tính:</span>
-                  <span className="text-emerald-700 text-base">{totalCost.toLocaleString("vi-VN")} đ</span>
+                  <span className="text-emerald-700 text-base">
+                    {totalCost.toLocaleString("vi-VN")} đ
+                  </span>
                 </div>
               </div>
 
@@ -445,7 +468,6 @@ const CustomerBooking = () => {
         </div>
       </div>
 
-      {/* Modal Đặt Bàn Thành Công */}
       <Modal
         open={showSuccessModal}
         onCancel={() => setShowSuccessModal(false)}
@@ -468,28 +490,41 @@ const CustomerBooking = () => {
       >
         <div className="space-y-4 py-2 text-xs text-slate-700">
           <p className="text-sm">
-            Cảm ơn cơ thủ <strong>{name}</strong>! Yêu cầu đặt bàn của bạn đã được chuyển đến quầy lễ tân CueZone.
+            Cảm ơn cơ thủ <strong>{name}</strong>! Yêu cầu đặt bàn của bạn đã được chuyển đến quầy
+            lễ tân CueZone.
           </p>
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
             <div className="flex items-center gap-2">
               <EnvironmentOutlined className="text-emerald-600" />
-              <span><strong>Bàn:</strong> {selectedTable ? `${selectedTable.name} (${selectedTable.typeName})` : ""}</span>
+              <span>
+                <strong>Bàn:</strong>{" "}
+                {selectedTable ? `${selectedTable.name} (${selectedTable.typeName})` : ""}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <ClockCircleOutlined className="text-emerald-600" />
-              <span><strong>Thời gian:</strong> {time} ({selectedDateLabel}) - Thời lượng dự kiến: {duration} giờ</span>
+              <span>
+                <strong>Thời gian:</strong> {time} ({selectedDateLabel}) - Thời lượng dự kiến:{" "}
+                {duration} giờ
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <PhoneOutlined className="text-emerald-600" />
-              <span><strong>SĐT xác nhận:</strong> {phone}</span>
+              <span>
+                <strong>SĐT xác nhận:</strong> {phone}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <DollarOutlined className="text-emerald-600" />
-              <span><strong>Chi phí tạm tính:</strong> {totalCost.toLocaleString("vi-VN")} VNĐ (Thanh toán tại quầy)</span>
+              <span>
+                <strong>Chi phí tạm tính:</strong> {totalCost.toLocaleString("vi-VN")} VNĐ (Thanh
+                toán tại quầy)
+              </span>
             </div>
           </div>
           <p className="text-slate-500">
-            CLB sẽ giữ bàn cho bạn tối đa 15 phút. Nếu có thay đổi, vui lòng gọi hotline <strong>1900 6868</strong> để được hỗ trợ.
+            CLB sẽ giữ bàn cho bạn tối đa 15 phút. Nếu có thay đổi, vui lòng gọi hotline{" "}
+            <strong>1900 6868</strong> để được hỗ trợ.
           </p>
         </div>
       </Modal>
