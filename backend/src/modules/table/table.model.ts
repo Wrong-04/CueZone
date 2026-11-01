@@ -82,6 +82,8 @@ export interface ITable extends Document {
 
   isActive: boolean;
 
+  bookingVersion: number;
+
   pricingTier?: mongoose.Types.ObjectId;
 
   currentSession?: TableSession;
@@ -115,6 +117,8 @@ const tableSchema = new Schema<ITable>(
     status: { type: String, enum: Object.values(TableStatus), default: TableStatus.AVAILABLE },
 
     isActive: { type: Boolean, default: true },
+
+    bookingVersion: { type: Number, default: 0, select: false },
 
     pricingTier: { type: Schema.Types.ObjectId, ref: "PricingTier", default: null },
 

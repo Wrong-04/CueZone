@@ -12,7 +12,8 @@ import walletRouter from "../modules/wallet/wallet.routes";
 import { TournamentService } from "../modules/tournament/tournament.service";
 import { getPublicTables } from "../modules/table/table.controller";
 import { BookingService } from "../modules/booking/booking.service";
-import { optionalAuthMiddleware } from "../middlewares/auth.middleware";
+import { optionalAuthMiddleware, requireRole } from "../middlewares/auth.middleware";
+import { UserRole } from "../modules/user/user.model";
 
 import productRouter, { productManagementRouter } from "../modules/product/product.routes";
 
@@ -27,6 +28,19 @@ publicRouter.use("/auth", authRouter);
 publicRouter.use("/products", productRouter);
 publicRouter.get("/public/tables", getPublicTables);
 publicRouter.get("/tables/public", getPublicTables);
+publicRouter.get("/public/booking-availability", async (req, res, next) => {
+  try {
+    const tables = await bookingService.getAvailableTables({
+      date: String(req.query.date || ""),
+      time: String(req.query.time || ""),
+      duration: Number(req.query.duration),
+      type: req.query.type ? String(req.query.type) : undefined,
+    });
+    res.json({ success: true, data: tables });
+  } catch (error) {
+    next(error);
+  }
+});
 publicRouter.get("/public/bank-pool-rules", (req, res) => {
   res.json({
     success: true,
@@ -42,14 +56,21 @@ publicRouter.get("/public/tournaments", async (req, res, next) => {
     next(error);
   }
 });
-publicRouter.post("/public/bookings", optionalAuthMiddleware, async (req, res, next) => {
-  try {
-    const booking = await bookingService.create(req.body, (req as any).user?.userId);
-    res.status(201).json({ success: true, message: "Đặt bàn thành công", data: booking });
-  } catch (error) {
-    next(error);
-  }
-});
+publicRouter.post(
+  "/public/bookings",
+  optionalAuthMiddleware,
+  requireRole(UserRole.CUSTOMER),
+  async (req, res, next) => {
+    try {
+      const booking = await bookingService.create(req.body, (req as any).user.userId, "pending");
+      res
+        .status(201)
+        .json({ success: true, message: "Đã nhận yêu cầu đặt bàn, đang chờ xác nhận", data: booking });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 // Protected routes (auth middleware applied in app.ts)
 export const protectedRouter = Router();

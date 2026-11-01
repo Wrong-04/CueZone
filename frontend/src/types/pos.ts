@@ -52,8 +52,9 @@ export interface BookingRequest {
   estimatedCost: number;
   deposit: number;
   note?: string;
-  status: "pending" | "approved" | "rejected" | "checked_in";
+  status: "pending" | "approved" | "rejected" | "checked_in" | "confirmed" | "cancelled";
   rejectionReason?: string;
+  tableType?: string;
   createdAt: string;
 }
 

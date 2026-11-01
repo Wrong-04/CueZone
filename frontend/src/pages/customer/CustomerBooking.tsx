@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   CalendarOutlined,
   UserOutlined,
@@ -22,7 +22,7 @@ import {
   Modal,
   Space,
 } from "../../shared/ui";
-import { posService, bookingService } from "../../services/pos.service";
+import { bookingService } from "../../services/pos.service";
 
 const { Title, Paragraph } = Typography;
 
@@ -34,23 +34,23 @@ interface BookingTableItem {
   typeName: string;
   price: number;
   priceFormatted: string;
-  status?: string;
-  bookedTime?: string;
 }
 
 const CustomerBooking = () => {
   const [searchParams] = useSearchParams();
   const preSelectedParam = searchParams.get("table") || "";
+  const [now] = useState(() => Date.now());
 
   const [tablesList, setTablesList] = useState<BookingTableItem[]>([]);
   const [loadingTables, setLoadingTables] = useState<boolean>(true);
   const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam);
+  const [tableType, setTableType] = useState<"" | "pool" | "carom" | "snooker">("");
   const [name, setName] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
 
   const dateOptions = useMemo(() => {
     const formatVn = (daysOffset: number) => {
-      const d = new Date(Date.now() + 7 * 3600000 + daysOffset * 86400000);
+      const d = new Date(now + 7 * 3600000 + daysOffset * 86400000);
       const iso = d.toISOString().slice(0, 10);
       const dd = iso.slice(8, 10);
       const mm = iso.slice(5, 7);
@@ -63,8 +63,12 @@ const CustomerBooking = () => {
       return { value: iso, label };
     };
     return [formatVn(0), formatVn(1), formatVn(2)];
-  }, []);
+  }, [now]);
 
+  const [date, setDate] = useState<string>(() => {
+    const d = new Date(now + 7 * 3600000);
+    return d.toISOString().slice(0, 10);
+  });
   const timeOptions = useMemo(() => {
     const slots: { value: string; label: string }[] = [];
     for (let h = 9; h <= 23; h++) {
@@ -77,51 +81,58 @@ const CustomerBooking = () => {
     }
     return slots;
   }, []);
-
-  const [date, setDate] = useState<string>(() => {
-    const d = new Date(Date.now() + 7 * 3600000);
-    return d.toISOString().slice(0, 10);
-  });
   const [time, setTime] = useState<string>("19:00");
   const [duration, setDuration] = useState<number>(2);
   const [note, setNote] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [availabilityVersion, setAvailabilityVersion] = useState<number>(0);
 
   useEffect(() => {
     let isMounted = true;
     const fetchTables = async () => {
+      setLoadingTables(true);
       try {
-        const data = await posService.getPublicTables();
-        if (isMounted && Array.isArray(data)) {
-          const mapped: BookingTableItem[] = data.map((t) => {
-            const cleanName = (t.name || "").split("•")[0].split("-")[0].trim();
-            return {
-              id: t.id,
-              code: t.code,
-              name: cleanName,
-              type: t.type,
-              typeName:
-                t.typeName ||
-                (t.type === "carom"
-                  ? "Bàn Bida Carom (Phăng)"
-                  : t.type === "snooker"
-                    ? "Bàn Bida Snooker"
-                    : "Bàn Bida Lỗ (Pool)"),
-              price: t.pricePerHour || 60000,
-              priceFormatted: `${(t.pricePerHour || 60000).toLocaleString("vi-VN")}đ/h`,
-              status: t.status,
-              bookedTime: t.bookedTime,
-            };
-          });
+        const data = await bookingService.getAvailableTables({
+          date,
+          time,
+          duration,
+          ...(tableType ? { type: tableType } : {}),
+        });
+        if (isMounted) {
+          const mapped: BookingTableItem[] = data.map((table) => ({
+            id: table.id,
+            code: table.code,
+            name: table.name.split("•")[0].split("-")[0].trim(),
+            type: table.type,
+            typeName:
+              table.type === "carom"
+                ? "Bàn Bida Carom (Phăng)"
+                : table.type === "snooker"
+                  ? "Bàn Bida Snooker"
+                  : "Bàn Bida Lỗ (Pool)",
+            price: table.pricePerHour,
+            priceFormatted: `${table.pricePerHour.toLocaleString("vi-VN")}đ/h`,
+            status: "available",
+          }));
           setTablesList(mapped);
-          if (mapped.length > 0 && !preSelectedParam) {
-            const firstAvail = mapped.find((m) => m.status === "available") || mapped[0];
-            setSelectedTableId(firstAvail.id);
-          }
+          const preselected = mapped.find(
+            (table) => table.id === preSelectedParam || table.code === preSelectedParam,
+          );
+          setSelectedTableId((current) => {
+            const retainedTable = mapped.find(
+              (table) => table.id === current || table.code === current,
+            );
+            return (retainedTable || preselected || mapped[0])?.id || "";
+          });
         }
       } catch (err) {
-        console.error("Lỗi tải danh sách bàn từ DB:", err);
+        if (isMounted) {
+          setTablesList([]);
+          message.error(
+            err instanceof Error ? err.message : "Không thể kiểm tra bàn trống trong khung giờ này",
+          );
+        }
       } finally {
         if (isMounted) setLoadingTables(false);
       }
@@ -130,14 +141,7 @@ const CustomerBooking = () => {
     return () => {
       isMounted = false;
     };
-  }, [preSelectedParam]);
-
-  useEffect(() => {
-    const param = searchParams.get("table");
-    if (param) {
-      setSelectedTableId(param);
-    }
-  }, [searchParams]);
+  }, [date, time, duration, tableType, preSelectedParam, availabilityVersion]);
 
   const selectedTable =
     tablesList.find((t) => t.id === selectedTableId || t.code === selectedTableId) ||
@@ -179,32 +183,8 @@ const CustomerBooking = () => {
         note: note.trim() || undefined,
       });
       setShowSuccessModal(true);
-      message.success("Đặt bàn thành công! Hệ thống đã ghi nhận lịch hẹn.");
-
-      const refreshed = await posService.getPublicTables();
-      if (Array.isArray(refreshed)) {
-        const mapped: BookingTableItem[] = refreshed.map((t) => {
-          const cleanName = (t.name || "").split("•")[0].split("-")[0].trim();
-          return {
-            id: t.id,
-            code: t.code,
-            name: cleanName,
-            type: t.type,
-            typeName:
-              t.typeName ||
-              (t.type === "carom"
-                ? "Bàn Bida Carom (Phăng)"
-                : t.type === "snooker"
-                  ? "Bàn Bida Snooker"
-                  : "Bàn Bida Lỗ (Pool)"),
-            price: t.pricePerHour || 60000,
-            priceFormatted: `${(t.pricePerHour || 60000).toLocaleString("vi-VN")}đ/h`,
-            status: t.status,
-            bookedTime: t.bookedTime,
-          };
-        });
-        setTablesList(mapped);
-      }
+      setAvailabilityVersion((version) => version + 1);
+      message.success("Đã gửi yêu cầu đặt bàn. Vui lòng theo dõi xác nhận trong Lịch sử đặt chỗ.");
     } catch (err: any) {
       const errMsg =
         err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
@@ -228,8 +208,7 @@ const CustomerBooking = () => {
           Đặt Bàn Bida Chuẩn Thi Đấu
         </Title>
         <Paragraph className="!text-sm !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
-          Chọn bàn bida ưa thích, xác định thời gian chơi và hoàn tất giữ chỗ chỉ trong 30 giây. Bàn
-          được giữ tối đa 15 phút sau giờ hẹn.
+          Chọn loại bàn, ngày giờ chơi và gửi yêu cầu đặt chỗ. Lễ tân sẽ xác nhận lịch của bạn.
         </Paragraph>
       </div>
 
@@ -254,14 +233,12 @@ const CustomerBooking = () => {
               </div>
             ) : tablesList.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
-                Không tìm thấy dữ liệu bàn nào trong hệ thống.
+                Không có bàn trống cho khung giờ đã chọn. Vui lòng đổi loại bàn hoặc thời gian.
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {tablesList.map((t) => {
                   const isSelected = t.id === selectedTableId || t.code === selectedTableId;
-                  const isBooked = t.status === "booked";
-                  const isPlaying = t.status === "playing" || t.status === "paused";
 
                   return (
                     <div
@@ -296,23 +273,9 @@ const CustomerBooking = () => {
 
                       <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs">
                         <span className="font-bold text-emerald-700">{t.priceFormatted}</span>
-                        {isBooked ? (
-                          <span className="text-[10px] text-blue-600 font-semibold whitespace-nowrap">
-                            {t.bookedTime
-                              ? t.bookedTime.startsWith("Đặt")
-                                ? t.bookedTime
-                                : `Hẹn ${t.bookedTime}`
-                              : "Đã đặt"}
-                          </span>
-                        ) : isPlaying ? (
-                          <span className="text-[10px] text-rose-500 font-semibold whitespace-nowrap">
-                            Đang chơi
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-emerald-600 font-semibold whitespace-nowrap">
-                            Trống
-                          </span>
-                        )}
+                        <span className="text-[10px] text-emerald-600 font-semibold whitespace-nowrap">
+                          Trống giờ này
+                        </span>
                       </div>
                     </div>
                   );
@@ -345,6 +308,20 @@ const CustomerBooking = () => {
             </Title>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Loại bàn</label>
+                <Select
+                  value={tableType}
+                  onChange={(value) => setTableType(value as typeof tableType)}
+                  className="w-full !h-10"
+                  options={[
+                    { value: "", label: "Tất cả loại bàn" },
+                    { value: "pool", label: "Bàn lỗ (Pool)" },
+                    { value: "carom", label: "Bàn Carom" },
+                    { value: "snooker", label: "Bàn Snooker" },
+                  ]}
+                />
+              </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Họ và tên cơ thủ *
@@ -484,7 +461,7 @@ const CustomerBooking = () => {
         title={
           <Space align="center" size={8}>
             <CheckCircleOutlined className="text-emerald-600 text-lg" />
-            <span className="text-slate-900 font-bold">Đặt Bàn Thành Công!</span>
+            <span className="text-slate-900 font-bold">Đã Gửi Yêu Cầu Đặt Bàn</span>
           </Space>
         }
       >
@@ -523,8 +500,11 @@ const CustomerBooking = () => {
             </div>
           </div>
           <p className="text-slate-500">
-            CLB sẽ giữ bàn cho bạn tối đa 15 phút. Nếu có thay đổi, vui lòng gọi hotline{" "}
-            <strong>1900 6868</strong> để được hỗ trợ.
+            Đơn đang chờ lễ tân xác nhận. Bạn có thể hủy đơn trước giờ chơi ít nhất 2 tiếng tại{" "}
+            <Link to="/customer/history" className="font-semibold text-emerald-700">
+              Lịch sử đặt chỗ
+            </Link>
+            .
           </p>
         </div>
       </Modal>
