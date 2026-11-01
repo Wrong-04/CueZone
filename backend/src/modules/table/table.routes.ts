@@ -7,6 +7,7 @@ const router = Router();
 router.get("/", requirePosStaff, tableController.getAll);
 router.get("/stats", requirePosStaff, tableController.getStats);
 router.get("/available", requirePosStaff, tableController.findAvailable);
+router.get("/customer-lookup", requirePosStaff, tableController.lookupCustomer);
 router.get("/:id", requirePosStaff, tableController.getById);
 router.post("/", requirePosStaff, tableController.create);
 router.put("/:id", requirePosStaff, tableController.update);

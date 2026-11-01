@@ -4,6 +4,7 @@ import { Table, TableStatus, TableSession } from "../table/table.model";
 import { Booking } from "../booking/booking.model";
 import { Invoice } from "../invoice/invoice.model";
 import { PricingTier, IPricingTier } from "../pricing/pricing.model";
+import { User } from "../user/user.model";
 import { emitTableStatusChanged, emitTableTimerStarted } from "../../utils/socketHolder";
 import { VoucherService } from "../voucher/voucher.service";
 
@@ -295,6 +296,16 @@ export class SessionService {
       } else if (input.bookingId) {
         throw new Error("Lịch đặt bàn đã thay đổi, vui lòng tải lại");
       }
+      let isMember = Boolean(input.isMember);
+      if (phone) {
+        const memberUser = await User.findOne({ phone, role: "customer", isActive: true }).session(session);
+        if (memberUser) {
+          isMember = true;
+          if (!input.customerName || input.customerName.trim() === "Khách vãng lai" || input.customerName.trim() === "") {
+            name = memberUser.name;
+          }
+        }
+      }
       const now = Date.now();
       const pricingTiers = await PricingTier.find({ isActive: true }).session(session);
       const { price: currentRate } = getCurrentTierPrice(table, pricingTiers, now);
@@ -312,7 +323,7 @@ export class SessionService {
         carriedCost: 0,
         customerName: name,
         customerPhone: phone,
-        isMember: false,
+        isMember,
         orders: [],
         note: input.note,
         deposit,

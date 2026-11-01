@@ -61,7 +61,13 @@ export const posService = {
   },
   async open(
     tableId: string,
-    input: { customerName: string; customerPhone: string; note: string; bookingId?: string },
+    input: {
+      customerName: string;
+      customerPhone: string;
+      note: string;
+      bookingId?: string;
+      isMember?: boolean;
+    },
   ) {
     const { data } = await api.post<ApiResponse<TableRecord>>(`/tables/${tableId}/session`, input);
     return result(data);
@@ -100,6 +106,26 @@ export const posService = {
       },
     );
     return result(data);
+  },
+  async lookupCustomer(phone: string) {
+    const { data } = await api.get<
+      ApiResponse<{
+        id: string;
+        name: string;
+        phone: string;
+        rank: string;
+        elo: number;
+        isMember: boolean;
+        availableVouchers?: Array<{
+          code: string;
+          description?: string;
+          discountType: "percent" | "fixed";
+          discountValue: number;
+          minOrderAmount: number;
+        }>;
+      }>
+    >("/tables/customer-lookup", { params: { phone } });
+    return data;
   },
   async validateVoucher(code: string, subtotal: number) {
     const { data } = await api.post<

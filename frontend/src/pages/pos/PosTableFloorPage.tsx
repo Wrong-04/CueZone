@@ -28,6 +28,7 @@ import {
   FullscreenOutlined,
   FullscreenExitOutlined,
   ExclamationCircleOutlined,
+  GiftOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -152,6 +153,7 @@ export const PosTableFloorPage: React.FC = () => {
   const [customerName, setCustomerName] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [sessionNote, setSessionNote] = useState<string>("");
+  const [isMemberCustomer, setIsMemberCustomer] = useState<boolean>(false);
 
   // 2. Transfer / Merge Table Modal
   const [transferModalVisible, setTransferModalVisible] = useState<boolean>(false);
@@ -169,6 +171,21 @@ export const PosTableFloorPage: React.FC = () => {
     "cash",
   );
   const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [showTimeSlots, setShowTimeSlots] = useState<boolean>(false);
+  const [checkoutPhone, setCheckoutPhone] = useState<string>("");
+  const [loyaltyCustomer, setLoyaltyCustomer] = useState<{
+    name: string;
+    phone: string;
+    rank?: string;
+    availableVouchers?: Array<{
+      code: string;
+      description?: string;
+      discountType: "percent" | "fixed";
+      discountValue: number;
+      minOrderAmount: number;
+    }>;
+  } | null>(null);
+  const [isSearchingMember, setIsSearchingMember] = useState<boolean>(false);
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<{
     code: string;
@@ -278,6 +295,18 @@ export const PosTableFloorPage: React.FC = () => {
   };
 
   const [waitlistModalVisible, setWaitlistModalVisible] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleWaitlistSync = () => {
+      setWaitlist(getInitialWaitlist());
+    };
+    window.addEventListener("storage", handleWaitlistSync);
+    window.addEventListener("waitlist:updated", handleWaitlistSync);
+    return () => {
+      window.removeEventListener("storage", handleWaitlistSync);
+      window.removeEventListener("waitlist:updated", handleWaitlistSync);
+    };
+  }, []);
   const [waitlist, setWaitlist] = useState(getInitialWaitlist);
   const [selectedWaitlistTable, setSelectedWaitlistTable] = useState<Record<string, string>>({});
   const [pendingWaitlistEntryId, setPendingWaitlistEntryId] = useState<string | null>(null);
@@ -416,6 +445,19 @@ export const PosTableFloorPage: React.FC = () => {
     bookingDate.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
     const diffMs = now.getTime() - bookingDate.getTime();
     if (diffMs <= 0) return 0;
+    return Math.floor(diffMs / 60000);
+  };
+
+  const getBookingUpcomingMinutes = (timeStr?: string): number => {
+    if (!timeStr) return -1;
+    const match = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (!match) return -1;
+    const [_, hStr, mStr] = match;
+    const now = new Date(currentTime);
+    const bookingDate = new Date(now);
+    bookingDate.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
+    const diffMs = bookingDate.getTime() - now.getTime();
+    if (diffMs < 0) return -1;
     return Math.floor(diffMs / 60000);
   };
 
@@ -641,6 +683,7 @@ export const PosTableFloorPage: React.FC = () => {
         customerPhone: customerPhone.trim(),
         note: sessionNote.trim(),
         bookingId: selectedTable.bookedInfo?.bookingId,
+        isMember: isMemberCustomer,
       }),
     );
     if (!saved) return;
@@ -660,6 +703,7 @@ export const PosTableFloorPage: React.FC = () => {
     setCustomerName("");
     setCustomerPhone("");
     setSessionNote("");
+    setIsMemberCustomer(false);
   };
 
   // Handler: Pause / Resume Table
@@ -772,14 +816,84 @@ export const PosTableFloorPage: React.FC = () => {
   };
 
   // Handler: Open Checkout Modal
+  const handleSearchLoyaltyCustomer = async () => {
+    const phoneTrimmed = checkoutPhone.trim();
+    if (!phoneTrimmed || phoneTrimmed.length < 8) {
+      message.warning("Vui lòng nhập số điện thoại hợp lệ (tối thiểu 8 số)");
+      setLoyaltyCustomer(null);
+      setDiscountPercent(0);
+      return;
+    }
+
+    setIsSearchingMember(true);
+    try {
+      const res = await posService.lookupCustomer(phoneTrimmed);
+      if (res.success && res.data) {
+        setLoyaltyCustomer({
+          name: res.data.name,
+          phone: res.data.phone,
+          rank: res.data.rank,
+          availableVouchers: res.data.availableVouchers || [],
+        });
+        setDiscountPercent(10);
+        const voucherCount = res.data.availableVouchers?.length || 0;
+        message.success(
+          `Đã tìm thấy hội viên ${res.data.name}! Tự động giảm 10% tiền giờ${
+            voucherCount > 0 ? ` (và tìm thấy ${voucherCount} voucher trong ví)` : ""
+          }.`,
+        );
+      } else {
+        setLoyaltyCustomer(null);
+        setDiscountPercent(0);
+        message.info(res.message || "Không tìm thấy hội viên với số điện thoại này. Áp dụng giá chuẩn.");
+      }
+    } catch {
+      setLoyaltyCustomer(null);
+      setDiscountPercent(0);
+      message.info("Không tìm thấy hội viên với số điện thoại này.");
+    } finally {
+      setIsSearchingMember(false);
+    }
+  };
+
   const handleOpenCheckout = (table: PosTable) => {
     setSelectedTable(table);
-    setDiscountPercent(table.currentSession?.isMember ? 10 : 0);
+    const sessionPhone = table.currentSession?.customerPhone || "";
+    setCheckoutPhone(sessionPhone);
+    setShowTimeSlots(false);
     setVoucherCode("");
     setAppliedVoucher(null);
     setVoucherError("");
     setPaymentMethod("cash");
     setCashReceived(null);
+
+    // Khởi tạo theo phiên hiện tại (nếu phiên đã có cờ isMember từ trước)
+    if (table.currentSession?.isMember) {
+      setLoyaltyCustomer({
+        name: table.currentSession.customerName || "Hội viên CLB",
+        phone: sessionPhone,
+        rank: "VIP",
+      });
+      setDiscountPercent(10);
+
+      // Tự động tải danh sách voucher nếu có số điện thoại
+      if (sessionPhone) {
+        void posService.lookupCustomer(sessionPhone).then((res) => {
+          if (res.success && res.data) {
+            setLoyaltyCustomer({
+              name: res.data.name,
+              phone: res.data.phone,
+              rank: res.data.rank,
+              availableVouchers: res.data.availableVouchers || [],
+            });
+          }
+        });
+      }
+    } else {
+      setLoyaltyCustomer(null);
+      setDiscountPercent(0);
+    }
+
     setCheckoutModalVisible(true);
   };
 
@@ -804,8 +918,9 @@ export const PosTableFloorPage: React.FC = () => {
     );
   };
 
-  const handleValidateVoucher = async () => {
-    if (!selectedTable?.currentSession || !voucherCode.trim()) {
+  const handleValidateVoucher = async (codeOverride?: string) => {
+    const code = (codeOverride || voucherCode).trim();
+    if (!selectedTable?.currentSession || !code) {
       setVoucherError("Vui lòng nhập mã voucher.");
       return;
     }
@@ -815,7 +930,7 @@ export const PosTableFloorPage: React.FC = () => {
     setValidatingVoucher(true);
     setVoucherError("");
     try {
-      const voucher = await posService.validateVoucher(voucherCode, subtotal);
+      const voucher = await posService.validateVoucher(code, subtotal);
       setVoucherCode(voucher.code);
       setAppliedVoucher({ code: voucher.code, discountAmount: voucher.discountAmount });
       setDiscountPercent(0);
@@ -828,6 +943,19 @@ export const PosTableFloorPage: React.FC = () => {
     } finally {
       setValidatingVoucher(false);
     }
+  };
+
+  const handleSelectCustomerVoucher = async (code: string) => {
+    if (appliedVoucher?.code === code) {
+      setAppliedVoucher(null);
+      setVoucherCode("");
+      setVoucherError("");
+      if (loyaltyCustomer) setDiscountPercent(10);
+      message.info(`Đã gỡ voucher ${code}`);
+      return;
+    }
+    setVoucherCode(code);
+    await handleValidateVoucher(code);
   };
 
   return (
@@ -1091,6 +1219,8 @@ export const PosTableFloorPage: React.FC = () => {
           const isAvailable = table.status === "available";
           const isMaintenance = table.status === "maintenance";
           const overdueMinutes = isBooked ? getBookingOverdueMinutes(table.bookedInfo?.time) : 0;
+          const upcomingMinutes = isBooked ? getBookingUpcomingMinutes(table.bookedInfo?.time) : -1;
+          const isUpcoming = isBooked && upcomingMinutes >= 0 && upcomingMinutes <= 30;
 
           return (
             <Card
@@ -1112,7 +1242,9 @@ export const PosTableFloorPage: React.FC = () => {
                     : isBooked
                       ? overdueMinutes >= 15
                         ? "!border-red-400/80 !bg-white ring-1 ring-red-400/30"
-                        : "!border-blue-400/80 !bg-white ring-1 ring-blue-400/20"
+                        : isUpcoming
+                          ? "!border-amber-400 !bg-amber-50/20 ring-2 ring-amber-400 shadow-sm"
+                          : "!border-blue-400/80 !bg-white ring-1 ring-blue-400/20"
                       : isMaintenance
                         ? "!border-slate-200 !bg-slate-50 opacity-60"
                         : "!border-slate-200 !bg-white hover:!border-emerald-300 hover:shadow-sm"
@@ -1127,7 +1259,9 @@ export const PosTableFloorPage: React.FC = () => {
                       : isBooked
                         ? overdueMinutes >= 15
                           ? "bg-red-500"
-                          : "bg-blue-500"
+                          : isUpcoming
+                            ? "bg-amber-500"
+                            : "bg-blue-500"
                         : isMaintenance
                           ? "bg-rose-400"
                           : "bg-slate-200"
@@ -1329,7 +1463,7 @@ export const PosTableFloorPage: React.FC = () => {
                         <span className="text-slate-600">Giữ bàn tối đa:</span>
                         <span className="font-medium text-blue-800 text-[10px]">15 phút</span>
                       </div>
-                      {overdueMinutes > 0 && (
+                      {overdueMinutes > 0 ? (
                         <div
                           className={`flex justify-between items-center text-[10px] font-bold pt-1 border-t border-blue-200/60 ${overdueMinutes >= 15 ? "text-red-600" : "text-amber-700"}`}
                         >
@@ -1340,7 +1474,15 @@ export const PosTableFloorPage: React.FC = () => {
                               : `Trễ hẹn ${overdueMinutes} phút`}
                           </span>
                         </div>
-                      )}
+                      ) : isUpcoming ? (
+                        <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-amber-200 text-amber-800 bg-amber-100/60 -mx-1 px-1.5 py-0.5 rounded">
+                          <span className="flex items-center gap-1">
+                            <AlertOutlined className="text-amber-600 animate-bounce" />
+                            Nhắc nhở:
+                          </span>
+                          <span>Sắp đến giờ hẹn (còn {upcomingMinutes}p)</span>
+                        </div>
+                      ) : null}
                     </div>
                     <span className="text-[10px] text-slate-400 block text-center italic">
                       {overdueMinutes >= 15
@@ -1553,9 +1695,21 @@ export const PosTableFloorPage: React.FC = () => {
             />
           </div>
 
-          <Text type="secondary">
-            💡 Thu ngân có thể chọn giảm giá hội viên hoặc áp dụng giờ vàng khi thanh toán.
-          </Text>
+          <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <SafetyCertificateOutlined className={isMemberCustomer ? "text-amber-600 text-lg" : "text-slate-400 text-lg"} />
+              <div>
+                <div className="text-xs font-bold text-slate-800">Khách hàng Hội viên</div>
+                <div className="text-[11px] text-slate-500">Tự động giảm 10% tiền giờ khi thanh toán hóa đơn</div>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={isMemberCustomer}
+              onChange={(e) => setIsMemberCustomer(e.target.checked)}
+              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+            />
+          </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -1899,7 +2053,9 @@ export const PosTableFloorPage: React.FC = () => {
               <div className="flex justify-between text-slate-600">
                 <span>Khách hàng:</span>
                 <strong className="text-slate-900">
-                  {selectedTable.currentSession.customerName}
+                  {loyaltyCustomer
+                    ? loyaltyCustomer.name
+                    : selectedTable.currentSession.customerName || "Khách lẻ"}
                 </strong>
               </div>
 
@@ -1910,120 +2066,249 @@ export const PosTableFloorPage: React.FC = () => {
                 </strong>
               </div>
 
-              {/* Split Time Rate Breakdown */}
+              {/* Split Time Rate Breakdown - Collapsible */}
               {calculatePlayingDetails(selectedTable).timeSlots &&
                 calculatePlayingDetails(selectedTable).timeSlots.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200/90 space-y-1.5 shadow-2xs">
-                    <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1 text-indigo-700">
-                        <ClockCircleOutlined /> Chi tiết tính tiền theo khung giờ:
+                  <div className="p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-100 space-y-1.5">
+                    <div
+                      className="text-[11px] font-bold text-slate-700 flex items-center justify-between cursor-pointer select-none"
+                      onClick={() => setShowTimeSlots(!showTimeSlots)}
+                    >
+                      <span className="flex items-center gap-1.5 text-indigo-900">
+                        <ClockCircleOutlined className="text-indigo-600" />
+                        Chi tiết tính tiền theo khung giờ
+                        {calculatePlayingDetails(selectedTable).isCrossed && (
+                          <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">
+                            ⚡ {calculatePlayingDetails(selectedTable).timeSlots.length} khung giờ
+                          </span>
+                        )}
                       </span>
-                      {calculatePlayingDetails(selectedTable).isCrossed && (
-                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-200">
-                          ⚡ Qua {calculatePlayingDetails(selectedTable).timeSlots.length} khung giờ
-                        </span>
-                      )}
+                      <span className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800">
+                        {showTimeSlots ? "Thu gọn ▴" : "Xem chi tiết ▾"}
+                      </span>
                     </div>
-                    <div className="space-y-1 pt-1 border-t border-slate-100">
-                      {calculatePlayingDetails(selectedTable).timeSlots.map((slot, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between text-[11px] text-slate-600"
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                            <span className="font-semibold text-slate-800 truncate">
-                              {slot.tierName}
-                            </span>
-                            <span className="text-slate-400 font-mono text-[10px] shrink-0">
-                              ({slot.startTime} – {slot.endTime})
-                            </span>
+
+                    {showTimeSlots && (
+                      <div className="max-h-40 overflow-y-auto space-y-1 pt-1.5 border-t border-indigo-100 pr-1">
+                        {calculatePlayingDetails(selectedTable).timeSlots.map((slot, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between text-[11px] text-slate-600 bg-white/80 px-2 py-1 rounded"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                              <span className="font-semibold text-slate-800 truncate">
+                                {slot.tierName}
+                              </span>
+                              <span className="text-slate-400 font-mono text-[10px] shrink-0">
+                                ({slot.startTime} – {slot.endTime})
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-slate-500 font-mono text-[10px]">
+                                {slot.minutes}p × {slot.pricePerHour.toLocaleString()}đ
+                              </span>
+                              <span className="font-mono font-bold text-slate-900">
+                                {slot.cost.toLocaleString()}đ
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-slate-500 font-mono text-[10px]">
-                              {slot.minutes}p × {slot.pricePerHour.toLocaleString()}đ
-                            </span>
-                            <span className="font-mono font-bold text-slate-900">
-                              {slot.cost.toLocaleString()}đ
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
-              <div className="flex justify-between text-slate-600">
-                <span>Tiền đồ uống & món ({selectedTable.currentSession.orders.length} món):</span>
-                <strong className="text-slate-900 font-mono">
-                  {selectedTable.currentSession.orders
-                    .reduce((acc, cur) => acc + cur.price * cur.quantity, 0)
-                    .toLocaleString("vi-VN")}
-                  đ
-                </strong>
+              {/* Loyalty Phone & Member Lookup Card */}
+              <div className="p-3 rounded-xl bg-white border border-emerald-200/90 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                    <UserOutlined className="text-emerald-600" />
+                    Tích Điểm & Hội Viên:
+                  </span>
+                  {loyaltyCustomer ? (
+                    <Tag color="gold" className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold !m-0">
+                      ⭐ HỘI VIÊN VIP (-10% Giờ)
+                    </Tag>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">Khách vãng lai</span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nhập SĐT khách hàng tích điểm..."
+                    value={checkoutPhone}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCheckoutPhone(val);
+                      // Khi xóa hoặc đổi số khác: LẬP TỨC XÓA TÊN NGƯỜI CŨ!
+                      if (loyaltyCustomer && val.trim() !== loyaltyCustomer.phone) {
+                        setLoyaltyCustomer(null);
+                        setDiscountPercent(0);
+                      }
+                    }}
+                    onPressEnter={handleSearchLoyaltyCustomer}
+                    prefix={<PhoneOutlined className="text-slate-400 text-xs" />}
+                    className="!h-9 !rounded-xl !text-xs font-mono"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSearchLoyaltyCustomer}
+                    loading={isSearchingMember}
+                    className="!h-9 !px-3 !rounded-xl !text-xs font-bold shrink-0"
+                  >
+                    Áp dụng
+                  </Button>
+                </div>
+
+                {loyaltyCustomer ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 transition-all">
+                      <span className="flex items-center gap-1 font-medium">
+                        <CheckCircleOutlined className="text-emerald-600" />
+                        Hội viên: <strong className="text-emerald-950 font-bold">{loyaltyCustomer.name}</strong>
+                        {loyaltyCustomer.rank && (
+                          <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded font-bold ml-1">
+                            Hạng {loyaltyCustomer.rank}
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-bold text-emerald-700 font-mono">
+                        +100 Điểm (SPA Loyalty)
+                      </span>
+                    </div>
+
+                    {/* Customer Available Vouchers in Wallet */}
+                    {loyaltyCustomer.availableVouchers && loyaltyCustomer.availableVouchers.length > 0 && (
+                      <div className="p-2 rounded-xl bg-gradient-to-r from-emerald-50/70 to-teal-50/60 border border-emerald-200/90 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                          <span className="flex items-center gap-1.5">
+                            <GiftOutlined className="text-emerald-600" />
+                            Voucher trong ví của khách ({loyaltyCustomer.availableVouchers.length}):
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-normal">
+                            Bấm để áp dụng nhanh
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {loyaltyCustomer.availableVouchers.map((v) => {
+                            const isApplied = appliedVoucher?.code === v.code;
+                            return (
+                              <button
+                                key={v.code}
+                                type="button"
+                                onClick={() => void handleSelectCustomerVoucher(v.code)}
+                                title={v.description || v.code}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer select-none text-left ${
+                                  isApplied
+                                    ? "bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold"
+                                    : "bg-white border-emerald-200 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-50"
+                                }`}
+                              >
+                                <span className="font-bold">{v.code}</span>
+                                <span
+                                  className={`text-[10px] ${
+                                    isApplied ? "text-emerald-100" : "text-emerald-700 font-semibold"
+                                  }`}
+                                >
+                                  ({v.discountType === "percent" ? `-${v.discountValue}%` : `-${(v.discountValue / 1000).toLocaleString("vi-VN")}k`})
+                                </span>
+                                {isApplied ? (
+                                  <CheckCircleOutlined className="text-white text-xs ml-0.5" />
+                                ) : (
+                                  <span className="text-[9px] text-slate-400 font-sans">
+                                    [Dùng]
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : checkoutPhone.trim().length >= 8 ? (
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                    <span>Chưa xác thực hội viên cho số <strong>{checkoutPhone}</strong></span>
+                    <button
+                      type="button"
+                      onClick={handleSearchLoyaltyCustomer}
+                      className="text-emerald-600 font-bold hover:underline cursor-pointer"
+                    >
+                      Bấm để tra cứu
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
-              {/* Discount selection */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                <span className="text-slate-600">Giảm giá / Ưu đãi:</span>
-                <Select
-                  value={discountPercent}
-                  onChange={(val) => {
-                    setDiscountPercent(val);
-                    setAppliedVoucher(null);
-                    setVoucherCode("");
-                    setVoucherError("");
-                  }}
-                  className="!w-36 !rounded-lg !text-xs"
-                  options={[
-                    { value: 0, label: "0% (Không giảm)" },
-                    { value: 5, label: "5% (Khách quen)" },
-                    { value: 10, label: "10% (Hội viên VIP)" },
-                    { value: 20, label: "20% (Khung Giờ Vàng)" },
-                  ]}
-                />
-              </div>
+              {selectedTable.currentSession.orders.length > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Tiền đồ uống & món ({selectedTable.currentSession.orders.length} món):</span>
+                  <strong className="text-slate-900 font-mono">
+                    {selectedTable.currentSession.orders
+                      .reduce((acc, cur) => acc + cur.price * cur.quantity, 0)
+                      .toLocaleString("vi-VN")}
+                    đ
+                  </strong>
+                </div>
+              )}
 
-              <div className="space-y-2 border-t border-slate-100 pt-2">
-                <label className="block text-slate-600">Mã voucher:</label>
+              {/* Voucher input */}
+              <div className="space-y-1.5 border-t border-slate-200 pt-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    {loyaltyCustomer ? "Hoặc nhập/quét mã voucher khác (nếu có):" : "Mã voucher khuyến mãi (nếu có):"}
+                  </label>
+                  {appliedVoucher && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedVoucher(null);
+                        setVoucherCode("");
+                        setVoucherError("");
+                        if (loyaltyCustomer) setDiscountPercent(10);
+                      }}
+                      className="text-[10px] text-rose-500 hover:underline cursor-pointer"
+                    >
+                      Gỡ voucher
+                    </button>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <Input
                     value={voucherCode}
                     onChange={(event) => {
-                      setVoucherCode(event.target.value.toUpperCase());
+                      const val = event.target.value.toUpperCase();
+                      setVoucherCode(val);
                       setAppliedVoucher(null);
                       setVoucherError("");
+                      if (loyaltyCustomer) setDiscountPercent(10);
                     }}
-                    placeholder="Nhập mã voucher"
+                    placeholder="NHẬP HOẶC QUÉT MÃ VOUCHER"
                     disabled={validatingVoucher}
-                    className="uppercase"
+                    className="uppercase !h-8 !rounded-lg !text-xs font-mono"
                   />
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={() => void handleValidateVoucher()}
                     loading={validatingVoucher}
                     disabled={!voucherCode.trim()}
+                    className="!h-8 !px-3 !rounded-lg !text-xs font-semibold shrink-0"
                   >
                     Kiểm tra
                   </Button>
                 </div>
-                {voucherError && <p className="text-xs text-rose-600">{voucherError}</p>}
+                {voucherError && <p className="text-[11px] text-rose-600">{voucherError}</p>}
                 {appliedVoucher && (
-                  <p className="text-xs font-semibold text-emerald-700">
-                    Đã áp dụng {appliedVoucher.code}; giảm{" "}
-                    {appliedVoucher.discountAmount.toLocaleString("vi-VN")}đ. Voucher được xác thực
-                    lại khi thanh toán.
+                  <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+                    <CheckCircleOutlined /> Đã áp dụng {appliedVoucher.code} (-{appliedVoucher.discountAmount.toLocaleString("vi-VN")}đ)
                   </p>
                 )}
               </div>
 
-              <Text>
-                Tiền đặt cọc: {(selectedTable.currentSession.deposit || 0).toLocaleString("vi-VN")}đ
-              </Text>
-              <Text type="secondary">
-                💡 Tiền cọc (nếu có) sẽ được trừ trực tiếp vào hóa đơn. Số dư cọc sẽ được hoàn lại
-                cho khách.
-              </Text>
               {(() => {
                 const playingDetailsObj = calculatePlayingDetails(selectedTable);
                 const fnbTotal = selectedTable.currentSession.orders.reduce(
@@ -2031,20 +2316,73 @@ export const PosTableFloorPage: React.FC = () => {
                   0,
                 );
                 const subtotal = playingDetailsObj.cost + fnbTotal;
-                const discountAmount = appliedVoucher
-                  ? appliedVoucher.discountAmount
-                  : Math.round(subtotal * (discountPercent / 100));
+                const memberDiscountAmount =
+                  !appliedVoucher && discountPercent > 0
+                    ? Math.round(subtotal * (discountPercent / 100))
+                    : 0;
+                const voucherDiscountAmount = appliedVoucher ? appliedVoucher.discountAmount : 0;
+                const totalDiscount = memberDiscountAmount + voucherDiscountAmount;
                 const depositAmount = selectedTable.currentSession.deposit || 0;
-                const finalAmount = Math.max(0, subtotal - discountAmount - depositAmount);
+                const finalAmount = Math.max(0, subtotal - totalDiscount - depositAmount);
 
                 return (
                   <>
-                    {/* Final Amount */}
-                    <div className="flex justify-between items-center pt-2 border-t-2 border-slate-200 font-bold text-sm text-slate-900">
-                      <span>TỔNG CỘNG THANH TOÁN:</span>
-                      <span className="text-xl font-black text-emerald-700 font-mono">
-                        {finalAmount.toLocaleString("vi-VN")}đ
-                      </span>
+                    <div className="space-y-2 pt-2 border-t-2 border-slate-200">
+                      <div className="bg-slate-100/80 p-3 rounded-xl space-y-1.5 text-[11px]">
+                        <div className="flex justify-between text-slate-600">
+                          <span>Tiền giờ chơi:</span>
+                          <span className="font-mono font-medium text-slate-800">
+                            {playingDetailsObj.cost.toLocaleString("vi-VN")}đ
+                          </span>
+                        </div>
+                        {fnbTotal > 0 && (
+                          <div className="flex justify-between text-slate-600">
+                            <span>Đồ uống & dịch vụ ({selectedTable.currentSession.orders.length} món):</span>
+                            <span className="font-mono font-medium text-slate-800">
+                              {fnbTotal.toLocaleString("vi-VN")}đ
+                            </span>
+                          </div>
+                        )}
+                        {memberDiscountAmount > 0 && (
+                          <div className="flex justify-between text-emerald-700 font-semibold">
+                            <span>Ưu đãi Hội viên VIP (-{discountPercent}%):</span>
+                            <span className="font-mono">
+                              -{memberDiscountAmount.toLocaleString("vi-VN")}đ
+                            </span>
+                          </div>
+                        )}
+                        {voucherDiscountAmount > 0 && (
+                          <div className="flex justify-between text-emerald-700 font-semibold">
+                            <span>Giảm giá voucher ({appliedVoucher?.code}):</span>
+                            <span className="font-mono">
+                              -{voucherDiscountAmount.toLocaleString("vi-VN")}đ
+                            </span>
+                          </div>
+                        )}
+                        {depositAmount > 0 && (
+                          <div className="flex justify-between text-amber-700 font-semibold">
+                            <span>Khấu trừ tiền cọc:</span>
+                            <span className="font-mono">
+                              -{depositAmount.toLocaleString("vi-VN")}đ
+                            </span>
+                          </div>
+                        )}
+                        <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-bold text-slate-900">
+                          <span>TỔNG CỘNG THANH TOÁN:</span>
+                          <span className="text-xl font-black text-emerald-700 font-mono">
+                            {finalAmount.toLocaleString("vi-VN")}đ
+                          </span>
+                        </div>
+                      </div>
+
+                      {depositAmount > 0 && (
+                        <p className="text-[11px] text-slate-500 italic">
+                          💡 Tiền cọc {depositAmount.toLocaleString("vi-VN")}đ đã được khấu trừ trực tiếp.{" "}
+                          {finalAmount === 0 && depositAmount > subtotal - totalDiscount
+                            ? `Thừa ${(depositAmount - (subtotal - totalDiscount)).toLocaleString("vi-VN")}đ hoàn lại cho khách.`
+                            : ""}
+                        </p>
+                      )}
                     </div>
 
                     {/* Payment Method Selector */}

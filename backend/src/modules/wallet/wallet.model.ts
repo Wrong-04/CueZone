@@ -44,6 +44,8 @@ export interface IWallet extends Document {
 
   balance: number;
 
+  points: number;
+
   transactions: Types.DocumentArray<IWalletTransaction>;
 
   createdAt: Date;
@@ -82,6 +84,8 @@ const walletSchema = new Schema<IWallet>(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
 
     balance: { type: Number, required: true, default: 0, min: 0 },
+
+    points: { type: Number, required: true, default: 0, min: 0 },
 
     transactions: { type: [transactionSchema], default: [] },
   },

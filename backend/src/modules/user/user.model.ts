@@ -36,6 +36,10 @@ export interface IUser extends Document {
 
   position?: string;
 
+  elo?: number;
+
+  rank?: string;
+
   createdAt: Date;
 
   updatedAt: Date;
@@ -80,6 +84,10 @@ const userSchema = new Schema<IUser>(
     branch: { type: String },
 
     position: { type: String },
+
+    elo: { type: Number, default: 1000, min: 1000 },
+
+    rank: { type: String, default: "K" },
   },
   { timestamps: true },
 );
