@@ -30,6 +30,7 @@ export class App {
         console.error("❌ Unhandled error:", err);
         res.status(err.httpCode || 500).json({
           success: false,
+          ...(err.code ? { code: err.code } : {}),
           message: err.message || "Internal Server Error",
         });
       },

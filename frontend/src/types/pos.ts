@@ -83,6 +83,7 @@ export interface CheckoutReceipt {
   fnbTotal: number;
   subtotal: number;
   discountPercent: number;
+  voucherCode?: string;
   discountAmount: number;
   deposit: number;
   finalAmount: number;

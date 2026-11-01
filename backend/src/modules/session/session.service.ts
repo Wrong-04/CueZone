@@ -5,6 +5,7 @@ import { Booking } from "../booking/booking.model";
 import { Invoice } from "../invoice/invoice.model";
 import { PricingTier, IPricingTier } from "../pricing/pricing.model";
 import { emitTableStatusChanged, emitTableTimerStarted } from "../../utils/socketHolder";
+import { VoucherService } from "../voucher/voucher.service";
 
 export interface SplitTimeSlot {
   tierName: string;
@@ -435,7 +436,11 @@ export class SessionService {
       typeof input.discountPercent !== "number" ||
       !Number.isFinite(input.discountPercent) ||
       input.discountPercent < 0 ||
-      input.discountPercent > 100
+      input.discountPercent > 100 ||
+      (input.voucherCode !== undefined &&
+        (typeof input.voucherCode !== "string" ||
+          !input.voucherCode.trim() ||
+          input.discountPercent !== 0))
     ) {
       throw new Error("Phương thức thanh toán không hợp lệ; giảm giá phải từ 0 đến 100%");
     }
@@ -459,7 +464,24 @@ export class SessionService {
       );
       const fnbTotal = current.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const subtotal = cost + fnbTotal;
-      const discountAmount = Math.round((subtotal * input.discountPercent) / 100);
+      const voucherService = new VoucherService();
+      const invoiceCode = `HD-${randomUUID()}`;
+      const voucher = input.voucherCode
+        ? await voucherService.redeem(
+            input.voucherCode,
+            subtotal,
+            {
+              sessionId: current.sessionId,
+              invoiceCode,
+              tableId: table._id,
+              customerName: current.customerName,
+            },
+            session,
+          )
+        : undefined;
+      const discountAmount = voucher
+        ? voucher.discountAmount
+        : Math.round((subtotal * input.discountPercent) / 100);
       const finalAmount = Math.max(0, subtotal - discountAmount - current.deposit);
       const receipt = {
         tableName: table.name,
@@ -476,13 +498,14 @@ export class SessionService {
         orders: current.orders,
         fnbTotal,
         subtotal,
-        discountPercent: input.discountPercent,
+        discountPercent: voucher ? 0 : input.discountPercent,
+        voucherCode: voucher?.code,
         discountAmount,
         deposit: current.deposit,
         finalAmount,
         refundAmount: Math.max(0, current.deposit - (subtotal - discountAmount)),
         paymentMethod: input.paymentMethod || "cash",
-        invoiceCode: `HD-${randomUUID()}`,
+        invoiceCode,
         checkoutTime: new Date().toISOString(),
       };
       await Invoice.create([{ sessionId: current.sessionId, tableId: table._id, receipt }], {

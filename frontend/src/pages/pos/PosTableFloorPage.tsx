@@ -169,6 +169,13 @@ export const PosTableFloorPage: React.FC = () => {
     "cash",
   );
   const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState<{
+    code: string;
+    discountAmount: number;
+  } | null>(null);
+  const [voucherError, setVoucherError] = useState("");
+  const [validatingVoucher, setValidatingVoucher] = useState(false);
   const [cashReceived, setCashReceived] = useState<number | null>(null);
   const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
   const [paidSummary, setPaidSummary] = useState<CheckoutReceipt | null>(null);
@@ -768,6 +775,9 @@ export const PosTableFloorPage: React.FC = () => {
   const handleOpenCheckout = (table: PosTable) => {
     setSelectedTable(table);
     setDiscountPercent(table.currentSession?.isMember ? 10 : 0);
+    setVoucherCode("");
+    setAppliedVoucher(null);
+    setVoucherError("");
     setPaymentMethod("cash");
     setCashReceived(null);
     setCheckoutModalVisible(true);
@@ -777,7 +787,14 @@ export const PosTableFloorPage: React.FC = () => {
   const handleConfirmCheckout = async () => {
     if (!selectedTable?.currentSession) return;
     const saved = await save(async () => {
-      setPaidSummary(await posService.checkout(selectedTable, discountPercent, paymentMethod));
+      setPaidSummary(
+        await posService.checkout(
+          selectedTable,
+          appliedVoucher ? 0 : discountPercent,
+          paymentMethod,
+          appliedVoucher?.code,
+        ),
+      );
     });
     if (!saved) return;
     setCheckoutModalVisible(false);
@@ -785,6 +802,32 @@ export const PosTableFloorPage: React.FC = () => {
     message.success(
       `Đã lưu hóa đơn thanh toán (${paymentMethod === "vnpay" ? "Chuyển khoản QR" : "Tiền mặt"}) cho ${selectedTable.name}!`,
     );
+  };
+
+  const handleValidateVoucher = async () => {
+    if (!selectedTable?.currentSession || !voucherCode.trim()) {
+      setVoucherError("Vui lòng nhập mã voucher.");
+      return;
+    }
+    const subtotal =
+      calculatePlayingDetails(selectedTable).cost +
+      selectedTable.currentSession.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    setValidatingVoucher(true);
+    setVoucherError("");
+    try {
+      const voucher = await posService.validateVoucher(voucherCode, subtotal);
+      setVoucherCode(voucher.code);
+      setAppliedVoucher({ code: voucher.code, discountAmount: voucher.discountAmount });
+      setDiscountPercent(0);
+      message.success(`Đã áp dụng voucher ${voucher.code}`);
+    } catch (error) {
+      setAppliedVoucher(null);
+      setVoucherError(
+        error instanceof Error ? error.message : "Không thể kiểm tra voucher.",
+      );
+    } finally {
+      setValidatingVoucher(false);
+    }
   };
 
   return (
@@ -1925,7 +1968,12 @@ export const PosTableFloorPage: React.FC = () => {
                 <span className="text-slate-600">Giảm giá / Ưu đãi:</span>
                 <Select
                   value={discountPercent}
-                  onChange={(val) => setDiscountPercent(val)}
+                  onChange={(val) => {
+                    setDiscountPercent(val);
+                    setAppliedVoucher(null);
+                    setVoucherCode("");
+                    setVoucherError("");
+                  }}
                   className="!w-36 !rounded-lg !text-xs"
                   options={[
                     { value: 0, label: "0% (Không giảm)" },
@@ -1934,6 +1982,39 @@ export const PosTableFloorPage: React.FC = () => {
                     { value: 20, label: "20% (Khung Giờ Vàng)" },
                   ]}
                 />
+              </div>
+
+              <div className="space-y-2 border-t border-slate-100 pt-2">
+                <label className="block text-slate-600">Mã voucher:</label>
+                <div className="flex gap-2">
+                  <Input
+                    value={voucherCode}
+                    onChange={(event) => {
+                      setVoucherCode(event.target.value.toUpperCase());
+                      setAppliedVoucher(null);
+                      setVoucherError("");
+                    }}
+                    placeholder="Nhập mã voucher"
+                    disabled={validatingVoucher}
+                    className="uppercase"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleValidateVoucher()}
+                    loading={validatingVoucher}
+                    disabled={!voucherCode.trim()}
+                  >
+                    Kiểm tra
+                  </Button>
+                </div>
+                {voucherError && <p className="text-xs text-rose-600">{voucherError}</p>}
+                {appliedVoucher && (
+                  <p className="text-xs font-semibold text-emerald-700">
+                    Đã áp dụng {appliedVoucher.code}; giảm{" "}
+                    {appliedVoucher.discountAmount.toLocaleString("vi-VN")}đ. Voucher được xác thực
+                    lại khi thanh toán.
+                  </p>
+                )}
               </div>
 
               <Text>
@@ -1950,7 +2031,9 @@ export const PosTableFloorPage: React.FC = () => {
                   0,
                 );
                 const subtotal = playingDetailsObj.cost + fnbTotal;
-                const discountAmount = Math.round(subtotal * (discountPercent / 100));
+                const discountAmount = appliedVoucher
+                  ? appliedVoucher.discountAmount
+                  : Math.round(subtotal * (discountPercent / 100));
                 const depositAmount = selectedTable.currentSession.deposit || 0;
                 const finalAmount = Math.max(0, subtotal - discountAmount - depositAmount);
 
@@ -2276,7 +2359,13 @@ export const PosTableFloorPage: React.FC = () => {
               </div>
               {paidSummary.discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-700">
-                  <span>Giảm giá ({paidSummary.discountPercent}%):</span>
+                  <span>
+                    Giảm giá{" "}
+                    {paidSummary.voucherCode
+                      ? `(${paidSummary.voucherCode})`
+                      : `(${paidSummary.discountPercent}%)`}
+                    :
+                  </span>
                   <span>-{paidSummary.discountAmount.toLocaleString("vi-VN")}đ</span>
                 </div>
               )}

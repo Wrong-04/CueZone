@@ -24,6 +24,7 @@ import {
   ThunderboltOutlined,
   LogoutOutlined,
   TagsOutlined,
+  GiftOutlined,
   ShopOutlined,
 } from "@ant-design/icons";
 
@@ -90,6 +91,12 @@ const menuItems: MenuItemConfig[] = [
     path: "/catalog-management",
     label: "Danh mục sản phẩm",
     icon: <TagsOutlined />,
+    roles: ["admin"],
+  },
+  {
+    path: "/vouchers",
+    label: "Mã giảm giá",
+    icon: <GiftOutlined />,
     roles: ["admin"],
   },
 

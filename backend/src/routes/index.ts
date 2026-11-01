@@ -9,6 +9,7 @@ import bookingRouter from "../modules/booking/booking.routes";
 import sessionRouter from "../modules/session/session.routes";
 import tournamentRouter from "../modules/tournament/tournament.routes";
 import walletRouter from "../modules/wallet/wallet.routes";
+import voucherRouter from "../modules/voucher/voucher.routes";
 import { TournamentService } from "../modules/tournament/tournament.service";
 import { getPublicTables } from "../modules/table/table.controller";
 import { BookingService } from "../modules/booking/booking.service";
@@ -97,5 +98,6 @@ protectedRouter.use("/pricing", pricingRouter);
 protectedRouter.use("/notifications", notificationRouter);
 protectedRouter.use("/tournaments", tournamentRouter);
 protectedRouter.use("/wallet", walletRouter);
+protectedRouter.use("/vouchers", voucherRouter);
 protectedRouter.use("/products", productManagementRouter);
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile

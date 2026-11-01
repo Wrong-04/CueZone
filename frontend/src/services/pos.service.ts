@@ -88,6 +88,7 @@ export const posService = {
     table: PosTable,
     discountPercent: number,
     paymentMethod: string,
+    voucherCode?: string,
   ): Promise<CheckoutReceipt> {
     const { data } = await api.post<ApiResponse<CheckoutReceipt>>(
       `/tables/${table.id}/session/checkout`,
@@ -95,8 +96,21 @@ export const posService = {
         sessionId: table.currentSession?.sessionId,
         discountPercent,
         paymentMethod,
+        ...(voucherCode ? { voucherCode } : {}),
       },
     );
+    return result(data);
+  },
+  async validateVoucher(code: string, subtotal: number) {
+    const { data } = await api.post<
+      ApiResponse<{
+        code: string;
+        discountType: "percent" | "fixed";
+        discountValue: number;
+        minOrderAmount: number;
+        discountAmount: number;
+      }>
+    >("/vouchers/validate", { code, subtotal });
     return result(data);
   },
   async updateOrders(tableId: string, sessionId: string, orders: any[]) {
