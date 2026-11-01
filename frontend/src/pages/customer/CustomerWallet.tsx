@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -14,22 +14,28 @@ import {
   walletService,
   type WalletInfo,
   type WalletTransaction,
+  type VnpayTopupStatus,
 } from "../../services/wallet.service";
 
 const { Title, Text } = Typography;
-const presetAmounts = [100000, 200000, 500000, 1000000, 2000000];
+const presetAmounts = [100000, 200000, 500000] as const;
 const formatMoney = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
 const formatDate = (value: string) => new Date(value).toLocaleString("vi-VN");
 
 export const CustomerWallet: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const paymentReference = searchParams.get("vnp_TxnRef");
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupAmount, setTopupAmount] = useState(200000);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [gatewayStatus, setGatewayStatus] = useState<VnpayTopupStatus | null>(null);
+  const [gatewayError, setGatewayError] = useState("");
+  const [checkingGatewayStatus, setCheckingGatewayStatus] = useState(false);
 
   const loadWallet = useCallback(async () => {
     if (!user) {
@@ -40,6 +46,7 @@ export const CustomerWallet: React.FC = () => {
     setLoadError("");
     try {
       setWallet(await walletService.getMine());
+      window.dispatchEvent(new Event("cuezone:wallet-updated"));
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Không thể tải thông tin ví");
     } finally {
@@ -52,18 +59,68 @@ export const CustomerWallet: React.FC = () => {
     return () => window.clearTimeout(initialLoad);
   }, [loadWallet]);
 
+  const checkGatewayStatus = useCallback(async (): Promise<boolean> => {
+    if (!paymentReference) return false;
+    setCheckingGatewayStatus(true);
+    setGatewayError("");
+    try {
+      const status = await walletService.getVnpayTopupStatus(paymentReference);
+      setGatewayStatus(status);
+      if (status.status !== "pending") await loadWallet();
+      return status.status === "pending";
+    } catch (error) {
+      setGatewayError(
+        error instanceof Error ? error.message : "Không thể kiểm tra kết quả thanh toán VNPay",
+      );
+      return false;
+    } finally {
+      setCheckingGatewayStatus(false);
+    }
+  }, [loadWallet, paymentReference]);
+
+  useEffect(() => {
+    if (!paymentReference) return;
+    let active = true;
+    let attempts = 0;
+    const poll = async () => {
+      if (!active || attempts >= 20) return;
+      attempts += 1;
+      let isPending = false;
+      try {
+        const status = await walletService.getVnpayTopupStatus(paymentReference);
+        if (!active) return;
+        setGatewayStatus(status);
+        isPending = status.status === "pending";
+        if (!isPending) await loadWallet();
+      } catch (error) {
+        if (active) {
+          setGatewayError(
+            error instanceof Error ? error.message : "Không thể kiểm tra kết quả thanh toán VNPay",
+          );
+        }
+      }
+      if (active && isPending) timer = window.setTimeout(poll, 3000);
+    };
+    let timer = window.setTimeout(poll, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [loadWallet, paymentReference]);
+
   const handleRequestTopup = async () => {
-    if (!Number.isSafeInteger(topupAmount) || topupAmount < 50000 || topupAmount > 20000000) {
-      message.error("Số tiền nạp phải từ 50.000đ đến 20.000.000đ");
+    if (!presetAmounts.includes(topupAmount as (typeof presetAmounts)[number])) {
+      message.error("Vui lòng chọn mệnh giá 100.000đ, 200.000đ hoặc 500.000đ");
       return;
     }
     setIsSubmitting(true);
     try {
-      setWallet(await walletService.requestTopup(topupAmount));
-      setShowTopupModal(false);
-      message.success("Đã gửi yêu cầu nạp ví. Số dư sẽ được cập nhật sau khi nhân viên xác nhận.");
+      const payment = await walletService.createVnpayTopup(
+        topupAmount as (typeof presetAmounts)[number],
+      );
+      window.location.assign(payment.paymentUrl);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không thể tạo yêu cầu nạp ví");
+      message.error(error instanceof Error ? error.message : "Không thể tạo giao dịch VNPay");
     } finally {
       setIsSubmitting(false);
     }
@@ -73,7 +130,9 @@ export const CustomerWallet: React.FC = () => {
     const isTopup = transaction.type === "topup";
     const statusLabel =
       transaction.status === "pending"
-        ? "Chờ xác nhận"
+        ? transaction.gateway === "vnpay"
+          ? "Chờ thanh toán"
+          : "Chờ đối soát"
         : transaction.status === "success"
           ? "Thành công"
           : "Chưa xác nhận";
@@ -182,17 +241,53 @@ export const CustomerWallet: React.FC = () => {
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
             <Text className="!text-xs !text-slate-300">
-              Giao dịch nạp chỉ được cộng sau khi nhân viên đối soát.
+              Nạp tiền an toàn qua cổng thanh toán VNPay Sandbox.
             </Text>
             <Button
               variant="primary"
               onClick={() => setShowTopupModal(true)}
               className="!bg-emerald-600 !border-emerald-600"
             >
-              Tạo yêu cầu nạp
+              Nạp qua VNPay
             </Button>
           </div>
         </Card>
+
+        {paymentReference && (
+          <Card className="!rounded-2xl !border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <Text strong className="!block !text-sm !text-slate-900">
+                  Kết quả thanh toán VNPay
+                </Text>
+                <Text className="!text-xs !text-slate-500">
+                  Mã giao dịch: {paymentReference}
+                </Text>
+                {gatewayStatus && (
+                  <Text className="!mt-1 !block !text-sm">
+                    {gatewayStatus.status === "success"
+                      ? `Đã nạp thành công ${formatMoney(gatewayStatus.amount)}`
+                      : gatewayStatus.status === "failed"
+                        ? "Giao dịch chưa thành công. Số dư ví không thay đổi."
+                        : "Đang chờ VNPay xác nhận. Số dư sẽ cập nhật sau khi nhận IPN."}
+                  </Text>
+                )}
+                {gatewayError && (
+                  <Text className="!mt-1 !block !text-sm !text-rose-600">{gatewayError}</Text>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                leftIcon={<ReloadOutlined />}
+                loading={checkingGatewayStatus}
+                onClick={() => void checkGatewayStatus()}
+              >
+                Kiểm tra trạng thái
+              </Button>
+            </div>
+          </Card>
+        )}
+
         <Card className="!rounded-2xl !border-slate-200">
           <div className="flex items-center gap-3">
             <ClockCircleOutlined className="text-xl text-amber-600" />
@@ -205,7 +300,9 @@ export const CustomerWallet: React.FC = () => {
               (item) => item.type === "topup" && item.status === "pending",
             ).length ?? 0}
           </div>
-          <Text className="!text-xs !text-slate-500">yêu cầu nạp ví chưa được đối soát</Text>
+          <Text className="!text-xs !text-slate-500">
+            giao dịch đang chờ thanh toán hoặc xác nhận
+          </Text>
         </Card>
       </div>
 
@@ -243,7 +340,7 @@ export const CustomerWallet: React.FC = () => {
       <Modal
         open={showTopupModal}
         onCancel={() => setShowTopupModal(false)}
-        title="Tạo yêu cầu nạp ví"
+        title="Nạp tiền qua VNPay"
         footer={[
           <Button key="cancel" variant="outline" onClick={() => setShowTopupModal(false)}>
             Đóng
@@ -254,14 +351,14 @@ export const CustomerWallet: React.FC = () => {
             loading={isSubmitting}
             onClick={() => void handleRequestTopup()}
           >
-            Gửi yêu cầu
+            Thanh toán VNPay
           </Button>,
         ]}
       >
         <div className="space-y-4 py-2">
           <p className="text-sm leading-6 text-slate-600">
-            Chọn số tiền cần nạp. Yêu cầu sẽ được lưu để nhân viên xác nhận sau khi đối soát giao
-            dịch thực tế; ví chưa được cộng tiền ở bước này.
+            Chọn mệnh giá để thanh toán qua VNPay. Khi VNPay xác nhận thành công, tiền được cộng tự
+            động vào số dư khả dụng, không cần nhân viên duyệt.
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {presetAmounts.map((amount) => (
@@ -275,20 +372,8 @@ export const CustomerWallet: React.FC = () => {
               </button>
             ))}
           </div>
-          <label className="block text-xs font-semibold text-slate-700">
-            Số tiền khác
-            <input
-              type="number"
-              min={50000}
-              max={20000000}
-              step={10000}
-              value={topupAmount}
-              onChange={(event) => setTopupAmount(Number(event.target.value))}
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-          </label>
-          <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Từ 50.000đ đến 20.000.000đ. Màn hình này không tự thực hiện thanh toán ngân hàng.
+          <div className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+            Giao dịch thanh toán sẽ hết hạn sau 15 phút nếu chưa hoàn tất.
           </div>
         </div>
       </Modal>

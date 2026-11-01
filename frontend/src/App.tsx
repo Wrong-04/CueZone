@@ -301,7 +301,14 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="wallet" element={<CustomerWallet />} />
+        <Route
+          path="wallet"
+          element={
+            <ProtectedRoute roles={["customer"]}>
+              <CustomerWallet />
+            </ProtectedRoute>
+          }
+        />
         <Route path="profile" element={<CustomerProfile />} />
         <Route path="rules" element={<CustomerRules />} />
         <Route path="news" element={<CustomerNews />} />

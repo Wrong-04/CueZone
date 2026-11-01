@@ -8,6 +8,7 @@ import { Invoice } from "./modules/invoice/invoice.model";
 import { Table } from "./modules/table/table.model";
 import { Notification } from "./modules/notification/notification.model";
 import { Wallet } from "./modules/wallet/wallet.model";
+import { WalletPayment } from "./modules/wallet/wallet-payment.model";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
@@ -40,6 +41,7 @@ async function start() {
       Table.init(),
       Notification.init(),
       Wallet.init(),
+      WalletPayment.init(),
     ]);
     console.log("✅ Database indexes verified");
   } catch (err: any) {
