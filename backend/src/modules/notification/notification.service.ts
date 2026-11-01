@@ -115,9 +115,16 @@ export class NotificationService {
   }
 
   async create(data: NotificationInput): Promise<INotification[]> {
+    return this.createForRoles(data, [UserRole.ADMIN, UserRole.STAFF]);
+  }
+
+  async createForRoles(
+    data: NotificationInput,
+    roles: UserRole[],
+  ): Promise<INotification[]> {
     const content = notificationContent(data);
     const recipients = await User.find({
-      role: { $in: [UserRole.ADMIN, UserRole.STAFF] },
+      role: { $in: roles },
       isActive: true,
       isLocked: false,
     })

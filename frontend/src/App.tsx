@@ -16,6 +16,7 @@ import TournamentFeesPage from "./pages/admin/TournamentFeesPage";
 // Three new management pages
 import CatalogManagementPage from "./pages/admin/CatalogManagementPage";
 import VoucherManagementPage from "./pages/admin/VoucherManagementPage";
+import FnbOrderQueuePage from "./pages/admin/FnbOrderQueuePage";
 import StockCatalogPage from "./pages/admin/StockCatalogPage";
 import SupplierManagementPage from "./pages/admin/SupplierManagementPage";
 
@@ -198,6 +199,15 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute roles={["admin"]}>
               <VoucherManagementPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/fnb-orders"
+          element={
+            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+              <FnbOrderQueuePage />
             </ProtectedRoute>
           }
         />

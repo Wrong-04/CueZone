@@ -30,6 +30,10 @@ export enum TableStatus {
 export interface TableSession {
   sessionId: string;
 
+  checkoutState?: "open" | "checkout" | "pending_payment";
+
+  customerOrderRevision?: number;
+
   sessionStart: string;
 
   startedAt: number;
@@ -126,6 +130,10 @@ const tableSchema = new Schema<ITable>(
       type: new Schema<TableSession>(
         {
           sessionId: { type: String, required: true },
+
+          checkoutState: { type: String, enum: ["open", "checkout", "pending_payment"], default: "open" },
+
+          customerOrderRevision: { type: Number, default: 0 },
 
           sessionStart: String,
 

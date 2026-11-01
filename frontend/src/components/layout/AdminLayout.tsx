@@ -25,6 +25,7 @@ import {
   LogoutOutlined,
   TagsOutlined,
   GiftOutlined,
+  ShoppingOutlined,
   ShopOutlined,
 } from "@ant-design/icons";
 
@@ -98,6 +99,12 @@ const menuItems: MenuItemConfig[] = [
     label: "Mã giảm giá",
     icon: <GiftOutlined />,
     roles: ["admin"],
+  },
+  {
+    path: "/fnb-orders",
+    label: "Order F&B tại bàn",
+    icon: <ShoppingOutlined />,
+    roles: ["admin", "staff", "cashier"],
   },
 
   {
