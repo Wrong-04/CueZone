@@ -16,8 +16,11 @@ import {
   VideoCameraOutlined,
   ThunderboltOutlined,
   SyncOutlined,
+  UsergroupAddOutlined,
+  UserOutlined,
+  PhoneOutlined,
 } from "@ant-design/icons";
-import { Button, Card, Tag, Typography } from "../../shared/ui";
+import { Button, Card, Tag, Typography, Modal, Input, Select, message } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
 import { posService } from "../../services/pos.service";
 import { getSocket } from "../../services/socket.service";
@@ -93,6 +96,54 @@ const CustomerHome = () => {
   const [loadingTables, setLoadingTables] = useState<boolean>(true);
   const [filterType, setFilterType] = useState<string>("all");
   const [socketConnected, setSocketConnected] = useState<boolean>(true);
+
+  // Waitlist Modal State
+  const [waitlistModalVisible, setWaitlistModalVisible] = useState<boolean>(false);
+  const [wlName, setWlName] = useState<string>("");
+  const [wlPhone, setWlPhone] = useState<string>("");
+  const [wlType, setWlType] = useState<string>("Bàn Bida Lỗ (Pool)");
+  const [wlGuests, setWlGuests] = useState<number>(2);
+  const [wlNote, setWlNote] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      if (user.name && !wlName) setWlName(user.name);
+      if (user.phone && !wlPhone) setWlPhone(user.phone);
+    }
+  }, [user]);
+
+  const handleSubmitWaitlist = () => {
+    if (!wlName.trim() || !wlPhone.trim()) {
+      message.warning("Vui lòng điền họ tên và số điện thoại liên hệ");
+      return;
+    }
+    const newEntry = {
+      id: `wl-${Date.now()}`,
+      customerName: wlName.trim(),
+      phone: wlPhone.trim(),
+      guests: wlGuests,
+      preferredType: wlType,
+      joinedTime: new Date().toLocaleTimeString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      note: wlNote.trim() || "Đăng ký từ Web Portal",
+    };
+
+    try {
+      const raw = localStorage.getItem("cuezone_pos_waitlist");
+      const list = raw ? JSON.parse(raw) : [];
+      const updated = [newEntry, ...(Array.isArray(list) ? list : [])];
+      localStorage.setItem("cuezone_pos_waitlist", JSON.stringify(updated));
+      window.dispatchEvent(new Event("storage"));
+      window.dispatchEvent(new CustomEvent("waitlist:updated"));
+    } catch {}
+
+    message.success("Đăng ký thành công! Quản lý CLB sẽ ưu tiên gọi cho bạn ngay khi có bàn trống.");
+    setWaitlistModalVisible(false);
+    setWlNote("");
+  };
 
   const fetchTables = useCallback(async () => {
     try {
@@ -300,6 +351,21 @@ const CustomerHome = () => {
               Xem bàn trống và thời gian thực trực tiếp tại CLB. Chọn bàn ưa thích và đặt trước
               nhanh chóng để không phải chờ đợi.
             </Text>
+            {stats.available === 0 && (
+              <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3 shadow-2xs">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Hiện tại CLB đang kín bàn. Đăng ký vào Danh Sách Chờ để được ưu tiên nhận bàn sớm nhất!
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setWaitlistModalVisible(true)}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors"
+                >
+                  Ghi Danh Chờ Bàn
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -317,6 +383,14 @@ const CustomerHome = () => {
                 <span>Đang kết nối lại...</span>
               </div>
             )}
+            <Button
+              variant="outline"
+              onClick={() => setWaitlistModalVisible(true)}
+              leftIcon={<UsergroupAddOutlined className="text-xs" />}
+              className="!text-xs !font-bold !border-slate-300 hover:!border-emerald-500 !text-slate-700 hover:!text-emerald-700 !h-9 !px-3.5 !rounded-xl shadow-2xs"
+            >
+              Đăng Ký Chờ Bàn
+            </Button>
             <Button
               variant="primary"
               to="/customer/booking"
@@ -776,6 +850,118 @@ const CustomerHome = () => {
           )}
         </div>
       </section>
+      <Modal
+        open={waitlistModalVisible}
+        onCancel={() => setWaitlistModalVisible(false)}
+        footer={null}
+        title={
+          <div className="flex items-center gap-2">
+            <UsergroupAddOutlined className="text-emerald-600 text-lg" />
+            <span className="font-extrabold text-slate-900 text-base">
+              Đăng Ký Hàng Chờ Bàn Trực Tuyến
+            </span>
+          </div>
+        }
+      >
+        <div className="py-3 space-y-4">
+          <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs text-emerald-950">
+            CLB CueZone sẽ tiếp nhận thông tin và nhân viên sẽ liên hệ với bạn ngay khi có bàn trống phù hợp!
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Họ và tên của bạn:
+            </label>
+            <Input
+              placeholder="Nguyễn Văn A..."
+              value={wlName}
+              onChange={(e) => setWlName(e.target.value)}
+              prefix={<UserOutlined className="text-slate-400" />}
+              className="!h-10 !rounded-xl"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Số điện thoại liên hệ:
+            </label>
+            <Input
+              placeholder="0912 345 678"
+              value={wlPhone}
+              onChange={(e) => setWlPhone(e.target.value)}
+              prefix={<PhoneOutlined className="text-slate-400" />}
+              className="!h-10 !rounded-xl"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Thể loại bàn:
+              </label>
+              <Select
+                value={wlType}
+                onChange={(val) => setWlType(val)}
+                className="w-full !h-10"
+                options={[
+                  { value: "Bàn Bida Lỗ (Pool)", label: "Bida Lỗ (Pool)" },
+                  { value: "Bàn Bida Carom (Phăng)", label: "Carom (Phăng)" },
+                  { value: "Bàn Bida Snooker", label: "Snooker" },
+                ]}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Số lượng khách:
+              </label>
+              <Select
+                value={wlGuests}
+                onChange={(val) => setWlGuests(val)}
+                className="w-full !h-10"
+                options={[
+                  { value: 1, label: "1 người (Solo)" },
+                  { value: 2, label: "2 người" },
+                  { value: 4, label: "3 - 4 người" },
+                  { value: 6, label: "5 - 6 người" },
+                  { value: 8, label: "Nhóm trên 6 người" },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Ghi chú thêm:
+            </label>
+            <Input.TextArea
+              rows={2}
+              placeholder="Ví dụ: Ưu tiên bàn gần quầy bar, có cơ cá nhân..."
+              value={wlNote}
+              onChange={(e) => setWlNote(e.target.value)}
+              className="!rounded-xl"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setWaitlistModalVisible(false)}
+              className="!rounded-xl"
+            >
+              Đóng
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSubmitWaitlist}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4 text-white"
+            >
+              Gửi Đăng Ký Chờ
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

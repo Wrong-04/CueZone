@@ -92,3 +92,19 @@ export const getPublicTables = async (req: Request, res: Response) => {
     return res.json({ success: false, message: error.message });
   }
 };
+
+export const lookupCustomer = async (req: Request, res: Response) => {
+  try {
+    const phone = req.query.phone as string;
+    if (!phone || phone.trim().length < 8) {
+      return res.status(400).json({ success: false, message: "Vui lòng nhập số điện thoại hợp lệ (tối thiểu 8 số)" });
+    }
+    const customer = await tableService.lookupCustomer(phone.trim());
+    if (!customer) {
+      return res.json({ success: false, message: "Không tìm thấy hội viên với số điện thoại này" });
+    }
+    return res.json({ success: true, data: customer });
+  } catch (error: any) {
+    return res.json({ success: false, message: error.message });
+  }
+};

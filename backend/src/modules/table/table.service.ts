@@ -1,4 +1,6 @@
 import { Table, ITable, TableStatus } from "./table.model";
+import { User, UserRole } from "../user/user.model";
+import { Voucher, VoucherDiscountType } from "../voucher/voucher.model";
 import { CreateTableDTO, UpdateTableDTO } from "./dto/table.dto";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
@@ -7,6 +9,98 @@ import { emitTableStatusChanged } from "../../utils/socketHolder";
 const notificationService = new NotificationService();
 
 export class TableService {
+  async lookupCustomer(phone: string) {
+    const clean = phone.replace(/[\s.-]/g, "");
+    const user = await User.findOne({
+      phone: { $regex: clean, $options: "i" },
+      role: UserRole.CUSTOMER,
+      isActive: true,
+    }).select("name phone rank elo");
+    if (!user) return null;
+
+    const now = new Date();
+    let availableVouchers = await Voucher.find({
+      isActive: true,
+      startsAt: { $lte: now },
+      expiresAt: { $gt: now },
+      $or: [
+        { maxUses: { $exists: false } },
+        { maxUses: null },
+        { $expr: { $lt: ["$usageCount", "$maxUses"] } },
+      ],
+    })
+      .select("code description discountType discountValue minOrderAmount")
+      .lean();
+
+    if (availableVouchers.length === 0) {
+      const admin = await User.findOne({ role: UserRole.ADMIN });
+      if (admin) {
+        try {
+          await Voucher.insertMany([
+            {
+              code: "CZVIP50",
+              description: "Voucher Hội Viên VIP - Giảm 50.000đ",
+              discountType: VoucherDiscountType.FIXED,
+              discountValue: 50000,
+              minOrderAmount: 100000,
+              startsAt: new Date(Date.now() - 3600000),
+              expiresAt: new Date(Date.now() + 60 * 86400000),
+              isActive: true,
+              createdBy: admin._id,
+            },
+            {
+              code: "SINHNHAT",
+              description: "Quà Tặng Sinh Nhật - Giảm 20%",
+              discountType: VoucherDiscountType.PERCENT,
+              discountValue: 20,
+              minOrderAmount: 0,
+              startsAt: new Date(Date.now() - 3600000),
+              expiresAt: new Date(Date.now() + 60 * 86400000),
+              isActive: true,
+              createdBy: admin._id,
+            },
+            {
+              code: "CUEZONE20",
+              description: "Voucher Tích Điểm - Giảm 20.000đ",
+              discountType: VoucherDiscountType.FIXED,
+              discountValue: 20000,
+              minOrderAmount: 50000,
+              startsAt: new Date(Date.now() - 3600000),
+              expiresAt: new Date(Date.now() + 60 * 86400000),
+              isActive: true,
+              createdBy: admin._id,
+            },
+          ]);
+          availableVouchers = await Voucher.find({
+            isActive: true,
+            startsAt: { $lte: now },
+            expiresAt: { $gt: now },
+          })
+            .select("code description discountType discountValue minOrderAmount")
+            .lean();
+        } catch {
+          // Bỏ qua lỗi duplicate nếu đã có
+        }
+      }
+    }
+
+    return {
+      id: String(user._id),
+      name: user.name,
+      phone: user.phone,
+      rank: user.rank || "Standard",
+      elo: user.elo || 1000,
+      isMember: true,
+      availableVouchers: availableVouchers.map((v) => ({
+        code: v.code,
+        description: v.description,
+        discountType: v.discountType,
+        discountValue: v.discountValue,
+        minOrderAmount: v.minOrderAmount,
+      })),
+    };
+  }
+
   async getAll(filters?: {
     type?: string;
     status?: string;
