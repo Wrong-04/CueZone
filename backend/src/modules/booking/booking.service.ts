@@ -1,12 +1,42 @@
 import mongoose from "mongoose";
 import { Booking } from "./booking.model";
-import { Table, TableStatus } from "../table/table.model";
+import { Table, TableStatus, TableType } from "../table/table.model";
 import { User } from "../user/user.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 
 const notificationService = new NotificationService();
+
+const ACTIVE_BOOKING_STATUSES = ["pending", "approved", "confirmed", "checked_in"];
+const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000;
+
+function getBookingInterval(date: string, time: string, duration: number, allowPast = false) {
+  const startDate = new Date(`${date}T${time}:00+07:00`);
+  if (
+    !Number.isFinite(startDate.getTime()) ||
+    new Date(startDate.getTime() + 7 * 3600000).toISOString().slice(0, 10) !== date
+  ) {
+    throw new Error("Ngày giờ đặt bàn không hợp lệ");
+  }
+  if (!allowPast && startDate.getTime() <= Date.now()) {
+    throw new Error("Ngày giờ đặt bàn phải ở tương lai (giờ Việt Nam)");
+  }
+  return {
+    startDate,
+    endDate: new Date(startDate.getTime() + duration * 60 * 60 * 1000),
+  };
+}
+
+function getStoredBookingInterval(booking: any) {
+  const startDate = booking.startDate
+    ? new Date(booking.startDate)
+    : new Date(`${booking.date}T${booking.time}:00+07:00`);
+  const endDate = booking.endDate
+    ? new Date(booking.endDate)
+    : new Date(startDate.getTime() + Number(booking.duration || 2) * 60 * 60 * 1000);
+  return { startDate, endDate };
+}
 
 export function bookingInput(input: any) {
   const tableRef = input.table || input.tableId;
@@ -31,14 +61,7 @@ export function bookingInput(input: any) {
   ) {
     throw new Error("Thông tin đặt bàn không hợp lệ");
   }
-  const start = new Date(`${input.date}T${input.time}:00+07:00`);
-  if (
-    !Number.isFinite(start.getTime()) ||
-    start.getTime() <= Date.now() ||
-    new Date(start.getTime() + 7 * 3600000).toISOString().slice(0, 10) !== input.date
-  ) {
-    throw new Error("Ngày giờ đặt bàn phải hợp lệ và ở tương lai (giờ Việt Nam)");
-  }
+  const { startDate, endDate } = getBookingInterval(input.date, input.time, input.duration);
   return {
     customerName: input.customerName.trim(),
     phone: input.phone.trim(),
@@ -46,12 +69,80 @@ export function bookingInput(input: any) {
     date: input.date,
     time: input.time,
     duration: input.duration,
+    startDate,
+    endDate,
     deposit,
     note: input.note,
   };
 }
 
 export class BookingService {
+  private async hasSlotConflict(
+    tableId: string,
+    startDate: Date,
+    endDate: Date,
+    session?: mongoose.ClientSession,
+    excludeBookingId?: string,
+  ) {
+    const filter: Record<string, any> = {
+      table: tableId,
+      status: { $in: ACTIVE_BOOKING_STATUSES },
+    };
+    if (excludeBookingId) filter._id = { $ne: excludeBookingId };
+    let query = Booking.find(filter).select("date time duration startDate endDate");
+    if (session) query = query.session(session);
+    const bookings = await query;
+    return bookings.some((booking) => {
+      const interval = getStoredBookingInterval(booking);
+      return (
+        Number.isFinite(interval.startDate.getTime()) &&
+        Number.isFinite(interval.endDate.getTime()) &&
+        interval.startDate < endDate &&
+        interval.endDate > startDate
+      );
+    });
+  }
+
+  async getAvailableTables(input: {
+    date: string;
+    time: string;
+    duration: number;
+    type?: string;
+  }) {
+    if (
+      typeof input.date !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(input.date) ||
+      typeof input.time !== "string" ||
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.time) ||
+      !Number.isInteger(input.duration) ||
+      input.duration < 1 ||
+      input.duration > 24 ||
+      (input.type !== undefined && !Object.values(TableType).includes(input.type as TableType))
+    ) {
+      throw new Error("Khung giờ tìm bàn không hợp lệ");
+    }
+    const { startDate, endDate } = getBookingInterval(
+      input.date,
+      input.time,
+      input.duration,
+      true,
+    );
+    if (startDate.getTime() <= Date.now()) return [];
+    const tableFilter: Record<string, any> = {
+      isActive: true,
+      status: { $ne: TableStatus.MAINTENANCE },
+    };
+    if (input.type) tableFilter.type = input.type;
+    const tables = await Table.find(tableFilter).sort({ code: 1 });
+    const available = [];
+    for (const table of tables) {
+      if (!(await this.hasSlotConflict(String(table._id), startDate, endDate))) {
+        available.push(table);
+      }
+    }
+    return available;
+  }
+
   async getAll() {
     const list = await Booking.find()
       .populate("customer")
@@ -81,7 +172,30 @@ export class BookingService {
     });
   }
 
-  async create(input: any, customerId?: string) {
+  async getCustomerBookings(customerId: string) {
+    if (!mongoose.isValidObjectId(customerId)) {
+      throw new Error("Tài khoản khách hàng không hợp lệ");
+    }
+    const list = await Booking.find({ customer: customerId })
+      .populate("table")
+      .sort({ createdAt: -1 });
+    return list.map((booking: any) => {
+      const table = booking.table;
+      return {
+        ...(booking.toObject ? booking.toObject() : booking),
+        tableId: table ? String(table._id) : String(booking.table || ""),
+        tableName: booking.tableName || table?.name || "Bàn bida",
+        tableType: table?.type,
+        status: booking.status === "confirmed" ? "approved" : booking.status,
+      };
+    });
+  }
+
+  async create(
+    input: any,
+    customerId?: string,
+    initialStatus: "pending" | "approved" = "approved",
+  ) {
     const dto = bookingInput(input);
     const associatedCustomer =
       customerId && mongoose.isValidObjectId(customerId)
@@ -93,14 +207,26 @@ export class BookingService {
           }).select("_id")
         : null;
     const associatedCustomerId = associatedCustomer ? customerId : undefined;
-    // ponytail: one held reservation per table; add interval scheduling when multiple future slots are needed.
+    if (initialStatus === "pending" && !associatedCustomerId) {
+      throw new Error("Vui lòng đăng nhập tài khoản khách hàng để đặt bàn");
+    }
     const result = await mongoose.connection.transaction(async (session) => {
-      const table = await Table.findOne({
-        _id: dto.table,
-        isActive: true,
-        status: TableStatus.AVAILABLE,
-      }).session(session);
+      const table = await Table.findOneAndUpdate(
+        {
+          _id: dto.table,
+          isActive: true,
+          status:
+            initialStatus === "pending"
+              ? { $ne: TableStatus.MAINTENANCE }
+              : TableStatus.AVAILABLE,
+        },
+        { $inc: { bookingVersion: 1 } },
+        { new: true, session },
+      );
       if (!table) throw new Error("Bàn không còn trống, vui lòng tải lại");
+      if (await this.hasSlotConflict(String(table._id), dto.startDate, dto.endDate, session)) {
+        throw new Error("Khung giờ này đã có người đặt, vui lòng chọn thời gian khác");
+      }
       const [booking] = await Booking.create(
         [
           {
@@ -109,31 +235,39 @@ export class BookingService {
             customer: associatedCustomerId,
             tableName: table.name,
             estimatedCost: table.pricePerHour * dto.duration,
-            status: "approved",
+            status: initialStatus,
           },
         ],
         { session },
       );
-      table.status = TableStatus.BOOKED;
-      table.bookedInfo = {
-        customerName: booking.customerName || "Khách đặt trước",
-        phone: booking.phone || "0900000000",
-        time: `${booking.time} (${booking.date})`,
-        bookingId: String(booking._id),
-      };
-      await table.save({ session });
+      if (initialStatus === "approved") {
+        table.status = TableStatus.BOOKED;
+        table.bookedInfo = {
+          customerName: booking.customerName || "Khách đặt trước",
+          phone: booking.phone || "0900000000",
+          time: `${booking.time} (${booking.date})`,
+          bookingId: String(booking._id),
+        };
+        await table.save({ session });
+      }
       return { booking, table };
     });
-    emitTableStatusChanged({
-      tableId: String(result.table._id),
-      status: result.table.status,
-      table: result.table,
-    });
+    if (initialStatus === "approved") {
+      emitTableStatusChanged({
+        tableId: String(result.table._id),
+        status: result.table.status,
+        table: result.table,
+      });
+    }
     if (associatedCustomerId) {
       await notificationService
         .createForUser(associatedCustomerId, {
-          title: "Đặt bàn đã được xác nhận",
-          content: `Lịch đặt bàn ${result.booking.date} lúc ${result.booking.time} tại ${result.booking.tableName} đã được xác nhận.`,
+          title:
+            initialStatus === "pending" ? "Đã nhận yêu cầu đặt bàn" : "Đặt bàn đã được xác nhận",
+          content:
+            initialStatus === "pending"
+              ? `Yêu cầu đặt bàn ${result.booking.date} lúc ${result.booking.time} tại ${result.booking.tableName} đang chờ xác nhận.`
+              : `Lịch đặt bàn ${result.booking.date} lúc ${result.booking.time} tại ${result.booking.tableName} đã được xác nhận.`,
           type: NotificationType.TABLE,
         })
         .catch(() => undefined);
@@ -149,6 +283,49 @@ export class BookingService {
       ...(result.booking.toObject ? result.booking.toObject() : result.booking),
       tableId: String(result.table._id),
     };
+  }
+
+  async cancelCustomerBooking(customerId: string, id: string, reason?: string) {
+    if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(id)) {
+      throw new Error("Yêu cầu hủy đặt bàn không hợp lệ");
+    }
+    if (reason !== undefined && (typeof reason !== "string" || reason.length > 1000)) {
+      throw new Error("Lý do hủy không được vượt quá 1000 ký tự");
+    }
+    return mongoose.connection.transaction(async (session) => {
+      const booking = await Booking.findOne({ _id: id, customer: customerId }).session(session);
+      if (!booking) throw new Error("Không tìm thấy đơn đặt bàn");
+      if (booking.status !== "pending") {
+        throw new Error("Chỉ có thể hủy đơn đặt bàn đang chờ xác nhận");
+      }
+      const { startDate } = getStoredBookingInterval(booking);
+      if (!Number.isFinite(startDate.getTime())) {
+        throw new Error("Thời gian đặt bàn không hợp lệ");
+      }
+      if (startDate.getTime() - CANCELLATION_CUTOFF_MS <= Date.now()) {
+        throw new Error("Đã quá hạn hủy đặt bàn (trước giờ chơi ít nhất 2 tiếng)");
+      }
+      await Table.updateOne(
+        { _id: booking.table },
+        { $inc: { bookingVersion: 1 } },
+        { session },
+      );
+      const update = await Booking.updateOne(
+        { _id: id, customer: customerId, status: "pending" },
+        {
+          $set: {
+            status: "cancelled",
+            cancelledAt: new Date(),
+            cancellationReason: reason?.trim() || undefined,
+          },
+        },
+        { session },
+      );
+      if (update.modifiedCount !== 1) {
+        throw new Error("Trạng thái đơn đã thay đổi, vui lòng tải lại");
+      }
+      return { ...booking.toObject(), status: "cancelled", cancelledAt: new Date() };
+    });
   }
 
   async update(id: string, input: any) {
@@ -191,6 +368,18 @@ export class BookingService {
           ],
         }).session(session);
         if (!table) throw new Error("Bàn không còn trống");
+        const interval = getStoredBookingInterval(booking);
+        if (
+          await this.hasSlotConflict(
+            String(table._id),
+            interval.startDate,
+            interval.endDate,
+            session,
+            id,
+          )
+        ) {
+          throw new Error("Khung giờ này đã có đơn đặt bàn khác");
+        }
         if (
           String(booking.table) !== inputTableId &&
           (booking.status === "approved" || booking.status === "confirmed")
@@ -212,6 +401,10 @@ export class BookingService {
         booking.phone = resolvedPhone;
         booking.table = table._id;
         booking.tableName = table.name;
+        if (!booking.startDate || !booking.endDate) {
+          booking.startDate = interval.startDate;
+          booking.endDate = interval.endDate;
+        }
         booking.estimatedCost = table.pricePerHour * (booking.duration || 2);
         table.status = TableStatus.BOOKED;
         table.bookedInfo = {

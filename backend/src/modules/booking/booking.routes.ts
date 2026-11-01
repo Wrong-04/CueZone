@@ -1,9 +1,35 @@
 import { Router } from "express";
 import { BookingService } from "./booking.service";
 import { requirePosStaff } from "../../middlewares/pos.middleware";
+import { requireRole } from "../../middlewares/auth.middleware";
+import { UserRole } from "../user/user.model";
 
 const router = Router();
 const service = new BookingService();
+router.get("/mine", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: await service.getCustomerBookings(String((req as any).user.userId)),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+router.post("/:id/cancel", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: await service.cancelCustomerBooking(
+        String((req as any).user.userId),
+        req.params.id,
+        req.body.reason,
+      ),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 router.use(requirePosStaff);
 router.get("/", async (_req, res, next) => {
   try {

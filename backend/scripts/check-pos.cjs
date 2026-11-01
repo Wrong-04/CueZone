@@ -98,6 +98,56 @@ async function main() {
       token,
     );
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const onlineDto = {
+      customerName: "Check customer",
+      phone: "0901234567",
+      tableId: second._id,
+      date: tomorrow,
+      time: "10:00",
+      duration: 2,
+      deposit: 0,
+    };
+    const onlineConcurrent = await Promise.all([
+      request("/public/bookings", "POST", onlineDto, customer.accessToken),
+      request("/public/bookings", "POST", onlineDto, customer.accessToken),
+    ]);
+    assert.equal(
+      onlineConcurrent.filter((result) => result.success).length,
+      1,
+      "Concurrent online reservations must not claim the same slot",
+    );
+    const onlineBooking = onlineConcurrent.find((result) => result.success).data;
+    assert.equal(onlineBooking.status, "pending");
+    assert.equal((await Table.findById(second._id)).status, "available");
+    assert.equal(
+      (await ok("/bookings/mine", "GET", undefined, customer.accessToken)).length,
+      1,
+    );
+    assert.equal((await request("/bookings/mine", "GET", undefined, token)).success, false);
+    const availability = await ok(
+      `/public/booking-availability?date=${tomorrow}&time=10%3A00&duration=2&type=carom`,
+      "GET",
+    );
+    assert.equal(availability.some((availableTable) => availableTable._id === second._id), false);
+    const cancelledOnlineBooking = await ok(
+      `/bookings/${onlineBooking._id}/cancel`,
+      "POST",
+      { reason: "Check cancellation" },
+      customer.accessToken,
+    );
+    assert.equal(cancelledOnlineBooking.status, "cancelled");
+    const recreatedOnlineBooking = await ok(
+      "/public/bookings",
+      "POST",
+      onlineDto,
+      customer.accessToken,
+    );
+    await ok(
+      `/bookings/${recreatedOnlineBooking._id}/cancel`,
+      "POST",
+      { reason: "Check cleanup" },
+      customer.accessToken,
+    );
     assert.throws(() =>
       bookingInput({
         customerName: "Name",
@@ -244,7 +294,7 @@ async function main() {
     );
     assert.equal(await Invoice.countDocuments(), 1);
     assert.equal((await Table.findById(second._id)).status, "available");
-    assert.equal((await ok("/bookings", "GET", undefined, token)).length, 1);
+    assert.equal((await ok("/bookings", "GET", undefined, token)).length, 3);
     assert.equal((await ok("/tables?isActive=true", "GET", undefined, token)).length, 2);
 
     const poolAvailBefore = await ok("/tables/available?type=pool", "GET", undefined, token);

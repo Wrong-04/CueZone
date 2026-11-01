@@ -163,7 +163,7 @@ const CustomerLayout = () => {
     { to: "/customer/booking", label: "Đặt bàn", icon: <CalendarOutlined /> },
     { to: "/customer/fnb", label: "Gọi món F&B", icon: <CoffeeOutlined /> },
     { to: "/customer/tournaments", label: "Giải đấu & ELO", icon: <TrophyOutlined /> },
-    { to: "/customer/history", label: "Lịch sử & Đánh giá", icon: <HistoryOutlined /> },
+    { to: "/customer/history", label: "Lịch sử đặt chỗ", icon: <HistoryOutlined /> },
     { to: "/customer/news", label: "Tin tức", icon: <ReadOutlined /> },
   ];
 

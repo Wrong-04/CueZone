@@ -283,10 +283,24 @@ const AppRoutes = () => {
       {/* Customer routes */}
       <Route path="/customer" element={<CustomerLayout />}>
         <Route index element={<CustomerHome />} />
-        <Route path="booking" element={<CustomerBooking />} />
+        <Route
+          path="booking"
+          element={
+            <ProtectedRoute roles={["customer"]}>
+              <CustomerBooking />
+            </ProtectedRoute>
+          }
+        />
         <Route path="fnb" element={<CustomerFnB />} />
         <Route path="tournaments" element={<CustomerTournaments />} />
-        <Route path="history" element={<CustomerHistory />} />
+        <Route
+          path="history"
+          element={
+            <ProtectedRoute roles={["customer"]}>
+              <CustomerHistory />
+            </ProtectedRoute>
+          }
+        />
         <Route path="wallet" element={<CustomerWallet />} />
         <Route path="profile" element={<CustomerProfile />} />
         <Route path="rules" element={<CustomerRules />} />

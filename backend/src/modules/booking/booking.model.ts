@@ -16,10 +16,12 @@ const bookingSchema = new Schema(
     note: { type: String, maxlength: 1000 },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected", "checked_in", "confirmed"],
+      enum: ["pending", "approved", "rejected", "checked_in", "confirmed", "cancelled"],
       default: "pending",
     },
     rejectionReason: { type: String, maxlength: 1000 },
+    cancellationReason: { type: String, maxlength: 1000 },
+    cancelledAt: { type: Date },
     checkedInAt: { type: Date },
     staff: { type: Schema.Types.ObjectId, ref: "User" },
     startDate: Date,
@@ -27,6 +29,9 @@ const bookingSchema = new Schema(
   },
   { timestamps: true },
 );
+
+bookingSchema.index({ table: 1, status: 1, startDate: 1, endDate: 1 });
+bookingSchema.index({ customer: 1, createdAt: -1 });
 
 applyErdDefaults(bookingSchema, "Booking");
 

@@ -113,6 +113,58 @@ export const posService = {
 };
 
 export const bookingService = {
+  async getAvailableTables(input: {
+    date: string;
+    time: string;
+    duration: number;
+    type?: "pool" | "carom" | "snooker";
+  }): Promise<Array<BilliardTable & { id: string }>> {
+    const { data } = await api.get<ApiResponse<BilliardTable[]>>("/public/booking-availability", {
+      params: input,
+    });
+    return result(data).map((table) => ({ ...table, id: table._id }));
+  },
+  async getMine(): Promise<BookingRequest[]> {
+    const { data } = await api.get<ApiResponse<any[]>>("/bookings/mine");
+    return result(data).map((booking: any) => ({
+      id: booking._id || booking.id || "",
+      customerName: booking.customerName || "",
+      phone: booking.phone || "",
+      tableId:
+        booking.tableId ||
+        (typeof booking.table === "object" && booking.table
+          ? booking.table._id
+          : booking.table) ||
+        "",
+      tableName:
+        booking.tableName ||
+        (typeof booking.table === "object" && booking.table ? booking.table.name : "") ||
+        "Bàn bida",
+      tableType:
+        booking.tableType === "carom"
+          ? "Bàn Bida Carom (Phăng)"
+          : booking.tableType === "snooker"
+            ? "Bàn Bida Snooker"
+            : booking.tableType
+              ? "Bàn Bida Lỗ (Pool)"
+              : "",
+      date: booking.date || "",
+      time: booking.time || "",
+      duration: Number(booking.duration || 2),
+      estimatedCost: Number(booking.estimatedCost || 0),
+      deposit: Number(booking.deposit || 0),
+      note: booking.note || "",
+      status: booking.status || "pending",
+      rejectionReason: booking.rejectionReason,
+      createdAt: booking.createdAt || "",
+    }));
+  },
+  async cancelMine(id: string, reason: string): Promise<BookingRequest> {
+    const { data } = await api.post<ApiResponse<BookingRequest>>(`/bookings/${id}/cancel`, {
+      reason,
+    });
+    return result(data);
+  },
   async getAll(): Promise<BookingRequest[]> {
     const { data } = await api.get<ApiResponse<any[]>>("/bookings");
     return result(data).map((b: any) => ({
