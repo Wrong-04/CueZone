@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "../../contexts/AuthContext";
 import {
   CoffeeOutlined,
   ShoppingOutlined,
@@ -23,6 +24,11 @@ import {
   Pagination,
 } from "../../shared/ui";
 import { productService, type ProductMenu as Product } from "../../services/product.service";
+import {
+  customerOrderService,
+  type ActiveOrderTable,
+  type CustomerOrder,
+} from "../../services/customer-order.service";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -61,15 +67,20 @@ interface CartItem {
 }
 
 export const CustomerFnB: React.FC = () => {
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedTable, setSelectedTable] = useState<string>("TB-03");
+  const [activeTables, setActiveTables] = useState<ActiveOrderTable[]>([]);
+  const [selectedTableId, setSelectedTableId] = useState<string>("");
   const [note, setNote] = useState<string>("");
   const [isOrdering, setIsOrdering] = useState<boolean>(false);
+  const [showConfirmOrder, setShowConfirmOrder] = useState(false);
   const [showOrderSuccessModal, setShowOrderSuccessModal] = useState<boolean>(false);
-  const [recentOrderCode, setRecentOrderCode] = useState<string>("");
+  const [recentOrder, setRecentOrder] = useState<CustomerOrder | null>(null);
+  const [trackingError, setTrackingError] = useState("");
   const [menuItems, setMenuItems] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const selectedTable = activeTables.find((table) => table.tableId === selectedTableId);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -89,6 +100,62 @@ export const CustomerFnB: React.FC = () => {
     };
     fetchMenu();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!user || user.role !== "customer") {
+      setActiveTables([]);
+      setSelectedTableId("");
+      return;
+    }
+    const fetchTables = async () => {
+      try {
+        const tables = await customerOrderService.getActiveTables();
+        if (!active) return;
+        setActiveTables(tables);
+        setSelectedTableId((current) =>
+          tables.some((table) => table.tableId === current) ? current : (tables[0]?.tableId ?? ""),
+        );
+      } catch (error) {
+        if (active) {
+          setActiveTables([]);
+          console.error("Không thể xác nhận bàn đang chơi:", error);
+        }
+      }
+    };
+    const initialFetch = window.setTimeout(() => void fetchTables(), 0);
+    const interval = window.setInterval(() => void fetchTables(), 15000);
+    return () => {
+      active = false;
+      window.clearTimeout(initialFetch);
+      window.clearInterval(interval);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!recentOrder?._id || recentOrder.status === "served" || recentOrder.status === "rejected") {
+      return;
+    }
+    let active = true;
+    let timer: number;
+    const refresh = async () => {
+      try {
+        const order = await customerOrderService.getMine(recentOrder._id);
+        if (active) {
+          setRecentOrder(order);
+          setTrackingError("");
+        }
+      } catch (error) {
+        if (active) setTrackingError(error instanceof Error ? error.message : "Không thể cập nhật trạng thái order");
+      }
+      if (active) timer = window.setTimeout(refresh, 4000);
+    };
+    timer = window.setTimeout(refresh, 4000);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [recentOrder]);
 
   const filteredItems =
     selectedCategory === "all"
@@ -146,15 +213,47 @@ export const CustomerFnB: React.FC = () => {
       message.warning("Vui lòng chọn ít nhất 1 món vào danh sách order!");
       return;
     }
+    if (!user || user.role !== "customer") {
+      message.warning("Vui lòng đăng nhập tài khoản hội viên để gọi món tại bàn.");
+      return;
+    }
+    if (!selectedTable) {
+      message.warning("Tài khoản chưa được gắn với phiên bàn đang hoạt động.");
+      return;
+    }
+    setShowConfirmOrder(true);
+  };
+
+  const confirmSendOrder = async () => {
+    if (!selectedTable || cart.length === 0) return;
     setIsOrdering(true);
-    setTimeout(() => {
-      setIsOrdering(false);
-      const code = "ORD-" + Math.floor(1000 + Math.random() * 9000);
-      setRecentOrderCode(code);
+    try {
+      setTrackingError("");
+      const order = await customerOrderService.create({
+        tableId: selectedTable.tableId,
+        sessionId: selectedTable.sessionId,
+        items: cart.map(({ item, quantity }) => ({ productId: item._id, quantity })),
+        note,
+      });
+      setRecentOrder(order);
+      setShowConfirmOrder(false);
       setShowOrderSuccessModal(true);
       setCart([]);
       setNote("");
-    }, 800);
+      message.success("Order đã được gửi tới quầy.");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không thể gửi order");
+      try {
+        const tables = await customerOrderService.getActiveTables();
+        setActiveTables(tables);
+      } catch (refreshError) {
+        message.error(
+          refreshError instanceof Error ? refreshError.message : "Không thể tải lại bàn đang chơi",
+        );
+      }
+    } finally {
+      setIsOrdering(false);
+    }
   };
 
   return (
@@ -335,18 +434,30 @@ export const CustomerFnB: React.FC = () => {
                   Phục vụ tới bàn:
                 </label>
                 <Select
-                  value={selectedTable}
-                  onChange={(val) => setSelectedTable(val as string)}
+                  value={selectedTableId || undefined}
+                  onChange={(val) => setSelectedTableId(val as string)}
                   className="w-full !rounded-xl"
-                  options={[
-                    { value: "TB-01", label: "Bàn 01 (Standard 9FT)" },
-                    { value: "TB-02", label: "Bàn 02 (Standard 9FT)" },
-                    { value: "TB-03", label: "Bàn 03 (Standard 9FT - Bạn đang chơi)" },
-                    { value: "TB-09", label: "Bàn 09 (VIP Bank Pool)" },
-                    { value: "TB-10", label: "Bàn 10 (VIP Bank Pool)" },
-                    { value: "TB-13", label: "Bàn 13 (Match K-Steel VAR)" },
-                  ]}
+                  disabled={!activeTables.length}
+                  placeholder={
+                    user
+                      ? "Không tìm thấy phiên bàn đang sử dụng"
+                      : "Đăng nhập để xác nhận bàn"
+                  }
+                  options={activeTables.map((table) => ({
+                    value: table.tableId,
+                    label: `${table.tableName} (${table.tableCode}) · ${table.status === "paused" ? "Tạm dừng" : "Đang chơi"}`,
+                  }))}
                 />
+                {user && !activeTables.length && (
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    Không tìm thấy phiên bàn có số điện thoại trùng với tài khoản của bạn.
+                  </p>
+                )}
+                {!user && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Đăng nhập và liên kết đúng số điện thoại đã đăng ký tại bàn để gọi món.
+                  </p>
+                )}
               </div>
 
               <div className="border-t border-b border-slate-100 py-3 min-h-[160px] max-h-[260px] overflow-y-auto space-y-3">
@@ -419,23 +530,73 @@ export const CustomerFnB: React.FC = () => {
                 <Button
                   variant="primary"
                   loading={isOrdering}
-                  disabled={cart.length === 0}
+                  disabled={cart.length === 0 || !activeTables.length || !user}
                   onClick={handleSendOrder}
                   rightIcon={<ThunderboltOutlined />}
                   className="!w-full !h-11 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-600/20"
                 >
-                  Gửi Order Tới Quầy Bar
+                  Xác Nhận Gửi Order
                 </Button>
 
                 <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                  Tiền đồ uống & thức ăn sẽ được tự động cộng vào hóa đơn thanh toán của bàn khi trả
-                  bàn.
+                  Order chỉ được tính vào hóa đơn sau khi quầy xác nhận. Bạn có thể theo dõi tiến độ
+                  ngay sau khi gửi.
                 </p>
               </div>
             </div>
           </Card>
         </div>
       </div>
+
+      <Modal
+        open={showConfirmOrder}
+        onCancel={() => setShowConfirmOrder(false)}
+        title="Xác nhận bàn và order"
+        footer={[
+          <Button key="cancel" variant="outline" onClick={() => setShowConfirmOrder(false)}>
+            Quay lại
+          </Button>,
+          <Button
+            key="confirm"
+            variant="primary"
+            loading={isOrdering}
+            disabled={!selectedTable}
+            onClick={() => void confirmSendOrder()}
+          >
+            Gửi order
+          </Button>,
+        ]}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            Xác nhận order được phục vụ tại phiên bàn bạn đang sử dụng:
+          </p>
+          <Select
+            value={selectedTableId || undefined}
+            onChange={(value) => setSelectedTableId(value as string)}
+            className="w-full"
+            options={activeTables.map((table) => ({
+              value: table.tableId,
+              label: `${table.tableName} (${table.tableCode})`,
+            }))}
+          />
+          <div className="rounded-xl bg-slate-50 p-3 text-sm">
+            <div className="flex justify-between">
+              <span>{totalItems} món</span>
+              <strong>{totalPrice.toLocaleString("vi-VN")}đ</strong>
+            </div>
+            {cart.map(({ item, quantity }) => (
+              <div key={item._id} className="mt-1 flex justify-between text-xs text-slate-600">
+                <span>{item.name} x{quantity}</span>
+                <span>{(item.salePrice * quantity).toLocaleString("vi-VN")}đ</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            Order ở trạng thái chờ xác nhận và chỉ được cộng vào hóa đơn sau khi quầy nhận món.
+          </p>
+        </div>
+      </Modal>
 
       <Modal
         open={showOrderSuccessModal}
@@ -452,33 +613,50 @@ export const CustomerFnB: React.FC = () => {
         ]}
         title={
           <Space align="center" size={8}>
-            <CheckCircleOutlined className="text-emerald-600 text-lg" />
-            <span className="text-slate-900 font-bold">Quầy Bar Đã Tiếp Nhận Order!</span>
+            {recentOrder?.status === "rejected" ? (
+              <ClockCircleOutlined className="text-rose-600 text-lg" />
+            ) : (
+              <CheckCircleOutlined className="text-emerald-600 text-lg" />
+            )}
+            <span className="text-slate-900 font-bold">Theo dõi order tại bàn</span>
           </Space>
         }
       >
-        <div className="space-y-4 py-2 text-xs text-slate-700">
-          <p className="text-sm">
-            Yêu cầu gọi món của bạn cho <strong>{selectedTable}</strong> đã được chuyển trực tiếp
-            đến hệ thống màn hình quầy bar CueZone.
+        <div className="space-y-4 py-2 text-sm text-slate-700">
+          <p>
+            Mã order: <strong>{recentOrder?.orderCode}</strong> · Bàn:{" "}
+            <strong>{recentOrder?.tableName} ({recentOrder?.tableCode})</strong>
           </p>
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
+          <div
+            className={`rounded-2xl border p-4 ${recentOrder?.status === "rejected" ? "border-rose-200 bg-rose-50" : "border-emerald-200 bg-emerald-50"}`}
+          >
             <div>
-              <ClockCircleOutlined className="text-emerald-600 mr-2" />{" "}
-              <strong>Mã đơn order:</strong> {recentOrderCode}
+              <ClockCircleOutlined className="mr-2 text-emerald-600" />
+              <strong>{recentOrder?.statusMessage || "Đang lấy trạng thái order..."}</strong>
             </div>
-            <div>
-              <CoffeeOutlined className="text-emerald-600 mr-2" /> <strong>Bàn phục vụ:</strong>{" "}
-              {selectedTable}
-            </div>
-            <div>
-              <CheckCircleOutlined className="text-emerald-600 mr-2" />{" "}
-              <strong>Thời gian dự kiến:</strong> Khoảng 3 - 5 phút
+            {trackingError && (
+              <p className="text-xs text-rose-600">
+                {trackingError} — hệ thống sẽ tiếp tục thử cập nhật trạng thái.
+              </p>
+            )}
+            {recentOrder?.rejectedReason && (
+              <p className="mt-2 text-xs text-rose-700">Lý do: {recentOrder.rejectedReason}</p>
+            )}
+          </div>
+          <div className="space-y-1 text-xs text-slate-600">
+            {recentOrder?.items.map((item) => (
+              <div key={item.productId} className="flex justify-between">
+                <span>{item.name} x{item.quantity}</span>
+                <span>{(item.unitPrice * item.quantity).toLocaleString("vi-VN")}đ</span>
+              </div>
+            ))}
+            <div className="flex justify-between border-t border-slate-200 pt-1 font-bold">
+              <span>Tạm tính</span>
+              <span>{(recentOrder?.totalAmount ?? 0).toLocaleString("vi-VN")}đ</span>
             </div>
           </div>
-          <p className="text-slate-500">
-            Nhân viên phục vụ sẽ mang đồ ăn/uống đến tận bàn cho bạn. Chúc bạn có trận đấu thăng
-            hoa!
+          <p className="text-xs text-slate-500">
+            Trạng thái được tự động cập nhật khi quầy xử lý order.
           </p>
         </div>
       </Modal>

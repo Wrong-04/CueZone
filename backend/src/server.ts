@@ -10,6 +10,7 @@ import { Notification } from "./modules/notification/notification.model";
 import { Wallet } from "./modules/wallet/wallet.model";
 import { WalletPayment } from "./modules/wallet/wallet-payment.model";
 import { Voucher, VoucherUsage } from "./modules/voucher/voucher.model";
+import { CustomerOrder } from "./modules/customer-order/customer-order.model";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
@@ -45,6 +46,7 @@ async function start() {
       WalletPayment.init(),
       Voucher.init(),
       VoucherUsage.init(),
+      CustomerOrder.init(),
     ]);
     console.log("✅ Database indexes verified");
   } catch (err: any) {
