@@ -14,6 +14,26 @@ export interface WalletTransaction {
   balanceAfter: number;
   createdAt: string;
   reviewedAt?: string;
+  gateway?: "vnpay";
+  gatewayTransactionNo?: string;
+  paidAt?: string;
+}
+
+export interface VnpayTopup {
+  referenceCode: string;
+  amount: number;
+  paymentUrl: string;
+}
+
+export interface VnpayTopupStatus {
+  referenceCode: string;
+  amount: number;
+  status: WalletTransactionStatus;
+  responseCode?: string;
+  transactionNo?: string;
+  bankCode?: string;
+  paidAt?: string;
+  createdAt: string;
 }
 
 export interface WalletInfo {
@@ -40,6 +60,22 @@ export const walletService = {
     const { data } = await api.post<ApiResponse<WalletInfo>>("/wallet/topups", { amount });
     if (!data.success || !data.data)
       throw new Error(data.message || "Không thể tạo yêu cầu nạp ví");
+    return data.data;
+  },
+
+  async createVnpayTopup(amount: 100000 | 200000 | 500000): Promise<VnpayTopup> {
+    const { data } = await api.post<ApiResponse<VnpayTopup>>("/wallet/topups/vnpay", { amount });
+    if (!data.success || !data.data)
+      throw new Error(data.message || "Không thể tạo giao dịch VNPay");
+    return data.data;
+  },
+
+  async getVnpayTopupStatus(referenceCode: string): Promise<VnpayTopupStatus> {
+    const { data } = await api.get<ApiResponse<VnpayTopupStatus>>(
+      `/wallet/topups/vnpay/${encodeURIComponent(referenceCode)}`,
+    );
+    if (!data.success || !data.data)
+      throw new Error(data.message || "Không thể kiểm tra giao dịch VNPay");
     return data.data;
   },
 

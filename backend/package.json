@@ -17,7 +17,8 @@
     "check:staff": "pnpm build && node scripts/check-staff.cjs",
     "check:rules": "pnpm build && node scripts/check-bank-pool-rules.cjs",
     "check:tournament": "pnpm build && node scripts/check-tournament.cjs",
-    "check:notification": "pnpm build && node scripts/check-notification.cjs"
+    "check:notification": "pnpm build && node scripts/check-notification.cjs",
+    "check:vnpay": "pnpm build && node scripts/check-wallet-vnpay.cjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",

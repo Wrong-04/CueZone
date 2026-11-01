@@ -49,6 +49,43 @@ router.get("/", requireWalletUser, async (req: Request, res: Response, next: Nex
 });
 
 router.post(
+  "/topups/vnpay",
+  requireWalletUser,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const payment = await walletService.createVnpayTopup(
+        (req as any).user.userId,
+        req.body.amount,
+        req.ip ?? req.socket.remoteAddress,
+      );
+      res.status(201).json({
+        success: true,
+        message: "Đã tạo giao dịch nạp ví",
+        data: payment,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  "/topups/vnpay/:referenceCode",
+  requireWalletUser,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const payment = await walletService.getVnpayTopupStatus(
+        (req as any).user.userId,
+        req.params.referenceCode,
+      );
+      res.json({ success: true, data: payment });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
   "/topups",
   requireWalletUser,
   async (req: Request, res: Response, next: NextFunction) => {

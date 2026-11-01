@@ -1,13 +1,125 @@
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import mongoose, { ClientSession, Types } from "mongoose";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 import { User } from "../user/user.model";
 import { IWallet, Wallet, WalletTransactionStatus, WalletTransactionType } from "./wallet.model";
+import { WalletPayment } from "./wallet-payment.model";
 
 const notifications = new NotificationService();
 
 const httpError = (message: string, httpCode = 400) =>
   Object.assign(new Error(message), { httpCode });
+
+const VNPAY_PAYMENT_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+const VNPAY_PRESET_AMOUNTS = [100_000, 200_000, 500_000];
+const VNPAY_IPN_SUCCESS = { RspCode: "00", Message: "Confirm Success" };
+
+interface VnpayConfig {
+  tmnCode: string;
+  hashSecret: string;
+  returnUrl: string;
+}
+
+export type VnpayParameters = Record<string, string>;
+
+export function getVnpayConfig(): VnpayConfig {
+  const { VNPAY_TMN_CODE, VNPAY_HASH_SECRET, VNPAY_RETURN_URL } = process.env;
+  if (
+    !VNPAY_TMN_CODE ||
+    !/^[a-zA-Z0-9]{8}$/.test(VNPAY_TMN_CODE) ||
+    !VNPAY_HASH_SECRET ||
+    !VNPAY_RETURN_URL
+  ) {
+    throw httpError("Cấu hình VNPay Sandbox chưa đầy đủ", 503);
+  }
+  let returnUrl: URL;
+  try {
+    returnUrl = new URL(VNPAY_RETURN_URL);
+  } catch {
+    throw httpError("VNPAY_RETURN_URL không phải URL hợp lệ", 503);
+  }
+  if (
+    returnUrl.protocol !== "https:" &&
+    !(returnUrl.protocol === "http:" && ["localhost", "127.0.0.1"].includes(returnUrl.hostname))
+  ) {
+    throw httpError("VNPAY_RETURN_URL phải sử dụng HTTPS", 503);
+  }
+  return { tmnCode: VNPAY_TMN_CODE, hashSecret: VNPAY_HASH_SECRET, returnUrl: returnUrl.toString() };
+}
+
+function formEncode(value: string) {
+  return encodeURIComponent(value).replace(/%20/g, "+");
+}
+
+export function vnpaySignData(parameters: VnpayParameters) {
+  return Object.keys(parameters)
+    .filter(
+      (key) => key.startsWith("vnp_") && key !== "vnp_SecureHash" && key !== "vnp_SecureHashType",
+    )
+    .sort()
+    .map((key) => `${formEncode(key)}=${formEncode(parameters[key])}`)
+    .join("&");
+}
+
+export function verifyVnpaySignature(parameters: VnpayParameters, hashSecret: string) {
+  const supplied = parameters.vnp_SecureHash;
+  if (!supplied || !/^[a-fA-F0-9]{128}$/.test(supplied)) return false;
+  const expected = createHmac("sha512", hashSecret).update(vnpaySignData(parameters)).digest();
+  const actual = Buffer.from(supplied, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function formatVnpayDate(date: Date) {
+  return new Date(date.getTime() + 7 * 60 * 60 * 1000)
+    .toISOString()
+    .replace(/[-:TZ.]/g, "")
+    .slice(0, 14);
+}
+
+function parseVnpayDate(value: string) {
+  if (!/^\d{14}$/.test(value)) throw httpError("Thời gian thanh toán VNPay không hợp lệ", 400);
+  const parsed = new Date(
+    `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T${value.slice(8, 10)}:${value.slice(10, 12)}:${value.slice(12, 14)}+07:00`,
+  );
+  if (!Number.isFinite(parsed.getTime()) || formatVnpayDate(parsed) !== value) {
+    throw httpError("Thời gian thanh toán VNPay không hợp lệ", 400);
+  }
+  return parsed;
+}
+
+function buildVnpayPaymentUrl(
+  config: VnpayConfig,
+  referenceCode: string,
+  amount: number,
+  ipAddress: string,
+  now: Date,
+) {
+  const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+  const parameters: VnpayParameters = {
+    vnp_Version: "2.1.0",
+    vnp_Command: "pay",
+    vnp_TmnCode: config.tmnCode,
+    vnp_Amount: String(amount * 100),
+    vnp_CreateDate: formatVnpayDate(now),
+    vnp_ExpireDate: formatVnpayDate(expiresAt),
+    vnp_CurrCode: "VND",
+    vnp_IpAddr: ipAddress.replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1").slice(0, 45),
+    vnp_Locale: "vn",
+    vnp_OrderInfo: `Nap vi CueZone ${referenceCode}`,
+    vnp_OrderType: "other",
+    vnp_ReturnUrl: config.returnUrl,
+    vnp_TxnRef: referenceCode,
+  };
+  const signature = createHmac("sha512", config.hashSecret)
+    .update(vnpaySignData(parameters))
+    .digest("hex");
+  const query = Object.keys(parameters)
+    .sort()
+    .map((key) => `${formEncode(key)}=${formEncode(parameters[key])}`)
+    .join("&");
+  return `${VNPAY_PAYMENT_URL}?${query}&vnp_SecureHash=${signature}`;
+}
 
 export class WalletService {
   async getForUser(userId: string) {
@@ -66,6 +178,152 @@ export class WalletService {
     return wallet;
   }
 
+  async createVnpayTopup(userId: string, amount: unknown, ipAddress?: string) {
+    if (!mongoose.isValidObjectId(userId)) throw httpError("Tài khoản không hợp lệ", 401);
+    if (!Number.isSafeInteger(amount) || !VNPAY_PRESET_AMOUNTS.includes(Number(amount))) {
+      throw httpError("Chỉ hỗ trợ nạp 100.000đ, 200.000đ hoặc 500.000đ");
+    }
+    if (!ipAddress) throw httpError("Không xác định được địa chỉ IP thanh toán");
+    const config = getVnpayConfig();
+    const user = await User.findOne({
+      _id: userId,
+      role: "customer",
+      isActive: true,
+      isLocked: false,
+    }).select("_id");
+    if (!user) throw httpError("Chỉ hội viên đang hoạt động mới được nạp ví", 403);
+
+    const now = new Date();
+    const referenceCode = `CZVN${formatVnpayDate(now)}${randomBytes(8).toString("hex").toUpperCase()}`;
+    await mongoose.connection.transaction(async (session) => {
+      const wallet = await this.findOrCreateForUser(userId, session);
+      await WalletPayment.create(
+        [{ userId, referenceCode, amount: Number(amount), status: WalletTransactionStatus.PENDING }],
+        { session },
+      );
+      wallet.transactions.push({
+        type: WalletTransactionType.TOPUP,
+        status: WalletTransactionStatus.PENDING,
+        amount: Number(amount),
+        description: "Nạp ví qua VNPay đang chờ thanh toán",
+        referenceCode,
+        gateway: "vnpay",
+        balanceAfter: wallet.balance,
+        createdAt: now,
+      } as any);
+      await wallet.save({ session });
+    });
+
+    return {
+      referenceCode,
+      amount: Number(amount),
+      paymentUrl: buildVnpayPaymentUrl(config, referenceCode, Number(amount), ipAddress, now),
+    };
+  }
+
+  async getVnpayTopupStatus(userId: string, referenceCode: string) {
+    if (!mongoose.isValidObjectId(userId)) throw httpError("Tài khoản không hợp lệ", 401);
+    const payment = await WalletPayment.findOne({ userId, referenceCode }).select(
+      "referenceCode amount status responseCode transactionNo bankCode paidAt createdAt",
+    );
+    if (!payment) throw httpError("Không tìm thấy giao dịch nạp ví", 404);
+    return payment;
+  }
+
+  async handleVnpayIpn(parameters: VnpayParameters) {
+    const config = getVnpayConfig();
+    if (
+      parameters.vnp_TmnCode !== config.tmnCode ||
+      !verifyVnpaySignature(parameters, config.hashSecret)
+    ) {
+      return { RspCode: "97", Message: "Invalid Checksum" };
+    }
+
+    const referenceCode = parameters.vnp_TxnRef;
+    const amount = Number(parameters.vnp_Amount);
+    if (
+      !referenceCode ||
+      !Number.isSafeInteger(amount) ||
+      amount <= 0 ||
+      !/^\d{2}$/.test(parameters.vnp_ResponseCode || "") ||
+      !/^\d{2}$/.test(parameters.vnp_TransactionStatus || "")
+    ) {
+      return { RspCode: "99", Message: "Invalid data" };
+    }
+
+    const payment = await WalletPayment.findOne({ referenceCode }).select(
+      "_id userId amount status",
+    );
+    if (!payment) return { RspCode: "01", Message: "Order not found" };
+    if (amount !== payment.amount * 100 || parameters.vnp_CurrCode !== "VND") {
+      return { RspCode: "04", Message: "Invalid Amount" };
+    }
+    if (payment.status !== WalletTransactionStatus.PENDING) return VNPAY_IPN_SUCCESS;
+
+    const isSuccessful =
+      parameters.vnp_ResponseCode === "00" && parameters.vnp_TransactionStatus === "00";
+    if (isSuccessful && !parameters.vnp_PayDate) {
+      return { RspCode: "99", Message: "Missing payment date" };
+    }
+    const processed = await mongoose.connection.transaction(async (session) => {
+      const currentPayment = await WalletPayment.findOne({
+        _id: payment._id,
+        status: WalletTransactionStatus.PENDING,
+      }).session(session);
+      if (!currentPayment) return false;
+
+      const wallet = await Wallet.findOne({
+        userId: currentPayment.userId,
+        transactions: {
+          $elemMatch: {
+            referenceCode,
+            gateway: "vnpay",
+            status: WalletTransactionStatus.PENDING,
+          },
+        },
+      }).session(session);
+      if (!wallet) throw httpError("Không tìm thấy bút toán ví chờ xử lý", 500);
+      const transaction = (wallet.transactions as any[]).find(
+        (item) => item.referenceCode === referenceCode,
+      );
+      if (!transaction) throw httpError("Không tìm thấy bút toán ví", 500);
+
+      const paidAt = parameters.vnp_PayDate
+        ? parseVnpayDate(parameters.vnp_PayDate)
+        : new Date();
+      currentPayment.status = isSuccessful
+        ? WalletTransactionStatus.SUCCESS
+        : WalletTransactionStatus.FAILED;
+      currentPayment.responseCode = parameters.vnp_ResponseCode;
+      currentPayment.transactionNo = parameters.vnp_TransactionNo;
+      currentPayment.bankCode = parameters.vnp_BankCode;
+      if (isSuccessful) currentPayment.paidAt = paidAt;
+
+      if (isSuccessful) wallet.balance += currentPayment.amount;
+      transaction.status = currentPayment.status;
+      transaction.description = isSuccessful
+        ? "Nạp ví qua VNPay thành công"
+        : "Thanh toán VNPay không thành công";
+      transaction.balanceAfter = wallet.balance;
+      transaction.gatewayTransactionNo = currentPayment.transactionNo;
+      transaction.paidAt = currentPayment.paidAt;
+
+      await wallet.save({ session });
+      await currentPayment.save({ session });
+      return true;
+    });
+    if (processed && isSuccessful) {
+      await notifications
+        .createForUser(String(payment.userId), {
+          title: "Nạp ví VNPay thành công",
+          content: `${payment.amount.toLocaleString("vi-VN")}đ đã được cộng vào ví. Mã giao dịch: ${referenceCode}.`,
+          type: NotificationType.WALLET,
+        })
+        .catch(() => undefined);
+    }
+    return VNPAY_IPN_SUCCESS;
+  }
+
   async getPendingTopups() {
     const wallets = await Wallet.find({ "transactions.type": WalletTransactionType.TOPUP })
       .populate("userId", "name email phone")
@@ -75,7 +333,8 @@ export class WalletService {
         .filter(
           (transaction: any) =>
             transaction.type === WalletTransactionType.TOPUP &&
-            transaction.status === WalletTransactionStatus.PENDING,
+              transaction.status === WalletTransactionStatus.PENDING &&
+              transaction.gateway !== "vnpay",
         )
         .map((transaction: any) => ({
           walletId: String(wallet._id),
@@ -102,6 +361,9 @@ export class WalletService {
       if (!wallet) throw httpError("Không tìm thấy yêu cầu nạp đang chờ xử lý", 404);
       const transaction = wallet.transactions.id(transactionId);
       if (!transaction) throw httpError("Không tìm thấy giao dịch", 404);
+      if (transaction.gateway === "vnpay") {
+        throw httpError("Giao dịch VNPay chỉ được cập nhật qua IPN", 409);
+      }
       if (status === "success") wallet.balance += transaction.amount;
       transaction.status =
         status === "success" ? WalletTransactionStatus.SUCCESS : WalletTransactionStatus.FAILED;

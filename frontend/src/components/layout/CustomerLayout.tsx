@@ -4,6 +4,7 @@ import { io, type Socket } from "socket.io-client";
 import { useAuth } from "../../contexts/AuthContext";
 import { Button, Space, Tag, message } from "../../shared/ui";
 import { notificationService, type Notification } from "../../services/notification.service";
+import { walletService } from "../../services/wallet.service";
 import {
   EnvironmentOutlined,
   ClockCircleOutlined,
@@ -31,6 +32,9 @@ const CustomerLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [walletBalanceLoading, setWalletBalanceLoading] = useState(false);
+  const [walletBalanceError, setWalletBalanceError] = useState("");
   const [notificationData, setNotificationData] = useState<{
     userId: string;
     notifications: Notification[];
@@ -42,8 +46,44 @@ const CustomerLayout = () => {
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const notificationPanelRef = useRef<HTMLDivElement>(null);
   const userId = user?._id;
-  const notifications = notificationData?.userId === userId ? notificationData.notifications : [];
-  const unreadCount = notificationData?.userId === userId ? notificationData.unreadCount : 0;
+  const hasCurrentUserNotifications =
+    !!userId && notificationData?.userId === userId;
+  const notifications = hasCurrentUserNotifications ? notificationData.notifications : [];
+  const unreadCount = hasCurrentUserNotifications ? notificationData.unreadCount : 0;
+  const formatMoney = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
+
+  useEffect(() => {
+    let active = true;
+    const refreshWalletBalance = async () => {
+      if (!userId) {
+        setWalletBalance(null);
+        setWalletBalanceError("");
+        return;
+      }
+      setWalletBalanceLoading(true);
+      setWalletBalanceError("");
+      try {
+        const wallet = await walletService.getMine();
+        if (active) setWalletBalance(wallet.balance);
+      } catch (error) {
+        if (active) {
+          setWalletBalanceError(
+            error instanceof Error ? error.message : "Không thể tải số dư ví",
+          );
+        }
+      } finally {
+        if (active) setWalletBalanceLoading(false);
+      }
+    };
+
+    const handleWalletUpdated = () => void refreshWalletBalance();
+    void refreshWalletBalance();
+    window.addEventListener("cuezone:wallet-updated", handleWalletUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener("cuezone:wallet-updated", handleWalletUpdated);
+    };
+  }, [location.pathname, userId]);
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
@@ -256,10 +296,20 @@ const CustomerLayout = () => {
                   <Link
                     to="/customer/wallet"
                     className="h-9 px-3 rounded-xl bg-emerald-50/90 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-800 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition shadow-2xs group"
-                    title="Ví trả trước CueZone Pay"
+                    title={
+                      walletBalanceError
+                        ? `Không thể tải số dư ví: ${walletBalanceError}`
+                        : "Số dư khả dụng"
+                    }
                   >
                     <WalletOutlined className="text-emerald-600 text-sm group-hover:scale-110 transition-transform" />
-                    <span>750.000đ</span>
+                    <span>
+                      {walletBalance !== null
+                        ? formatMoney(walletBalance)
+                        : walletBalanceLoading
+                          ? "Đang tải..."
+                          : "Không khả dụng"}
+                    </span>
                   </Link>
 
                   <div className="relative" ref={notificationPanelRef}>

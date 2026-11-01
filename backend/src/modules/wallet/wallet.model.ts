@@ -24,6 +24,12 @@ export interface IWalletTransaction {
 
   referenceCode: string;
 
+  gateway?: "vnpay";
+
+  gatewayTransactionNo?: string;
+
+  paidAt?: Date;
+
   balanceAfter: number;
 
   reviewedBy?: Types.ObjectId;
@@ -55,6 +61,12 @@ const transactionSchema = new Schema<IWalletTransaction>({
   description: { type: String, required: true, trim: true, maxlength: 250 },
 
   referenceCode: { type: String, required: true, trim: true },
+
+  gateway: { type: String, enum: ["vnpay"] },
+
+  gatewayTransactionNo: { type: String, trim: true },
+
+  paidAt: { type: Date },
 
   balanceAfter: { type: Number, required: true, min: 0 },
 
