@@ -32,6 +32,21 @@ export interface TableSession {
 
   checkoutState?: "open" | "checkout" | "pending_payment";
 
+  pendingCheckout?: {
+    customerId: mongoose.Types.ObjectId;
+    paymentMethod: "cash" | "transfer";
+    voucherCode?: string;
+    estimatedTotalDue: number;
+    wasPlaying: boolean;
+    membershipTierKey: "bronze" | "silver" | "gold";
+    membershipTierName: string;
+    tableDiscountPercent: number;
+    fnbDiscountPercent: number;
+    membershipDiscountAmount: number;
+    voucherDiscountAmount: number;
+    requestedAt: Date;
+  };
+
   customerOrderRevision?: number;
 
   sessionStart: string;
@@ -130,9 +145,27 @@ const tableSchema = new Schema<ITable>(
       type: new Schema<TableSession>(
         {
           sessionId: { type: String, required: true },
-
           checkoutState: { type: String, enum: ["open", "checkout", "pending_payment"], default: "open" },
-
+          pendingCheckout: {
+            type: new Schema(
+              {
+                customerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+                paymentMethod: { type: String, enum: ["cash", "transfer"], required: true },
+                voucherCode: { type: String, trim: true, maxlength: 32 },
+                estimatedTotalDue: { type: Number, required: true, min: 0 },
+                wasPlaying: { type: Boolean, required: true },
+                membershipTierKey: { type: String, enum: ["bronze", "silver", "gold"], required: true },
+                membershipTierName: { type: String, required: true },
+                tableDiscountPercent: { type: Number, required: true, min: 0, max: 100 },
+                fnbDiscountPercent: { type: Number, required: true, min: 0, max: 100 },
+                membershipDiscountAmount: { type: Number, required: true, min: 0 },
+                voucherDiscountAmount: { type: Number, required: true, min: 0 },
+                requestedAt: { type: Date, required: true },
+              },
+              { _id: false },
+            ),
+            default: undefined,
+          },
           customerOrderRevision: { type: Number, default: 0 },
 
           sessionStart: String,

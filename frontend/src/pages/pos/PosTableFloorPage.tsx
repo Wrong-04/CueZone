@@ -48,6 +48,7 @@ import {
 import { getSocket } from "../../services/socket.service";
 import { INITIAL_FNB_STOCK, type FnbStockItem } from "../../mock/posData";
 import BookingQrScanner from "../../components/booking/BookingQrScanner";
+import CustomerPaymentRequests from "../../components/pos/CustomerPaymentRequests";
 
 const { Title, Text } = Typography;
 
@@ -1022,6 +1023,7 @@ export const PosTableFloorPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2.5 self-start md:self-center shrink-0">
+            <CustomerPaymentRequests />
             <Button
               variant="outline"
               size="sm"

@@ -4,10 +4,15 @@ import { Table, TableStatus, TableSession } from "../table/table.model";
 import { Booking } from "../booking/booking.model";
 import { Invoice } from "../invoice/invoice.model";
 import { PricingTier, IPricingTier } from "../pricing/pricing.model";
-import { User } from "../user/user.model";
+import { User, UserRole } from "../user/user.model";
 import { emitTableStatusChanged, emitTableTimerStarted } from "../../utils/socketHolder";
 import { VoucherService } from "../voucher/voucher.service";
 import { WalletService } from "../wallet/wallet.service";
+import { Wallet } from "../wallet/wallet.model";
+import { getMemberTier, MEMBER_TIERS } from "../member/membership.policy";
+import { NotificationService } from "../notification/notification.service";
+import { NotificationType } from "../notification/notification.model";
+import { CustomerOrder, CustomerOrderStatus } from "../customer-order/customer-order.model";
 
 export interface SplitTimeSlot {
   tierName: string;
@@ -17,6 +22,13 @@ export interface SplitTimeSlot {
   pricePerHour: number;
   cost: number;
 }
+
+const notifications = new NotificationService();
+
+const normalizePhone = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("84") ? `0${digits.slice(2)}` : digits;
+};
 
 export function getCurrentTierPrice(
   table: { code?: string; area?: string; pricePerHour: number },
@@ -375,6 +387,9 @@ export class SessionService {
       }).session(session);
       if (!table?.currentSession) throw new Error("Phiên chơi đã thay đổi, vui lòng tải lại");
       const current = table.currentSession;
+      if (current.checkoutState === "pending_payment") {
+        throw Object.assign(new Error("Bàn đang chờ xác nhận thanh toán"), { httpCode: 409 });
+      }
       if (input.paused) current.pausedAt = Date.now();
       else {
         current.totalPausedMs += Date.now() - current.pausedAt!;
@@ -407,6 +422,14 @@ export class SessionService {
         session,
       );
       if (!source?.currentSession || !target) throw new Error("Phiên chơi đã thay đổi");
+      if (
+        source.currentSession.checkoutState === "pending_payment" ||
+        target.currentSession?.checkoutState === "pending_payment"
+      ) {
+        throw Object.assign(new Error("Không thể chuyển bàn khi đang chờ xác nhận thanh toán"), {
+          httpCode: 409,
+        });
+      }
       if (input.action === "transfer") {
         if (target.status !== TableStatus.AVAILABLE || target.currentSession)
           throw new Error("Bàn đích không còn trống");
@@ -453,6 +476,9 @@ export class SessionService {
         status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
       }).session(session);
       if (!table?.currentSession) throw new Error("Phiên chơi đã thay đổi hoặc đã đóng");
+      if (table.currentSession.checkoutState === "pending_payment") {
+        throw Object.assign(new Error("Bàn đang chờ xác nhận thanh toán"), { httpCode: 409 });
+      }
       table.currentSession.orders = input.orders;
       await table.save({ session });
       return table;
@@ -461,13 +487,393 @@ export class SessionService {
     return result;
   }
 
+  async getCustomerSessions(customerId: string) {
+    if (!mongoose.isValidObjectId(customerId)) throw Object.assign(new Error("Tài khoản không hợp lệ"), { httpCode: 401 });
+    const user = await User.findOne({
+      _id: customerId,
+      role: UserRole.CUSTOMER,
+      isActive: true,
+      isLocked: false,
+    }).select("phone");
+    if (!user?.phone) return [];
+    const [tables, wallet, pricingTiers] = await Promise.all([
+      Table.find({
+        status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
+        "currentSession.checkoutState": { $in: ["open", "pending_payment", null] },
+      }).select("code name area pricePerHour status currentSession"),
+      Wallet.findOne({ userId: customerId }).select("balance points"),
+      PricingTier.find({ isActive: true }),
+    ]);
+    return tables
+      .filter(
+        (table) =>
+          table.currentSession?.customerPhone &&
+          normalizePhone(table.currentSession.customerPhone) === normalizePhone(user.phone!),
+      )
+      .map((table) => {
+        const current = table.currentSession!;
+        const pending = current.pendingCheckout;
+        const quote = this.customerQuote(table, wallet?.points ?? 0, pricingTiers);
+        return {
+          ...quote,
+          ...(pending
+            ? {
+                tier: {
+                  key: pending.membershipTierKey,
+                  name: pending.membershipTierName,
+                  tableDiscountPercent: pending.tableDiscountPercent,
+                  fnbDiscountPercent: pending.fnbDiscountPercent,
+                },
+                membershipDiscountAmount: pending.membershipDiscountAmount,
+                voucherCode: pending.voucherCode,
+                voucherDiscountAmount: pending.voucherDiscountAmount,
+                discountAmount:
+                  pending.membershipDiscountAmount + pending.voucherDiscountAmount,
+                totalDue: pending.estimatedTotalDue,
+              }
+            : {}),
+          tableId: String(table._id),
+          tableCode: table.code,
+          tableName: table.name,
+          status: table.status,
+          sessionId: current.sessionId,
+          sessionStart: current.sessionStart,
+          startedAt: current.startedAt,
+          isPaused: current.isPaused,
+          walletBalance: wallet?.balance ?? 0,
+          checkoutState: current.checkoutState ?? "open",
+          pendingCheckout: pending
+            ? {
+                paymentMethod: pending.paymentMethod,
+                requestedAt: pending.requestedAt,
+              }
+            : undefined,
+        };
+      });
+  }
+
+  async previewCustomerCheckout(
+    customerId: string,
+    tableId: string,
+    sessionId: unknown,
+    voucherCode?: unknown,
+  ) {
+    if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(tableId)) {
+      throw Object.assign(new Error("Mã tài khoản hoặc bàn không hợp lệ"), { httpCode: 400 });
+    }
+    if (typeof sessionId !== "string" || !sessionId) throw new Error("Phiên chơi không hợp lệ");
+    const [user, table, wallet, pricingTiers] = await Promise.all([
+      User.findOne({
+        _id: customerId,
+        role: UserRole.CUSTOMER,
+        isActive: true,
+        isLocked: false,
+      }).select("phone"),
+      Table.findOne({
+        _id: tableId,
+        "currentSession.sessionId": sessionId,
+        status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
+      }).select("code name area pricePerHour status currentSession"),
+      Wallet.findOne({ userId: customerId }).select("balance points"),
+      PricingTier.find({ isActive: true }),
+    ]);
+    if (!user?.phone || !table?.currentSession) {
+      throw Object.assign(new Error("Không tìm thấy phiên bàn đang hoạt động"), { httpCode: 404 });
+    }
+    if (
+      !table.currentSession.customerPhone ||
+      normalizePhone(table.currentSession.customerPhone) !== normalizePhone(user.phone)
+    ) {
+      throw Object.assign(new Error("Phiên chơi không thuộc tài khoản này"), { httpCode: 403 });
+    }
+    if (table.currentSession.checkoutState !== undefined && table.currentSession.checkoutState !== "open") {
+      throw Object.assign(new Error("Không thể thay đổi báo giá khi phiên đang chờ thanh toán"), {
+        httpCode: 409,
+      });
+    }
+    const quote = this.customerQuote(table, wallet?.points ?? 0, pricingTiers);
+    if (voucherCode !== undefined && voucherCode !== "") {
+      const voucher = await new VoucherService().validate(
+        voucherCode,
+        quote.subtotal - quote.membershipDiscountAmount,
+      );
+      quote.voucherCode = voucher.code;
+      quote.voucherDiscountAmount = voucher.discountAmount;
+      quote.discountAmount += voucher.discountAmount;
+      quote.totalDue = Math.max(0, quote.subtotal - quote.discountAmount - quote.deposit);
+    }
+    return { ...quote, walletBalance: wallet?.balance ?? 0 };
+  }
+
+  async requestCustomerCheckout(
+    customerId: string,
+    tableId: string,
+    input: { sessionId?: unknown; paymentMethod?: unknown; voucherCode?: unknown },
+  ) {
+    if (!input || typeof input !== "object") {
+      throw new Error("Thông tin yêu cầu thanh toán không hợp lệ");
+    }
+    const validMethods = ["cash", "transfer", "member_balance"];
+    if (
+      !mongoose.isValidObjectId(customerId) ||
+      !mongoose.isValidObjectId(tableId) ||
+      typeof input.sessionId !== "string" ||
+      !input.sessionId ||
+      !validMethods.includes(String(input.paymentMethod)) ||
+      (input.voucherCode !== undefined &&
+        (typeof input.voucherCode !== "string" || !input.voucherCode.trim()))
+    ) {
+      throw new Error("Thông tin yêu cầu thanh toán không hợp lệ");
+    }
+    const voucherCode =
+      typeof input.voucherCode === "string" ? input.voucherCode.trim().toUpperCase() : undefined;
+    if (input.paymentMethod === "member_balance") {
+      const receipt = await this.checkout(tableId, {
+        sessionId: input.sessionId,
+        paymentMethod: "member_balance",
+        customerId,
+        customerCheckout: true,
+        voucherCode,
+        discountPercent: 0,
+      });
+      return { status: "paid", receipt };
+    }
+
+    const request = await mongoose.connection.transaction(async (session) => {
+      const [user, table, wallet, pricingTiers] = await Promise.all([
+        User.findOne({
+          _id: customerId,
+          role: UserRole.CUSTOMER,
+          isActive: true,
+          isLocked: false,
+        }).select("phone").session(session),
+        Table.findOne({
+          _id: tableId,
+          "currentSession.sessionId": input.sessionId,
+          status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
+        }).session(session),
+        Wallet.findOne({ userId: customerId }).select("points").session(session),
+        PricingTier.find({ isActive: true }).session(session),
+      ]);
+      if (!user?.phone || !table?.currentSession) {
+        throw Object.assign(new Error("Không tìm thấy phiên bàn đang hoạt động"), { httpCode: 404 });
+      }
+      if (
+        !table.currentSession.customerPhone ||
+        normalizePhone(table.currentSession.customerPhone) !== normalizePhone(user.phone)
+      ) {
+        throw Object.assign(new Error("Phiên chơi không thuộc tài khoản này"), { httpCode: 403 });
+      }
+      if (
+        table.currentSession.checkoutState !== undefined &&
+        table.currentSession.checkoutState !== "open"
+      ) {
+        throw Object.assign(new Error("Phiên bàn đang có yêu cầu thanh toán"), { httpCode: 409 });
+      }
+      const wasPlaying = !table.currentSession.isPaused;
+      if (wasPlaying) {
+        table.currentSession.isPaused = true;
+        table.currentSession.pausedAt = Date.now();
+      }
+      const quote = this.customerQuote(table, wallet?.points ?? 0, pricingTiers);
+      let voucherDiscountAmount = 0;
+      if (voucherCode) {
+        voucherDiscountAmount = (
+          await new VoucherService().validate(
+          voucherCode,
+          quote.subtotal - quote.membershipDiscountAmount,
+          )
+        ).discountAmount;
+      }
+      const totalDue = Math.max(
+        0,
+        quote.subtotal -
+          quote.membershipDiscountAmount -
+          voucherDiscountAmount -
+          quote.deposit,
+      );
+      table.currentSession.checkoutState = "pending_payment";
+      table.currentSession.pendingCheckout = {
+        customerId: new mongoose.Types.ObjectId(customerId),
+        paymentMethod: input.paymentMethod as "cash" | "transfer",
+        voucherCode,
+        estimatedTotalDue: totalDue,
+        wasPlaying,
+        membershipTierKey: quote.tier.key,
+        membershipTierName: quote.tier.name,
+        tableDiscountPercent: quote.tier.tableDiscountPercent,
+        fnbDiscountPercent: quote.tier.fnbDiscountPercent,
+        membershipDiscountAmount: quote.membershipDiscountAmount,
+        voucherDiscountAmount,
+        requestedAt: new Date(),
+      };
+      await table.save({ session });
+      return {
+        customerId,
+        tableName: table.name,
+        tableCode: table.code,
+        paymentMethod: input.paymentMethod,
+        totalDue,
+        voucherCode,
+        requestedAt: table.currentSession.pendingCheckout.requestedAt,
+      };
+    });
+    emitTableStatusChanged({ tableId, status: TableStatus.PLAYING });
+    await notifications
+      .createForRoles(
+        {
+          title: `Yêu cầu thanh toán tại ${request.tableName}`,
+          content: `${request.tableCode}: khách yêu cầu thanh toán ${request.totalDue.toLocaleString("vi-VN")}đ bằng ${request.paymentMethod === "cash" ? "tiền mặt" : "chuyển khoản"}.`,
+          type: NotificationType.SYSTEM,
+        },
+        [UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER],
+      )
+      .catch((error) => console.error("Không thể gửi thông báo yêu cầu thanh toán:", error));
+    return { status: "pending_payment", ...request };
+  }
+
+  async getCustomerPaymentRequests() {
+    const tables = await Table.find({
+      "currentSession.checkoutState": "pending_payment",
+      "currentSession.pendingCheckout": { $exists: true },
+    }).select("code name status currentSession");
+    return Promise.all(
+      tables.map(async (table) => {
+        const pending = table.currentSession!.pendingCheckout!;
+        const customer = await User.findById(pending.customerId).select("name phone");
+        return {
+          tableId: String(table._id),
+          tableCode: table.code,
+          tableName: table.name,
+          sessionId: table.currentSession!.sessionId,
+          customerName: customer?.name ?? table.currentSession!.customerName,
+          customerPhone: customer?.phone ?? table.currentSession!.customerPhone,
+          paymentMethod: pending.paymentMethod,
+          voucherCode: pending.voucherCode,
+          requestedAt: pending.requestedAt,
+          totalDue: pending.estimatedTotalDue,
+        };
+      }),
+    );
+  }
+
+  async resolveCustomerPaymentRequest(
+    tableId: string,
+    sessionId: string,
+    approved: boolean,
+  ) {
+    if (!mongoose.isValidObjectId(tableId) || typeof sessionId !== "string" || !sessionId) {
+      throw new Error("Mã yêu cầu thanh toán không hợp lệ");
+    }
+    const table = await Table.findOne({
+      _id: tableId,
+      "currentSession.sessionId": sessionId,
+      "currentSession.checkoutState": "pending_payment",
+      "currentSession.pendingCheckout": { $exists: true },
+    }).select("name currentSession");
+    if (!table?.currentSession?.pendingCheckout) {
+      throw Object.assign(new Error("Yêu cầu thanh toán đã được xử lý hoặc không còn tồn tại"), {
+        httpCode: 409,
+      });
+    }
+    const pending = table.currentSession.pendingCheckout;
+    if (approved) {
+      const receipt = await this.checkout(tableId, {
+        sessionId,
+        paymentMethod: pending.paymentMethod,
+        customerId: String(pending.customerId),
+        customerCheckout: true,
+        customerCheckoutRequest: true,
+        voucherCode: pending.voucherCode,
+        discountPercent: 0,
+      });
+      await notifications
+        .createForUser(String(pending.customerId), {
+          title: "Thanh toán hóa đơn thành công",
+          content: `Nhân viên đã xác nhận thanh toán bàn ${receipt.tableCode}.`,
+          type: NotificationType.SYSTEM,
+        })
+        .catch((error) => console.error("Không thể gửi thông báo hoàn tất thanh toán:", error));
+      return { status: "paid", receipt };
+    }
+
+    await mongoose.connection.transaction(async (session) => {
+      const current = await Table.findOne({
+        _id: tableId,
+        "currentSession.sessionId": sessionId,
+        "currentSession.checkoutState": "pending_payment",
+      }).session(session);
+      if (!current?.currentSession) {
+        throw Object.assign(new Error("Yêu cầu thanh toán đã được xử lý"), { httpCode: 409 });
+      }
+      const pending = current.currentSession.pendingCheckout;
+      current.currentSession.checkoutState = "open";
+      if (pending?.wasPlaying) {
+        current.currentSession.totalPausedMs +=
+          Date.now() - (current.currentSession.pausedAt ?? Date.now());
+        current.currentSession.isPaused = false;
+        current.currentSession.pausedAt = undefined;
+      }
+      current.currentSession.pendingCheckout = undefined;
+      await current.save({ session });
+    });
+    emitTableStatusChanged({ tableId, status: table.status });
+    await notifications
+      .createForUser(String(pending.customerId), {
+        title: "Yêu cầu thanh toán chưa được xác nhận",
+        content: `Nhân viên chưa xác nhận thanh toán bàn ${table.name}. Bạn có thể tiếp tục sử dụng bàn và gửi yêu cầu mới.`,
+        type: NotificationType.SYSTEM,
+      })
+      .catch((error) => console.error("Không thể gửi thông báo từ chối thanh toán:", error));
+    return { status: "rejected" };
+  }
+
+  private customerQuote(table: any, points: number, pricingTiers: IPricingTier[]) {
+    const current = table.currentSession as TableSession;
+    const playing = calculateSplitPlayingDetails(current, table, pricingTiers);
+    const fnbTotal = current.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = playing.cost + fnbTotal;
+    const { tier } = getMemberTier(points);
+    const membershipDiscountAmount =
+      Math.round((playing.cost * tier.tableDiscountPercent) / 100) +
+      Math.round((fnbTotal * tier.fnbDiscountPercent) / 100);
+    const effectiveNow = current.isPaused && current.pausedAt ? current.pausedAt : Date.now();
+    return {
+      sessionId: current.sessionId,
+      minutes: playing.minutes,
+      formattedTime: playing.formattedTime,
+      elapsedSeconds: Math.floor(
+        Math.max(0, effectiveNow - current.startedAt - (current.totalPausedMs || 0)) / 1000,
+      ),
+      playingCost: playing.cost,
+      fnbTotal,
+      orders: current.orders,
+      subtotal,
+      deposit: current.deposit,
+      tier: {
+        key: tier.key,
+        name: tier.name,
+        tableDiscountPercent: tier.tableDiscountPercent,
+        fnbDiscountPercent: tier.fnbDiscountPercent,
+      },
+      membershipDiscountAmount,
+      voucherCode: undefined as string | undefined,
+      voucherDiscountAmount: 0,
+      discountAmount: membershipDiscountAmount,
+      totalDue: Math.max(0, subtotal - membershipDiscountAmount - current.deposit),
+    };
+  }
+
   async checkout(tableId: string, input: any) {
     const validPaymentMethods = ["cash", "transfer", "vnpay", "card", "member_balance"];
     if (
       typeof input.sessionId !== "string" ||
       !validPaymentMethods.includes(input.paymentMethod) ||
       (input.paymentMethod === "member_balance" &&
-        (typeof input.customerPhone !== "string" || !input.customerPhone.trim())) ||
+        (typeof input.customerPhone !== "string" || !input.customerPhone.trim()) &&
+        input.customerCheckout !== true) ||
+      (input.customerCheckout === true &&
+        (!mongoose.isValidObjectId(input.customerId) || input.discountPercent !== 0)) ||
       typeof input.discountPercent !== "number" ||
       !Number.isFinite(input.discountPercent) ||
       input.discountPercent < 0 ||
@@ -483,7 +889,15 @@ export class SessionService {
       const previous = await Invoice.findOne({ sessionId: input.sessionId, tableId }).session(
         session,
       );
-      if (previous) return previous.receipt;
+      if (previous) {
+        if (
+          input.customerCheckout === true &&
+          String(previous.receipt.memberId) !== String(input.customerId)
+        ) {
+          throw Object.assign(new Error("Hóa đơn không thuộc tài khoản này"), { httpCode: 403 });
+        }
+        return previous.receipt;
+      }
       const table = await Table.findOne({
         _id: tableId,
         "currentSession.sessionId": input.sessionId,
@@ -491,6 +905,55 @@ export class SessionService {
       }).session(session);
       if (!table?.currentSession) throw new Error("Phiên chơi đã thay đổi, vui lòng tải lại");
       const current = table.currentSession;
+      let customerPhone: string | undefined;
+      if (input.customerCheckout === true) {
+        const customer = await User.findOne({
+          _id: input.customerId,
+          role: UserRole.CUSTOMER,
+          isActive: true,
+          isLocked: false,
+        })
+          .select("_id phone")
+          .session(session);
+        if (
+          !customer?.phone ||
+          !current.customerPhone ||
+          normalizePhone(customer.phone) !== normalizePhone(current.customerPhone)
+        ) {
+          throw Object.assign(new Error("Phiên chơi không thuộc tài khoản này"), { httpCode: 403 });
+        }
+        customerPhone = customer.phone;
+      }
+      if (
+        input.customerCheckoutRequest === true &&
+        (current.checkoutState !== "pending_payment" ||
+          String(current.pendingCheckout?.customerId) !== String(input.customerId))
+      ) {
+        throw Object.assign(new Error("Phiên bàn đang chờ nhân viên xác nhận thanh toán"), {
+          httpCode: 409,
+        });
+      }
+      if (
+        current.checkoutState === "checkout" ||
+        (current.checkoutState === "pending_payment" &&
+          (input.customerCheckoutRequest !== true ||
+            !current.pendingCheckout ||
+            String(current.pendingCheckout.customerId) !== String(input.customerId)))
+      ) {
+        throw Object.assign(new Error("Phiên bàn đang được thanh toán"), { httpCode: 409 });
+      }
+      if (
+        input.customerCheckout === true &&
+        (await CustomerOrder.exists({
+          sessionId: current.sessionId,
+          status: CustomerOrderStatus.PENDING,
+        }).session(session))
+      ) {
+        throw Object.assign(
+          new Error("Vui lòng chờ quầy xác nhận các món đang gọi trước khi thanh toán"),
+          { httpCode: 409 },
+        );
+      }
       const pricingTiers = await PricingTier.find({ isActive: true }).session(session);
       const { minutes, cost, formattedTime, timeSlots } = calculateSplitPlayingDetails(
         current,
@@ -499,12 +962,32 @@ export class SessionService {
       );
       const fnbTotal = current.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const subtotal = cost + fnbTotal;
+      const membershipTier = input.customerCheckout
+        ? input.customerCheckoutRequest === true
+          ? MEMBER_TIERS.find(
+              (tier) => tier.key === current.pendingCheckout?.membershipTierKey,
+            )
+          : getMemberTier(
+              (await Wallet.findOne({ userId: input.customerId }).select("points").session(session))
+                ?.points ?? 0,
+            ).tier
+        : undefined;
+      if (input.customerCheckoutRequest === true && !membershipTier) {
+        throw Object.assign(new Error("Không tìm thấy hạng hội viên đã lưu cho yêu cầu này"), {
+          httpCode: 409,
+        });
+      }
+      const membershipDiscountAmount = membershipTier
+        ? Math.round((cost * membershipTier.tableDiscountPercent) / 100) +
+          Math.round((fnbTotal * membershipTier.fnbDiscountPercent) / 100)
+        : 0;
+      const voucherSubtotal = subtotal - membershipDiscountAmount;
       const voucherService = new VoucherService();
       const invoiceCode = `HD-${randomUUID()}`;
       const voucher = input.voucherCode
         ? await voucherService.redeem(
             input.voucherCode,
-            subtotal,
+            voucherSubtotal,
             {
               sessionId: current.sessionId,
               invoiceCode,
@@ -514,14 +997,25 @@ export class SessionService {
             session,
           )
         : undefined;
-      const discountAmount = voucher
-        ? voucher.discountAmount
-        : Math.round((subtotal * input.discountPercent) / 100);
+      const voucherDiscountAmount = voucher?.discountAmount ?? 0;
+      const discountAmount =
+        membershipDiscountAmount +
+        (voucher ? voucher.discountAmount : Math.round((voucherSubtotal * input.discountPercent) / 100));
       const finalAmount = Math.max(0, subtotal - discountAmount - current.deposit);
+      if (
+        input.customerCheckoutRequest === true &&
+        current.pendingCheckout?.estimatedTotalDue !== finalAmount
+      ) {
+        throw Object.assign(
+          new Error("Tổng tiền đã thay đổi. Vui lòng từ chối yêu cầu và tạo yêu cầu thanh toán mới."),
+          { httpCode: 409 },
+        );
+      }
       const checkoutPhone =
-        typeof input.customerPhone === "string" && input.customerPhone.trim()
+        customerPhone ??
+        (typeof input.customerPhone === "string" && input.customerPhone.trim()
           ? input.customerPhone.trim()
-          : current.customerPhone;
+          : current.customerPhone);
       const memberPayment =
         input.paymentMethod === "member_balance"
           ? await this.walletService.chargeForCheckout(
@@ -548,8 +1042,11 @@ export class SessionService {
         orders: current.orders,
         fnbTotal,
         subtotal,
-        discountPercent: voucher ? 0 : input.discountPercent,
+        discountPercent: voucher || membershipTier ? 0 : input.discountPercent,
         voucherCode: voucher?.code,
+        membershipTier: membershipTier?.name,
+        membershipDiscountAmount,
+        voucherDiscountAmount,
         discountAmount,
         deposit: current.deposit,
         finalAmount,
