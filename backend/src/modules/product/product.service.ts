@@ -4,9 +4,8 @@ import { uploadProductImage } from "../../config/cloudinary.config";
 
 export class ProductService {
   async getFnbMenu(): Promise<any[]> {
-    const fnbCategories = ["drink", "food", "snack"];
     const products = await Product.find({
-      category: { $in: fnbCategories },
+      category: { $ne: "ingredient" },
       isForSale: true,
       isActive: true,
     }).sort({ category: 1, name: 1 });
@@ -16,6 +15,7 @@ export class ProductService {
       name: p.name,
       sku: p.sku,
       category: p.category,
+      unit: p.unit || "Phần",
       salePrice: p.salePrice,
       imageUrl: p.imageUrl,
       description: p.description,

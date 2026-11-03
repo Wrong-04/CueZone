@@ -1,8 +1,14 @@
+import clsx from "clsx";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { posService } from "../../services/pos.service";
 import type { PricingTier } from "../../types";
-import type { PosTable, PosOrderItem, CheckoutReceipt } from "../../types/pos";
+import type {
+  PosTable,
+  PosOrderItem,
+  CheckoutReceipt,
+  EligibleMoveTargetsResponse,
+} from "../../types/pos";
 import { calculateSplitPlayingDetails, defaultPricingTiers } from "../../utils/pricing";
 import {
   ClockCircleOutlined,
@@ -17,7 +23,6 @@ import {
   PlusOutlined,
   MinusOutlined,
   DollarOutlined,
-  SafetyCertificateOutlined,
   PhoneOutlined,
   CalendarOutlined,
   SyncOutlined,
@@ -29,7 +34,11 @@ import {
   FullscreenExitOutlined,
   ExclamationCircleOutlined,
   GiftOutlined,
-  WalletOutlined,
+  SearchOutlined,
+  RollbackOutlined,
+  HistoryOutlined,
+  BranchesOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -46,7 +55,21 @@ import {
   Tooltip,
 } from "../../shared/ui";
 import { getSocket } from "../../services/socket.service";
-import { INITIAL_FNB_STOCK, type FnbStockItem } from "../../mock/posData";
+import { productService } from "../../services/product.service";
+
+export interface FnbStockItem {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  categoryName: string;
+  price: number;
+  priceFormatted: string;
+  stockQuantity: number;
+  minThreshold: number;
+  unit: string;
+  image?: string;
+}
 import BookingQrScanner from "../../components/booking/BookingQrScanner";
 import CustomerPaymentRequests from "../../components/pos/CustomerPaymentRequests";
 
@@ -55,7 +78,7 @@ const { Title, Text } = Typography;
 export const PosTableFloorPage: React.FC = () => {
   const [tables, setTables] = useState<PosTable[]>([]);
   const [pricingTiers, setPricingTiers] = useState<PricingTier[]>(defaultPricingTiers);
-  const [fnbStock, setFnbStock] = useState<FnbStockItem[]>(INITIAL_FNB_STOCK);
+  const [fnbStock, setFnbStock] = useState<FnbStockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -67,13 +90,39 @@ export const PosTableFloorPage: React.FC = () => {
   const loadTables = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [tableData, pricingData] = await Promise.all([
+      const [tableData, pricingData, productsData] = await Promise.all([
         posService.getTables(),
         posService.getPricingTiers().catch(() => []),
+        productService.getFnbMenu().catch(() => []),
       ]);
       setTables(tableData);
+      setSelectedTable((prev) => prev ? (tableData.find((t) => t.id === prev.id) || prev) : null);
       if (pricingData && pricingData.length > 0) {
         setPricingTiers(pricingData);
+      }
+      if (Array.isArray(productsData)) {
+        const mappedStock: FnbStockItem[] = productsData.map((p) => {
+          const cat = (p.category || "").toLowerCase();
+          let categoryName = "Bao Tay & Tiện Ích";
+          if (cat === "drink" || cat === "coffee" || cat === "tea" || cat === "beer") categoryName = "Đồ Uống";
+          else if (cat === "food") categoryName = "Đồ Ăn";
+          else if (cat === "snack") categoryName = "Ăn Vặt";
+
+          return {
+            id: String(p._id),
+            code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
+            name: p.name,
+            category: p.category,
+            categoryName,
+            price: p.salePrice,
+            priceFormatted: `${p.salePrice.toLocaleString("vi-VN")}đ`,
+            stockQuantity: p.stock ?? 0,
+            minThreshold: 10,
+            unit: (p as any).unit || "Phần",
+            image: p.imageUrl,
+          };
+        });
+        setFnbStock(mappedStock);
       }
       setLoadError("");
     } catch (error: any) {
@@ -160,22 +209,42 @@ export const PosTableFloorPage: React.FC = () => {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [sessionNote, setSessionNote] = useState<string>("");
   const [isMemberCustomer, setIsMemberCustomer] = useState<boolean>(false);
+  const [openModalMemberInfo, setOpenModalMemberInfo] = useState<{
+    name: string;
+    phone: string;
+    rank?: string;
+    walletBalance?: number;
+  } | null>(null);
+  const [isSearchingOpenMember, setIsSearchingOpenMember] = useState<boolean>(false);
 
-  // 2. Transfer / Merge Table Modal
+  // 2. Transfer / Merge Table Modal (SCRUM-863)
   const [transferModalVisible, setTransferModalVisible] = useState<boolean>(false);
   const [targetTableId, setTargetTableId] = useState<string>("");
   const [transferAction, setTransferAction] = useState<"transfer" | "merge">("transfer");
+  const [transferReason, setTransferReason] = useState<string>("");
+  const [eligibleMoveData, setEligibleMoveData] = useState<EligibleMoveTargetsResponse | null>(null);
+  const [loadingMoveTargets, setLoadingMoveTargets] = useState<boolean>(false);
 
-  // 3. F&B Order Modal
+  // 3. F&B Order & Cancellation (SCRUM-864)
   const [fnbModalVisible, setFnbModalVisible] = useState<boolean>(false);
+  const [fnbTab, setFnbTab] = useState<"order" | "manage">("order");
   const [fnbCategory, setFnbCategory] = useState<string>("all");
-  const [currentOrderList, setCurrentOrderList] = useState<PosOrderItem[]>([]);
+  const [fnbSearchText, setFnbSearchText] = useState<string>("");
+  const [newOrderList, setNewOrderList] = useState<PosOrderItem[]>([]);
+
+  // Cancel item modal states
+  const [cancelModalVisible, setCancelModalVisible] = useState<boolean>(false);
+  const [cancellingItem, setCancellingItem] = useState<PosOrderItem | null>(null);
+  const [cancelQty, setCancelQty] = useState<number>(1);
+  const [cancelReason, setCancelReason] = useState<string>("Khách đổi ý / Chưa dùng");
+  const [customCancelReason, setCustomCancelReason] = useState<string>("");
+  const [restoreStock, setRestoreStock] = useState<boolean>(true);
 
   // 4. Checkout & Payment Modal
   const [checkoutModalVisible, setCheckoutModalVisible] = useState<boolean>(false);
-  const [paymentMethod, setPaymentMethod] = useState<"vnpay" | "cash" | "card" | "member_balance">(
-    "cash",
-  );
+  const [paymentMethod, setPaymentMethod] = useState<
+    "vnpay" | "cash" | "card" | "member_balance" | "split"
+  >("cash");
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [showTimeSlots, setShowTimeSlots] = useState<boolean>(false);
   const [checkoutPhone, setCheckoutPhone] = useState<string>("");
@@ -183,6 +252,8 @@ export const PosTableFloorPage: React.FC = () => {
     name: string;
     phone: string;
     rank?: string;
+    walletBalance?: number;
+    walletPoints?: number;
     availableVouchers?: Array<{
       code: string;
       description?: string;
@@ -190,7 +261,6 @@ export const PosTableFloorPage: React.FC = () => {
       discountValue: number;
       minOrderAmount: number;
     }>;
-    walletBalance: number;
   } | null>(null);
   const [isSearchingMember, setIsSearchingMember] = useState<boolean>(false);
   const [voucherCode, setVoucherCode] = useState("");
@@ -198,8 +268,6 @@ export const PosTableFloorPage: React.FC = () => {
     code: string;
     discountAmount: number;
   } | null>(null);
-  const [voucherError, setVoucherError] = useState("");
-  const [validatingVoucher, setValidatingVoucher] = useState(false);
   const [cashReceived, setCashReceived] = useState<number | null>(null);
   const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
   const [paidSummary, setPaidSummary] = useState<CheckoutReceipt | null>(null);
@@ -406,15 +474,15 @@ export const PosTableFloorPage: React.FC = () => {
 
   const handleCancelBooking = (table: PosTable) => {
     Modal.confirm({
-      title: `Giải phóng bàn đặt trước [${table.code}]?`,
+      title: `Hủy giữ bàn đặt trước [${table.code}]?`,
       content: `Khách ${table.bookedInfo?.customerName || "hẹn trước"} chưa nhận bàn. Bạn có chắc muốn hủy giữ bàn này và chuyển về trạng thái Trống?`,
-      okText: "Giải phóng bàn",
+      okText: "Hủy giữ bàn",
       okType: "danger",
-      cancelText: "Đóng",
+      cancelText: "Bỏ qua",
       onOk: async () => {
         try {
           await posService.cancelBooking(table.id);
-          message.success(`Đã giải phóng bàn ${table.name} thành công`);
+          message.success(`Đã hủy giữ bàn ${table.name} thành công`);
           await loadTables();
         } catch (err: any) {
           message.error(err.message || "Không thể hủy giữ bàn");
@@ -583,7 +651,13 @@ export const PosTableFloorPage: React.FC = () => {
       if (t.status === "playing" || t.status === "paused" || t.currentSession) {
         const { cost } = calculatePlayingDetails(t);
         const fnbCost =
-          t.currentSession?.orders?.reduce((acc, cur) => acc + cur.price * cur.quantity, 0) || 0;
+          (t.currentSession?.orders || []).reduce(
+            (acc, cur) =>
+              cur.status !== "cancelled"
+                ? acc + (Number(cur.price) || 0) * (Number(cur.quantity) || 0)
+                : acc,
+            0,
+          );
         totalTempRevenue += cost + fnbCost;
       }
     }
@@ -628,7 +702,7 @@ export const PosTableFloorPage: React.FC = () => {
   ];
 
   const tableTypeOptions = [
-    { value: "all", label: `Tất cả thể loại (${stats.total})` },
+    { value: "all", label: `Tất cả loại bàn (${stats.total})` },
     { value: "pool", label: `Bida Lỗ - Pool (${stats.poolCount})` },
     { value: "carom", label: `Bida Carom / Phăng (${stats.caromCount})` },
     { value: "snooker", label: `Bida Snooker (${stats.snookerCount})` },
@@ -676,6 +750,38 @@ export const PosTableFloorPage: React.FC = () => {
     return groups;
   };
 
+  const handlePhoneChangeInOpenModal = async (phoneInput: string) => {
+    setCustomerPhone(phoneInput);
+    const clean = phoneInput.trim().replace(/[\s.-]/g, "");
+    if (clean.length >= 8) {
+      setIsSearchingOpenMember(true);
+      try {
+        const res = await posService.lookupCustomer(clean);
+        if (res.success && res.data) {
+          setOpenModalMemberInfo({
+            name: res.data.name,
+            phone: res.data.phone,
+            rank: res.data.rank,
+            walletBalance: res.data.walletBalance,
+          });
+          setCustomerName(res.data.name);
+          setIsMemberCustomer(true);
+        } else {
+          setOpenModalMemberInfo(null);
+          setIsMemberCustomer(false);
+        }
+      } catch {
+        setOpenModalMemberInfo(null);
+        setIsMemberCustomer(false);
+      } finally {
+        setIsSearchingOpenMember(false);
+      }
+    } else {
+      setOpenModalMemberInfo(null);
+      setIsMemberCustomer(false);
+    }
+  };
+
   // Handler: Open Table & Start Session
   const handleOpenTable = async () => {
     if (!selectedTable) return;
@@ -711,6 +817,7 @@ export const PosTableFloorPage: React.FC = () => {
     setCustomerPhone("");
     setSessionNote("");
     setIsMemberCustomer(false);
+    setOpenModalMemberInfo(null);
   };
 
   // Handler: Pause / Resume Table
@@ -725,17 +832,60 @@ export const PosTableFloorPage: React.FC = () => {
     }
   };
 
-  // Handler: Transfer / Merge Table
+  // Handlers: Transfer / Merge Table (SCRUM-863)
+  const handleOpenTransferModal = async (table: PosTable, action: "transfer" | "merge" = "transfer") => {
+    setSelectedTable(table);
+    setTransferAction(action);
+    setTargetTableId("");
+    setTransferReason("");
+    setTransferModalVisible(true);
+    setLoadingMoveTargets(true);
+    try {
+      const res = await posService.getMoveTargets(table.id, action);
+      setEligibleMoveData(res);
+    } catch (err: any) {
+      console.error("Lỗi lấy danh sách bàn khả dụng:", err);
+      setEligibleMoveData(null);
+    } finally {
+      setLoadingMoveTargets(false);
+    }
+  };
+
+  const handleSwitchTransferAction = async (action: "transfer" | "merge") => {
+    setTransferAction(action);
+    setTargetTableId("");
+    if (!selectedTable) return;
+    setLoadingMoveTargets(true);
+    try {
+      const res = await posService.getMoveTargets(selectedTable.id, action);
+      setEligibleMoveData(res);
+    } catch (err: any) {
+      console.error("Lỗi đổi hành động chuyển/gộp bàn:", err);
+      setEligibleMoveData(null);
+    } finally {
+      setLoadingMoveTargets(false);
+    }
+  };
+
   const handleTransferOrMerge = async () => {
     if (!selectedTable || !selectedTable.currentSession || !targetTableId) {
       message.warning("Vui lòng chọn bàn đích!");
       return;
     }
 
-    const targetTable = tables.find((t) => t.id === targetTableId);
+    const targetTable =
+      tables.find((t) => t.id === targetTableId) ||
+      eligibleMoveData?.targets?.find((t) => t.id === targetTableId);
     if (!targetTable) return;
 
-    if (!(await save(() => posService.move(selectedTable, targetTableId, transferAction)))) return;
+    const saved = await save(() =>
+      posService.move(selectedTable, targetTableId, transferAction, {
+        reason: transferReason.trim() || undefined,
+        pricingOption: "target_table",
+      }),
+    );
+    if (!saved) return;
+
     message.success(
       `Đã ${transferAction === "transfer" ? "chuyển" : "gộp"} ${selectedTable.name} sang ${targetTable.name}!`,
     );
@@ -743,13 +893,105 @@ export const PosTableFloorPage: React.FC = () => {
     setTransferModalVisible(false);
     setSelectedTable(null);
     setTargetTableId("");
+    setTransferReason("");
+    setEligibleMoveData(null);
+    await loadTables();
   };
 
+    // Active & Cancelled orders for selectedTable
+  const fnbCategoryOptions = useMemo(() => {
+    const cats = Array.from(new Set(fnbStock.map((item) => item.category).filter(Boolean)));
+    const options = [{ value: "all", label: "Tất cả danh mục" }];
+    const labelMap: Record<string, string> = {
+      drink: "Đồ uống",
+      coffee: "Cà phê",
+      tea: "Trà & Nước ngọt",
+      beer: "Bia & Đồ có cồn",
+      food: "Đồ ăn chính",
+      snack: "Đồ ăn vặt",
+      accessory: "Bao tay & Tiện ích",
+      equipment: "Bao tay & Tiện ích",
+    };
+    for (const c of cats) {
+      options.push({ value: c, label: labelMap[c] || c });
+    }
+    return options;
+  }, [fnbStock]);
+
+  const filteredFnbStock = useMemo(() => {
+    return fnbStock.filter((item) => {
+      const matchCategory = fnbCategory === "all" || item.category === fnbCategory;
+      const matchSearch =
+        !fnbSearchText.trim() ||
+        item.name.toLowerCase().includes(fnbSearchText.toLowerCase().trim());
+      return matchCategory && matchSearch;
+    });
+  }, [fnbStock, fnbCategory, fnbSearchText]);
+
+  const activeServedOrders = useMemo(() => {
+    return (
+      selectedTable?.currentSession?.orders?.filter(
+        (o) => o.status !== "cancelled" && (Number(o.quantity) || 0) > 0,
+      ) || []
+    );
+  }, [selectedTable]);
+
+  const cancelledOrders = useMemo(() => {
+    return (
+      selectedTable?.currentSession?.orders?.filter(
+        (o) => o.status === "cancelled" || (Number(o.cancelledQuantity) || 0) > 0,
+      ) || []
+    );
+  }, [selectedTable]);
+
+  const activeFnbTotal = useMemo(() => {
+    return activeServedOrders.reduce(
+      (acc, cur) => acc + (Number(cur.price) || 0) * (Number(cur.quantity) || 0),
+      0,
+    );
+  }, [activeServedOrders]);
+
   // Handler: Manage F&B Order
-  const handleOpenFnbModal = (table: PosTable) => {
+  const handleOpenFnbModal = async (table: PosTable) => {
     setSelectedTable(table);
-    setCurrentOrderList(table.currentSession?.orders || []);
+    setNewOrderList([]);
+    setFnbSearchText("");
+    setFnbCategory("all");
+    const hasExisting =
+      table.currentSession?.orders &&
+      table.currentSession.orders.some((o) => o.status !== "cancelled" && o.quantity > 0);
+    setFnbTab(hasExisting ? "manage" : "order");
     setFnbModalVisible(true);
+
+    try {
+      const liveProducts = await productService.getFnbMenu();
+      if (Array.isArray(liveProducts)) {
+        const mappedStock: FnbStockItem[] = liveProducts.map((p) => {
+          const cat = (p.category || "").toLowerCase();
+          let categoryName = "Bao Tay & Tiện Ích";
+          if (cat === "drink" || cat === "coffee" || cat === "tea" || cat === "beer") categoryName = "Đồ Uống";
+          else if (cat === "food") categoryName = "Đồ Ăn";
+          else if (cat === "snack") categoryName = "Ăn Vặt";
+
+          return {
+            id: String(p._id),
+            code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
+            name: p.name,
+            category: p.category,
+            categoryName,
+            price: p.salePrice,
+            priceFormatted: `${p.salePrice.toLocaleString("vi-VN")}đ`,
+            stockQuantity: p.stock ?? 0,
+            minThreshold: 10,
+            unit: (p as any).unit || "Phần",
+            image: p.imageUrl,
+          };
+        });
+        setFnbStock(mappedStock);
+      }
+    } catch (err) {
+      console.error("Lỗi cập nhật tồn kho F&B trực tiếp:", err);
+    }
   };
 
   const handleAddFnbItem = (stockItem: FnbStockItem) => {
@@ -758,7 +1000,7 @@ export const PosTableFloorPage: React.FC = () => {
       return;
     }
 
-    setCurrentOrderList((prev) => {
+    setNewOrderList((prev) => {
       const existing = prev.find((o) => o.id === stockItem.id);
       if (existing) {
         return prev.map((o) => (o.id === stockItem.id ? { ...o, quantity: o.quantity + 1 } : o));
@@ -767,6 +1009,7 @@ export const PosTableFloorPage: React.FC = () => {
         ...prev,
         {
           id: stockItem.id,
+          productId: stockItem.id,
           name: stockItem.name,
           price: stockItem.price,
           quantity: 1,
@@ -785,8 +1028,8 @@ export const PosTableFloorPage: React.FC = () => {
     );
   };
 
-  const handleUpdateOrderItemQty = (itemId: string, delta: number) => {
-    setCurrentOrderList((prev) => {
+  const handleUpdateNewOrderItemQty = (itemId: string, delta: number) => {
+    setNewOrderList((prev) => {
       return prev
         .map((item) => {
           if (item.id === itemId) {
@@ -798,7 +1041,6 @@ export const PosTableFloorPage: React.FC = () => {
         .filter(Boolean) as PosOrderItem[];
     });
 
-    // Restore or reduce stock
     setFnbStock((prev) =>
       prev.map((item) =>
         item.id === itemId
@@ -808,19 +1050,118 @@ export const PosTableFloorPage: React.FC = () => {
     );
   };
 
-  const handleConfirmFnbOrder = async () => {
+  const handleRemoveNewOrderItem = (itemId: string) => {
+    const itemToRemove = newOrderList.find((o) => o.id === itemId);
+    if (!itemToRemove) return;
+    setNewOrderList((prev) => prev.filter((o) => o.id !== itemId));
+    setFnbStock((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? { ...item, stockQuantity: item.stockQuantity + itemToRemove.quantity }
+          : item,
+      ),
+    );
+  };
+
+  const handleConfirmAddFnbOrder = async () => {
     if (!selectedTable?.currentSession) return;
+    if (newOrderList.length === 0) return;
+
+    const existingOrders = selectedTable.currentSession.orders || [];
+    const mergedOrders: PosOrderItem[] = [...existingOrders];
+
+    for (const newItem of newOrderList) {
+      const match = mergedOrders.find((o) => o.id === newItem.id && o.status !== "cancelled");
+      if (match) {
+        match.quantity += newItem.quantity;
+      } else {
+        mergedOrders.push(newItem);
+      }
+    }
+
     const saved = await save(async () => {
       await posService.updateOrders(
         selectedTable.id,
         selectedTable.currentSession!.sessionId,
-        currentOrderList,
+        mergedOrders,
       );
     });
     if (!saved) return;
-    setFnbModalVisible(false);
-    message.success(`Đã cập nhật danh sách món cho ${selectedTable.name}!`);
+    message.success(`Đã thêm món vào ${selectedTable.name}!`);
+    setNewOrderList([]);
+    setFnbTab("manage");
+    await loadTables();
   };
+
+  const isPackagedItem = (item?: PosOrderItem | null) => {
+    if (!item) return false;
+    const cat = item.category?.toLowerCase() || "";
+    if (cat === "beer" || cat === "snack" || cat === "equipment") return true;
+    if (cat === "coffee" || cat === "tea" || cat === "food") return false;
+    const name = item.name.toLowerCase();
+    if (
+      name.includes("cà phê") ||
+      name.includes("bạc xỉu") ||
+      name.includes("trà ") ||
+      name.includes("nước ép") ||
+      name.includes("mì ") ||
+      name.includes("bò khô")
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const handleOpenCancelModal = (item: PosOrderItem) => {
+    setCancellingItem(item);
+    setCancelQty(item.quantity);
+    const defaultReason = "Khách đổi ý / Chưa dùng";
+    setCancelReason(defaultReason);
+    setCustomCancelReason("");
+    setRestoreStock(isPackagedItem(item));
+    setCancelModalVisible(true);
+  };
+
+  const handleSelectCancelReason = (reasonOption: string) => {
+    setCancelReason(reasonOption);
+    // Intelligent real-world automation:
+    if (reasonOption === "Món lỗi / Hỏng / Đổ vỡ" || reasonOption === "Quán hết món / Thiếu đồ") {
+      setRestoreStock(false);
+    } else {
+      setRestoreStock(isPackagedItem(cancellingItem));
+    }
+  };
+
+  const handleConfirmCancelItem = async () => {
+    if (!selectedTable?.currentSession || !cancellingItem) return;
+    const finalReason = cancelReason === "Khác" ? customCancelReason.trim() : cancelReason;
+    if (!finalReason) {
+      message.warning("Vui lòng chọn hoặc nhập lý do hủy món");
+      return;
+    }
+
+    const saved = await save(async () => {
+      await posService.cancelOrderItem(
+        selectedTable.id,
+        selectedTable.currentSession!.sessionId,
+        cancellingItem.id,
+        cancelQty,
+        finalReason,
+        restoreStock,
+      );
+    });
+
+    if (!saved) return;
+    message.success(
+      restoreStock
+        ? `Đã hủy ${cancelQty}x "${cancellingItem.name}" và hoàn trả tồn kho!`
+        : `Đã hủy ${cancelQty}x "${cancellingItem.name}" (ghi nhận hao hụt)!`,
+    );
+    setCancelModalVisible(false);
+    setCancellingItem(null);
+    await loadTables();
+  };
+
 
   // Handler: Open Checkout Modal
   const handleSearchLoyaltyCustomer = async () => {
@@ -841,13 +1182,14 @@ export const PosTableFloorPage: React.FC = () => {
           phone: res.data.phone,
           rank: res.data.rank,
           walletBalance: res.data.walletBalance,
+          walletPoints: res.data.walletPoints,
           availableVouchers: res.data.availableVouchers || [],
         });
         setDiscountPercent(10);
         const voucherCount = res.data.availableVouchers?.length || 0;
         message.success(
           `Đã tìm thấy hội viên ${res.data.name}! Tự động giảm 10% tiền giờ${
-            voucherCount > 0 ? ` (và tìm thấy ${voucherCount} voucher trong ví)` : ""
+            voucherCount > 0 ? ` (và ${voucherCount} voucher trong ví)` : ""
           }.`,
         );
       } else {
@@ -871,7 +1213,6 @@ export const PosTableFloorPage: React.FC = () => {
     setShowTimeSlots(false);
     setVoucherCode("");
     setAppliedVoucher(null);
-    setVoucherError("");
     setPaymentMethod("cash");
     setCashReceived(null);
 
@@ -885,7 +1226,7 @@ export const PosTableFloorPage: React.FC = () => {
       });
       setDiscountPercent(10);
 
-      // Tự động tải danh sách voucher nếu có số điện thoại
+      // Tự động tải danh sách voucher và số dư ví nếu có số điện thoại
       if (sessionPhone) {
         void posService.lookupCustomer(sessionPhone).then((res) => {
           if (res.success && res.data) {
@@ -894,6 +1235,7 @@ export const PosTableFloorPage: React.FC = () => {
               phone: res.data.phone,
               rank: res.data.rank,
               walletBalance: res.data.walletBalance,
+              walletPoints: res.data.walletPoints,
               availableVouchers: res.data.availableVouchers || [],
             });
           }
@@ -910,10 +1252,6 @@ export const PosTableFloorPage: React.FC = () => {
   // Handler: Confirm Checkout & Print Receipt
   const handleConfirmCheckout = async () => {
     if (!selectedTable?.currentSession) return;
-    if (paymentMethod === "member_balance" && !loyaltyCustomer) {
-      message.warning("Vui lòng tra cứu số điện thoại hội viên trước khi thanh toán bằng ví.");
-      return;
-    }
     const saved = await save(async () => {
       setPaidSummary(
         await posService.checkout(
@@ -921,7 +1259,6 @@ export const PosTableFloorPage: React.FC = () => {
           appliedVoucher ? 0 : discountPercent,
           paymentMethod,
           appliedVoucher?.code,
-          loyaltyCustomer?.phone,
         ),
       );
     });
@@ -929,27 +1266,25 @@ export const PosTableFloorPage: React.FC = () => {
     setCheckoutModalVisible(false);
     setReceiptModalVisible(true);
     message.success(
-      `Đã thanh toán hóa đơn bằng ${
-        paymentMethod === "member_balance"
-          ? "Ví hội viên"
-          : paymentMethod === "vnpay"
-            ? "Chuyển khoản QR"
-            : "Tiền mặt"
-      } cho ${selectedTable.name}!`,
+      `Đã lưu hóa đơn thanh toán (${paymentMethod === "vnpay" ? "Chuyển khoản QR" : "Tiền mặt"}) cho ${selectedTable.name}!`,
     );
   };
 
   const handleValidateVoucher = async (codeOverride?: string) => {
     const code = (codeOverride || voucherCode).trim();
     if (!selectedTable?.currentSession || !code) {
-      setVoucherError("Vui lòng nhập mã voucher.");
+      message.warning("Vui lòng chọn voucher.");
       return;
     }
     const subtotal =
       calculatePlayingDetails(selectedTable).cost +
-      selectedTable.currentSession.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    setValidatingVoucher(true);
-    setVoucherError("");
+      (selectedTable.currentSession.orders || []).reduce(
+        (sum, item) =>
+          item.status !== "cancelled"
+            ? sum + (Number(item.price) || 0) * (Number(item.quantity) || 0)
+            : sum,
+        0,
+      );
     try {
       const voucher = await posService.validateVoucher(code, subtotal);
       setVoucherCode(voucher.code);
@@ -958,11 +1293,9 @@ export const PosTableFloorPage: React.FC = () => {
       message.success(`Đã áp dụng voucher ${voucher.code}`);
     } catch (error) {
       setAppliedVoucher(null);
-      setVoucherError(
-        error instanceof Error ? error.message : "Không thể kiểm tra voucher.",
+      message.error(
+        error instanceof Error ? error.message : "Không thể áp dụng voucher này.",
       );
-    } finally {
-      setValidatingVoucher(false);
     }
   };
 
@@ -970,7 +1303,6 @@ export const PosTableFloorPage: React.FC = () => {
     if (appliedVoucher?.code === code) {
       setAppliedVoucher(null);
       setVoucherCode("");
-      setVoucherError("");
       if (loyaltyCustomer) setDiscountPercent(10);
       message.info(`Đã gỡ voucher ${code}`);
       return;
@@ -1022,106 +1354,96 @@ export const PosTableFloorPage: React.FC = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 self-start md:self-center shrink-0">
+          <div className="flex items-center gap-2 flex-wrap self-start md:self-center shrink-0">
+            {/* Yêu cầu thanh toán tại bàn */}
             <CustomerPaymentRequests />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBookingQrScannerOpen(true)}
-              icon={<QrcodeOutlined />}
-              className="!rounded-xl !text-xs !h-8"
-            >
-              Quét QR đặt bàn
-            </Button>
 
-            {/* Real-time temporary revenue badge */}
-            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-2 shadow-2xs">
-              <span className="text-[11px] font-semibold text-emerald-800">
-                Doanh thu tạm tính:
-              </span>
-              <span className="text-base font-black text-emerald-700 font-mono">
-                {stats.totalTempRevenue.toLocaleString("vi-VN")}đ
-              </span>
-            </div>
-
-            <Tooltip
-              title={isFullscreen ? "Thoát toàn màn hình" : "Mở rộng toàn màn hình (Kiosk POS)"}
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={toggleFullscreen}
-                icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                className="!rounded-xl !text-xs !h-8"
-              >
-                {isFullscreen ? "Thu nhỏ" : "Toàn màn hình"}
-              </Button>
-            </Tooltip>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadTables()}
-              loading={loading}
-              disabled={saving}
-              icon={<SyncOutlined />}
-              className="!rounded-xl !text-xs !h-8"
-            >
-              Tải lại
-            </Button>
-          </div>
-        </div>
-
-        <div className="pt-2.5 flex items-center justify-between gap-3 overflow-x-auto">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
-              Khu vực:
-            </span>
-            <Select
-              value={filterArea}
-              onChange={(val) => setFilterArea(val as string)}
-              className="w-32 sm:w-36 !text-xs font-semibold shrink-0"
-              options={areaOptions}
-            />
-
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
-              Thể loại:
-            </span>
-            <Select
-              value={filterType}
-              onChange={(val) => setFilterType(val as string)}
-              className="w-32 sm:w-36 !text-xs font-semibold shrink-0"
-              options={tableTypeOptions}
-            />
-
-            <div className="h-5 w-px bg-slate-200 shrink-0 mx-1" />
-
-            {/* Clickable Status KPI Pills */}
-            <SegmentedPillList
-              items={statusPillItems}
-              activeKey={filterStatus}
-              onSelect={(key) => setFilterStatus(key)}
-              className="shrink-0"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
+            {/* Danh sách khách chờ */}
             <Button
               variant="outline"
               size="sm"
               onClick={() => setWaitlistModalVisible(true)}
               leftIcon={<UsergroupAddOutlined />}
-              className="!rounded-xl !text-xs !h-8 !px-3 !border-emerald-300 !text-emerald-700 !bg-emerald-50/70 hover:!bg-emerald-100/80 font-semibold shrink-0"
+              className={`!rounded-xl !text-xs !h-8 !px-3 font-semibold ${
+                waitlist.length > 0
+                  ? "!border-amber-400 !text-amber-800 !bg-amber-50 hover:!bg-amber-100 font-bold"
+                  : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+              }`}
             >
-              DS Chờ ({waitlist.length})
+              DS Chờ {waitlist.length > 0 ? `(${waitlist.length})` : ""}
             </Button>
+
+            {/* Doanh thu tạm tính */}
+            <div className="px-3 py-1 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-1.5 shadow-2xs">
+              <span className="text-[11px] font-semibold text-emerald-800">
+                Doanh thu tạm tính:
+              </span>
+              <span className="text-sm font-black text-emerald-700 font-mono">
+                {stats.totalTempRevenue.toLocaleString("vi-VN")}đ
+              </span>
+            </div>
+
+            {/* Tiện ích: Toàn màn hình & Tải lại dạng icon button */}
+            <Tooltip title={isFullscreen ? "Thu nhỏ cửa sổ" : "Toàn màn hình (Kiosk POS)"}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleFullscreen}
+                icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                className="!rounded-xl !h-8 !w-8 !p-0 !min-w-0 !border-slate-200 text-slate-600 hover:!border-emerald-600 hover:text-emerald-700"
+                aria-label="Toàn màn hình"
+              />
+            </Tooltip>
+
+            <Tooltip title="Tải lại dữ liệu">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadTables()}
+                loading={loading}
+                disabled={saving}
+                icon={<SyncOutlined />}
+                className="!rounded-xl !h-8 !w-8 !p-0 !min-w-0 !border-slate-200 text-slate-600 hover:!border-emerald-600 hover:text-emerald-700"
+                aria-label="Tải lại"
+              />
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* Filter bar - compact unified single row, no empty gaps */}
+        <div className="pt-2.5 flex flex-wrap items-center justify-between gap-2">
+          {/* Status KPI 1-Touch Filter Pills (compact) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <SegmentedPillList
+              items={statusPillItems}
+              activeKey={filterStatus}
+              onSelect={(key) => setFilterStatus(key)}
+              className="[&_button]:!px-2.5 [&_button]:!py-1 [&_button]:!text-xs"
+            />
+          </div>
+
+          {/* Area, Table Type, and Search Filter (neatly balanced on right) */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <Select
+              value={filterArea}
+              onChange={(val) => setFilterArea(val as string)}
+              className="w-36 !text-xs font-semibold"
+              options={areaOptions}
+            />
+
+            <Select
+              value={filterType}
+              onChange={(val) => setFilterType(val as string)}
+              className="w-36 !text-xs font-semibold"
+              options={tableTypeOptions}
+            />
 
             <SearchFilterInput
               value={searchQuery}
               onChange={(val) => setSearchQuery(val)}
               placeholder="Tìm số bàn, khách... (Phím /)"
-              width={210}
-              className="pos-search-input [&_.ant-input-affix-wrapper]:!h-8 [&_.ant-input-affix-wrapper]:!py-0 shrink-0"
+              width={175}
+              className="pos-search-input [&_.ant-input-affix-wrapper]:!h-8 [&_.ant-input-affix-wrapper]:!py-0"
             />
           </div>
         </div>
@@ -1165,7 +1487,7 @@ export const PosTableFloorPage: React.FC = () => {
             <p className="text-xs text-slate-500 mb-0">
               {filterStatus === "available"
                 ? "Hiện tại không còn bàn trống theo tiêu chí này. Bạn có thể thêm khách vào danh sách chờ."
-                : "Vui lòng thử điều chỉnh bộ lọc khu vực, thể loại hoặc từ khóa tìm kiếm."}
+                : "Vui lòng thử điều chỉnh bộ lọc khu vực, loại bàn hoặc từ khóa tìm kiếm."}
             </p>
           </div>
           <div className="flex items-center justify-center gap-2">
@@ -1208,16 +1530,16 @@ export const PosTableFloorPage: React.FC = () => {
             <div>
               <h5 className="font-bold text-slate-800 text-sm mb-0.5">
                 {filterType === "pool"
-                  ? "Toàn bộ Bàn Bida Lỗ (Pool) hiện đã kín khách!"
+                  ? "Toàn bộ Bàn Bida Lỗ (Pool) hiện đã kín bàn!"
                   : filterType === "carom"
-                    ? "Toàn bộ Bàn Bida Carom (Phăng) hiện đã kín khách!"
+                    ? "Toàn bộ Bàn Bida Carom (Phăng) hiện đã kín bàn!"
                     : filterType === "snooker"
-                      ? "Toàn bộ Bàn Bida Snooker hiện đã kín khách!"
-                      : "Hiện tại toàn bộ bàn trong câu lạc bộ đã kín khách!"}
+                      ? "Toàn bộ Bàn Bida Snooker hiện đã kín bàn!"
+                      : "Hiện tại toàn bộ bàn trong câu lạc bộ đã kín bàn!"}
               </h5>
               <p className="text-xs text-slate-600 mb-0">
-                Khách walk-in cần loại bàn này? Hãy thêm khách vào{" "}
-                <strong>Danh Sách Chờ (Waitlist)</strong> để tự động xếp bàn ngay khi có bàn trống.
+                Khách đến quán chưa có bàn trống? Hãy thêm khách vào{" "}
+                <strong>Danh Sách Chờ</strong> để tự động xếp bàn ngay khi có bàn trống.
               </p>
             </div>
           </div>
@@ -1241,8 +1563,13 @@ export const PosTableFloorPage: React.FC = () => {
           const { cost, formattedTime, minutes, timeSlots, isCrossed } =
             calculatePlayingDetails(table);
           const fnbTotal =
-            table.currentSession?.orders.reduce((acc, cur) => acc + cur.price * cur.quantity, 0) ||
-            0;
+            (table.currentSession?.orders || []).reduce(
+              (acc, cur) =>
+                cur.status !== "cancelled"
+                  ? acc + (Number(cur.price) || 0) * (Number(cur.quantity) || 0)
+                  : acc,
+              0,
+            );
           const totalTableBill = cost + fnbTotal;
 
           const isPlaying = table.status === "playing";
@@ -1300,18 +1627,14 @@ export const PosTableFloorPage: React.FC = () => {
                 }`}
               />
 
-              <div className="px-3.5 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-start justify-between gap-2">
+              <div className="px-3.5 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[11px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-mono text-[11px] font-black text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0 shadow-2xs">
                       {table.code}
                     </span>
-                    <span className="font-extrabold text-sm text-slate-900 truncate">
-                      {table.code.startsWith("VIP")
-                        ? `BÀN VIP ${table.code.replace("VIP-", "")}`
-                        : table.code.startsWith("MTCH")
-                          ? `BÀN THI ĐẤU ${table.code.replace("MTCH-", "")}`
-                          : `BÀN ${table.code.replace("STD-", "")}`}
+                    <span className="font-extrabold text-sm text-slate-900 truncate" title={table.name}>
+                      {table.name}
                     </span>
                   </div>
                   <div
@@ -1322,7 +1645,50 @@ export const PosTableFloorPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="shrink-0 pt-0.5">
+                <div className="shrink-0 flex items-center gap-1.5">
+                  {/* Tác vụ nhanh trên Header: Tạm dừng & Chuyển bàn */}
+                  {(isPlaying || isPaused) && (
+                    <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                      <Tooltip title={isPaused ? "Tiếp tục tính giờ" : "Tạm dừng tính giờ"}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTogglePause(table);
+                          }}
+                          disabled={saving || loading || !!loadError}
+                          className={`h-6 w-6 rounded flex items-center justify-center text-xs transition-colors cursor-pointer ${
+                            isPaused
+                              ? "bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold"
+                              : "hover:bg-slate-100 text-slate-500 hover:text-amber-600"
+                          }`}
+                          aria-label={isPaused ? "Tiếp tục" : "Tạm dừng"}
+                        >
+                          {isPaused ? (
+                            <PlayCircleOutlined className="text-[12px] text-amber-700" />
+                          ) : (
+                            <PauseCircleOutlined className="text-[12px]" />
+                          )}
+                        </button>
+                      </Tooltip>
+
+                      <Tooltip title="Chuyển bàn hoặc gộp bàn">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleOpenTransferModal(table, "transfer");
+                          }}
+                          className="h-6 w-6 rounded flex items-center justify-center text-xs hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer"
+                          aria-label="Chuyển bàn"
+                        >
+                          <SwapOutlined className="text-[11px]" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  )}
+
+                  {/* Tag trạng thái */}
                   {isPlaying && (
                     <Tag
                       color="green"
@@ -1417,33 +1783,40 @@ export const PosTableFloorPage: React.FC = () => {
                     </div>
 
                     {/* Customer & Breakdown */}
-                    <div className="pt-2 border-t border-slate-100 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="pt-2 border-t border-slate-100 space-y-1 text-xs">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <UserOutlined className="text-slate-400 text-xs shrink-0" />
-                          <span className="font-bold text-slate-800 truncate max-w-[125px]">
-                            {table.currentSession?.customerName || "Khách vãng lai"}
+                          <span
+                            className="font-bold text-slate-800 truncate"
+                            title={table.currentSession?.customerName || "Khách lẻ"}
+                          >
+                            {table.currentSession?.customerName || "Khách lẻ"}
                           </span>
                           {table.currentSession?.isMember && (
                             <Tag
                               color="gold"
-                              className="!text-[9px] !px-1.5 !py-0 !border-0 !m-0 !font-bold !rounded"
+                              className="!text-[9px] !px-1.5 !py-0 !border-0 !m-0 !font-bold !rounded shrink-0 whitespace-nowrap"
                             >
                               {table.currentSession.memberRank || "VIP"}
                             </Tag>
                           )}
                         </div>
-                        <span className="text-slate-500 font-mono text-[11px] font-medium">
-                          Tiền giờ: {cost.toLocaleString("vi-VN")}đ
+                        <span className="text-slate-500 font-mono text-[11px] font-medium whitespace-nowrap shrink-0">
+                          {cost.toLocaleString("vi-VN")}đ
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500 text-[11px] flex items-center gap-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-slate-500 text-[11px] flex items-center gap-1 whitespace-nowrap">
                           <CoffeeOutlined className="text-slate-400 text-[10px]" />
-                          Đồ uống & Món ({table.currentSession?.orders.length || 0}):
+                          Đồ uống (
+                          {(table.currentSession?.orders || []).filter(
+                            (o) => o.status !== "cancelled" && (Number(o.quantity) || 0) > 0,
+                          ).length}
+                          ):
                         </span>
-                        <span className="text-emerald-700 font-mono font-semibold text-[11px]">
+                        <span className="text-emerald-700 font-mono font-semibold text-[11px] whitespace-nowrap shrink-0">
                           {fnbTotal.toLocaleString("vi-VN")}đ
                         </span>
                       </div>
@@ -1528,6 +1901,8 @@ export const PosTableFloorPage: React.FC = () => {
                       setSelectedTable(table);
                       setCustomerName("");
                       setCustomerPhone("");
+                      setOpenModalMemberInfo(null);
+                      setIsMemberCustomer(false);
                       setOpenModalVisible(true);
                     }}
                     className="py-1 space-y-2 flex-1 flex flex-col justify-center cursor-pointer group"
@@ -1565,6 +1940,12 @@ export const PosTableFloorPage: React.FC = () => {
                         if (table.bookedInfo) {
                           setCustomerName(table.bookedInfo.customerName);
                           setCustomerPhone(table.bookedInfo.phone);
+                          if (table.bookedInfo.phone) {
+                            void handlePhoneChangeInOpenModal(table.bookedInfo.phone);
+                          }
+                        } else {
+                          setOpenModalMemberInfo(null);
+                          setIsMemberCustomer(false);
                         }
                         setOpenModalVisible(true);
                       }}
@@ -1593,6 +1974,8 @@ export const PosTableFloorPage: React.FC = () => {
                       setSelectedTable(table);
                       setCustomerName("");
                       setCustomerPhone("");
+                      setOpenModalMemberInfo(null);
+                      setIsMemberCustomer(false);
                       setOpenModalVisible(true);
                     }}
                     leftIcon={<PlayCircleOutlined />}
@@ -1601,59 +1984,39 @@ export const PosTableFloorPage: React.FC = () => {
                     Mở Bàn Tính Giờ
                   </Button>
                 ) : isPlaying || isPaused ? (
-                  <div className="flex items-center gap-1.5">
-                    {/* Primary checkout button */}
+                  <div className="flex items-center gap-2">
+                    {/* 1. Nút Thanh Toán: To rõ ràng, nổi bật nhất quầy */}
                     <Button
                       variant="primary"
                       size="sm"
                       onClick={() => handleOpenCheckout(table)}
                       leftIcon={<DollarOutlined />}
-                      className="!flex-1 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9 text-white shadow-2xs"
+                      className="!flex-1 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-black !text-xs !h-9 text-white shadow-2xs tracking-wide"
                     >
                       Thanh Toán
                     </Button>
 
-                    <Tooltip title="Gọi thêm đồ uống & món">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenFnbModal(table)}
-                        leftIcon={<CoffeeOutlined />}
-                        className="!rounded-xl !text-xs !h-9 !px-2.5 !border-slate-300 !text-slate-700 hover:!border-emerald-600 hover:!bg-emerald-50/50 font-semibold"
-                      >
-                        Gọi Món ({table.currentSession?.orders.length || 0})
-                      </Button>
-                    </Tooltip>
-
-                    <Tooltip title={isPaused ? "Tiếp tục tính giờ bàn này" : "Tạm dừng tính giờ"}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTogglePause(table)}
-                        disabled={saving || loading || !!loadError}
-                        leftIcon={isPaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
-                        className={`!rounded-xl !text-xs !h-9 !w-9 !p-0 !min-w-0 ${
-                          isPaused
-                            ? "!bg-amber-100 !border-amber-400 !text-amber-900"
-                            : "!border-slate-300 !text-slate-700 hover:!border-emerald-600"
-                        }`}
-                        aria-label={isPaused ? "Tiếp tục tính giờ" : "Tạm dừng"}
-                      />
-                    </Tooltip>
-
-                    <Tooltip title="Chuyển bàn hoặc gộp hóa đơn">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedTable(table);
-                          setTransferModalVisible(true);
-                        }}
-                        leftIcon={<SwapOutlined />}
-                        className="!rounded-xl !text-xs !h-9 !w-9 !p-0 !min-w-0 !border-slate-300 !text-slate-700 hover:!border-emerald-600"
-                        aria-label="Đổi hoặc gộp bàn"
-                      />
-                    </Tooltip>
+                    {/* 2. Nút Gọi Món: Tinh tế, hiện badge số lượng món */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenFnbModal(table)}
+                      leftIcon={<CoffeeOutlined className="text-emerald-700" />}
+                      className="!rounded-xl !text-xs !h-9 !px-3 !border-slate-200 hover:!border-emerald-500 !bg-white hover:!bg-emerald-50/50 !text-slate-800 font-bold shadow-2xs"
+                    >
+                      <span>Gọi Món</span>
+                      {(() => {
+                        const totalQty = (table.currentSession?.orders || [])
+                          .filter((o) => o.status !== "cancelled")
+                          .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+                        if (totalQty <= 0) return null;
+                        return (
+                          <span className="ml-1 px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black font-mono">
+                            {totalQty}
+                          </span>
+                        );
+                      })()}
+                    </Button>
                   </div>
                 ) : (
                   <Button
@@ -1688,13 +2051,13 @@ export const PosTableFloorPage: React.FC = () => {
         }
       >
         <div className="py-3 space-y-4">
-          <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-950 space-y-1">
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 space-y-1">
             <div className="flex justify-between">
-              <span>Thể loại:</span>
-              <strong className="font-bold">{selectedTable?.typeName}</strong>
+              <span>Loại bàn:</span>
+              <strong className="font-bold text-slate-900">{selectedTable?.typeName}</strong>
             </div>
             <div className="flex justify-between">
-              <span>Giá theo giờ:</span>
+              <span>Đơn giá giờ:</span>
               <strong className="font-bold text-emerald-700 font-mono">
                 {selectedTable?.pricePerHour.toLocaleString("vi-VN")}đ / giờ
               </strong>
@@ -1703,43 +2066,64 @@ export const PosTableFloorPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Tên khách hàng / Hội viên:
+              Số điện thoại khách (tùy chọn):
             </label>
             <Input
-              placeholder="Nhập tên khách hoặc số thẻ hội viên..."
+              placeholder="Nhập SĐT để tự động nhận diện hội viên..."
+              value={customerPhone}
+              onChange={(e) => void handlePhoneChangeInOpenModal(e.target.value)}
+              prefix={<PhoneOutlined className="text-slate-400" />}
+              className="!h-10 !rounded-xl font-mono text-xs"
+            />
+          </div>
+
+          {openModalMemberInfo ? (
+            <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center justify-between transition-all">
+              <div className="flex items-center gap-2.5">
+                <CheckCircleOutlined className="text-emerald-600 text-lg shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5 flex-wrap">
+                    <span className="whitespace-nowrap">Hội viên:</span>
+                    <span className="truncate">{openModalMemberInfo.name}</span>
+                    <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-bold whitespace-nowrap">
+                      Hạng {openModalMemberInfo.rank || "VIP"}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-emerald-700 font-medium whitespace-nowrap">
+                    ⭐ Đã nhận diện! Tự động giảm 10% tiền giờ khi thanh toán
+                  </div>
+                </div>
+              </div>
+              {openModalMemberInfo.walletBalance !== undefined && (
+                <div className="text-right shrink-0">
+                  <div className="text-[10px] text-slate-500">Số dư ví:</div>
+                  <div className="text-xs font-bold font-mono text-emerald-800">
+                    {openModalMemberInfo.walletBalance.toLocaleString("vi-VN")}đ
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : isSearchingOpenMember ? (
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <SyncOutlined spin className="text-emerald-600" />
+              <span>Đang kiểm tra tài khoản hội viên...</span>
+            </div>
+          ) : customerPhone.trim().length >= 8 ? (
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 flex items-center justify-between">
+              <span>Số điện thoại chưa đăng ký hội viên (áp dụng giá tiêu chuẩn)</span>
+            </div>
+          ) : null}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Tên khách hàng:
+            </label>
+            <Input
+              placeholder="Để trống mặc định là 'Khách lẻ'..."
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               prefix={<UserOutlined className="text-slate-400" />}
               className="!h-10 !rounded-xl"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Số điện thoại (tùy chọn):
-            </label>
-            <Input
-              placeholder="0912 345 678"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              prefix={<PhoneOutlined className="text-slate-400" />}
-              className="!h-10 !rounded-xl"
-            />
-          </div>
-
-          <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <SafetyCertificateOutlined className={isMemberCustomer ? "text-amber-600 text-lg" : "text-slate-400 text-lg"} />
-              <div>
-                <div className="text-xs font-bold text-slate-800">Khách hàng Hội viên</div>
-                <div className="text-[11px] text-slate-500">Tự động giảm 10% tiền giờ khi thanh toán hóa đơn</div>
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              checked={isMemberCustomer}
-              onChange={(e) => setIsMemberCustomer(e.target.checked)}
-              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
             />
           </div>
 
@@ -1763,6 +2147,7 @@ export const PosTableFloorPage: React.FC = () => {
               onClick={() => {
                 setOpenModalVisible(false);
                 setPendingWaitlistEntryId(null);
+                setOpenModalMemberInfo(null);
               }}
               className="!rounded-xl"
             >
@@ -1787,82 +2172,391 @@ export const PosTableFloorPage: React.FC = () => {
         open={transferModalVisible}
         onCancel={() => setTransferModalVisible(false)}
         footer={null}
+        width={640}
+        destroyOnClose
         title={
-          <Space align="center" size={8}>
-            <SwapOutlined className="text-emerald-600 text-lg" />
-            <span className="font-bold text-slate-900 text-base">
-              Chuyển Bàn / Gộp Bàn - {selectedTable?.name}
-            </span>
-          </Space>
+          <div className="flex items-center justify-between pr-4">
+            <Space align="center" size={8}>
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                {transferAction === "transfer" ? <SwapOutlined className="text-base" /> : <BranchesOutlined className="text-base" />}
+              </div>
+              <div>
+                <span className="font-bold text-slate-900 text-base block">
+                  {transferAction === "transfer" ? "Chuyển Bàn Chơi" : "Gộp Bàn Chơi"}
+                </span>
+                <span className="text-[11px] text-slate-500 font-normal">
+                  {transferAction === "transfer"
+                    ? "Chuyển thời gian chơi và dịch vụ F&B sang bàn trống mới"
+                    : "Dồn tiền giờ và F&B của bàn này vào bàn khác"}
+                </span>
+              </div>
+            </Space>
+          </div>
         }
       >
-        <div className="py-3 space-y-4">
+        <div className="py-2 space-y-4">
+          {/* Action Tabs: Chuyển bàn vs Gộp bàn */}
           <div className="flex rounded-xl bg-slate-100 p-1">
-            <Button
-              variant={transferAction === "transfer" ? "primary" : "ghost"}
-              size="sm"
-              onClick={() => setTransferAction("transfer")}
-              className={`!flex-1 !rounded-lg !text-xs !h-8 ${
+            <button
+              type="button"
+              onClick={() => void handleSwitchTransferAction("transfer")}
+              className={clsx(
+                "!flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5",
                 transferAction === "transfer"
-                  ? "!bg-white !text-emerald-800 !border-0 shadow-2xs font-bold"
-                  : "!text-slate-500 hover:!text-slate-800"
-              }`}
+                  ? "bg-white text-emerald-800 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900",
+              )}
             >
-              Chuyển Bàn (Sang bàn trống)
-            </Button>
-            <Button
-              variant={transferAction === "merge" ? "primary" : "ghost"}
-              size="sm"
-              onClick={() => setTransferAction("merge")}
-              className={`!flex-1 !rounded-lg !text-xs !h-8 ${
+              <SwapOutlined />
+              Đổi Sang Bàn Trống
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSwitchTransferAction("merge")}
+              className={clsx(
+                "!flex-1 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5",
                 transferAction === "merge"
-                  ? "!bg-white !text-emerald-800 !border-0 shadow-2xs font-bold"
-                  : "!text-slate-500 hover:!text-slate-800"
-              }`}
+                  ? "bg-white text-emerald-800 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900",
+              )}
             >
-              Gộp Bàn (Vào bàn đang chơi)
-            </Button>
+              <BranchesOutlined />
+              Gộp Vào Bàn Khác
+            </button>
           </div>
 
+          {/* Source Table Summary Card */}
+          {selectedTable?.currentSession && (
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-xs text-slate-800">
+                    Bàn hiện tại: <strong className="text-emerald-700">{selectedTable.name}</strong> ({selectedTable.typeName})
+                  </span>
+                  <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !m-0 font-medium">
+                    {selectedTable.status === "paused" ? "Tạm dừng" : "Đang chơi"}
+                  </Tag>
+                </div>
+                <span className="text-[11px] text-slate-500">
+                  Khách hàng: <strong className="text-slate-700">{selectedTable.currentSession.customerName || "Khách lẻ"}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="bg-white p-2 rounded-lg border border-slate-100">
+                  <span className="text-[10px] text-slate-500 block">Thời gian đã chơi</span>
+                  <span className="font-bold font-mono text-slate-800 text-xs">
+                    {(() => {
+                      const now = Date.now();
+                      const elapsed = Math.max(
+                        0,
+                        now -
+                          selectedTable.currentSession.startedAt -
+                          (selectedTable.currentSession.totalPausedMs || 0),
+                      );
+                      const mins = Math.floor(elapsed / 60000);
+                      const hrs = Math.floor(mins / 60);
+                      const remMins = mins % 60;
+                      return hrs > 0 ? `${hrs}h ${remMins}p` : `${remMins} phút`;
+                    })()}
+                  </span>
+                </div>
+                <div className="bg-white p-2 rounded-lg border border-slate-100">
+                  <span className="text-[10px] text-slate-500 block">Tiền giờ tạm tính</span>
+                  <span className="font-bold font-mono text-emerald-700 text-xs">
+                    {(() => {
+                      const now = Date.now();
+                      const elapsed = Math.max(
+                        0,
+                        now -
+                          selectedTable.currentSession.startedAt -
+                          (selectedTable.currentSession.totalPausedMs || 0),
+                      );
+                      const mins = Math.floor(elapsed / 60000);
+                      const rate =
+                        selectedTable.currentSession.pricePerHour || selectedTable.pricePerHour;
+                      const cost = Math.round((mins * rate) / 60);
+                      return `${cost.toLocaleString("vi-VN")}đ`;
+                    })()}
+                  </span>
+                </div>
+                <div className="bg-white p-2 rounded-lg border border-slate-100">
+                  <span className="text-[10px] text-slate-500 block">F&B đang dùng</span>
+                  <span className="font-bold font-mono text-slate-800 text-xs">
+                    {(() => {
+                      const orders = (selectedTable.currentSession.orders || []).filter(
+                        (o) => o.status !== "cancelled",
+                      );
+                      const count = orders.reduce((sum, o) => sum + o.quantity, 0);
+                      const fnbCost = orders.reduce((sum, o) => sum + o.price * o.quantity, 0);
+                      return `${count} món (${fnbCost.toLocaleString("vi-VN")}đ)`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Target Table Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Chọn bàn chuyển đến:
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700">
+                {transferAction === "transfer" ? "Chuyển đến bàn:" : "Gộp vào bàn:"}
+              </label>
+              {loadingMoveTargets && (
+                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <SyncOutlined spin className="text-[10px]" /> Đang kiểm tra bàn khả dụng...
+                </span>
+              )}
+            </div>
+
             <Select
-              placeholder="-- Chọn bàn tiếp nhận --"
-              value={targetTableId}
+              placeholder={
+                transferAction === "transfer"
+                  ? "-- Chọn bàn trống muốn chuyển đến --"
+                  : "-- Chọn bàn đang chơi để gộp vào --"
+              }
+              value={targetTableId || undefined}
               onChange={(val) => setTargetTableId(val)}
               className="!w-full !rounded-xl"
-              options={tables
-                .filter((t) => t.id !== selectedTable?.id)
-                .filter((t) =>
-                  transferAction === "transfer" ? t.status === "available" : t.status === "playing",
-                )
-                .map((t) => ({
-                  value: t.id,
-                  label: `${t.name} (${t.typeName}) - ${
-                    t.status === "available" ? "Bàn trống" : "Đang chơi"
-                  }`,
-                }))}
+              options={
+                eligibleMoveData?.targets?.length
+                  ? eligibleMoveData.targets.map((t) => {
+                      const typeLabel =
+                        t.type === "pool"
+                          ? "Bida Lỗ"
+                          : t.type === "carom"
+                            ? "Bida Phăng"
+                            : t.type === "snooker"
+                              ? "Bida Snooker"
+                              : t.type || "Bàn";
+
+                      if (transferAction === "transfer") {
+                        const diffText =
+                          t.priceDiffPerHour && t.priceDiffPerHour !== 0
+                            ? ` (${t.priceDiffPerHour > 0 ? "+" : ""}${t.priceDiffPerHour.toLocaleString("vi-VN")}đ/h)`
+                            : "";
+                        return {
+                          value: t.id,
+                          label: `${t.name} (${typeLabel}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h${diffText}`,
+                        };
+                      } else {
+                        const mins = t.durationMinutes || 0;
+                        const hrs = Math.floor(mins / 60);
+                        const remMins = mins % 60;
+                        const durationText = hrs > 0 ? `${hrs}h ${remMins}p` : `${remMins}p`;
+                        return {
+                          value: t.id,
+                          label: `${t.name} (${typeLabel}) • Khách: ${t.customerName || "Khách lẻ"} • Chơi ${durationText} • ${(t.currentCost || 0).toLocaleString("vi-VN")}đ`,
+                        };
+                      }
+                    })
+                  : tables
+                      .filter((t) => t.id !== selectedTable?.id)
+                      .filter((t) =>
+                        transferAction === "transfer"
+                          ? t.status === "available"
+                          : t.status === "playing" || t.status === "paused",
+                      )
+                      .map((t) => ({
+                        value: t.id,
+                        label: `${t.name} (${t.typeName}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h`,
+                      }))
+              }
             />
           </div>
 
-          <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 leading-relaxed">
-            {transferAction === "transfer" ? (
-              <p className="mb-0">
-                Khi chuyển bàn, toàn bộ thời gian chơi và các món đã gọi của{" "}
-                <strong>{selectedTable?.name}</strong> sẽ được chuyển sang bàn mới. Bàn hiện tại sẽ
-                trở về trạng thái bàn trống.
-              </p>
-            ) : (
-              <p className="mb-0">
-                Khi gộp bàn, tiền giờ và các món đã gọi của <strong>{selectedTable?.name}</strong>{" "}
-                sẽ được dồn vào hóa đơn bàn đích. Bàn hiện tại sẽ kết thúc phiên và trở về trạng
-                thái bàn trống.
-              </p>
-            )}
+          {/* Pricing Option (When Transferring to a table with different rate) */}
+          {transferAction === "transfer" && targetTableId && (() => {
+            const target =
+              tables.find((t) => t.id === targetTableId) ||
+              eligibleMoveData?.targets.find((t) => t.id === targetTableId);
+            const sourceRate =
+              selectedTable?.currentSession?.pricePerHour || selectedTable?.pricePerHour || 0;
+            const targetRate = target?.pricePerHour || 0;
+            const isDiff = targetRate !== sourceRate && targetRate > 0;
+
+            if (!isDiff) return null;
+
+            return (
+              <div className="p-3 rounded-xl bg-blue-50/80 border border-blue-200 text-xs text-blue-900 space-y-1">
+                <div className="flex items-center justify-between font-bold">
+                  <span>Chênh lệch đơn giá bàn:</span>
+                  <span className="font-mono text-blue-800">
+                    {sourceRate.toLocaleString("vi-VN")}đ/h ➜ {targetRate.toLocaleString("vi-VN")}đ/h (
+                    {targetRate > sourceRate
+                      ? `+${(targetRate - sourceRate).toLocaleString("vi-VN")}đ/h`
+                      : `${(targetRate - sourceRate).toLocaleString("vi-VN")}đ/h`}
+                    )
+                  </span>
+                </div>
+                <p className="text-[11px] text-blue-700 mb-0 leading-relaxed">
+                  Hệ thống <strong>tự động tính theo giá từng bàn</strong>: Giờ chơi ở bàn cũ tính theo giá <strong>{sourceRate.toLocaleString("vi-VN")}đ/h</strong>, thời gian tiếp theo tại bàn mới tính theo giá <strong>{targetRate.toLocaleString("vi-VN")}đ/h</strong>.
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* Merge Summary Preview (When Merging into a playing table) */}
+          {transferAction === "merge" && targetTableId && (() => {
+            const target = tables.find((t) => t.id === targetTableId);
+            if (!target || !target.currentSession) return null;
+
+            const now = Date.now();
+            // Source cost
+            const sElapsed = Math.max(
+              0,
+              now -
+                (selectedTable?.currentSession?.startedAt || now) -
+                (selectedTable?.currentSession?.totalPausedMs || 0),
+            );
+            const sMins = Math.floor(sElapsed / 60000);
+            const sRate =
+              selectedTable?.currentSession?.pricePerHour || selectedTable?.pricePerHour || 0;
+            const sPlayingCost =
+              Math.round((sMins * sRate) / 60) + (selectedTable?.currentSession?.carriedCost || 0);
+            const sOrders = (selectedTable?.currentSession?.orders || []).filter(
+              (o) => o.status !== "cancelled",
+            );
+            const sFnbCost = sOrders.reduce((sum, o) => sum + o.price * o.quantity, 0);
+
+            // Target cost
+            const tElapsed = Math.max(
+              0,
+              now -
+                (target.currentSession?.startedAt || now) -
+                (target.currentSession?.totalPausedMs || 0),
+            );
+            const tMins = Math.floor(tElapsed / 60000);
+            const tRate = target.currentSession?.pricePerHour || target.pricePerHour || 0;
+            const tPlayingCost =
+              Math.round((tMins * tRate) / 60) + (target.currentSession?.carriedCost || 0);
+            const tOrders = (target.currentSession?.orders || []).filter(
+              (o) => o.status !== "cancelled",
+            );
+            const tFnbCost = tOrders.reduce((sum, o) => sum + o.price * o.quantity, 0);
+
+            const totalEstimated = sPlayingCost + sFnbCost + tPlayingCost + tFnbCost;
+
+            return (
+              <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200 text-xs text-purple-950 space-y-2">
+                <div className="flex items-center justify-between font-bold border-b border-purple-200 pb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <BranchesOutlined className="text-purple-700" /> Xem trước kết quả sau khi gộp:
+                  </span>
+                  <Tag color="purple" className="!m-0 !font-bold">
+                    Hóa đơn tổng {target.name}
+                  </Tag>
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Tiền giờ chốt từ {selectedTable?.name}:</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      +{sPlayingCost.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Tiền giờ hiện tại ({target.name}):</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      +{tPlayingCost.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">
+                      Món F&B chuyển sang ({sOrders.length} món từ {selectedTable?.name}):
+                    </span>
+                    <span className="font-mono font-bold text-slate-800">
+                      +{sFnbCost.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">
+                      Món F&B hiện có tại {target.name} ({tOrders.length} món):
+                    </span>
+                    <span className="font-mono font-bold text-slate-800">
+                      +{tFnbCost.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-bold text-xs pt-1.5 border-t border-purple-200 text-purple-900">
+                    <span>TỔNG HÓA ĐƠN DỰ KIẾN:</span>
+                    <span className="font-mono text-emerald-700 text-sm">
+                      {totalEstimated.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Quick Reasons Selection */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              {transferAction === "transfer" ? "Lý do chuyển bàn (Chọn nhanh):" : "Lý do gộp bàn (Chọn nhanh):"}
+            </label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {(transferAction === "transfer"
+                ? [
+                    "Khách đổi bàn VIP",
+                    "Khách đổi góc thoáng hơn",
+                    "Bàn gặp sự cố kỹ thuật",
+                    "Khách đổi thể loại bàn",
+                    "Theo yêu cầu của khách",
+                  ]
+                : [
+                    "Khách gộp nhóm bạn",
+                    "Thanh toán chung hóa đơn",
+                    "Khách chuyển sang chơi chung",
+                    "Theo yêu cầu của khách",
+                  ]
+              ).map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setTransferReason(reason)}
+                  className={clsx(
+                    "px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all cursor-pointer",
+                    transferReason === reason
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-bold"
+                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300",
+                  )}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <Input
+              placeholder="Hoặc nhập lý do chi tiết..."
+              value={transferReason}
+              onChange={(e) => setTransferReason(e.target.value)}
+              className="!rounded-lg !text-xs"
+            />
           </div>
 
+          {/* Operational Notice */}
+          <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 leading-relaxed flex items-start gap-2">
+            <InfoCircleOutlined className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-[11px]">
+              {transferAction === "transfer" ? (
+                <span>
+                  Phiên chơi sẽ chuyển sang bàn mới. Bàn cũ (
+                  <strong>{selectedTable?.name}</strong>) sẽ kết thúc và tự động chuyển về trạng thái{" "}
+                  <strong>Trống</strong> để đón khách mới.
+                </span>
+              ) : (
+                <span>
+                  Sau khi gộp, toàn bộ tiền giờ và món F&B của{" "}
+                  <strong>{selectedTable?.name}</strong> sẽ được chuyển vào{" "}
+                  <strong>
+                    {tables.find((t) => t.id === targetTableId)?.name || "bàn mới"}
+                  </strong>
+                  . Bàn cũ (<strong>{selectedTable?.name}</strong>) sẽ kết thúc phiên và tự động chuyển
+                  về trạng thái <strong>Trống</strong> để đón khách mới.
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <Button
               variant="outline"
@@ -1877,10 +2571,11 @@ export const PosTableFloorPage: React.FC = () => {
               size="sm"
               onClick={handleTransferOrMerge}
               loading={saving}
-              disabled={loading || !!loadError}
+              disabled={loading || !!loadError || !targetTableId}
+              leftIcon={<SwapOutlined />}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
             >
-              Xác Nhận Thực Hiện
+              {transferAction === "transfer" ? "Xác Nhận Chuyển Bàn" : "Xác Nhận Gộp Bàn"}
             </Button>
           </div>
         </div>
@@ -1890,178 +2585,532 @@ export const PosTableFloorPage: React.FC = () => {
         open={fnbModalVisible}
         onCancel={() => setFnbModalVisible(false)}
         footer={null}
-        width={780}
+        width={840}
         title={
           <div className="flex items-center justify-between pr-4">
             <Space align="center" size={8}>
               <CoffeeOutlined className="text-emerald-600 text-lg" />
               <span className="font-bold text-slate-900 text-base">
-                Gọi Món & Đồ Uống - {selectedTable?.name}
+                F&B - {selectedTable?.name}
               </span>
             </Space>
-            <Tag color="green" className="!font-bold">
-              {currentOrderList.reduce((acc, cur) => acc + cur.quantity, 0)} món đã chọn
-            </Tag>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setFnbTab("manage")}
+                className={clsx(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5",
+                  fnbTab === "manage"
+                    ? "bg-white text-emerald-800 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900",
+                )}
+              >
+                <CoffeeOutlined />
+                Món Trên Bàn ({activeServedOrders.reduce((sum, i) => sum + i.quantity, 0)})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFnbTab("order")}
+                className={clsx(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5",
+                  fnbTab === "order"
+                    ? "bg-white text-emerald-800 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900",
+                )}
+              >
+                <PlusOutlined />
+                Gọi Thêm Món {newOrderList.length > 0 && `(${newOrderList.reduce((sum, i) => sum + i.quantity, 0)})`}
+              </button>
+            </div>
           </div>
         }
       >
-        <div className="py-2 grid grid-cols-1 md:grid-cols-12 gap-4">
-          <div className="md:col-span-7 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800">Thực đơn & Đồ uống:</span>
-              <Select
-                value={fnbCategory}
-                onChange={(val) => setFnbCategory(val)}
-                className="!w-36 !rounded-lg !text-xs"
-                options={[
-                  { value: "all", label: "Tất cả danh mục" },
-                  { value: "coffee", label: "Cà phê" },
-                  { value: "tea", label: "Trà & Nước ngọt" },
-                  { value: "beer", label: "Bia & Nước có cồn" },
-                  { value: "food", label: "Đồ ăn chính" },
-                  { value: "snack", label: "Đồ ăn vặt" },
-                  { value: "equipment", label: "Phụ kiện bi-a" },
-                ]}
-              />
-            </div>
-
-            <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
-              {fnbStock
-                .filter((item) => fnbCategory === "all" || item.category === fnbCategory)
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 rounded-xl border border-slate-200 hover:border-emerald-500 bg-white flex items-center justify-between gap-3 transition-all"
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-xs text-slate-900">{item.name}</span>
-                        {item.stockQuantity <= 0 ? (
-                          <Tag color="error" className="!text-[9px] !px-1.5 !py-0 !border-0">
-                            HẾT HÀNG
-                          </Tag>
-                        ) : item.stockQuantity < 10 ? (
-                          <Tag color="warning" className="!text-[9px] !px-1.5 !py-0 !border-0">
-                            Còn {item.stockQuantity}
-                          </Tag>
-                        ) : (
-                          <Tag
-                            color="default"
-                            className="!text-[9px] !px-1.5 !py-0 !border-0 !bg-slate-100"
-                          >
-                            Còn {item.stockQuantity}
-                          </Tag>
-                        )}
-                      </div>
-                      <span className="text-xs font-bold text-emerald-600 block mt-0.5 font-mono">
-                        {item.price.toLocaleString("vi-VN")}đ
-                      </span>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={item.stockQuantity <= 0}
-                      onClick={() => handleAddFnbItem(item)}
-                      leftIcon={<PlusOutlined />}
-                      className="!text-xs !h-8 !px-3 !rounded-xl !border-emerald-300 !text-emerald-800 hover:!bg-emerald-50"
-                    >
-                      Thêm
-                    </Button>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          <div className="md:col-span-5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
-                <span className="text-xs font-bold text-slate-800">Danh sách món đã chọn:</span>
-                <span className="text-xs font-mono text-slate-500">
-                  {currentOrderList.length} loại
-                </span>
+        {fnbTab === "order" ? (
+          <div className="py-2 grid grid-cols-1 md:grid-cols-12 gap-4">
+            {/* Left: Menu & Search */}
+            <div className="md:col-span-7 space-y-3">
+              <div className="flex items-center gap-2">
+                <Input
+                  prefix={<SearchOutlined className="text-slate-400 text-xs" />}
+                  placeholder="Tìm tên món nhanh..."
+                  value={fnbSearchText}
+                  onChange={(e) => setFnbSearchText(e.target.value)}
+                  allowClear
+                  size="small"
+                  className="!rounded-lg !text-xs flex-1"
+                />
+                <Select
+                  value={fnbCategory}
+                  onChange={(val) => setFnbCategory(val)}
+                  className="!w-36 !rounded-lg !text-xs shrink-0"
+                  options={fnbCategoryOptions}
+                />
               </div>
 
-              <div className="max-h-[260px] overflow-y-auto space-y-2 pr-1">
-                {currentOrderList.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    Chưa có món nào. Bấm &quot;Thêm&quot; từ thực đơn bên trái.
+              <div className="max-h-[380px] overflow-y-auto space-y-2 pr-1">
+                {filteredFnbStock.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-slate-400">
+                    Không tìm thấy món nào phù hợp.
                   </div>
                 ) : (
-                  currentOrderList.map((order) => (
+                  filteredFnbStock.map((item) => (
                     <div
-                      key={order.id}
-                      className="p-2.5 rounded-xl bg-white border border-slate-200/80 text-xs flex items-center justify-between"
+                      key={item.id}
+                      className="p-3 rounded-xl border border-slate-200 hover:border-emerald-500 bg-white flex items-center justify-between gap-3 transition-all"
                     >
-                      <div className="pr-2 max-w-[130px]">
-                        <span className="font-semibold text-slate-800 block truncate">
-                          {order.name}
-                        </span>
-                        <span className="text-[11px] text-emerald-700 font-bold font-mono">
-                          {(order.price * order.quantity).toLocaleString("vi-VN")}đ
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-slate-900">{item.name}</span>
+                          {item.stockQuantity <= 0 ? (
+                            <Tag color="error" className="!text-[9px] !px-1.5 !py-0 !border-0">
+                              HẾT HÀNG
+                            </Tag>
+                          ) : item.stockQuantity < 10 ? (
+                            <Tag color="warning" className="!text-[9px] !px-1.5 !py-0 !border-0">
+                              Còn {item.stockQuantity}
+                            </Tag>
+                          ) : (
+                            <Tag
+                              color="default"
+                              className="!text-[9px] !px-1.5 !py-0 !border-0 !bg-slate-100"
+                            >
+                              Còn {item.stockQuantity}
+                            </Tag>
+                          )}
+                        </div>
+                        <span className="text-xs font-bold text-emerald-600 block mt-0.5 font-mono">
+                          {item.price.toLocaleString("vi-VN")}đ
                         </span>
                       </div>
 
-                      <Space size={4} align="center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateOrderItemQty(order.id, -1)}
-                          className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-slate-300 !text-slate-700"
-                        >
-                          <MinusOutlined className="text-xs" />
-                        </Button>
-                        <span className="font-bold text-xs w-5 text-center font-mono">
-                          {order.quantity}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateOrderItemQty(order.id, 1)}
-                          className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-emerald-300 !bg-emerald-50/50 !text-emerald-800"
-                        >
-                          <PlusOutlined className="text-xs" />
-                        </Button>
-                      </Space>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={item.stockQuantity <= 0}
+                        onClick={() => handleAddFnbItem(item)}
+                        leftIcon={<PlusOutlined />}
+                        className="!text-xs !h-8 !px-3 !rounded-xl !border-emerald-300 !text-emerald-800 hover:!bg-emerald-50"
+                      >
+                        Thêm
+                      </Button>
                     </div>
                   ))
                 )}
               </div>
             </div>
 
-            {/* Total & Submit */}
-            <div className="pt-3 border-t border-slate-200 mt-3 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-600">Tổng tiền đồ uống & món:</span>
-                <span className="text-base text-emerald-700 font-black font-mono">
-                  {currentOrderList
-                    .reduce((acc, cur) => acc + cur.price * cur.quantity, 0)
-                    .toLocaleString("vi-VN")}
-                  đ
+            {/* Right: New Order Draft Cart */}
+            <div className="md:col-span-5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
+                  <span className="text-xs font-bold text-slate-800">Món mới chuẩn bị thêm:</span>
+                  <span className="text-xs font-mono text-slate-500">
+                    {newOrderList.length} loại
+                  </span>
+                </div>
+
+                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                  {newOrderList.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-400">
+                      Chưa chọn món mới nào. Bấm &quot;Thêm&quot; từ thực đơn bên trái.
+                    </div>
+                  ) : (
+                    newOrderList.map((order) => (
+                      <div
+                        key={order.id}
+                        className="p-2.5 rounded-xl bg-white border border-slate-200/80 text-xs flex items-center justify-between gap-2"
+                      >
+                        <div className="flex-1 min-w-0 pr-1">
+                          <span
+                            className="font-semibold text-slate-800 block truncate"
+                            title={order.name}
+                          >
+                            {order.name}
+                          </span>
+                          <span className="text-[11px] text-emerald-700 font-bold font-mono">
+                            {(order.price * order.quantity).toLocaleString("vi-VN")}đ
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Space size={3} align="center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUpdateNewOrderItemQty(order.id, -1)}
+                              className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-slate-300 !text-slate-700 hover:!border-slate-400"
+                            >
+                              <MinusOutlined className="text-xs" />
+                            </Button>
+                            <span className="font-bold text-xs w-5 text-center font-mono">
+                              {order.quantity}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUpdateNewOrderItemQty(order.id, 1)}
+                              className="!h-7 !w-7 !p-0 !min-w-0 !rounded-lg !border-emerald-300 !bg-emerald-50/50 !text-emerald-800 hover:!bg-emerald-100"
+                            >
+                              <PlusOutlined className="text-xs" />
+                            </Button>
+                          </Space>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNewOrderItem(order.id)}
+                            title="Bỏ món này khỏi giỏ"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors ml-1 cursor-pointer"
+                          >
+                            <DeleteOutlined className="text-xs" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Total & Submit */}
+              <div className="pt-3 border-t border-slate-200 mt-3 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-600">Tổng tiền thêm mới:</span>
+                  <span className="text-base text-emerald-700 font-black font-mono">
+                    {newOrderList
+                      .reduce((acc, cur) => acc + cur.price * cur.quantity, 0)
+                      .toLocaleString("vi-VN")}
+                    đ
+                  </span>
+                </div>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleConfirmAddFnbOrder}
+                  loading={saving}
+                  disabled={loading || newOrderList.length === 0}
+                  className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold text-xs !h-9 shadow-xs"
+                >
+                  Xác Nhận Thêm Món ({newOrderList.reduce((acc, cur) => acc + cur.quantity, 0)} món)
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Tab: Món Đang Phục Vụ & Hủy Món */
+          <div className="py-2 space-y-4">
+            <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-emerald-800 font-medium block">
+                  Tổng tiền món đang phục vụ trên bàn:
+                </span>
+                <span className="text-base font-black text-emerald-700 font-mono">
+                  {activeFnbTotal.toLocaleString("vi-VN")}đ
+                </span>
+              </div>
+              <Tag
+                color="green"
+                className="!font-bold font-mono !text-xs !px-2.5 !py-1 !rounded-lg !border-emerald-300 !bg-emerald-100/70 !text-emerald-800"
+              >
+                {activeServedOrders.length} loại • {activeServedOrders.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0)} món
+              </Tag>
+            </div>
+
+            {/* List active items */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-800 block">
+                Danh sách món đang phục vụ ({activeServedOrders.length} loại • {activeServedOrders.reduce((sum, i) => sum + i.quantity, 0)} món):
+              </span>
+
+              {activeServedOrders.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  Bàn hiện chưa có món nào đang phục vụ. Bấm tab &quot;Gọi Thêm Món&quot; để thêm.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {activeServedOrders.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 transition-all flex items-center justify-between gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900">{item.name}</span>
+                          <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !border-0 font-medium">
+                            Đang dùng x{item.quantity}
+                          </Tag>
+                          {item.originTableName && (
+                            <Tag color="purple" className="!text-[10px] !px-1.5 !py-0 !border-0 font-medium">
+                              Gộp từ {item.originTableName}
+                            </Tag>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5">
+                          <span>
+                            Đơn giá:{" "}
+                            <strong className="text-slate-700 font-mono">
+                              {item.price.toLocaleString("vi-VN")}đ
+                            </strong>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            Thành tiền:{" "}
+                            <strong className="text-emerald-700 font-mono">
+                              {(item.price * item.quantity).toLocaleString("vi-VN")}đ
+                            </strong>
+                          </span>
+                          {item.orderTime && (
+                            <>
+                              <span>•</span>
+                              <span>Gọi lúc: {item.orderTime}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenCancelModal(item)}
+                        leftIcon={<RollbackOutlined />}
+                        className="!text-xs !h-8 !px-3 !rounded-xl !border-rose-300 !text-rose-700 hover:!bg-rose-50"
+                      >
+                        Trả / Hủy
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* List cancelled items history */}
+            {cancelledOrders.length > 0 && (
+              <div className="pt-3 border-t border-slate-200 space-y-2">
+                <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                  <HistoryOutlined />
+                  Lịch sử món đã hủy / trả lại ({cancelledOrders.length} món):
+                </span>
+
+                <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                  {cancelledOrders.map((cItem, idx) => (
+                    <div
+                      key={`cancel-${cItem.id}-${idx}`}
+                      className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between text-slate-500"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-700 line-through">
+                            {cItem.name}
+                          </span>
+                          <Tag color="error" className="!text-[9px] !px-1.5 !py-0 !border-0 font-bold">
+                            Đã hủy x{cItem.cancelledQuantity || cItem.quantity}
+                          </Tag>
+                          {cItem.stockRestored === false ? (
+                            <Tag color="warning" className="!text-[9px] !px-1.5 !py-0 !border-0 font-medium">
+                              Hao hụt (Không nhập kho)
+                            </Tag>
+                          ) : (
+                            <Tag color="cyan" className="!text-[9px] !px-1.5 !py-0 !border-0 font-medium">
+                              Đã hoàn kho
+                            </Tag>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Lý do: <strong className="text-slate-700">{cItem.cancelReason || "Khách trả lại"}</strong>
+                          {cItem.cancelledBy && ` • Bởi ${cItem.cancelledBy}`}
+                          {cItem.cancelledAt &&
+                            ` • Lúc ${new Date(cItem.cancelledAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`}
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono line-through text-slate-400">
+                        {((cItem.price * (cItem.cancelledQuantity || cItem.quantity))).toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Xác Nhận Hủy Món (SCRUM-874, SCRUM-875) */}
+      <Modal
+        open={cancelModalVisible}
+        onCancel={() => setCancelModalVisible(false)}
+        footer={null}
+        width={460}
+        title={
+          <Space align="center" size={8}>
+            <RollbackOutlined className="text-rose-600 text-base" />
+            <span className="font-bold text-slate-900 text-sm">
+              Xác Nhận Trả / Hủy Món
+            </span>
+          </Space>
+        }
+      >
+        {cancellingItem && (
+          <div className="py-2 space-y-4">
+            {/* Item Info Card */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="font-bold text-xs text-slate-900 block">{cancellingItem.name}</span>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  Đang phục vụ: {cancellingItem.quantity} • Đơn giá: {cancellingItem.price.toLocaleString("vi-VN")}đ
+                </span>
+              </div>
+              <Tag color="default" className="!font-bold font-mono !text-xs !border-slate-300">
+                {(cancellingItem.price * cancelQty).toLocaleString("vi-VN")}đ
+              </Tag>
+            </div>
+
+            {/* Quantity Selector */}
+            <div>
+              <label className="text-xs font-bold text-slate-800 block mb-1.5">
+                Số lượng hủy / trả lại:
+              </label>
+              {cancellingItem.quantity > 1 ? (
+                <div className="flex items-center gap-3">
+                  <Space size={6} align="center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={cancelQty <= 1}
+                      onClick={() => setCancelQty((q) => Math.max(1, q - 1))}
+                      className="!h-8 !w-8 !p-0 !rounded-lg"
+                    >
+                      <MinusOutlined className="text-xs" />
+                    </Button>
+                    <span className="font-bold text-sm w-8 text-center font-mono text-slate-900">
+                      {cancelQty}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={cancelQty >= cancellingItem.quantity}
+                      onClick={() => setCancelQty((q) => Math.min(cancellingItem.quantity, q + 1))}
+                      className="!h-8 !w-8 !p-0 !rounded-lg"
+                    >
+                      <PlusOutlined className="text-xs" />
+                    </Button>
+                  </Space>
+                  <span className="text-xs text-slate-500">
+                    (Tối đa {cancellingItem.quantity} món)
+                  </span>
+                </div>
+              ) : (
+                <Tag color="blue" className="!font-bold !text-xs !px-2.5 !py-0.5 !rounded-lg">
+                  1 món
+                </Tag>
+              )}
+            </div>
+
+            {/* Quick Reason selector: 6 balanced buttons (3 rows x 2 cols) */}
+            <div>
+              <label className="text-xs font-bold text-slate-800 block mb-1.5">
+                Lý do hủy món (Chọn nhanh):
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  "Khách đổi ý / Chưa dùng",
+                  "Khách đổi sang món khác",
+                  "Pha nhầm / Bưng nhầm bàn",
+                  "Món lỗi / Hỏng / Đổ vỡ",
+                  "Quán hết món / Thiếu đồ",
+                  "Khác",
+                ].map((reasonOption) => (
+                  <button
+                    key={reasonOption}
+                    type="button"
+                    onClick={() => handleSelectCancelReason(reasonOption)}
+                    className={clsx(
+                      "p-2 rounded-xl text-xs text-left border transition-all cursor-pointer",
+                      cancelReason === reasonOption
+                        ? "bg-rose-50 border-rose-400 text-rose-800 font-bold shadow-xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-slate-300",
+                    )}
+                  >
+                    {reasonOption}
+                  </button>
+                ))}
+              </div>
+
+              {cancelReason === "Khác" && (
+                <div className="mt-2">
+                  <Input
+                    placeholder="Gõ lý do cụ thể..."
+                    value={customCancelReason}
+                    onChange={(e) => setCustomCancelReason(e.target.value)}
+                    size="small"
+                    className="!rounded-lg !text-xs"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Consolidated Summary & Stock Restore Card */}
+            <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                <span className="text-xs font-semibold text-slate-700">Khấu trừ tiền trên hóa đơn bàn:</span>
+                <span className="text-sm font-black text-rose-600 font-mono">
+                  -{(cancellingItem.price * cancelQty).toLocaleString("vi-VN")}đ
                 </span>
               </div>
 
+              <div
+                className="flex items-start justify-between gap-3 cursor-pointer select-none"
+                onClick={() => setRestoreStock((s) => !s)}
+              >
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">
+                    {restoreStock ? "✓ Hoàn trả vào tồn kho hàng hóa" : "✕ Không nhập kho (Hủy hao hụt)"}
+                  </span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5">
+                    {restoreStock
+                      ? `Cộng trả lại +${cancelQty} vào kho (Dành cho đồ đóng lon / nguyên gói chưa khui)`
+                      : `Không cộng kho (Dành cho đồ pha chế / nấu chín đã làm hoặc món hỏng/đổ bỏ)`}
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={restoreStock}
+                  onChange={(e) => setRestoreStock(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 accent-emerald-600 rounded cursor-pointer shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <Button
-                variant="primary"
+                variant="outline"
                 size="sm"
-                onClick={handleConfirmFnbOrder}
+                onClick={() => setCancelModalVisible(false)}
+                className="!rounded-xl !text-xs"
+              >
+                Bỏ qua
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleConfirmCancelItem}
                 loading={saving}
                 disabled={loading}
-                className="!w-full !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold text-xs !h-9 shadow-xs"
+                className="!rounded-xl font-bold !text-xs !px-4"
               >
-                Xác Nhận Thêm Món ({currentOrderList.reduce((acc, cur) => acc + cur.quantity, 0)}{" "}
-                phần)
+                Xác Nhận Hủy Món
               </Button>
             </div>
           </div>
-        </div>
+        )}
       </Modal>
 
       <Modal
         open={checkoutModalVisible}
         onCancel={() => setCheckoutModalVisible(false)}
         footer={null}
-        width={560}
+        width={620}
         title={
           <Space align="center" size={8}>
             <DollarOutlined className="text-emerald-600 text-lg" />
@@ -2071,129 +3120,85 @@ export const PosTableFloorPage: React.FC = () => {
           </Space>
         }
       >
-        {selectedTable && selectedTable.currentSession && (
-          <div className="py-2 space-y-4 text-xs">
-            {/* Breakdown Bill Card */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="font-bold text-slate-800 text-sm">{selectedTable.name}</span>
-                <span className="font-mono text-emerald-700 font-bold">
-                  {calculatePlayingDetails(selectedTable).formattedTime}
-                </span>
-              </div>
+        {selectedTable && selectedTable.currentSession && (() => {
+          const playingDetailsObj = calculatePlayingDetails(selectedTable);
+          const fnbTotal = (selectedTable.currentSession.orders || []).reduce(
+            (sum, item) =>
+              item.status !== "cancelled"
+                ? sum + (Number(item.price) || 0) * (Number(item.quantity) || 0)
+                : sum,
+            0,
+          );
+          const subtotal = playingDetailsObj.cost + fnbTotal;
+          const memberDiscountAmount =
+            !appliedVoucher && discountPercent > 0
+              ? Math.round(subtotal * (discountPercent / 100))
+              : 0;
+          const voucherDiscountAmount = appliedVoucher ? appliedVoucher.discountAmount : 0;
+          const totalDiscount = memberDiscountAmount + voucherDiscountAmount;
+          const depositAmount = selectedTable.currentSession.deposit || 0;
+          const finalAmount = Math.max(0, subtotal - totalDiscount - depositAmount);
+          const earnedPoints = Math.floor(finalAmount / 10000);
 
-              <div className="flex justify-between text-slate-600">
-                <span>Khách hàng:</span>
-                <strong className="text-slate-900">
-                  {loyaltyCustomer
-                    ? loyaltyCustomer.name
-                    : selectedTable.currentSession.customerName || "Khách lẻ"}
-                </strong>
-              </div>
+          return (
+            <div className="py-2 space-y-3.5 text-xs">
+              {/* Card Tổng quan hóa đơn */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                {/* Header bàn & thời gian */}
+                <div className="flex justify-between items-center pb-2.5 border-b border-slate-200">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-900 text-sm whitespace-nowrap">{selectedTable.name}</span>
+                    <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
+                      • {selectedTable.type === "pool" ? "Bàn Lỗ (Pool)" : selectedTable.type === "carom" ? "Bàn Carom" : "Bàn Snooker"}
+                    </span>
+                  </div>
+                  <span className="font-mono text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 whitespace-nowrap shrink-0">
+                    ⏱ {playingDetailsObj.formattedTime} ({playingDetailsObj.minutes} phút)
+                  </span>
+                </div>
 
-              <div className="flex justify-between text-slate-600">
-                <span>Tiền giờ chơi ({calculatePlayingDetails(selectedTable).minutes} phút):</span>
-                <strong className="text-slate-900 font-mono">
-                  {calculatePlayingDetails(selectedTable).cost.toLocaleString("vi-VN")}đ
-                </strong>
-              </div>
-
-              {/* Split Time Rate Breakdown - Collapsible */}
-              {calculatePlayingDetails(selectedTable).timeSlots &&
-                calculatePlayingDetails(selectedTable).timeSlots.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-indigo-50/40 border border-indigo-100 space-y-1.5">
-                    <div
-                      className="text-[11px] font-bold text-slate-700 flex items-center justify-between cursor-pointer select-none"
-                      onClick={() => setShowTimeSlots(!showTimeSlots)}
-                    >
-                      <span className="flex items-center gap-1.5 text-indigo-900">
-                        <ClockCircleOutlined className="text-indigo-600" />
-                        Chi tiết tính tiền theo khung giờ
-                        {calculatePlayingDetails(selectedTable).isCrossed && (
-                          <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">
-                            ⚡ {calculatePlayingDetails(selectedTable).timeSlots.length} khung giờ
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800">
-                        {showTimeSlots ? "Thu gọn ▴" : "Xem chi tiết ▾"}
-                      </span>
-                    </div>
-
-                    {showTimeSlots && (
-                      <div className="max-h-40 overflow-y-auto space-y-1 pt-1.5 border-t border-indigo-100 pr-1">
-                        {calculatePlayingDetails(selectedTable).timeSlots.map((slot, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between text-[11px] text-slate-600 bg-white/80 px-2 py-1 rounded"
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                              <span className="font-semibold text-slate-800 truncate">
-                                {slot.tierName}
-                              </span>
-                              <span className="text-slate-400 font-mono text-[10px] shrink-0">
-                                ({slot.startTime} – {slot.endTime})
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-slate-500 font-mono text-[10px]">
-                                {slot.minutes}p × {slot.pricePerHour.toLocaleString()}đ
-                              </span>
-                              <span className="font-mono font-bold text-slate-900">
-                                {slot.cost.toLocaleString()}đ
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                {/* KHỐI 1: KHÁCH HÀNG & HỘI VIÊN */}
+                <div className="p-3 rounded-xl bg-white border border-emerald-200/90 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5 whitespace-nowrap">
+                      <UserOutlined className="text-emerald-600" />
+                      Khách hàng & Hội viên:
+                    </span>
+                    {loyaltyCustomer ? (
+                      <Tag color="gold" className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold !m-0 whitespace-nowrap">
+                        ⭐ HỘI VIÊN VIP (-10% Giờ)
+                      </Tag>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">Khách vãng lai</span>
                     )}
                   </div>
-                )}
 
-              {/* Loyalty Phone & Member Lookup Card */}
-              <div className="p-3 rounded-xl bg-white border border-emerald-200/90 shadow-2xs space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                    <UserOutlined className="text-emerald-600" />
-                    Tích Điểm & Hội Viên:
-                  </span>
-                  {loyaltyCustomer ? (
-                    <Tag color="gold" className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold !m-0">
-                      ⭐ HỘI VIÊN VIP (-10% Giờ)
-                    </Tag>
-                  ) : (
-                    <span className="text-[10px] text-slate-400">Khách vãng lai</span>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Nhập SĐT khách hàng tích điểm..."
-                    value={checkoutPhone}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCheckoutPhone(val);
-                      // Khi xóa hoặc đổi số khác: LẬP TỨC XÓA TÊN NGƯỜI CŨ!
-                      if (loyaltyCustomer && val.trim() !== loyaltyCustomer.phone) {
-                        setLoyaltyCustomer(null);
-                        setDiscountPercent(0);
-                      }
-                    }}
-                    onPressEnter={handleSearchLoyaltyCustomer}
-                    prefix={<PhoneOutlined className="text-slate-400 text-xs" />}
-                    className="!h-9 !rounded-xl !text-xs font-mono"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSearchLoyaltyCustomer}
-                    loading={isSearchingMember}
-                    className="!h-9 !px-3 !rounded-xl !text-xs font-bold shrink-0"
-                  >
-                    Áp dụng
-                  </Button>
-                </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nhập SĐT khách hàng tích điểm..."
+                      value={checkoutPhone}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCheckoutPhone(val);
+                        if (loyaltyCustomer && val.trim() !== loyaltyCustomer.phone) {
+                          setLoyaltyCustomer(null);
+                          setDiscountPercent(0);
+                        }
+                      }}
+                      onPressEnter={handleSearchLoyaltyCustomer}
+                      prefix={<PhoneOutlined className="text-slate-400 text-xs" />}
+                      className="!h-9 !rounded-xl !text-xs font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSearchLoyaltyCustomer}
+                      loading={isSearchingMember}
+                      className="!h-9 !px-3 !rounded-xl !text-xs font-bold shrink-0"
+                    >
+                      Áp dụng
+                    </Button>
+                  </div>
 
                 {loyaltyCustomer ? (
                   <div className="space-y-2">
@@ -2208,347 +3213,425 @@ export const PosTableFloorPage: React.FC = () => {
                         )}
                       </span>
                       <span className="font-bold text-emerald-700 font-mono">
-                        Ví: {loyaltyCustomer.walletBalance.toLocaleString("vi-VN")}đ
+                        +100 Điểm (SPA Loyalty)
                       </span>
                     </div>
 
-                    {/* Customer Available Vouchers in Wallet */}
-                    {loyaltyCustomer.availableVouchers && loyaltyCustomer.availableVouchers.length > 0 && (
-                      <div className="p-2 rounded-xl bg-gradient-to-r from-emerald-50/70 to-teal-50/60 border border-emerald-200/90 space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
-                          <span className="flex items-center gap-1.5">
-                            <GiftOutlined className="text-emerald-600" />
-                            Voucher trong ví của khách ({loyaltyCustomer.availableVouchers.length}):
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-normal">
-                            Bấm để áp dụng nhanh
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
-                          {loyaltyCustomer.availableVouchers.map((v) => {
-                            const isApplied = appliedVoucher?.code === v.code;
-                            return (
-                              <button
-                                key={v.code}
-                                type="button"
-                                onClick={() => void handleSelectCustomerVoucher(v.code)}
-                                title={v.description || v.code}
-                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer select-none text-left ${
-                                  isApplied
-                                    ? "bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold"
-                                    : "bg-white border-emerald-200 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-50"
-                                }`}
-                              >
-                                <span className="font-bold">{v.code}</span>
-                                <span
-                                  className={`text-[10px] ${
-                                    isApplied ? "text-emerald-100" : "text-emerald-700 font-semibold"
+                      {/* Customer Available Vouchers in Wallet */}
+                      {loyaltyCustomer.availableVouchers && loyaltyCustomer.availableVouchers.length > 0 && (
+                        <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-50/70 to-teal-50/60 border border-emerald-200/90 space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                            <span className="flex items-center gap-1.5">
+                              <GiftOutlined className="text-emerald-600" />
+                              Voucher trong ví của khách ({loyaltyCustomer.availableVouchers.length}):
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-normal">
+                              Bấm để áp dụng nhanh
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {loyaltyCustomer.availableVouchers.map((v) => {
+                              const isApplied = appliedVoucher?.code === v.code;
+                              return (
+                                <button
+                                  key={v.code}
+                                  type="button"
+                                  onClick={() => void handleSelectCustomerVoucher(v.code)}
+                                  title={v.description || v.code}
+                                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer select-none text-left ${
+                                    isApplied
+                                      ? "bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold"
+                                      : "bg-white border-emerald-200 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-50"
                                   }`}
                                 >
-                                  ({v.discountType === "percent" ? `-${v.discountValue}%` : `-${(v.discountValue / 1000).toLocaleString("vi-VN")}k`})
-                                </span>
-                                {isApplied ? (
-                                  <CheckCircleOutlined className="text-white text-xs ml-0.5" />
-                                ) : (
-                                  <span className="text-[9px] text-slate-400 font-sans">
-                                    [Dùng]
+                                  <span className="font-bold">{v.code}</span>
+                                  <span
+                                    className={`text-[10px] ${
+                                      isApplied ? "text-emerald-100" : "text-emerald-700 font-semibold"
+                                    }`}
+                                  >
+                                    ({v.discountType === "percent" ? `-${v.discountValue}%` : `-${(v.discountValue / 1000).toLocaleString("vi-VN")}k`})
                                   </span>
-                                )}
-                              </button>
-                            );
-                          })}
+                                  {isApplied ? (
+                                    <CheckCircleOutlined className="text-white text-xs ml-0.5" />
+                                  ) : (
+                                    <span className="text-[9px] text-slate-400 font-sans">
+                                      [Dùng]
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
+                      )}
+                    </div>
+                  ) : checkoutPhone.trim().length >= 8 ? (
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                      <span>Chưa xác thực hội viên cho số <strong>{checkoutPhone}</strong></span>
+                      <button
+                        type="button"
+                        onClick={handleSearchLoyaltyCustomer}
+                        className="text-emerald-600 font-bold hover:underline cursor-pointer"
+                      >
+                        Bấm để tra cứu
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* KHỐI 2: BẢNG KÊ DỊCH VỤ SỬ DỤNG (GIỜ CHƠI + ĐỒ UỐNG LIỀN MẠCH) */}
+                <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
+                  <span className="font-bold text-xs text-slate-800 block">
+                    Bảng kê dịch vụ sử dụng:
+                  </span>
+
+                  {/* 1. Tiền giờ chơi */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-slate-700">
+                      <span className="flex items-center gap-1.5">
+                        <ClockCircleOutlined className="text-indigo-600" />
+                        Tiền giờ chơi ({playingDetailsObj.minutes} phút):
+                      </span>
+                      <strong className="text-slate-900 font-mono text-sm">
+                        {playingDetailsObj.cost.toLocaleString("vi-VN")}đ
+                      </strong>
+                    </div>
+
+                    {selectedTable.currentSession.carriedCost > 0 && (
+                      <div className="flex justify-between items-center text-[11px] text-purple-700 bg-purple-50/70 px-2 py-1 rounded-lg border border-purple-100">
+                        <span className="flex items-center gap-1 font-medium">
+                          <SwapOutlined className="text-purple-600" />
+                          Tiền giờ chuyển / gộp từ bàn trước:
+                        </span>
+                        <strong className="font-mono font-bold">
+                          +{selectedTable.currentSession.carriedCost.toLocaleString("vi-VN")}đ
+                        </strong>
+                      </div>
+                    )}
+
+                    {/* Collapsible Split Time Slots */}
+                    {playingDetailsObj.timeSlots && playingDetailsObj.timeSlots.length > 0 && (
+                      <div className="p-2 rounded-xl bg-indigo-50/50 border border-indigo-100 space-y-1">
+                        <div
+                          className="text-[11px] font-bold text-slate-700 flex items-center justify-between cursor-pointer select-none"
+                          onClick={() => setShowTimeSlots(!showTimeSlots)}
+                        >
+                          <span className="flex items-center gap-1.5 text-indigo-900">
+                            ⚡ Chi tiết khung giờ
+                            {playingDetailsObj.isCrossed && (
+                              <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded font-bold">
+                                {playingDetailsObj.timeSlots.length} khung
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800">
+                            {showTimeSlots ? "Thu gọn ▴" : "Xem chi tiết ▾"}
+                          </span>
+                        </div>
+
+                        {showTimeSlots && (
+                          <div className="max-h-36 overflow-y-auto space-y-1 pt-1 border-t border-indigo-100 pr-1">
+                            {playingDetailsObj.timeSlots.map((slot, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between text-[10.5px] text-slate-600 bg-white/90 px-2 py-1 rounded"
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                  <span className="font-semibold text-slate-800 truncate">
+                                    {slot.tierName}
+                                  </span>
+                                  <span className="text-slate-400 font-mono text-[10px] shrink-0">
+                                    ({slot.startTime} – {slot.endTime})
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-slate-500 font-mono text-[10px]">
+                                    {slot.minutes}p × {slot.pricePerHour.toLocaleString()}đ
+                                  </span>
+                                  <span className="font-mono font-bold text-slate-900">
+                                    {slot.cost.toLocaleString()}đ
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                ) : checkoutPhone.trim().length >= 8 ? (
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                    <span>Chưa xác thực hội viên cho số <strong>{checkoutPhone}</strong></span>
-                    <button
-                      type="button"
-                      onClick={handleSearchLoyaltyCustomer}
-                      className="text-emerald-600 font-bold hover:underline cursor-pointer"
-                    >
-                      Bấm để tra cứu
-                    </button>
-                  </div>
-                ) : null}
-              </div>
 
-              {selectedTable.currentSession.orders.length > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Tiền đồ uống & món ({selectedTable.currentSession.orders.length} món):</span>
-                  <strong className="text-slate-900 font-mono">
-                    {selectedTable.currentSession.orders
-                      .reduce((acc, cur) => acc + cur.price * cur.quantity, 0)
-                      .toLocaleString("vi-VN")}
-                    đ
-                  </strong>
-                </div>
-              )}
-
-              {/* Voucher input */}
-              <div className="space-y-1.5 border-t border-slate-200 pt-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-semibold text-slate-700">
-                    {loyaltyCustomer ? "Hoặc nhập/quét mã voucher khác (nếu có):" : "Mã voucher khuyến mãi (nếu có):"}
-                  </label>
-                  {appliedVoucher && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppliedVoucher(null);
-                        setVoucherCode("");
-                        setVoucherError("");
-                        if (loyaltyCustomer) setDiscountPercent(10);
-                      }}
-                      className="text-[10px] text-rose-500 hover:underline cursor-pointer"
-                    >
-                      Gỡ voucher
-                    </button>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    value={voucherCode}
-                    onChange={(event) => {
-                      const val = event.target.value.toUpperCase();
-                      setVoucherCode(val);
-                      setAppliedVoucher(null);
-                      setVoucherError("");
-                      if (loyaltyCustomer) setDiscountPercent(10);
-                    }}
-                    placeholder="NHẬP HOẶC QUÉT MÃ VOUCHER"
-                    disabled={validatingVoucher}
-                    className="uppercase !h-8 !rounded-lg !text-xs font-mono"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void handleValidateVoucher()}
-                    loading={validatingVoucher}
-                    disabled={!voucherCode.trim()}
-                    className="!h-8 !px-3 !rounded-lg !text-xs font-semibold shrink-0"
-                  >
-                    Kiểm tra
-                  </Button>
-                </div>
-                {voucherError && <p className="text-[11px] text-rose-600">{voucherError}</p>}
-                {appliedVoucher && (
-                  <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
-                    <CheckCircleOutlined /> Đã áp dụng {appliedVoucher.code} (-{appliedVoucher.discountAmount.toLocaleString("vi-VN")}đ)
-                  </p>
-                )}
-              </div>
-
-              {(() => {
-                const playingDetailsObj = calculatePlayingDetails(selectedTable);
-                const fnbTotal = selectedTable.currentSession.orders.reduce(
-                  (sum, item) => sum + item.price * item.quantity,
-                  0,
-                );
-                const subtotal = playingDetailsObj.cost + fnbTotal;
-                const memberDiscountAmount =
-                  !appliedVoucher && discountPercent > 0
-                    ? Math.round(subtotal * (discountPercent / 100))
-                    : 0;
-                const voucherDiscountAmount = appliedVoucher ? appliedVoucher.discountAmount : 0;
-                const totalDiscount = memberDiscountAmount + voucherDiscountAmount;
-                const depositAmount = selectedTable.currentSession.deposit || 0;
-                const finalAmount = Math.max(0, subtotal - totalDiscount - depositAmount);
-
-                return (
-                  <>
-                    <div className="space-y-2 pt-2 border-t-2 border-slate-200">
-                      <div className="bg-slate-100/80 p-3 rounded-xl space-y-1.5 text-[11px]">
-                        <div className="flex justify-between text-slate-600">
-                          <span>Tiền giờ chơi:</span>
-                          <span className="font-mono font-medium text-slate-800">
-                            {playingDetailsObj.cost.toLocaleString("vi-VN")}đ
-                          </span>
-                        </div>
-                        {fnbTotal > 0 && (
-                          <div className="flex justify-between text-slate-600">
-                            <span>Đồ uống & dịch vụ ({selectedTable.currentSession.orders.length} món):</span>
-                            <span className="font-mono font-medium text-slate-800">
-                              {fnbTotal.toLocaleString("vi-VN")}đ
-                            </span>
-                          </div>
-                        )}
-                        {memberDiscountAmount > 0 && (
-                          <div className="flex justify-between text-emerald-700 font-semibold">
-                            <span>Ưu đãi Hội viên VIP (-{discountPercent}%):</span>
-                            <span className="font-mono">
-                              -{memberDiscountAmount.toLocaleString("vi-VN")}đ
-                            </span>
-                          </div>
-                        )}
-                        {voucherDiscountAmount > 0 && (
-                          <div className="flex justify-between text-emerald-700 font-semibold">
-                            <span>Giảm giá voucher ({appliedVoucher?.code}):</span>
-                            <span className="font-mono">
-                              -{voucherDiscountAmount.toLocaleString("vi-VN")}đ
-                            </span>
-                          </div>
-                        )}
-                        {depositAmount > 0 && (
-                          <div className="flex justify-between text-amber-700 font-semibold">
-                            <span>Khấu trừ tiền cọc:</span>
-                            <span className="font-mono">
-                              -{depositAmount.toLocaleString("vi-VN")}đ
-                            </span>
-                          </div>
-                        )}
-                        <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-bold text-slate-900">
-                          <span>TỔNG CỘNG THANH TOÁN:</span>
-                          <span className="text-xl font-black text-emerald-700 font-mono">
-                            {finalAmount.toLocaleString("vi-VN")}đ
-                          </span>
-                        </div>
-                      </div>
-
-                      {depositAmount > 0 && (
-                        <p className="text-[11px] text-slate-500 italic">
-                          💡 Tiền cọc {depositAmount.toLocaleString("vi-VN")}đ đã được khấu trừ trực tiếp.{" "}
-                          {finalAmount === 0 && depositAmount > subtotal - totalDiscount
-                            ? `Thừa ${(depositAmount - (subtotal - totalDiscount)).toLocaleString("vi-VN")}đ hoàn lại cho khách.`
-                            : ""}
-                        </p>
-                      )}
+                  {/* 2. Tiền đồ uống & dịch vụ */}
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div className="flex justify-between items-center text-slate-700">
+                      <span className="flex items-center gap-1.5">
+                        <CoffeeOutlined className="text-amber-600" />
+                        Tiền đồ uống & dịch vụ (
+                        {(selectedTable.currentSession.orders || []).filter(
+                          (o) => o.status !== "cancelled",
+                        ).length}{" "}
+                        món):
+                      </span>
+                      <strong className="text-slate-900 font-mono text-sm">
+                        {fnbTotal.toLocaleString("vi-VN")}đ
+                      </strong>
                     </div>
 
-                    {/* Payment Method Selector */}
-                    <div className="pt-2">
-                      <label className="block text-xs font-bold text-slate-800 mb-2">
-                        Phương thức thanh toán:
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <Button
-                          variant={paymentMethod === "cash" ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => setPaymentMethod("cash")}
-                          leftIcon={<DollarOutlined />}
-                          className={`!h-12 !flex-col !gap-1 !rounded-xl ${
-                            paymentMethod === "cash"
-                              ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
-                              : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                    {(selectedTable.currentSession.orders || []).filter(
+                      (o) => o.status !== "cancelled",
+                    ).length > 0 && (
+                      <div className="max-h-32 overflow-y-auto space-y-1 pr-1 bg-slate-50/80 p-2 rounded-xl border border-slate-100">
+                        {(selectedTable.currentSession.orders || [])
+                          .filter((o) => o.status !== "cancelled")
+                          .map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between text-[11px] text-slate-600"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span>
+                                  {item.name || "Món F&B"}{" "}
+                                  <strong className="text-slate-800">
+                                    x{Number(item.quantity) || 1}
+                                  </strong>
+                                </span>
+                                {item.originTableName && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 font-bold border border-purple-200">
+                                    {item.originTableName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="font-mono text-slate-900 font-medium">
+                                {(
+                                  (Number(item.price) || 0) * (Number(item.quantity) || 1)
+                                ).toLocaleString("vi-VN")}
+                                đ
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* KHỐI 3: BẢNG TÍNH TỔNG TIỀN & GIẢM TRỪ */}
+                <div className="bg-slate-100/90 p-3.5 rounded-xl space-y-1.5 text-[11px] border border-slate-200">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Tổng tiền dịch vụ:</span>
+                    <span className="font-mono font-medium text-slate-800">
+                      {subtotal.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                  {memberDiscountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-semibold">
+                      <span>Ưu đãi Hội viên VIP (-{discountPercent}%):</span>
+                      <span className="font-mono">
+                        -{memberDiscountAmount.toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+                  )}
+                  {voucherDiscountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-700 font-semibold items-center">
+                      <span>Voucher hội viên ({appliedVoucher?.code}):</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono">
+                          -{voucherDiscountAmount.toLocaleString("vi-VN")}đ
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppliedVoucher(null);
+                            setVoucherCode("");
+                            if (loyaltyCustomer) setDiscountPercent(10);
+                          }}
+                          className="text-[10px] text-rose-500 hover:underline cursor-pointer font-sans"
+                        >
+                          [Gỡ]
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {depositAmount > 0 && (
+                    <div className="flex justify-between text-amber-700 font-semibold">
+                      <span>Khấu trừ tiền cọc:</span>
+                      <span className="font-mono">
+                        -{depositAmount.toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-bold text-slate-900">
+                    <span>TỔNG CỘNG THANH TOÁN:</span>
+                    <span className="text-xl font-black text-emerald-700 font-mono">
+                      {finalAmount.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                </div>
+
+                {depositAmount > 0 && (
+                  <p className="text-[11px] text-slate-500 italic">
+                    💡 Tiền cọc {depositAmount.toLocaleString("vi-VN")}đ đã được khấu trừ trực tiếp.{" "}
+                    {finalAmount === 0 && depositAmount > subtotal - totalDiscount
+                      ? `Thừa ${(depositAmount - (subtotal - totalDiscount)).toLocaleString("vi-VN")}đ hoàn lại cho khách.`
+                      : ""}
+                  </p>
+                )}
+
+                {/* KHỐI 4: PHƯƠNG THỨC THANH TOÁN */}
+                <div className="pt-1">
+                  <label className="block text-xs font-bold text-slate-800 mb-2">
+                    Phương thức thanh toán:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <Button
+                      variant={paymentMethod === "cash" ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => setPaymentMethod("cash")}
+                      leftIcon={<DollarOutlined />}
+                      className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                        paymentMethod === "cash"
+                          ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
+                          : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">Tiền Mặt</span>
+                    </Button>
+
+                    <Button
+                      variant={paymentMethod === "vnpay" ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => setPaymentMethod("vnpay")}
+                      leftIcon={<QrcodeOutlined />}
+                      className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                        paymentMethod === "vnpay"
+                          ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
+                          : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">Chuyển Khoản QR</span>
+                    </Button>
+
+                    <Button
+                      variant={paymentMethod === "split" ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => setPaymentMethod("split")}
+                      leftIcon={<SwapOutlined />}
+                      className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                        paymentMethod === "split"
+                          ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
+                          : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">Tiền Mặt + QR</span>
+                    </Button>
+
+                    <Button
+                      variant={paymentMethod === "member_balance" ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => setPaymentMethod("member_balance")}
+                      leftIcon={<UserOutlined />}
+                      className={`!h-12 !flex-col !gap-0.5 !rounded-xl ${
+                        paymentMethod === "member_balance"
+                          ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
+                          : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">Ví Hội Viên</span>
+                      {loyaltyCustomer && loyaltyCustomer.walletBalance !== undefined && (
+                        <span
+                          className={`text-[9px] font-mono ${
+                            paymentMethod === "member_balance"
+                              ? "text-emerald-100 font-semibold"
+                              : "text-emerald-700 font-bold"
                           }`}
                         >
-                          <span className="text-[11px] font-bold">Tiền Mặt</span>
-                        </Button>
+                          {(loyaltyCustomer.walletBalance / 1000).toLocaleString("vi-VN")}k
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                </div>
 
-                        <Button
-                          variant={paymentMethod === "vnpay" ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => setPaymentMethod("vnpay")}
-                          leftIcon={<QrcodeOutlined />}
-                          className={`!h-12 !flex-col !gap-1 !rounded-xl ${
-                            paymentMethod === "vnpay"
-                              ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
-                              : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
-                          }`}
-                        >
-                          <span className="text-[11px] font-bold">Chuyển Khoản QR</span>
-                        </Button>
-
+                {/* Chi tiết theo từng phương thức thanh toán */}
+                {paymentMethod === "cash" && (
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-xs text-slate-800 whitespace-nowrap">
+                        Tiền mặt khách đưa:
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          type="number"
+                          placeholder={finalAmount.toString()}
+                          value={cashReceived !== null ? cashReceived : finalAmount}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCashReceived(val === "" ? null : Number(val));
+                          }}
+                          className="!w-40 !h-9 !text-right font-mono font-bold !text-slate-900 !text-sm"
+                        />
+                        <span className="text-xs font-semibold text-slate-500">đ</span>
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled
-                          title="Cổng quẹt thẻ đang bảo trì"
-                          leftIcon={<SafetyCertificateOutlined />}
-                          className="!h-12 !flex-col !gap-1 !rounded-xl !border-slate-200 !text-slate-400 opacity-50 cursor-not-allowed"
+                          onClick={() => setCashReceived(finalAmount)}
+                          title="Điền đúng số tiền hóa đơn"
+                          className="!h-9 !px-2.5 !rounded-xl !text-xs font-semibold text-emerald-700 border-emerald-300 hover:bg-emerald-50 shrink-0"
                         >
-                          <span className="text-[11px] font-bold">Quẹt Thẻ</span>
-                        </Button>
-
-                        <Button
-                          variant={paymentMethod === "member_balance" ? "primary" : "outline"}
-                          size="sm"
-                          disabled={!loyaltyCustomer}
-                          onClick={() => setPaymentMethod("member_balance")}
-                          title={
-                            loyaltyCustomer
-                              ? "Thanh toán từ số dư ví hội viên"
-                              : "Tra cứu hội viên theo số điện thoại trước"
-                          }
-                          leftIcon={<WalletOutlined />}
-                          className={`!h-12 !flex-col !gap-1 !rounded-xl ${
-                            paymentMethod === "member_balance"
-                              ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
-                              : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
-                          }`}
-                        >
-                          <span className="text-[11px] font-bold">Ví Hội Viên</span>
+                          Đủ tiền
                         </Button>
                       </div>
                     </div>
 
-                    {paymentMethod === "cash" && (
-                      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-slate-800">Tiền khách đưa:</span>
-                          <div className="flex items-center gap-1.5">
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              value={cashReceived !== null ? cashReceived : ""}
-                              onChange={(e) =>
-                                setCashReceived(e.target.value ? Number(e.target.value) : null)
-                              }
-                              className="!w-36 !h-8 !text-right font-mono font-bold !text-slate-900"
-                            />
-                            <span className="text-xs font-semibold text-slate-500">đ</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setCashReceived(finalAmount)}
-                            className="px-2.5 py-1 text-[11px] rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 font-bold hover:bg-emerald-100 transition-colors shadow-2xs"
-                          >
-                            Đủ tiền ({finalAmount.toLocaleString("vi-VN")}đ)
-                          </button>
-                          {[100000, 200000, 500000, 1000000].map((amt) => (
-                            <button
-                              key={amt}
-                              type="button"
-                              onClick={() => setCashReceived(amt)}
-                              className="px-2 py-1 text-[11px] rounded-lg border border-slate-200 bg-white text-slate-700 font-medium hover:border-emerald-400 hover:text-emerald-700 transition-colors font-mono"
-                            >
-                              {(amt / 1000).toLocaleString("vi-VN")}k
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => setCashReceived(null)}
-                            className="px-2 py-1 text-[11px] rounded-lg border border-slate-200 bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
-                          >
-                            Xóa
-                          </button>
-                        </div>
-
-                        {cashReceived !== null && (
-                          <div
-                            className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
-                              cashReceived >= finalAmount
-                                ? "bg-emerald-50/90 border-emerald-200 text-emerald-900"
-                                : "bg-amber-50/90 border-amber-200 text-amber-900"
-                            }`}
-                          >
-                            <span className="font-semibold text-xs">
-                              {cashReceived >= finalAmount
-                                ? "Tiền thừa trả khách:"
-                                : "Khách đưa còn thiếu:"}
+                    {(() => {
+                      const actualReceived = cashReceived !== null ? cashReceived : finalAmount;
+                      if (actualReceived === finalAmount) {
+                        return (
+                          <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 text-[11px] flex items-center justify-between border border-emerald-200 font-medium">
+                            <span className="flex items-center gap-1.5">
+                              <CheckCircleOutlined className="text-emerald-600" />
+                              Khách trả đủ tiền mặt ({finalAmount.toLocaleString("vi-VN")}đ)
                             </span>
-                            <span className="font-mono font-black text-sm">
-                              {Math.abs(cashReceived - finalAmount).toLocaleString("vi-VN")}đ
+                            <span className="font-bold font-mono">Tiền thừa: 0đ</span>
+                          </div>
+                        );
+                      }
+                      if (actualReceived > finalAmount) {
+                        return (
+                          <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-emerald-950">
+                            <span className="font-semibold text-xs">Tiền thừa trả khách:</span>
+                            <span className="font-mono font-black text-base text-emerald-700">
+                              {(actualReceived - finalAmount).toLocaleString("vi-VN")}đ
                             </span>
                           </div>
-                        )}
-                      </div>
-                    )}
+                        );
+                      }
+                      const missing = finalAmount - actualReceived;
+                      return (
+                        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                          <div className="text-[11px] text-amber-950">
+                            <span className="font-bold">Khách đưa còn thiếu: </span>
+                            <strong className="font-mono text-rose-600 font-bold text-xs">
+                              {missing.toLocaleString("vi-VN")}đ
+                            </strong>
+                          </div>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setPaymentMethod("split");
+                              setCashReceived(actualReceived);
+                            }}
+                            leftIcon={<QrcodeOutlined />}
+                            className="!h-7 !px-2.5 !rounded-lg !bg-indigo-600 hover:!bg-indigo-700 !border-indigo-600 !text-xs font-bold text-white shrink-0"
+                          >
+                            Quét QR phần thiếu ({missing.toLocaleString("vi-VN")}đ)
+                          </Button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
                     {paymentMethod === "vnpay" && (
                       <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200 space-y-2.5">
@@ -2603,51 +3686,171 @@ export const PosTableFloorPage: React.FC = () => {
                       </div>
                     )}
 
-                    {paymentMethod === "member_balance" && loyaltyCustomer && (
-                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200 space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-700">Số dư ví hiện tại:</span>
-                          <strong className="font-mono text-emerald-800">
-                            {loyaltyCustomer.walletBalance.toLocaleString("vi-VN")}đ
-                          </strong>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-emerald-800">
-                          <CheckCircleOutlined />
-                          <span>
-                            Thanh toán thành công sẽ được cộng {finalAmount > 0 ? "100" : "0"} điểm thưởng.
+                    {/* Thanh toán kết hợp: Tiền Mặt + QR */}
+                    {paymentMethod === "split" && (
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/70 to-blue-50/50 border border-indigo-200 space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-indigo-100">
+                          <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                            <SwapOutlined className="text-indigo-600" /> Thanh toán kết hợp: Tiền Mặt + QR
                           </span>
+                          <Tag color="purple" className="!rounded-md !px-1.5 !text-[10px] !font-bold !m-0">
+                            TỰ ĐỘNG CHIA TIỀN
+                          </Tag>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Cột 1: Thu tiền mặt */}
+                          <div className="p-2.5 bg-white rounded-xl border border-indigo-100 space-y-1.5">
+                            <span className="text-[11px] font-bold text-slate-700 block">
+                              1. Số tiền mặt nhận:
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <Input
+                                type="number"
+                                value={cashReceived !== null ? cashReceived : Math.floor(finalAmount / 2)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setCashReceived(val === "" ? 0 : Math.max(0, Math.min(finalAmount, Number(val))));
+                                }}
+                                className="!h-8 !text-right font-mono font-bold !text-slate-900 !text-xs"
+                              />
+                              <span className="text-xs font-semibold text-slate-500">đ</span>
+                            </div>
+                            <div className="flex items-center gap-1 pt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setCashReceived(Math.floor(finalAmount / 2))}
+                                className="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-medium cursor-pointer"
+                              >
+                                50% ({Math.floor(finalAmount / 2).toLocaleString("vi-VN")}đ)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCashReceived(0)}
+                                className="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 font-medium cursor-pointer"
+                              >
+                                0đ
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Cột 2: Phần còn lại quét QR */}
+                          {(() => {
+                            const cashPart = cashReceived !== null ? cashReceived : Math.floor(finalAmount / 2);
+                            const qrPart = Math.max(0, finalAmount - cashPart);
+                            return (
+                              <div className="p-2.5 bg-white rounded-xl border border-indigo-100 flex items-center gap-2.5">
+                                <div className="h-20 w-20 bg-white rounded-lg p-0.5 shadow-2xs border border-indigo-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                  <img
+                                    src={`https://img.vietqr.io/image/MB-0901234567-compact2.png?amount=${qrPart}&addInfo=CueZone%20${selectedTable.code}&accountName=CLB%20BIDA%20CUEZONE`}
+                                    alt="VietQR Còn Thiếu"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0 space-y-0.5 text-[11px]">
+                                  <span className="text-[10px] font-bold text-indigo-700 uppercase">
+                                    2. Quét QR còn lại:
+                                  </span>
+                                  <div className="font-mono font-black text-indigo-900 text-sm">
+                                    {qrPart.toLocaleString("vi-VN")}đ
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 truncate">
+                                    MB: <strong>0901 234 567</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
-                  </>
-                );
-              })()}
-            </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCheckoutModalVisible(false)}
-                className="!rounded-xl"
-              >
-                Đóng
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleConfirmCheckout}
-                loading={saving}
-                disabled={loading || !!loadError}
-                leftIcon={<PrinterOutlined />}
-                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
-              >
-                Xác Nhận & In Hóa Đơn
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+                    {/* Thanh toán Ví Hội Viên */}
+                    {paymentMethod === "member_balance" && (
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200 space-y-2.5 text-xs">
+                        {loyaltyCustomer ? (
+                          <>
+                            <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+                              <span className="font-semibold text-slate-700">Hội viên:</span>
+                              <strong className="text-slate-900 font-bold">{loyaltyCustomer.name} ({loyaltyCustomer.phone})</strong>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-700">Số dư ví hiện tại:</span>
+                              <strong className="font-mono text-emerald-800 text-sm font-bold">
+                                {(loyaltyCustomer.walletBalance ?? 0).toLocaleString("vi-VN")}đ
+                              </strong>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-slate-700">Số tiền thanh toán:</span>
+                              <strong className="font-mono text-slate-900 font-bold">
+                                {finalAmount.toLocaleString("vi-VN")}đ
+                              </strong>
+                            </div>
+                            <div className="flex items-center justify-between pt-1 border-t border-emerald-100">
+                              <span className="font-semibold text-slate-700">Số dư sau thanh toán:</span>
+                              <strong
+                                className={`font-mono font-black text-sm ${
+                                  (loyaltyCustomer.walletBalance ?? 0) >= finalAmount
+                                    ? "text-emerald-700"
+                                    : "text-rose-600"
+                                }`}
+                              >
+                                {((loyaltyCustomer.walletBalance ?? 0) - finalAmount).toLocaleString("vi-VN")}đ
+                              </strong>
+                            </div>
+
+                            {(loyaltyCustomer.walletBalance ?? 0) < finalAmount ? (
+                              <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] flex items-center gap-1.5 font-medium">
+                                <ExclamationCircleOutlined className="text-rose-600 shrink-0" />
+                                <span>
+                                  Số dư ví không đủ để thanh toán. Vui lòng nạp thêm vào ví hoặc chọn phương thức khác.
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="p-2 rounded-lg bg-emerald-100/70 text-emerald-900 text-[11px] flex items-center gap-1.5 font-medium">
+                                <CheckCircleOutlined className="text-emerald-600 shrink-0" />
+                                <span>
+                                  Ví đủ số dư. Thanh toán thành công sẽ cộng thêm{" "}
+                                  <strong>+{earnedPoints} điểm</strong> tích lũy.
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                            <ExclamationCircleOutlined className="text-amber-600 text-base shrink-0" />
+                            <span>Bàn này chưa liên kết Hội viên. Vui lòng nhập SĐT hội viên ở phần trên để thanh toán bằng ví.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCheckoutModalVisible(false)}
+                      className="!rounded-xl"
+                    >
+                      Đóng
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleConfirmCheckout}
+                      loading={saving}
+                      disabled={loading || !!loadError}
+                      leftIcon={<PrinterOutlined />}
+                      className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
+                    >
+                      Xác Nhận & In Hóa Đơn
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+          </Modal>
 
       <Modal
         open={receiptModalVisible}
@@ -2728,6 +3931,12 @@ export const PosTableFloorPage: React.FC = () => {
                 <span>Tiền giờ chơi:</span>
                 <span>{paidSummary.playingCost.toLocaleString("vi-VN")}đ</span>
               </div>
+              {paidSummary.carriedCost > 0 && (
+                <div className="flex justify-between font-bold pt-1 border-t border-slate-100 text-purple-700">
+                  <span>Tiền giờ chuyển / gộp bàn:</span>
+                  <span>+{paidSummary.carriedCost.toLocaleString("vi-VN")}đ</span>
+                </div>
+              )}
             </div>
 
             {paidSummary.orders && paidSummary.orders.length > 0 && (
@@ -2735,10 +3944,15 @@ export const PosTableFloorPage: React.FC = () => {
                 <span className="font-bold block mb-1">ĐỒ UỐNG & MÓN ĐÃ DÙNG:</span>
                 {paidSummary.orders.map((item: PosOrderItem, idx: number) => (
                   <div key={idx} className="flex justify-between">
-                    <span>
-                      {item.name} x{item.quantity}
+                    <span className="flex items-center gap-1">
+                      <span>{item.name || "Món F&B"} x{Number(item.quantity) || 1}</span>
+                      {item.originTableName && (
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-purple-100 text-purple-700 font-bold border border-purple-200">
+                          [{item.originTableName}]
+                        </span>
+                      )}
                     </span>
-                    <span>{(item.price * item.quantity).toLocaleString("vi-VN")}đ</span>
+                    <span>{((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString("vi-VN")}đ</span>
                   </div>
                 ))}
                 <div className="flex justify-between font-bold pt-1 border-t border-slate-100">
@@ -2765,11 +3979,17 @@ export const PosTableFloorPage: React.FC = () => {
                   <span>-{paidSummary.discountAmount.toLocaleString("vi-VN")}đ</span>
                 </div>
               )}
-              <Text>Tiền cọc đã trừ: {paidSummary.deposit.toLocaleString("vi-VN")}đ</Text>
+              {paidSummary.deposit > 0 && (
+                <div className="flex justify-between text-amber-700">
+                  <span>Tiền cọc đã trừ:</span>
+                  <span className="font-mono">-{paidSummary.deposit.toLocaleString("vi-VN")}đ</span>
+                </div>
+              )}
               {paidSummary.refundAmount > 0 && (
-                <Text type="danger">
-                  Cần hoàn lại khách: {paidSummary.refundAmount.toLocaleString("vi-VN")}đ
-                </Text>
+                <div className="flex justify-between text-rose-600 font-bold">
+                  <span>Cần hoàn lại khách:</span>
+                  <span className="font-mono">{paidSummary.refundAmount.toLocaleString("vi-VN")}đ</span>
+                </div>
               )}
               <div className="flex justify-between font-black text-sm pt-1 border-t border-slate-200 text-slate-900">
                 <span>TỔNG THANH TOÁN:</span>
@@ -2779,18 +3999,12 @@ export const PosTableFloorPage: React.FC = () => {
               </div>
               <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
                 <span>Hình thức thanh toán:</span>
-                <span>
-                  {paidSummary.paymentMethod === "member_balance"
-                    ? "Ví hội viên"
-                    : paidSummary.paymentMethod === "vnpay"
-                      ? "Chuyển khoản QR"
-                      : paidSummary.paymentMethod}
-                </span>
+                <span className="uppercase">{paidSummary.paymentMethod}</span>
               </div>
-              {paidSummary.pointsAwarded > 0 && (
+              {(paidSummary.pointsAwarded ?? paidSummary.earnedPoints ?? 0) > 0 && (
                 <div className="flex justify-between text-emerald-700 font-semibold">
                   <span>Điểm thưởng ví hội viên:</span>
-                  <span>+{paidSummary.pointsAwarded}</span>
+                  <span>+{(paidSummary.pointsAwarded ?? paidSummary.earnedPoints ?? 0)}</span>
                 </div>
               )}
             </div>
@@ -2875,7 +4089,7 @@ export const PosTableFloorPage: React.FC = () => {
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                  Thể loại bàn mong muốn
+                  Loại bàn mong muốn
                 </label>
                 <Select
                   value={newWaitType}

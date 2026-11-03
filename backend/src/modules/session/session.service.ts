@@ -1,14 +1,15 @@
+import { Product } from "../product/product.model";
 import mongoose from "mongoose";
 import { randomUUID } from "crypto";
-import { Table, TableStatus, TableSession } from "../table/table.model";
+import { Table, TableStatus, TableSession, SessionTransferRecord } from "../table/table.model";
 import { Booking } from "../booking/booking.model";
 import { Invoice } from "../invoice/invoice.model";
 import { PricingTier, IPricingTier } from "../pricing/pricing.model";
 import { User, UserRole } from "../user/user.model";
+import { Wallet, WalletTransactionType, WalletTransactionStatus } from "../wallet/wallet.model";
 import { emitTableStatusChanged, emitTableTimerStarted } from "../../utils/socketHolder";
 import { VoucherService } from "../voucher/voucher.service";
 import { WalletService } from "../wallet/wallet.service";
-import { Wallet } from "../wallet/wallet.model";
 import { getMemberTier, MEMBER_TIERS } from "../member/membership.policy";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
@@ -332,10 +333,19 @@ export class SessionService {
       }
       let isMember = Boolean(input.isMember);
       if (phone) {
-        const memberUser = await User.findOne({ phone, role: "customer", isActive: true }).session(session);
+        const clean = phone.replace(/[\s.-]/g, "");
+        const memberUser = await User.findOne({
+          phone: { $regex: clean, $options: "i" },
+          role: "customer",
+          isActive: true,
+        }).session(session);
         if (memberUser) {
           isMember = true;
-          if (!input.customerName || input.customerName.trim() === "Khách vãng lai" || input.customerName.trim() === "") {
+          if (
+            !input.customerName ||
+            input.customerName.trim() === "Khách vãng lai" ||
+            input.customerName.trim() === ""
+          ) {
             name = memberUser.name;
           }
         }
@@ -404,7 +414,97 @@ export class SessionService {
     return result;
   }
 
-  async move(tableId: string, input: any) {
+  async getEligibleMoveTargets(tableId: string, action: "transfer" | "merge" = "transfer") {
+    if (!mongoose.isValidObjectId(tableId)) {
+      throw Object.assign(new Error("Mã bàn không hợp lệ"), { httpCode: 400 });
+    }
+    const sourceTable = await Table.findById(tableId);
+    if (!sourceTable || !sourceTable.currentSession) {
+      throw Object.assign(new Error("Bàn nguồn không có phiên chơi hợp lệ"), { httpCode: 404 });
+    }
+
+    const now = Date.now();
+    const sourceDetails = playingDetails(sourceTable.currentSession, now);
+    const sourceInfo = {
+      id: String(sourceTable._id),
+      code: sourceTable.code,
+      name: sourceTable.name,
+      type: sourceTable.type,
+      pricePerHour: sourceTable.currentSession.pricePerHour,
+      durationMinutes: sourceDetails.minutes,
+      currentCost: sourceDetails.cost,
+      ordersCount: (sourceTable.currentSession.orders || []).filter((o) => o.status !== "cancelled").length,
+      deposit: sourceTable.currentSession.deposit || 0,
+      customerName: sourceTable.currentSession.customerName,
+    };
+
+    if (action === "transfer") {
+      const availableTables = await Table.find({
+        _id: { $ne: sourceTable._id },
+        isActive: true,
+        status: TableStatus.AVAILABLE,
+        currentSession: { $exists: false },
+      }).sort({ floor: 1, name: 1 });
+
+      const targets = availableTables.map((t) => ({
+        id: String(t._id),
+        code: t.code,
+        name: t.name,
+        type: t.type,
+        area: t.area,
+        floor: t.floor,
+        status: t.status,
+        pricePerHour: t.pricePerHour,
+        priceDiffPerHour: t.pricePerHour - sourceTable.currentSession!.pricePerHour,
+        isSamePrice: t.pricePerHour === sourceTable.currentSession!.pricePerHour,
+      }));
+
+      return { source: sourceInfo, targets };
+    } else {
+      const playingTables = await Table.find({
+        _id: { $ne: sourceTable._id },
+        isActive: true,
+        status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
+        "currentSession.sessionId": { $exists: true },
+        "currentSession.checkoutState": { $ne: "pending_payment" },
+      }).sort({ floor: 1, name: 1 });
+
+      const targets = playingTables.map((t) => {
+        const targetSession = t.currentSession!;
+        const details = playingDetails(targetSession, now);
+        return {
+          id: String(t._id),
+          code: t.code,
+          name: t.name,
+          type: t.type,
+          area: t.area,
+          floor: t.floor,
+          status: t.status,
+          customerName: targetSession.customerName,
+          customerPhone: targetSession.customerPhone,
+          durationMinutes: details.minutes,
+          currentCost: details.cost,
+          pricePerHour: targetSession.pricePerHour,
+          ordersCount: (targetSession.orders || []).filter((o) => o.status !== "cancelled").length,
+          carriedCost: targetSession.carriedCost || 0,
+        };
+      });
+
+      return { source: sourceInfo, targets };
+    }
+  }
+
+  async move(
+    tableId: string,
+    input: {
+      sessionId: string;
+      targetTableId: string;
+      action: "transfer" | "merge";
+      reason?: string;
+      pricingOption?: "keep_agreed" | "target_table";
+    },
+    staffUser?: { _id?: any; id?: string; name?: string; fullName?: string; username?: string },
+  ) {
     if (
       !["transfer", "merge"].includes(input.action) ||
       !mongoose.isValidObjectId(input.targetTableId) ||
@@ -412,46 +512,140 @@ export class SessionService {
       typeof input.sessionId !== "string"
     )
       throw new Error("Bàn đích không hợp lệ");
+
     const result = await mongoose.connection.transaction(async (session) => {
       const source = await Table.findOne({
         _id: tableId,
         "currentSession.sessionId": input.sessionId,
         status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
       }).session(session);
-      const target = await Table.findOne({ _id: input.targetTableId, isActive: true }).session(
-        session,
-      );
-      if (!source?.currentSession || !target) throw new Error("Phiên chơi đã thay đổi");
-      if (
-        source.currentSession.checkoutState === "pending_payment" ||
-        target.currentSession?.checkoutState === "pending_payment"
-      ) {
+
+      if (!source?.currentSession) throw new Error("Phiên chơi đã thay đổi");
+      if (source.currentSession.checkoutState === "pending_payment") {
         throw Object.assign(new Error("Không thể chuyển bàn khi đang chờ xác nhận thanh toán"), {
           httpCode: 409,
         });
       }
+
+      const target = await Table.findOne({ _id: input.targetTableId, isActive: true }).session(
+        session,
+      );
+      if (!target) {
+        throw Object.assign(new Error("Không tìm thấy bàn đích hoặc bàn đích bị khóa"), {
+          httpCode: 404,
+        });
+      }
+      if (target.currentSession?.checkoutState === "pending_payment") {
+        throw Object.assign(new Error("Không thể chuyển bàn khi đang chờ xác nhận thanh toán"), {
+          httpCode: 409,
+        });
+      }
+
+      const now = Date.now();
+      const sourceDetails = playingDetails(source.currentSession, now);
+
+      const transferRecord: SessionTransferRecord = {
+        action: input.action,
+        fromTableId: String(source._id),
+        fromTableCode: source.code,
+        fromTableName: source.name,
+        toTableId: String(target._id),
+        toTableCode: target.code,
+        toTableName: target.name,
+        transferredAt: new Date(now),
+        transferredBy: staffUser
+          ? {
+              id: String(staffUser._id || staffUser.id || ""),
+              name: staffUser.name || staffUser.fullName || staffUser.username || "Nhân viên",
+            }
+          : undefined,
+        carriedCostSnapshot: sourceDetails.cost,
+        carriedFnbCount: (source.currentSession.orders || []).filter((o) => o.status !== "cancelled").length,
+        previousPricePerHour: source.currentSession.pricePerHour,
+        newPricePerHour: target.pricePerHour,
+        reason: typeof input.reason === "string" ? input.reason.trim() : undefined,
+      };
+
       if (input.action === "transfer") {
         if (target.status !== TableStatus.AVAILABLE || target.currentSession)
           throw new Error("Bàn đích không còn trống");
-        // Preserve the session's agreed hourly rate when moving tables.
-        target.currentSession = source.currentSession;
+
+        // Clone currentSession deeply as clean plain object to avoid Mongoose subdocument detachment issues
+        const sourceSessionObj: TableSession =
+          typeof (source.currentSession as any).toObject === "function"
+            ? (source.currentSession as any).toObject()
+            : JSON.parse(JSON.stringify(source.currentSession));
+
+        if (!sourceSessionObj.transfers) {
+          sourceSessionObj.transfers = [];
+        }
+        sourceSessionObj.transfers.push(transferRecord);
+
+        // Áp dụng định giá lũy tiến (nếu chọn áp dụng đơn giá bàn mới và đơn giá khác nhau)
+        if (
+          input.pricingOption === "target_table" &&
+          target.pricePerHour !== source.currentSession.pricePerHour
+        ) {
+          sourceSessionObj.carriedCost = (sourceSessionObj.carriedCost || 0) + sourceDetails.cost;
+          sourceSessionObj.startedAt = now;
+          sourceSessionObj.totalPausedMs = 0;
+          sourceSessionObj.pausedAt = undefined;
+          sourceSessionObj.pricePerHour = target.pricePerHour;
+        }
+
+        target.currentSession = sourceSessionObj;
         target.status = source.status;
+        // Mặc định giữ đơn giá đã thỏa thuận ban đầu (bảo toàn assertion pricePerHour trong test)
       } else {
         if (
           !target.currentSession ||
           ![TableStatus.PLAYING, TableStatus.PAUSED].includes(target.status)
         )
           throw new Error("Bàn đích chưa có phiên chơi");
-        target.currentSession.carriedCost += playingDetails(source.currentSession).cost;
+
+        target.currentSession.carriedCost += sourceDetails.cost;
         target.currentSession.deposit += source.currentSession.deposit;
-        target.currentSession.orders.push(...source.currentSession.orders);
+
+        // Chuyển toàn bộ F&B, gắn nhãn bàn gốc để minh bạch hóa đơn
+        // Lưu ý: Cần chuyển đổi Mongoose subdocument sang plain object (.toObject()) để không làm mất schema getters (name, price, quantity...)
+        const rawSourceOrders = source.currentSession.orders || [];
+        const sourceOrders = rawSourceOrders.map((o: any) =>
+          typeof o?.toObject === "function" ? o.toObject() : (o?._doc ? { ...o._doc } : { ...o }),
+        );
+        const taggedOrders = sourceOrders.map((order: any) => ({
+          ...order,
+          id: order.id || String(order._id || new mongoose.Types.ObjectId()),
+          productId: order.productId,
+          name: order.name || "Món F&B",
+          price: typeof order.price === "number" ? order.price : 0,
+          quantity: typeof order.quantity === "number" ? order.quantity : 1,
+          category: order.category || "drink",
+          orderTime:
+            order.orderTime ||
+            new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+          status: order.status || "served",
+          cancelledQuantity: order.cancelledQuantity || 0,
+          cancelReason: order.cancelReason,
+          cancelledAt: order.cancelledAt,
+          cancelledBy: order.cancelledBy,
+          stockRestored: order.stockRestored !== undefined ? order.stockRestored : true,
+          originTableName: order.originTableName || source.name,
+        }));
+        target.currentSession.orders.push(...taggedOrders);
+
+        if (!target.currentSession.transfers) {
+          target.currentSession.transfers = [];
+        }
+        target.currentSession.transfers.push(transferRecord);
       }
+
       source.currentSession = undefined;
       source.status = TableStatus.AVAILABLE;
       await source.save({ session });
       await target.save({ session });
       return { target, source };
     });
+
     emitTableStatusChanged({
       tableId: String(result.target._id),
       status: result.target.status,
@@ -462,7 +656,108 @@ export class SessionService {
       status: result.source.status,
       table: result.source,
     });
+
+    void notifications
+      .create({
+        type: NotificationType.TABLE,
+        title: input.action === "transfer" ? "Chuyển bàn thành công" : "Gộp bàn thành công",
+        content:
+          input.action === "transfer"
+            ? `Đã chuyển phiên chơi từ ${result.source.name} sang ${result.target.name}`
+            : `Đã gộp phiên chơi từ ${result.source.name} vào ${result.target.name}`,
+      })
+      .catch(() => {});
+
     return result.target;
+  }
+
+  async cancelOrderItem(
+    tableId: string,
+    input: {
+      sessionId: string;
+      orderItemId: string;
+      quantity?: number;
+      reason: string;
+      restoreStock?: boolean;
+    },
+    staffUser?: { _id?: any; name?: string; phone?: string },
+  ) {
+    if (
+      typeof input.sessionId !== "string" ||
+      !input.orderItemId ||
+      typeof input.reason !== "string" ||
+      !input.reason.trim()
+    ) {
+      throw Object.assign(new Error("Vui lòng cung cấp mã món và lý do hủy món"), { httpCode: 400 });
+    }
+
+    const cancelQty = Math.max(1, Number(input.quantity) || 1);
+
+    const result = await mongoose.connection.transaction(async (session) => {
+      const table = await Table.findOne({
+        _id: tableId,
+        "currentSession.sessionId": input.sessionId,
+        status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
+      }).session(session);
+
+      if (!table?.currentSession) {
+        throw Object.assign(new Error("Phiên chơi đã kết thúc hoặc không tìm thấy bàn"), { httpCode: 404 });
+      }
+      if (table.currentSession.checkoutState === "pending_payment") {
+        throw Object.assign(new Error("Bàn đang chờ xác nhận thanh toán, không thể hủy món"), { httpCode: 409 });
+      }
+
+      const item = table.currentSession.orders.find((o) => o.id === input.orderItemId);
+      if (!item) {
+        throw Object.assign(new Error("Không tìm thấy món cần hủy trong bàn này"), { httpCode: 404 });
+      }
+      if (item.status === "cancelled" || item.quantity <= 0) {
+        throw Object.assign(new Error("Món này đã bị hủy trước đó"), { httpCode: 400 });
+      }
+      if (cancelQty > item.quantity) {
+        throw Object.assign(
+          new Error(`Số lượng hủy (${cancelQty}) vượt quá số lượng đang có (${item.quantity})`),
+          { httpCode: 400 },
+        );
+      }
+
+      // Restore stock to Product (SCRUM-875) only if requested
+      const shouldRestoreStock = input.restoreStock !== false;
+      if (shouldRestoreStock) {
+        const productQuery =
+          item.productId && mongoose.isValidObjectId(item.productId)
+            ? { _id: item.productId }
+            : { name: item.name };
+
+        await Product.findOneAndUpdate(
+          productQuery,
+          { $inc: { stock: cancelQty } },
+          { session },
+        );
+      }
+
+      // Update item status in session orders (SCRUM-873, SCRUM-877)
+      const remainingQty = item.quantity - cancelQty;
+      item.cancelledQuantity = (item.cancelledQuantity || 0) + cancelQty;
+      item.cancelReason = input.reason.trim();
+      item.cancelledAt = new Date();
+      item.cancelledBy = staffUser?.name || "Thu ngân";
+      (item as any).stockRestored = shouldRestoreStock;
+
+      if (remainingQty === 0) {
+        item.quantity = 0;
+        item.status = "cancelled";
+      } else {
+        item.quantity = remainingQty;
+      }
+
+      table.markModified("currentSession.orders");
+      await table.save({ session });
+      return table;
+    });
+
+    emitTableStatusChanged({ tableId: String(result._id), status: result.status, table: result });
+    return result;
   }
 
   async updateOrders(tableId: string, input: any) {
@@ -488,7 +783,8 @@ export class SessionService {
   }
 
   async getCustomerSessions(customerId: string) {
-    if (!mongoose.isValidObjectId(customerId)) throw Object.assign(new Error("Tài khoản không hợp lệ"), { httpCode: 401 });
+    if (!mongoose.isValidObjectId(customerId))
+      throw Object.assign(new Error("Tài khoản không hợp lệ"), { httpCode: 401 });
     const user = await User.findOne({
       _id: customerId,
       role: UserRole.CUSTOMER,
@@ -527,8 +823,7 @@ export class SessionService {
                 membershipDiscountAmount: pending.membershipDiscountAmount,
                 voucherCode: pending.voucherCode,
                 voucherDiscountAmount: pending.voucherDiscountAmount,
-                discountAmount:
-                  pending.membershipDiscountAmount + pending.voucherDiscountAmount,
+                discountAmount: pending.membershipDiscountAmount + pending.voucherDiscountAmount,
                 totalDue: pending.estimatedTotalDue,
               }
             : {}),
@@ -586,7 +881,10 @@ export class SessionService {
     ) {
       throw Object.assign(new Error("Phiên chơi không thuộc tài khoản này"), { httpCode: 403 });
     }
-    if (table.currentSession.checkoutState !== undefined && table.currentSession.checkoutState !== "open") {
+    if (
+      table.currentSession.checkoutState !== undefined &&
+      table.currentSession.checkoutState !== "open"
+    ) {
       throw Object.assign(new Error("Không thể thay đổi báo giá khi phiên đang chờ thanh toán"), {
         httpCode: 409,
       });
@@ -646,7 +944,9 @@ export class SessionService {
           role: UserRole.CUSTOMER,
           isActive: true,
           isLocked: false,
-        }).select("phone").session(session),
+        })
+          .select("phone")
+          .session(session),
         Table.findOne({
           _id: tableId,
           "currentSession.sessionId": input.sessionId,
@@ -656,7 +956,9 @@ export class SessionService {
         PricingTier.find({ isActive: true }).session(session),
       ]);
       if (!user?.phone || !table?.currentSession) {
-        throw Object.assign(new Error("Không tìm thấy phiên bàn đang hoạt động"), { httpCode: 404 });
+        throw Object.assign(new Error("Không tìm thấy phiên bàn đang hoạt động"), {
+          httpCode: 404,
+        });
       }
       if (
         !table.currentSession.customerPhone ||
@@ -680,17 +982,14 @@ export class SessionService {
       if (voucherCode) {
         voucherDiscountAmount = (
           await new VoucherService().validate(
-          voucherCode,
-          quote.subtotal - quote.membershipDiscountAmount,
+            voucherCode,
+            quote.subtotal - quote.membershipDiscountAmount,
           )
         ).discountAmount;
       }
       const totalDue = Math.max(
         0,
-        quote.subtotal -
-          quote.membershipDiscountAmount -
-          voucherDiscountAmount -
-          quote.deposit,
+        quote.subtotal - quote.membershipDiscountAmount - voucherDiscountAmount - quote.deposit,
       );
       table.currentSession.checkoutState = "pending_payment";
       table.currentSession.pendingCheckout = {
@@ -757,11 +1056,7 @@ export class SessionService {
     );
   }
 
-  async resolveCustomerPaymentRequest(
-    tableId: string,
-    sessionId: string,
-    approved: boolean,
-  ) {
+  async resolveCustomerPaymentRequest(tableId: string, sessionId: string, approved: boolean) {
     if (!mongoose.isValidObjectId(tableId) || typeof sessionId !== "string" || !sessionId) {
       throw new Error("Mã yêu cầu thanh toán không hợp lệ");
     }
@@ -831,7 +1126,10 @@ export class SessionService {
   private customerQuote(table: any, points: number, pricingTiers: IPricingTier[]) {
     const current = table.currentSession as TableSession;
     const playing = calculateSplitPlayingDetails(current, table, pricingTiers);
-    const fnbTotal = current.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const fnbTotal = current.orders.reduce((sum, item) => {
+      if (item.status === "cancelled" || item.quantity <= 0) return sum;
+      return sum + item.price * item.quantity;
+    }, 0);
     const subtotal = playing.cost + fnbTotal;
     const { tier } = getMemberTier(points);
     const membershipDiscountAmount =
@@ -865,7 +1163,16 @@ export class SessionService {
   }
 
   async checkout(tableId: string, input: any) {
-    const validPaymentMethods = ["cash", "transfer", "vnpay", "card", "member_balance"];
+    const validPaymentMethods = [
+      "cash",
+      "transfer",
+      "vnpay",
+      "card",
+      "member_balance",
+      "wallet",
+      "split",
+      "cash_qr",
+    ];
     if (
       typeof input.sessionId !== "string" ||
       !validPaymentMethods.includes(input.paymentMethod) ||
@@ -960,13 +1267,14 @@ export class SessionService {
         table,
         pricingTiers,
       );
-      const fnbTotal = current.orders.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const fnbTotal = current.orders.reduce((sum, item) => {
+      if (item.status === "cancelled" || item.quantity <= 0) return sum;
+      return sum + item.price * item.quantity;
+    }, 0);
       const subtotal = cost + fnbTotal;
       const membershipTier = input.customerCheckout
         ? input.customerCheckoutRequest === true
-          ? MEMBER_TIERS.find(
-              (tier) => tier.key === current.pendingCheckout?.membershipTierKey,
-            )
+          ? MEMBER_TIERS.find((tier) => tier.key === current.pendingCheckout?.membershipTierKey)
           : getMemberTier(
               (await Wallet.findOne({ userId: input.customerId }).select("points").session(session))
                 ?.points ?? 0,
@@ -1000,24 +1308,29 @@ export class SessionService {
       const voucherDiscountAmount = voucher?.discountAmount ?? 0;
       const discountAmount =
         membershipDiscountAmount +
-        (voucher ? voucher.discountAmount : Math.round((voucherSubtotal * input.discountPercent) / 100));
+        (voucher
+          ? voucher.discountAmount
+          : Math.round((voucherSubtotal * input.discountPercent) / 100));
       const finalAmount = Math.max(0, subtotal - discountAmount - current.deposit);
-      if (
-        input.customerCheckoutRequest === true &&
-        current.pendingCheckout?.estimatedTotalDue !== finalAmount
-      ) {
-        throw Object.assign(
-          new Error("Tổng tiền đã thay đổi. Vui lòng từ chối yêu cầu và tạo yêu cầu thanh toán mới."),
-          { httpCode: 409 },
-        );
+
+      // Xử lý thanh toán kết hợp (Tiền mặt + Chuyển khoản QR)
+      if (input.paymentMethod === "split" || input.paymentMethod === "cash_qr") {
+        const cashAmount = Number(input.paymentDetails?.cashAmount) || 0;
+        const transferAmount = Number(input.paymentDetails?.transferAmount) || 0;
+        if (cashAmount + transferAmount < finalAmount) {
+          throw new Error(
+            `Tổng tiền thanh toán kết hợp không đủ (${(cashAmount + transferAmount).toLocaleString("vi-VN")}đ < ${finalAmount.toLocaleString("vi-VN")}đ)`,
+          );
+        }
       }
+
+      // Xử lý thanh toán ví hoặc tích điểm hội viên
       const checkoutPhone =
-        customerPhone ??
-        (typeof input.customerPhone === "string" && input.customerPhone.trim()
+        typeof input.customerPhone === "string" && input.customerPhone.trim()
           ? input.customerPhone.trim()
-          : current.customerPhone);
+          : current.customerPhone;
       const memberPayment =
-        input.paymentMethod === "member_balance"
+        input.paymentMethod === "member_balance" || input.paymentMethod === "wallet"
           ? await this.walletService.chargeForCheckout(
               checkoutPhone,
               finalAmount,
@@ -1025,6 +1338,8 @@ export class SessionService {
               session,
             )
           : await this.walletService.awardCheckoutPoints(checkoutPhone, finalAmount, session);
+      const earnedPoints = memberPayment?.pointsAwarded ?? 0;
+
       const receipt = {
         tableName: table.name,
         tableCode: table.code,
@@ -1038,6 +1353,8 @@ export class SessionService {
         durationMinutes: minutes,
         pricePerHour: current.pricePerHour,
         playingCost: cost,
+        carriedCost: current.carriedCost || 0,
+        transfers: current.transfers || [],
         timeSlots: timeSlots || [],
         orders: current.orders,
         fnbTotal,
@@ -1054,6 +1371,8 @@ export class SessionService {
         pointsAwarded: memberPayment?.pointsAwarded ?? 0,
         refundAmount: Math.max(0, current.deposit - (subtotal - discountAmount)),
         paymentMethod: input.paymentMethod || "cash",
+        paymentDetails: input.paymentDetails,
+        earnedPoints,
         invoiceCode,
         checkoutTime: new Date().toISOString(),
       };

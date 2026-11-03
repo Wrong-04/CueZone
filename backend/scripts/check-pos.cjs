@@ -347,13 +347,40 @@ async function main() {
       { customerName: "Second guest" },
       token,
     );
+    // Test eligible-targets API for move/merge
+    const mergeTargetsRes = await ok(
+      `/tables/${table._id}/session/move-targets?action=merge`,
+      "GET",
+      undefined,
+      token,
+    );
+    assert.ok(Array.isArray(mergeTargetsRes.targets));
+
+    // Concurrency conflict test: cannot transfer into an already occupied table
+    assert.equal(
+      (
+        await request(
+          `/tables/${table._id}/session/move`,
+          "POST",
+          { sessionId: another.currentSession.sessionId, targetTableId: second._id, action: "transfer" },
+          token,
+        )
+      ).success,
+      false,
+    );
+
     await ok(
       `/tables/${table._id}/session/move`,
       "POST",
       { sessionId: another.currentSession.sessionId, targetTableId: second._id, action: "merge" },
       token,
     );
-    assert.equal((await Table.findById(second._id)).currentSession.carriedCost, 1000);
+    const secondTableAfterMerge = await Table.findById(second._id);
+    assert.equal(secondTableAfterMerge.currentSession.carriedCost, 1000);
+    assert.ok(Array.isArray(secondTableAfterMerge.currentSession.transfers));
+    assert.ok(secondTableAfterMerge.currentSession.transfers.length >= 2);
+    assert.equal(secondTableAfterMerge.currentSession.transfers[0].action, "transfer");
+    assert.equal(secondTableAfterMerge.currentSession.transfers[1].action, "merge");
     assert.equal(
       (
         await request(
