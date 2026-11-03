@@ -14,6 +14,7 @@ const { Table } = require("../dist/modules/table/table.model");
 const { Booking } = require("../dist/modules/booking/booking.model");
 const { Invoice } = require("../dist/modules/invoice/invoice.model");
 const { Wallet } = require("../dist/modules/wallet/wallet.model");
+const { Product } = require("../dist/modules/product/product.model");
 const { playingDetails } = require("../dist/modules/session/session.service");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
 const { getMemberTier, getPointsForSpend } = require("../dist/modules/member/membership.policy");
@@ -115,6 +116,17 @@ async function main() {
       { code: "CHECK2", name: "Second table", type: "carom", area: "Check", pricePerHour: 120000 },
       token,
     );
+    const preorderProduct = await Product.create({
+      name: "Check drink",
+      sku: "CHECK-FNB",
+      category: "drink",
+      unit: "chai",
+      costPrice: 1000,
+      salePrice: 10000,
+      stock: 10,
+      isForSale: true,
+      isActive: true,
+    });
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const onlineDto = {
       customerName: "Check customer",
@@ -124,6 +136,7 @@ async function main() {
       time: "10:00",
       duration: 2,
       deposit: 0,
+      preOrderItems: [{ productId: preorderProduct._id, quantity: 2 }],
     };
     const onlineConcurrent = await Promise.all([
       request("/public/bookings", "POST", onlineDto, customer.accessToken),
@@ -136,7 +149,30 @@ async function main() {
     );
     const onlineBooking = onlineConcurrent.find((result) => result.success).data;
     assert.equal(onlineBooking.status, "approved");
+    assert.match(onlineBooking.qrToken, /^[a-f0-9]{64}$/);
+    assert.equal((await Product.findById(preorderProduct._id)).stock, 8);
     assert.equal((await Table.findById(second._id)).status, "booked");
+    const qrBooking = await ok(
+      "/bookings/qr/resolve",
+      "POST",
+      { qrToken: onlineBooking.qrToken },
+      token,
+    );
+    assert.equal(qrBooking.table.code, "CHECK2");
+    assert.equal(qrBooking.preOrderItems[0].name, "Check drink");
+    assert.equal(qrBooking.preOrderTotal, 20000);
+    assert.equal(
+      (await request("/bookings/qr/resolve", "POST", { qrToken: onlineBooking.qrToken }, customer.accessToken))
+        .success,
+      false,
+    );
+    const refreshedQr = await ok(
+      `/bookings/${onlineBooking._id}/qr`,
+      "POST",
+      {},
+      customer.accessToken,
+    );
+    assert.notEqual(refreshedQr.qrToken, onlineBooking.qrToken);
     assert.equal(
       (await ok("/bookings/mine", "GET", undefined, customer.accessToken)).length,
       1,
@@ -155,6 +191,12 @@ async function main() {
     );
     assert.equal(cancelledOnlineBooking.status, "cancelled");
     assert.equal((await Table.findById(second._id)).status, "available");
+    assert.equal((await Product.findById(preorderProduct._id)).stock, 10);
+    assert.equal(
+      (await request("/bookings/qr/resolve", "POST", { qrToken: refreshedQr.qrToken }, token))
+        .success,
+      false,
+    );
     const recreatedOnlineBooking = await ok(
       "/public/bookings",
       "POST",
@@ -175,6 +217,7 @@ async function main() {
     );
     assert.equal(guestBooking.status, "approved");
     assert.equal(guestBooking.customer, null);
+    assert.match(guestBooking.qrToken, /^[a-f0-9]{64}$/);
     await ok(
       `/bookings/${guestBooking._id}`,
       "PATCH",
@@ -201,6 +244,7 @@ async function main() {
       duration: 2,
       deposit: 100,
       note: "Check note",
+      preOrderItems: [{ productId: preorderProduct._id, quantity: 1 }],
     };
     const concurrent = await Promise.all([
       request("/bookings", "POST", bookingDto, token),
@@ -213,6 +257,7 @@ async function main() {
     );
     const booking = concurrent.find((result) => result.success).data;
     assert.equal(booking.estimatedCost, 120000);
+    assert.equal((await Product.findById(preorderProduct._id)).stock, 9);
     assert.equal(
       (await ok(`/tables/${table._id}`, "GET", undefined, token)).bookedInfo.bookingId,
       booking._id,
@@ -244,6 +289,9 @@ async function main() {
       { bookingId: booking._id },
       token,
     );
+    assert.equal(opened.currentSession.orders.length, 1);
+    assert.equal(opened.currentSession.orders[0].name, "Check drink");
+    assert.equal((await Booking.findById(booking._id)).inventoryReserved, false);
     const sessionId = opened.currentSession.sessionId;
     assert.equal(opened.currentSession.deposit, 100);
     assert.equal((await Booking.findById(booking._id)).status, "checked_in");
@@ -319,8 +367,8 @@ async function main() {
     );
     const pay = { sessionId, discountPercent: 10, paymentMethod: "cash" };
     const receipt = await ok(`/tables/${second._id}/session/checkout`, "POST", pay, token);
-    assert.equal(receipt.subtotal, 2000);
-    assert.equal(receipt.finalAmount, 1700);
+    assert.equal(receipt.subtotal, 12000);
+    assert.equal(receipt.finalAmount, 10700);
     assert.equal(
       (await ok(`/tables/${second._id}/session/checkout`, "POST", pay, token)).invoiceCode,
       receipt.invoiceCode,

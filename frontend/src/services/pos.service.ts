@@ -14,6 +14,25 @@ type TableRecord = Omit<BilliardTable, "status"> & {
   bookedInfo?: PosTable["bookedInfo"];
 };
 
+export interface BookingQrDetails {
+  bookingId: string;
+  customerName: string;
+  phone: string;
+  date: string;
+  time: string;
+  duration: number;
+  status: string;
+  table: { id: string; code: string; name: string };
+  preOrderItems: {
+    productId: string;
+    name: string;
+    category: string;
+    unitPrice: number;
+    quantity: number;
+  }[];
+  preOrderTotal: number;
+}
+
 function result<T>(response: ApiResponse<T>): T {
   if (!response.success || response.data === undefined)
     throw new Error(response.message || "Máy chủ không trả về dữ liệu");
@@ -260,10 +279,21 @@ export const bookingService = {
     duration: number;
     deposit?: number;
     note?: string;
+    preOrderItems?: { productId: string; quantity: number }[];
   }) {
     const { data } = await api.post<ApiResponse<any>>("/public/bookings", {
       ...input,
       deposit: input.deposit ?? 0,
+    });
+    return result(data);
+  },
+  async issueQr(id: string): Promise<{ qrToken: string }> {
+    const { data } = await api.post<ApiResponse<{ qrToken: string }>>(`/bookings/${id}/qr`);
+    return result(data);
+  },
+  async resolveQr(qrToken: string): Promise<BookingQrDetails> {
+    const { data } = await api.post<ApiResponse<BookingQrDetails>>("/bookings/qr/resolve", {
+      qrToken,
     });
     return result(data);
   },
