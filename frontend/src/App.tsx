@@ -26,6 +26,7 @@ import CustomerTournaments from "./pages/customer/CustomerTournaments";
 import CustomerRules from "./pages/customer/CustomerRules";
 import CustomerNews from "./pages/customer/CustomerNews";
 import CustomerFnB from "./pages/customer/CustomerFnB";
+import CustomerPlaySession from "./pages/customer/CustomerPlaySession";
 import CustomerHistory from "./pages/customer/CustomerHistory";
 import CustomerWallet from "./pages/customer/CustomerWallet";
 import CustomerProfile from "./pages/customer/CustomerProfile";
@@ -312,6 +313,14 @@ const AppRoutes = () => {
           }
         />
         <Route path="fnb" element={<CustomerFnB />} />
+        <Route
+          path="session"
+          element={
+            <ProtectedRoute roles={["customer"]}>
+              <CustomerPlaySession />
+            </ProtectedRoute>
+          }
+        />
         <Route path="tournaments" element={<CustomerTournaments />} />
         <Route
           path="history"

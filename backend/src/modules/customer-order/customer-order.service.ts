@@ -4,6 +4,7 @@ import { NotificationType } from "../notification/notification.model";
 import { User, UserRole } from "../user/user.model";
 import { Product } from "../product/product.model";
 import { Table, TableStatus } from "../table/table.model";
+import { SessionService } from "../session/session.service";
 import {
   CustomerOrder,
   CustomerOrderStatus,
@@ -44,33 +45,7 @@ function formatStatus(status: CustomerOrderStatus) {
 
 export class CustomerOrderService {
   async getActiveTables(customerId: string) {
-    if (!mongoose.isValidObjectId(customerId)) throw httpError("Tài khoản không hợp lệ", 401);
-    const user = await User.findOne({
-      _id: customerId,
-      role: UserRole.CUSTOMER,
-      isActive: true,
-      isLocked: false,
-    }).select("phone");
-    if (!user?.phone) return [];
-    const phone = normalizePhone(user.phone);
-    const tables = await Table.find({
-      status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
-      "currentSession.customerPhone": { $exists: true, $ne: "" },
-      "currentSession.checkoutState": { $in: ["open", null] },
-    })
-      .select("code name status currentSession.sessionId currentSession.sessionStart currentSession.customerName currentSession.customerPhone currentSession.checkoutState")
-      .lean();
-    return tables
-      .filter((table) => table.currentSession?.customerPhone &&
-        normalizePhone(table.currentSession.customerPhone) === phone)
-      .map((table) => ({
-        tableId: String(table._id),
-        tableCode: table.code,
-        tableName: table.name,
-        status: table.status,
-        sessionId: table.currentSession!.sessionId,
-        sessionStart: table.currentSession!.sessionStart,
-      }));
+    return new SessionService().getCustomerSessions(customerId);
   }
 
   async create(customerId: string, input: { tableId?: unknown; sessionId?: unknown; items?: unknown; note?: unknown }) {

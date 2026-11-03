@@ -104,7 +104,7 @@ protectedRouter.use("/notifications", notificationRouter);
 protectedRouter.use("/tournaments", tournamentRouter);
 protectedRouter.use("/wallet", walletRouter);
 protectedRouter.use("/vouchers", voucherRouter);
-protectedRouter.use("/customer", memberCenterRouter);
 protectedRouter.use("/customer/fnb-orders", customerOrderRouter);
+protectedRouter.use("/customer", memberCenterRouter);
 protectedRouter.use("/products", productManagementRouter);
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile

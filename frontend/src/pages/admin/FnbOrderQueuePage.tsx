@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckOutlined, ClockCircleOutlined, ReloadOutlined, ShoppingOutlined } from "@ant-design/icons";
 import { Button, Card, Tag } from "../../shared/ui";
+import CustomerPaymentRequests from "../../components/pos/CustomerPaymentRequests";
 import {
   staffOrderService,
   type CustomerOrder,
@@ -86,9 +87,12 @@ export default function FnbOrderQueuePage() {
             Xác nhận món trước khi cộng vào hóa đơn phiên bàn.
           </p>
         </div>
-        <Button variant="outline" leftIcon={<ReloadOutlined />} onClick={() => void loadOrders()}>
-          Tải lại
-        </Button>
+        <div className="flex items-center gap-2">
+          <CustomerPaymentRequests />
+          <Button variant="outline" leftIcon={<ReloadOutlined />} onClick={() => void loadOrders()}>
+            Tải lại
+          </Button>
+        </div>
       </div>
 
       {error && (
