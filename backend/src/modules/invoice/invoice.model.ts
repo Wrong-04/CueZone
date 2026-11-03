@@ -34,4 +34,7 @@ const invoiceSchema = new Schema<IInvoice>(
   { timestamps: true },
 );
 
+invoiceSchema.index({ "receipt.memberId": 1, createdAt: -1 });
+invoiceSchema.index({ "receipt.customerPhone": 1, createdAt: -1 });
+
 export const Invoice = mongoose.model<IInvoice>("Invoice", invoiceSchema);

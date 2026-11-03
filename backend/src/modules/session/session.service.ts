@@ -499,20 +499,26 @@ export class SessionService {
         ? voucher.discountAmount
         : Math.round((subtotal * input.discountPercent) / 100);
       const finalAmount = Math.max(0, subtotal - discountAmount - current.deposit);
-      const pointsAwarded =
+      const checkoutPhone =
+        typeof input.customerPhone === "string" && input.customerPhone.trim()
+          ? input.customerPhone.trim()
+          : current.customerPhone;
+      const memberPayment =
         input.paymentMethod === "member_balance"
           ? await this.walletService.chargeForCheckout(
-              input.customerPhone.trim(),
+              checkoutPhone,
               finalAmount,
               invoiceCode,
               session,
             )
-          : 0;
+          : await this.walletService.awardCheckoutPoints(checkoutPhone, finalAmount, session);
       const receipt = {
         tableName: table.name,
+        tableCode: table.code,
         typeName: table.type,
         customerName: current.customerName,
-        customerPhone: current.customerPhone,
+        customerPhone: memberPayment?.phone ?? checkoutPhone,
+        memberId: memberPayment?.memberId,
         sessionStart: current.sessionStart,
         sessionEnd: new Date().toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
         durationFormatted: formattedTime,
@@ -529,7 +535,7 @@ export class SessionService {
         deposit: current.deposit,
         finalAmount,
         paymentStatus: "paid",
-        pointsAwarded,
+        pointsAwarded: memberPayment?.pointsAwarded ?? 0,
         refundAmount: Math.max(0, current.deposit - (subtotal - discountAmount)),
         paymentMethod: input.paymentMethod || "cash",
         invoiceCode,
