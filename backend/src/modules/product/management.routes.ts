@@ -3,8 +3,10 @@ import mongoose from "mongoose";
 
 import { Product } from "./product.model";
 import Category from "./category.model";
+import { requireProductManager } from "../../middlewares/product-admin.middleware";
 
 const router = Router();
+router.use(requireProductManager);
 
 function asyncHandler(
   handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>,
@@ -179,7 +181,11 @@ router.delete(
     }
 
     const productUsingCategory = await Product.exists({
-      category: category._id,
+      $or: [
+        { category: String(category._id) },
+        { category: category._id },
+        { category: category.code },
+      ],
     });
 
     if (productUsingCategory) {
@@ -211,22 +217,31 @@ router.get(
     const search = normalizeString(req.query.search);
     const category = normalizeString(req.query.category);
 
-    const filter: Record<string, unknown> = {};
+    const filterConditions: any[] = [];
 
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { sku: { $regex: search, $options: "i" } },
-      ];
+      filterConditions.push({
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { sku: { $regex: search, $options: "i" } },
+        ],
+      });
     }
 
     if (category) {
       if (validId(category)) {
-        filter.category = new mongoose.Types.ObjectId(category);
+        filterConditions.push({
+          $or: [
+            { category: category },
+            { category: new mongoose.Types.ObjectId(category) },
+          ],
+        });
       } else {
-        filter.category = category;
+        filterConditions.push({ category });
       }
     }
+
+    const filter = filterConditions.length > 0 ? { $and: filterConditions } : {};
 
     const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
 

@@ -20,6 +20,11 @@ import { UserRole } from "../modules/user/user.model";
 import { WalletService, type VnpayParameters } from "../modules/wallet/wallet.service";
 
 import productRouter, { productManagementRouter } from "../modules/product/product.routes";
+import catalogManagementRouter from "../modules/product/management.routes";
+import inventoryRouter from "../modules/product/inventory.routes";
+import supplierRouter from "../modules/supplier/supplier.routes";
+import goodsReceiptRouter from "../modules/goods-receipt/goods-receipt.routes";
+import reportRouter from "../modules/report/revenue-report.routes";
 
 import { BANK_POOL_RULES_DATA } from "../modules/rule/bankPoolRules.data";
 
@@ -107,4 +112,9 @@ protectedRouter.use("/vouchers", voucherRouter);
 protectedRouter.use("/customer/fnb-orders", customerOrderRouter);
 protectedRouter.use("/customer", memberCenterRouter);
 protectedRouter.use("/products", productManagementRouter);
+protectedRouter.use("/catalog-management", catalogManagementRouter);
+protectedRouter.use("/inventory", inventoryRouter);
+protectedRouter.use("/suppliers", supplierRouter);
+protectedRouter.use("/goods-receipts", goodsReceiptRouter);
+protectedRouter.use("/reports", reportRouter);
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile

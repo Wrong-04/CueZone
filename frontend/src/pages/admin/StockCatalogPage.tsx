@@ -8,10 +8,9 @@ import {
   XCircle,
   CheckCircle,
   Filter,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 
+import { Pagination } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
 
 import {
@@ -152,7 +151,6 @@ export default function StockCatalogPage() {
 
   const total = result?.total ?? 0;
 
-  const totalPages = Math.max(1, result?.pages ?? 1);
 
   return (
     <div
@@ -394,49 +392,14 @@ export default function StockCatalogPage() {
           )}
         </div>
 
-        <div
-          className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm"
-          style={{
-            color: "var(--text-secondary)",
-            borderColor: "var(--border-divider)",
-          }}
-        >
-          <span>
-            Tổng cộng: <strong>{total}</strong> hàng hóa
-          </span>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              disabled={busy || page <= 1}
-              onClick={() => setPage((value) => Math.max(1, value - 1))}
-              className="flex items-center gap-1 rounded-lg border px-3 py-1.5 disabled:opacity-40"
-              style={{
-                borderColor: "var(--border-standard)",
-              }}
-            >
-              <ChevronLeft size={16} />
-              Trước
-            </button>
-
-            <span>
-              Trang {page} / {totalPages}
-            </span>
-
-            <button
-              type="button"
-              disabled={busy || page >= totalPages}
-              onClick={() => setPage((value) => value + 1)}
-              className="flex items-center gap-1 rounded-lg border px-3 py-1.5 disabled:opacity-40"
-              style={{
-                borderColor: "var(--border-standard)",
-              }}
-            >
-              Sau
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        <Pagination
+          current={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          unit="hàng hóa"
+          disabled={busy}
+          onChange={(val) => setPage(val)}
+        />
       </div>
     </div>
   );

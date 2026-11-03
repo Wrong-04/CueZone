@@ -4,7 +4,7 @@ export interface IProduct extends Document {
   name: string;
 
   sku: string;
-  category: "accessory" | "drink" | "food" | "snack" | "ingredient";
+  category: "accessory" | "drink" | "food" | "snack" | "ingredient" | string;
   unit: string;
 
   costPrice: number;
@@ -14,6 +14,8 @@ export interface IProduct extends Document {
   stock: number;
 
   minStock: number;
+
+  supplierId?: mongoose.Types.ObjectId | string | null;
 
   imageUrl?: string;
 
@@ -48,6 +50,12 @@ const ProductSchema = new mongoose.Schema<IProduct>(
     stock: { type: Number, default: 0 },
 
     minStock: { type: Number, default: 10 },
+
+    supplierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null,
+    },
 
     imageUrl: { type: String },
 

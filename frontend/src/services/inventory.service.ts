@@ -1,3 +1,6 @@
+import api from "./api";
+import axios from "axios";
+
 export type StockStatus = "in_stock" | "low" | "out";
 
 export type StockProduct = {
@@ -21,35 +24,37 @@ export type InventoryPage = {
   pages: number;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || "/api/v1";
+async function request<T>(
+  path: string,
+  options: {
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    body?: string;
+  } = {},
+): Promise<T> {
+  try {
+    const response = await api.request<T>({
+      url: path,
+      method: options.method || "GET",
+      data: options.body ? JSON.parse(options.body) : undefined,
+    });
 
-function getToken() {
-  return localStorage.getItem("token") || localStorage.getItem("accessToken");
-}
+    return response.data;
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      const responseData = error.response?.data as { message?: string } | null | undefined;
+      throw new Error(
+        responseData?.message ||
+          (error.response?.status ? `Yêu cầu thất bại (HTTP ${error.response.status}).` : error.message) ||
+          "Không thể thực hiện yêu cầu.",
+      );
+    }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
+    if (error instanceof Error) {
+      throw error;
+    }
 
-  const headers = new Headers(options.headers);
-
-  headers.set("Content-Type", "application/json");
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+    throw new Error("Đã xảy ra lỗi không xác định.");
   }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
-
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Không thể thực hiện yêu cầu.");
-  }
-
-  return data;
 }
 
 export async function fetchInventory(

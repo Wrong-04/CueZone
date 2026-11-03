@@ -376,22 +376,80 @@ body {
   font-weight: 600 !important;
 }
 
-/* ── 6. Pagination ───────────────────────────────────── */
+/* ── 6. Pagination (Đồng bộ chuẩn CueZone) ───────────── */
+.ant-pagination {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  width: 100% !important;
+  font-size: 12px !important;
+  gap: 6px !important;
+}
+
+.ant-pagination-total-text {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #334155 !important;
+  margin-right: auto !important;
+}
+
+.ant-pagination .ant-pagination-item {
+  border-radius: 8px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  line-height: 26px !important;
+  border-color: #e2e8f0 !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  transition: all 0.15s ease !important;
+}
+
 .ant-pagination .ant-pagination-item-active {
-  border-color: var(--pagination-active-border) !important;
-  background-color: var(--pagination-active-bg) !important;
+  border-color: #059669 !important;
+  background-color: #059669 !important;
 }
 
 .ant-pagination .ant-pagination-item-active a {
-  color: var(--pagination-active-text) !important;
+  color: #ffffff !important;
 }
 
 .ant-pagination .ant-pagination-item:hover:not(.ant-pagination-item-active) {
-  border-color: var(--pagination-item-hover-border) !important;
+  border-color: #cbd5e1 !important;
+  background-color: #f8fafc !important;
 }
 
 .ant-pagination .ant-pagination-item:hover:not(.ant-pagination-item-active) a {
-  color: var(--pagination-item-hover-text) !important;
+  color: #1e293b !important;
+}
+
+.ant-pagination .ant-pagination-prev button,
+.ant-pagination .ant-pagination-next button,
+.ant-pagination .ant-pagination-prev .ant-pagination-item-link,
+.ant-pagination .ant-pagination-next .ant-pagination-item-link {
+  border-radius: 8px !important;
+  border-color: #e2e8f0 !important;
+  height: 28px !important;
+  width: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #64748b !important;
+  transition: all 0.15s ease !important;
+}
+
+.ant-pagination .ant-pagination-prev:hover:not(.ant-pagination-disabled) .ant-pagination-item-link,
+.ant-pagination .ant-pagination-next:hover:not(.ant-pagination-disabled) .ant-pagination-item-link {
+  border-color: #cbd5e1 !important;
+  background-color: #f8fafc !important;
+  color: #1e293b !important;
+}
+
+.ant-pagination .ant-pagination-disabled .ant-pagination-item-link,
+.ant-pagination .ant-pagination-disabled button {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
 }
 
 /* ── 7. Tabs Component ───────────────────────────────── */

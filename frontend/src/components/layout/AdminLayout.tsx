@@ -134,9 +134,15 @@ const menuItems: MenuItemConfig[] = [
   },
   {
     path: "/reports",
-    label: "Báo cáo",
+    label: "Báo cáo doanh thu",
     icon: <LineChartOutlined />,
-    roles: ["admin"],
+    roles: ["admin", "staff", "cashier"],
+  },
+  {
+    path: "/table-performance",
+    label: "Hiệu suất bàn",
+    icon: <DashboardOutlined />,
+    roles: ["admin", "staff", "cashier"],
   },
   {
     path: "/employees",
