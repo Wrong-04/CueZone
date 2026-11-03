@@ -16,8 +16,17 @@ const { Invoice } = require("../dist/modules/invoice/invoice.model");
 const { Wallet } = require("../dist/modules/wallet/wallet.model");
 const { playingDetails } = require("../dist/modules/session/session.service");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
+const { getMemberTier, getPointsForSpend } = require("../dist/modules/member/membership.policy");
 
 async function main() {
+  assert.equal(getMemberTier(499).tier.name, "Đồng");
+  assert.equal(getMemberTier(500).tier.name, "Bạc");
+  assert.equal(getMemberTier(1499).tier.name, "Bạc");
+  assert.equal(getMemberTier(1500).tier.name, "Vàng");
+  assert.equal(getMemberTier(500).progressPercent, 0);
+  assert.equal(getPointsForSpend(9999), 0);
+  assert.equal(getPointsForSpend(10000), 1);
+
   const dbName = `cz_check_${randomUUID().slice(0, 18)}`;
   let server;
   try {
@@ -311,10 +320,51 @@ async function main() {
       token,
     );
     assert.equal(walletLookup.walletBalance, 0);
+    const memberLogin = await ok("/auth/login", "POST", {
+      email: "wallet-member@check.invalid",
+      password: "CheckPassword123",
+    });
+    const initialMembership = await ok(
+      "/customer/membership",
+      "GET",
+      undefined,
+      memberLogin.accessToken,
+    );
+    assert.equal(initialMembership.points, 5);
+    assert.equal(initialMembership.currentTier.name, "Đồng");
+    assert.equal(initialMembership.tiers.length, 3);
+    assert.equal(
+      (await ok("/customer/play-history?page=1", "GET", undefined, memberLogin.accessToken)).total,
+      0,
+    );
+    assert.equal(
+      (await request("/customer/membership", "GET", undefined, token)).success,
+      false,
+      "Only customer accounts may access membership data",
+    );
     const walletSession = await ok(
       `/tables/${table._id}/session`,
       "POST",
       { customerName: walletMember.name, customerPhone: walletMember.phone, isMember: true },
+      token,
+    );
+    await ok(
+      `/tables/${table._id}/session/orders`,
+      "POST",
+      {
+        sessionId: walletSession.currentSession.sessionId,
+        orders: [
+          {
+            id: "member-history-order",
+            name: "Check item",
+            price: 50000,
+            quantity: 1,
+            category: "Check",
+            orderTime: new Date().toISOString(),
+            status: "served",
+          },
+        ],
+      },
       token,
     );
     const walletCheckout = {
@@ -346,13 +396,32 @@ async function main() {
     );
     assert.equal(walletReceipt.paymentMethod, "member_balance");
     assert.equal(walletReceipt.paymentStatus, "paid");
-    assert.equal(walletReceipt.pointsAwarded, 100);
+    assert.equal(walletReceipt.tableCode, "CHECK1");
+    const pointsAwarded = Math.floor(walletReceipt.finalAmount / 10000);
+    assert.ok(pointsAwarded > 0);
+    assert.equal(walletReceipt.pointsAwarded, pointsAwarded);
     const settledWallet = await Wallet.findById(wallet._id);
     assert.equal(settledWallet.balance, 100000 - walletReceipt.finalAmount);
-    assert.equal(settledWallet.points, 105);
+    assert.equal(settledWallet.points, 5 + pointsAwarded);
     assert.equal(settledWallet.transactions.at(-1).referenceCode, walletReceipt.invoiceCode);
-    assert.equal(settledWallet.transactions.at(-1).pointsAwarded, 100);
+    assert.equal(settledWallet.transactions.at(-1).pointsAwarded, pointsAwarded);
     assert.equal((await Invoice.findOne({ sessionId: walletCheckout.sessionId })).status, "paid");
+    const memberHistory = await ok(
+      "/customer/play-history?page=1",
+      "GET",
+      undefined,
+      memberLogin.accessToken,
+    );
+    assert.equal(memberHistory.total, 1);
+    assert.equal(memberHistory.items[0].tableCode, "CHECK1");
+    assert.equal(memberHistory.items[0].pointsAwarded, pointsAwarded);
+    const updatedMembership = await ok(
+      "/customer/membership",
+      "GET",
+      undefined,
+      memberLogin.accessToken,
+    );
+    assert.equal(updatedMembership.points, 5 + pointsAwarded);
     const concurrentWalletCheckouts = await Promise.all([
       request(`/tables/${table._id}/session/checkout`, "POST", walletCheckout, token),
       request(`/tables/${table._id}/session/checkout`, "POST", walletCheckout, token),
@@ -363,7 +432,53 @@ async function main() {
       concurrentWalletCheckouts[1].data.invoiceCode,
     );
     assert.equal((await Wallet.findById(wallet._id)).balance, 100000 - walletReceipt.finalAmount);
-    assert.equal((await Wallet.findById(wallet._id)).points, 105);
+    assert.equal((await Wallet.findById(wallet._id)).points, 5 + pointsAwarded);
+
+    const cashMemberSession = await ok(
+      `/tables/${table._id}/session`,
+      "POST",
+      { customerName: walletMember.name, customerPhone: walletMember.phone, isMember: true },
+      token,
+    );
+    await ok(
+      `/tables/${table._id}/session/orders`,
+      "POST",
+      {
+        sessionId: cashMemberSession.currentSession.sessionId,
+        orders: [
+          {
+            id: "cash-member-history-order",
+            name: "Check item",
+            price: 30000,
+            quantity: 1,
+            category: "Check",
+            orderTime: new Date().toISOString(),
+            status: "served",
+          },
+        ],
+      },
+      token,
+    );
+    const cashReceipt = await ok(
+      `/tables/${table._id}/session/checkout`,
+      "POST",
+      {
+        sessionId: cashMemberSession.currentSession.sessionId,
+        discountPercent: 0,
+        paymentMethod: "cash",
+      },
+      token,
+    );
+    const cashPoints = Math.floor(cashReceipt.finalAmount / 10000);
+    assert.equal(cashReceipt.pointsAwarded, cashPoints);
+    assert.equal((await Wallet.findById(wallet._id)).points, 5 + pointsAwarded + cashPoints);
+    assert.equal((await Wallet.findById(wallet._id)).balance, 100000 - walletReceipt.finalAmount);
+    assert.equal(
+      (
+        await ok("/customer/play-history?page=1", "GET", undefined, memberLogin.accessToken)
+      ).total,
+      2,
+    );
 
     assert.equal((await ok("/bookings", "GET", undefined, token)).length, 3);
     assert.equal((await ok("/tables?isActive=true", "GET", undefined, token)).length, 2);

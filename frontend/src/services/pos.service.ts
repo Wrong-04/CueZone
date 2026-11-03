@@ -104,7 +104,7 @@ export const posService = {
         discountPercent,
         paymentMethod,
         ...(voucherCode ? { voucherCode } : {}),
-        ...(paymentMethod === "member_balance" && customerPhone ? { customerPhone } : {}),
+        ...(customerPhone ? { customerPhone } : {}),
       },
     );
     return result(data);

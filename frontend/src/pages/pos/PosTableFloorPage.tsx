@@ -918,7 +918,7 @@ export const PosTableFloorPage: React.FC = () => {
           appliedVoucher ? 0 : discountPercent,
           paymentMethod,
           appliedVoucher?.code,
-          paymentMethod === "member_balance" ? loyaltyCustomer?.phone : undefined,
+          loyaltyCustomer?.phone,
         ),
       );
     });

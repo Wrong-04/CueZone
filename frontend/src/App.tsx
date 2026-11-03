@@ -329,7 +329,14 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="profile" element={<CustomerProfile />} />
+        <Route
+          path="profile"
+          element={
+            <ProtectedRoute roles={["customer"]}>
+              <CustomerProfile />
+            </ProtectedRoute>
+          }
+        />
         <Route path="rules" element={<CustomerRules />} />
         <Route path="news" element={<CustomerNews />} />
       </Route>

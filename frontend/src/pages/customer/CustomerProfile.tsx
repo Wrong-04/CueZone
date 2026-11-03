@@ -10,18 +10,20 @@ import {
   BellOutlined,
   CrownOutlined,
   KeyOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 import { Button, Tag, Input, Typography, message, Space, Modal, Tabs } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
+import { MemberOverviewTab, PlayHistoryTab } from "./CustomerMembershipCenter";
 
 const { Title } = Typography;
 
 export const CustomerProfile: React.FC = () => {
   const { user } = useAuth();
 
-  const [name, setName] = useState<string>(user?.name || "Đặng Tuấn Anh");
-  const email = user?.email || "customer@cuezone.com";
-  const [phone, setPhone] = useState<string>(user?.phone || "0912 345 678");
+  const [name, setName] = useState<string>(user?.name || "");
+  const email = user?.email || "";
+  const [phone, setPhone] = useState<string>(user?.phone || "");
   const [favoriteClub, setFavoriteClub] = useState<string>(
     "CueZone Chi Nhánh Q.3 (123 Nguyễn Thị Minh Khai)",
   );
@@ -106,7 +108,7 @@ export const CustomerProfile: React.FC = () => {
               color="gold"
               className="!rounded-md !px-2.5 !py-0.5 !text-xs !font-bold self-center sm:self-auto"
             >
-              <CrownOutlined className="mr-1" /> DIAMOND VIP
+              <CrownOutlined className="mr-1" />               HỘI VIÊN CUEZONE
             </Tag>
           </div>
 
@@ -114,18 +116,8 @@ export const CustomerProfile: React.FC = () => {
             {email} • SĐT: {phone}
           </p>
 
-          <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-400">
-            <span>
-              Hạng ELO: <strong className="text-amber-400">Master 1850</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Tỉ lệ thắng: <strong className="text-emerald-400">68%</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Hội viên từ: <strong>01/2026</strong>
-            </span>
+          <div className="pt-2 text-xs text-slate-400">
+            Thành viên CLB CueZone · Theo dõi điểm và quyền lợi trong tab Hội viên
           </div>
         </div>
       </div>
@@ -289,6 +281,26 @@ export const CustomerProfile: React.FC = () => {
                   </div>
                 </div>
               ),
+            },
+            {
+              key: "membership",
+              label: (
+                <Space size={6} align="center">
+                  <CrownOutlined />
+                  <span>Hội Viên</span>
+                </Space>
+              ),
+              children: <MemberOverviewTab />,
+            },
+            {
+              key: "play-history",
+              label: (
+                <Space size={6} align="center">
+                  <HistoryOutlined />
+                  <span>Lịch Sử Chơi</span>
+                </Space>
+              ),
+              children: <PlayHistoryTab />,
             },
             {
               key: "notifications",
