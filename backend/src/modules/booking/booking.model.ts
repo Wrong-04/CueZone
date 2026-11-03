@@ -1,6 +1,17 @@
 import mongoose, { Schema } from "mongoose";
 import { applyErdDefaults } from "../../config/erd-fields";
 
+const preOrderItemSchema = new Schema(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    name: { type: String, required: true, trim: true },
+    category: { type: String, required: true, trim: true },
+    unitPrice: { type: Number, required: true, min: 0 },
+    quantity: { type: Number, required: true, min: 1, max: 50 },
+  },
+  { _id: false },
+);
+
 const bookingSchema = new Schema(
   {
     customerName: { type: String, trim: true, maxlength: 120 },
@@ -14,6 +25,9 @@ const bookingSchema = new Schema(
     estimatedCost: { type: Number, default: 0, min: 0 },
     deposit: { type: Number, default: 0, min: 0 },
     note: { type: String, maxlength: 1000 },
+    preOrderItems: { type: [preOrderItemSchema], default: [] },
+    inventoryReserved: { type: Boolean, default: false },
+    qrTokenHash: { type: String, select: false, unique: true, sparse: true },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected", "checked_in", "confirmed", "cancelled"],

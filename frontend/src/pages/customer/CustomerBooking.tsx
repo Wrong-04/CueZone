@@ -10,6 +10,9 @@ import {
   ClockCircleOutlined,
   DollarOutlined,
   SyncOutlined,
+  MinusOutlined,
+  PlusOutlined,
+  ShoppingOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -24,6 +27,8 @@ import {
 } from "../../shared/ui";
 import { bookingService } from "../../services/pos.service";
 import { getSocket } from "../../services/socket.service";
+import { productService, type ProductMenu } from "../../services/product.service";
+import QRCode from "qrcode";
 
 const { Title, Paragraph } = Typography;
 
@@ -88,6 +93,19 @@ const CustomerBooking = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [availabilityVersion, setAvailabilityVersion] = useState<number>(0);
+  const [menuItems, setMenuItems] = useState<ProductMenu[]>([]);
+  const [selectedFnb, setSelectedFnb] = useState<Record<string, number>>({});
+  const [bookingQr, setBookingQr] = useState<{ dataUrl: string; booking: any } | null>(null);
+  const [loadingQr, setLoadingQr] = useState(false);
+
+  useEffect(() => {
+    productService
+      .getFnbMenu()
+      .then(setMenuItems)
+      .catch((error) =>
+        message.error(error instanceof Error ? error.message : "Không thể tải thực đơn F&B"),
+      );
+  }, []);
 
   useEffect(() => {
     const socket = getSocket();
@@ -160,6 +178,25 @@ const CustomerBooking = () => {
     tablesList[0] ||
     null;
   const totalCost = selectedTable ? selectedTable.price * duration : 0;
+  const preOrderItems = Object.entries(selectedFnb)
+    .filter(([, quantity]) => quantity > 0)
+    .map(([productId, quantity]) => ({ productId, quantity }));
+  const preOrderTotal = preOrderItems.reduce((sum, item) => {
+    const product = menuItems.find((menuItem) => menuItem._id === item.productId);
+    return sum + (product?.salePrice || 0) * item.quantity;
+  }, 0);
+
+  const updateFnbQuantity = (productId: string, delta: number) => {
+    setSelectedFnb((current) => {
+      const quantity = Math.max(0, (current[productId] || 0) + delta);
+      if (quantity === 0) {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      }
+      return { ...current, [productId]: quantity };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,7 +221,7 @@ const CustomerBooking = () => {
 
     try {
       setLoading(true);
-      await bookingService.createPublic({
+      const booking = await bookingService.createPublic({
         customerName: name.trim(),
         phone: phone.trim(),
         tableId: selectedTable.id,
@@ -193,7 +230,15 @@ const CustomerBooking = () => {
         duration,
         deposit: 0,
         note: note.trim() || undefined,
+        preOrderItems,
       });
+      setLoadingQr(true);
+      const dataUrl = await QRCode.toDataURL(booking.qrToken, {
+        width: 280,
+        margin: 2,
+        errorCorrectionLevel: "M",
+      });
+      setBookingQr({ dataUrl, booking });
       setShowSuccessModal(true);
       setAvailabilityVersion((version) => version + 1);
       message.success("Đặt bàn đã được xác nhận tự động.");
@@ -202,6 +247,7 @@ const CustomerBooking = () => {
         err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
       message.error(errMsg);
     } finally {
+      setLoadingQr(false);
       setLoading(false);
     }
   };
@@ -417,6 +463,69 @@ const CustomerBooking = () => {
                 />
               </div>
 
+              <div className="rounded-2xl border border-slate-200 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">
+                    <ShoppingOutlined className="mr-1.5 text-emerald-600" />
+                    Đặt trước món F&B (tùy chọn)
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    {preOrderItems.reduce((sum, item) => sum + item.quantity, 0)} món
+                  </span>
+                </div>
+                {menuItems.length === 0 ? (
+                  <p className="text-xs text-slate-500">Hiện chưa có món F&B để đặt trước.</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
+                    {menuItems.map((item) => {
+                      const quantity = selectedFnb[item._id] || 0;
+                      return (
+                        <div
+                          key={item._id}
+                          className="flex items-center justify-between gap-2 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-slate-800">
+                              {item.name}
+                            </p>
+                            <p className="text-[11px] text-slate-500">
+                              {item.salePrice.toLocaleString("vi-VN")}đ
+                              {item.isOutOfStock ? " • Hết hàng" : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              htmlType="button"
+                              variant="outline"
+                              size="sm"
+                              icon={<MinusOutlined />}
+                              disabled={quantity === 0}
+                              onClick={() => updateFnbQuantity(item._id, -1)}
+                              aria-label={`Giảm ${item.name}`}
+                            />
+                            <span className="w-4 text-center text-xs font-bold">{quantity}</span>
+                            <Button
+                              htmlType="button"
+                              variant="outline"
+                              size="sm"
+                              icon={<PlusOutlined />}
+                              disabled={item.isOutOfStock || quantity >= 50}
+                              onClick={() => updateFnbQuantity(item._id, 1)}
+                              aria-label={`Tăng ${item.name}`}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {preOrderItems.length > 0 && (
+                  <div className="border-t border-slate-100 pt-2 text-right text-xs font-bold text-emerald-700">
+                    Món F&B tạm tính: {preOrderTotal.toLocaleString("vi-VN")}đ
+                  </div>
+                )}
+              </div>
+
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Bàn đã chọn:</span>
@@ -474,28 +583,40 @@ const CustomerBooking = () => {
         title={
           <Space align="center" size={8}>
             <CheckCircleOutlined className="text-emerald-600 text-lg" />
-            <span className="text-slate-900 font-bold">Đặt Bàn Đã Được Xác Nhận</span>
+            <span className="text-slate-900 font-bold">Mã QR Đặt Bàn</span>
           </Space>
         }
       >
         <div className="space-y-4 py-2 text-xs text-slate-700">
           <p className="text-sm">
-            Cảm ơn cơ thủ <strong>{name}</strong>! Bàn đã được giữ thành công cho khung giờ bạn chọn.
-            Nhân viên CueZone đã nhận thông báo để chuẩn bị đón bạn.
+            Đặt bàn của <strong>{bookingQr?.booking.customerName || name}</strong> đã được xác nhận.
+            Đưa mã này cho nhân viên khi đến quán để xác nhận bàn và món đặt trước.
           </p>
+          <div className="flex justify-center">
+            {bookingQr?.dataUrl ? (
+              <img src={bookingQr.dataUrl} alt="Mã QR xác nhận đặt bàn" className="h-56 w-56" />
+            ) : loadingQr ? (
+              <SyncOutlined spin className="py-12 text-3xl text-emerald-600" />
+            ) : null}
+          </div>
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
             <div className="flex items-center gap-2">
               <EnvironmentOutlined className="text-emerald-600" />
               <span>
                 <strong>Bàn:</strong>{" "}
-                {selectedTable ? `${selectedTable.name} (${selectedTable.typeName})` : ""}
+                {bookingQr?.booking.tableCode
+                  ? `${bookingQr.booking.tableCode} • ${bookingQr.booking.tableName}`
+                  : selectedTable
+                    ? `${selectedTable.code} • ${selectedTable.name} (${selectedTable.typeName})`
+                    : ""}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <ClockCircleOutlined className="text-emerald-600" />
               <span>
-                <strong>Thời gian:</strong> {time} ({selectedDateLabel}) - Thời lượng dự kiến:{" "}
-                {duration} giờ
+                <strong>Thời gian:</strong> {bookingQr?.booking.time || time} (
+                {bookingQr?.booking.date || selectedDateLabel}) - Thời lượng dự kiến:{" "}
+                {bookingQr?.booking.duration || duration} giờ
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -507,10 +628,26 @@ const CustomerBooking = () => {
             <div className="flex items-center gap-2">
               <DollarOutlined className="text-emerald-600" />
               <span>
-                <strong>Chi phí tạm tính:</strong> {totalCost.toLocaleString("vi-VN")} VNĐ (Thanh
-                toán tại quầy)
+                <strong>Chi phí bàn:</strong>{" "}
+                {(bookingQr?.booking.estimatedCost || totalCost).toLocaleString("vi-VN")} VNĐ
               </span>
             </div>
+            {bookingQr?.booking.preOrderItems?.length > 0 && (
+              <div className="border-t border-emerald-200 pt-2">
+                <strong>Món F&B đặt trước:</strong>
+                <ul className="mt-1 list-disc pl-5">
+                  {bookingQr.booking.preOrderItems.map((item: any) => (
+                    <li key={String(item.productId)}>
+                      {item.name} × {item.quantity} —{" "}
+                      {(item.unitPrice * item.quantity).toLocaleString("vi-VN")}đ
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 font-bold">
+                  Tổng món: {preOrderTotal.toLocaleString("vi-VN")}đ (thanh toán tại quầy)
+                </p>
+              </div>
+            )}
           </div>
           <p className="text-slate-500">
             Lịch đặt đã được xác nhận. Bạn có thể hủy trước giờ chơi ít nhất 2 tiếng tại{" "}

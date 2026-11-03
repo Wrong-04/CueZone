@@ -4,10 +4,12 @@ import {
   ClockCircleOutlined,
   DollarOutlined,
   ExclamationCircleOutlined,
+  QrcodeOutlined,
 } from "@ant-design/icons";
 import { Button, Card, Tag, Typography, Modal, Input, message, Space } from "../../shared/ui";
 import { bookingService } from "../../services/pos.service";
 import type { BookingRequest } from "../../types/pos";
+import QRCode from "qrcode";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -79,6 +81,8 @@ const CustomerHistory = () => {
   const [viewingBooking, setViewingBooking] = useState<BookingItem | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+  const [bookingQr, setBookingQr] = useState<{ code: string; image: string } | null>(null);
+  const [loadingQr, setLoadingQr] = useState(false);
 
   const refreshBookings = async () => {
     const records = await bookingService.getMine();
@@ -116,6 +120,23 @@ const CustomerHistory = () => {
       message.error(error instanceof Error ? error.message : "Không thể hủy lịch đặt bàn");
     } finally {
       setIsSubmittingCancel(false);
+    }
+  };
+
+  const handleShowQr = async (booking: BookingItem) => {
+    setLoadingQr(true);
+    try {
+      const { qrToken } = await bookingService.issueQr(booking.id);
+      const image = await QRCode.toDataURL(qrToken, {
+        width: 280,
+        margin: 2,
+        errorCorrectionLevel: "M",
+      });
+      setBookingQr({ code: booking.code, image });
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không thể tạo mã QR đặt bàn");
+    } finally {
+      setLoadingQr(false);
     }
   };
 
@@ -220,6 +241,18 @@ const CustomerHistory = () => {
                     >
                       Chi Tiết
                     </Button>
+                    {booking.status === "approved" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        loading={loadingQr}
+                        onClick={() => void handleShowQr(booking)}
+                        icon={<QrcodeOutlined />}
+                        className="!text-xs !rounded-xl"
+                      >
+                        Mã QR
+                      </Button>
+                    )}
                     {booking.canCancel && (
                       <Button
                         variant="danger"
@@ -237,6 +270,40 @@ const CustomerHistory = () => {
           </div>
         )}
       </div>
+
+      <Modal
+        open={!!bookingQr}
+        onCancel={() => setBookingQr(null)}
+        footer={[
+          <Button
+            key="close-qr"
+            variant="outline"
+            onClick={() => setBookingQr(null)}
+            className="!text-xs !rounded-xl"
+          >
+            Đóng
+          </Button>,
+        ]}
+        title={
+          <Space align="center" size={8}>
+            <QrcodeOutlined className="text-emerald-600" />
+            <span className="text-slate-900 font-bold">Mã QR đặt bàn {bookingQr?.code}</span>
+          </Space>
+        }
+      >
+        {bookingQr && (
+          <div className="space-y-3 py-2 text-center">
+            <img
+              src={bookingQr.image}
+              alt="Mã QR xác nhận đặt bàn"
+              className="mx-auto h-56 w-56"
+            />
+            <p className="text-xs text-slate-600">
+              Đưa mã này cho nhân viên để xác nhận bàn và các món F&B đặt trước.
+            </p>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={!!viewingBooking}

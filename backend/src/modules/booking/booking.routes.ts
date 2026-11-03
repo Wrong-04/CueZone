@@ -30,7 +30,24 @@ router.post("/:id/cancel", requireRole(UserRole.CUSTOMER), async (req, res, next
     next(error);
   }
 });
+router.post("/:id/qr", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
+  try {
+    res.json({
+      success: true,
+      data: await service.issueQrToken(String((req as any).user.userId), req.params.id),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 router.use(requirePosStaff);
+router.post("/qr/resolve", async (req, res, next) => {
+  try {
+    res.json({ success: true, data: await service.resolveQrToken(req.body?.qrToken) });
+  } catch (error) {
+    next(error);
+  }
+});
 router.get("/", async (_req, res, next) => {
   try {
     res.json({ success: true, data: await service.getAll() });

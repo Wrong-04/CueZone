@@ -1,7 +1,9 @@
 import mongoose from "mongoose";
+import { createHash, randomBytes } from "node:crypto";
 import { Booking } from "./booking.model";
 import { Table, TableStatus, TableType } from "../table/table.model";
 import { User } from "../user/user.model";
+import { Product } from "../product/product.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
@@ -41,6 +43,7 @@ function getStoredBookingInterval(booking: any) {
 export function bookingInput(input: any) {
   const tableRef = input.table || input.tableId;
   const deposit = input.deposit ?? 0;
+  const preOrderItems = input.preOrderItems ?? [];
   if (
     typeof input.customerName !== "string" ||
     !input.customerName.trim() ||
@@ -57,9 +60,23 @@ export function bookingInput(input: any) {
     input.duration > 24 ||
     !Number.isSafeInteger(deposit) ||
     deposit < 0 ||
-    (input.note !== undefined && (typeof input.note !== "string" || input.note.length > 1000))
+    (input.note !== undefined && (typeof input.note !== "string" || input.note.length > 1000)) ||
+    !Array.isArray(preOrderItems) ||
+    preOrderItems.length > 30 ||
+    preOrderItems.some(
+      (item: any) =>
+        !item ||
+        typeof item !== "object" ||
+        !mongoose.isValidObjectId(item.productId) ||
+        !Number.isSafeInteger(item.quantity) ||
+        item.quantity < 1 ||
+        item.quantity > 50,
+    )
   ) {
     throw new Error("Thông tin đặt bàn không hợp lệ");
+  }
+  if (new Set(preOrderItems.map((item: any) => String(item.productId))).size !== preOrderItems.length) {
+    throw new Error("Mỗi món chỉ được xuất hiện một lần trong danh sách đặt trước");
   }
   const { startDate, endDate } = getBookingInterval(input.date, input.time, input.duration);
   return {
@@ -73,10 +90,68 @@ export function bookingInput(input: any) {
     endDate,
     deposit,
     note: input.note,
+    preOrderItems: preOrderItems.map((item: any) => ({
+      productId: new mongoose.Types.ObjectId(String(item.productId)),
+      quantity: item.quantity,
+    })),
   };
 }
 
 export class BookingService {
+  private hashQrToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  private createQrToken() {
+    return randomBytes(32).toString("hex");
+  }
+
+  async resolveQrToken(tokenValue: unknown) {
+    if (typeof tokenValue !== "string" || !/^[a-f0-9]{64}$/.test(tokenValue)) {
+      throw new Error("Mã QR đặt bàn không hợp lệ");
+    }
+    const booking = await Booking.findOne({
+      qrTokenHash: this.hashQrToken(tokenValue),
+      status: "approved",
+    }).select("+qrTokenHash");
+    if (!booking) throw new Error("Mã QR không hợp lệ, đã hủy hoặc lịch đã được nhận bàn");
+    const { endDate } = getStoredBookingInterval(booking);
+    if (!Number.isFinite(endDate.getTime()) || endDate.getTime() <= Date.now()) {
+      throw new Error("Mã QR đặt bàn đã hết thời hạn sử dụng");
+    }
+    const table = await Table.findById(booking.table).select("code name");
+    if (!table) throw new Error("Không tìm thấy bàn của lịch đặt");
+    return {
+      bookingId: String(booking._id),
+      customerName: booking.customerName,
+      phone: booking.phone,
+      date: booking.date,
+      time: booking.time,
+      duration: booking.duration,
+      status: booking.status,
+      table: { id: String(table._id), code: table.code, name: table.name },
+      preOrderItems: booking.preOrderItems,
+      preOrderTotal: booking.preOrderItems.reduce(
+        (sum: number, item: any) => sum + item.unitPrice * item.quantity,
+        0,
+      ),
+    };
+  }
+
+  async issueQrToken(customerId: string, bookingId: string) {
+    if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(bookingId)) {
+      throw new Error("Lịch đặt bàn không hợp lệ");
+    }
+    const token = this.createQrToken();
+    const booking = await Booking.findOneAndUpdate(
+      { _id: bookingId, customer: customerId, status: "approved" },
+      { $set: { qrTokenHash: this.hashQrToken(token) } },
+      { new: true },
+    ).select("_id");
+    if (!booking) throw new Error("Không tìm thấy lịch đặt bàn còn hiệu lực của bạn");
+    return { qrToken: token };
+  }
+
   private async hasSlotConflict(
     tableId: string,
     startDate: Date,
@@ -213,6 +288,7 @@ export class BookingService {
     if (initialStatus === "pending" && !associatedCustomerId) {
       throw new Error("Vui lòng đăng nhập tài khoản khách hàng để đặt bàn");
     }
+    const qrToken = this.createQrToken();
     const result = await mongoose.connection.transaction(async (session) => {
       const table = await Table.findOneAndUpdate(
         {
@@ -230,6 +306,50 @@ export class BookingService {
       if (await this.hasSlotConflict(String(table._id), dto.startDate, dto.endDate, session)) {
         throw new Error("Khung giờ này đã có người đặt, vui lòng chọn thời gian khác");
       }
+      let preOrderItems: Array<{
+        productId: mongoose.Types.ObjectId;
+        name: string;
+        category: string;
+        unitPrice: number;
+        quantity: number;
+      }> = [];
+      if (dto.preOrderItems.length > 0) {
+        const products = await Product.find({
+          _id: { $in: dto.preOrderItems.map((item) => item.productId) },
+          category: { $in: ["drink", "food", "snack"] },
+          isForSale: true,
+          isActive: true,
+        })
+          .select("_id name category salePrice")
+          .session(session);
+        if (products.length !== dto.preOrderItems.length) {
+          throw new Error("Một hoặc nhiều món F&B không còn được bán");
+        }
+        const productById = new Map(products.map((product) => [String(product._id), product]));
+        preOrderItems = dto.preOrderItems.map(({ productId, quantity }) => {
+          const product = productById.get(String(productId))!;
+          return {
+            productId,
+            name: product.name,
+            category: product.category,
+            unitPrice: product.salePrice,
+            quantity,
+          };
+        });
+        for (const item of preOrderItems) {
+          const reserved = await Product.findOneAndUpdate(
+            {
+              _id: item.productId,
+              isActive: true,
+              isForSale: true,
+              stock: { $gte: item.quantity },
+            },
+            { $inc: { stock: -item.quantity } },
+            { new: true, session },
+          );
+          if (!reserved) throw new Error(`Món ${item.name} không đủ tồn kho`);
+        }
+      }
       const [booking] = await Booking.create(
         [
           {
@@ -239,6 +359,9 @@ export class BookingService {
             tableName: table.name,
             estimatedCost: table.pricePerHour * dto.duration,
             status: initialStatus,
+            preOrderItems,
+            inventoryReserved: preOrderItems.length > 0,
+            qrTokenHash: this.hashQrToken(qrToken),
           },
         ],
         { session },
@@ -273,7 +396,7 @@ export class BookingService {
               : `Lịch đặt bàn ${result.booking.date} lúc ${result.booking.time} tại ${result.booking.tableName} đã được xác nhận.`,
           type: NotificationType.TABLE,
         })
-        .catch(() => undefined);
+        .catch((error) => console.error("Không thể gửi thông báo đặt bàn cho khách:", error));
     }
     await notificationService
       .create({
@@ -281,13 +404,17 @@ export class BookingService {
           initialStatus === "approved"
             ? "Lịch đặt bàn đã xác nhận tự động"
             : "Có lịch đặt bàn mới",
-        content: `${result.booking.customerName} (${result.booking.phone}) đặt ${result.booking.tableName} ngày ${result.booking.date} lúc ${result.booking.time}, dự kiến ${result.booking.duration} giờ. Vui lòng chuẩn bị và giữ bàn.`,
+        content: `${result.booking.customerName} (${result.booking.phone}) đặt ${result.booking.tableName} ngày ${result.booking.date} lúc ${result.booking.time}, dự kiến ${result.booking.duration} giờ.${result.booking.preOrderItems.length ? ` Món đặt trước: ${result.booking.preOrderItems.map((item: any) => `${item.name} x${item.quantity}`).join(", ")}.` : ""} Vui lòng chuẩn bị và giữ bàn.`,
         type: NotificationType.TABLE,
       })
-      .catch(() => undefined);
+      .catch((error) => console.error("Không thể gửi thông báo lịch đặt bàn cho nhân viên:", error));
+    const bookingData = result.booking.toObject ? result.booking.toObject() : result.booking;
+    delete bookingData.qrTokenHash;
     return {
-      ...(result.booking.toObject ? result.booking.toObject() : result.booking),
+      ...bookingData,
       tableId: String(result.table._id),
+      tableCode: result.table.code,
+      qrToken,
     };
   }
 
@@ -325,6 +452,17 @@ export class BookingService {
       );
       if (booking.status === "approved" && tableUpdateResult.modifiedCount !== 1) {
         throw new Error("Trạng thái giữ bàn đã thay đổi, vui lòng tải lại");
+      }
+      if (booking.inventoryReserved) {
+        for (const item of booking.preOrderItems) {
+          await Product.updateOne(
+            { _id: item.productId },
+            { $inc: { stock: item.quantity } },
+            { session },
+          );
+        }
+        booking.inventoryReserved = false;
+        await booking.save({ session });
       }
       const update = await Booking.updateOne(
         { _id: id, customer: customerId, status: booking.status },
@@ -443,6 +581,16 @@ export class BookingService {
           { session },
         );
         affectedTableId = String(booking.table);
+      }
+      if (input.status === "rejected" && booking.inventoryReserved) {
+        for (const item of booking.preOrderItems) {
+          await Product.updateOne(
+            { _id: item.productId },
+            { $inc: { stock: item.quantity } },
+            { session },
+          );
+        }
+        booking.inventoryReserved = false;
       }
       booking.status = input.status;
       booking.rejectionReason =

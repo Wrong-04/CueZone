@@ -47,6 +47,7 @@ import {
 } from "../../shared/ui";
 import { getSocket } from "../../services/socket.service";
 import { INITIAL_FNB_STOCK, type FnbStockItem } from "../../mock/posData";
+import BookingQrScanner from "../../components/booking/BookingQrScanner";
 
 const { Title, Text } = Typography;
 
@@ -58,6 +59,7 @@ export const PosTableFloorPage: React.FC = () => {
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [bookingQrScannerOpen, setBookingQrScannerOpen] = useState(false);
   const busy = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -1020,6 +1022,16 @@ export const PosTableFloorPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2.5 self-start md:self-center shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBookingQrScannerOpen(true)}
+              icon={<QrcodeOutlined />}
+              className="!rounded-xl !text-xs !h-8"
+            >
+              Quét QR đặt bàn
+            </Button>
+
             {/* Real-time temporary revenue badge */}
             <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 flex items-center gap-2 shadow-2xs">
               <span className="text-[11px] font-semibold text-emerald-800">
@@ -3014,6 +3026,10 @@ export const PosTableFloorPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+      <BookingQrScanner
+        open={bookingQrScannerOpen}
+        onClose={() => setBookingQrScannerOpen(false)}
+      />
     </div>
   );
 };

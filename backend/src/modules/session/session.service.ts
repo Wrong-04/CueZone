@@ -283,6 +283,15 @@ export class SessionService {
       let deposit = 0;
       let name = input.customerName?.trim() || "Khách vãng lai";
       let phone = input.customerPhone?.trim();
+      let preOrderedItems: Array<{
+        id: string;
+        name: string;
+        price: number;
+        quantity: number;
+        category: string;
+        orderTime: string;
+        status: string;
+      }> = [];
       if (table.status === TableStatus.BOOKED) {
         if (!table.bookedInfo || input.bookingId !== table.bookedInfo.bookingId)
           throw new Error("Lịch đặt bàn đã thay đổi, vui lòng tải lại");
@@ -295,6 +304,16 @@ export class SessionService {
         deposit = booking.deposit;
         name = booking.customerName;
         phone = booking.phone;
+        preOrderedItems = booking.preOrderItems.map((item: any) => ({
+          id: `booking-${booking.id}-${String(item.productId)}`,
+          name: item.name,
+          price: item.unitPrice,
+          quantity: item.quantity,
+          category: item.category,
+          orderTime: "Đặt trước",
+          status: "pending",
+        }));
+        booking.inventoryReserved = false;
         await booking.save({ session });
       } else if (input.bookingId) {
         throw new Error("Lịch đặt bàn đã thay đổi, vui lòng tải lại");
@@ -327,7 +346,7 @@ export class SessionService {
         customerName: name,
         customerPhone: phone,
         isMember,
-        orders: [],
+        orders: preOrderedItems,
         note: input.note,
         deposit,
       };
