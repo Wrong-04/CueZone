@@ -66,7 +66,8 @@ const mapBooking = (booking: BookingRequest): BookingItem => {
     statusLabel: statusLabels[booking.status],
     createdAt: booking.createdAt ? formatDate(booking.createdAt, true) : "",
     canCancel:
-      booking.status === "pending" && startsAt - 2 * 60 * 60 * 1000 > Date.now(),
+      ["pending", "approved"].includes(booking.status) &&
+      startsAt - 2 * 60 * 60 * 1000 > Date.now(),
   };
 };
 
@@ -131,8 +132,7 @@ const CustomerHistory = () => {
           Lịch Đặt Bàn Của Tôi
         </Title>
         <Paragraph className="!text-xs sm:!text-sm !text-slate-500 max-w-3xl leading-relaxed !mb-0">
-          Theo dõi trạng thái các yêu cầu đặt bàn và hủy đơn đang chờ xác nhận trước giờ chơi ít
-          nhất 2 tiếng.
+          Theo dõi lịch đặt bàn đã xác nhận và hủy lịch trước giờ chơi ít nhất 2 tiếng.
         </Paragraph>
       </div>
 
@@ -293,7 +293,7 @@ const CustomerHistory = () => {
               </div>
             </div>
             <p className="text-slate-500 leading-relaxed">
-              Đơn chờ xác nhận có thể hủy trước giờ chơi ít nhất 2 tiếng.
+              Lịch chưa nhận bàn có thể hủy trước giờ chơi ít nhất 2 tiếng.
             </p>
           </div>
         )}
@@ -350,7 +350,7 @@ const CustomerHistory = () => {
               />
             </div>
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 leading-relaxed">
-              Chỉ có thể hủy đơn đang chờ xác nhận và trước giờ chơi ít nhất 2 tiếng.
+              Chỉ có thể hủy lịch chưa nhận bàn và trước giờ chơi ít nhất 2 tiếng.
             </div>
           </div>
         )}

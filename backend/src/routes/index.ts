@@ -76,13 +76,16 @@ publicRouter.get("/public/tournaments", async (req, res, next) => {
 publicRouter.post(
   "/public/bookings",
   optionalAuthMiddleware,
-  requireRole(UserRole.CUSTOMER),
   async (req, res, next) => {
     try {
-      const booking = await bookingService.create(req.body, (req as any).user.userId, "pending");
+      const booking = await bookingService.create(
+        req.body,
+        (req as any).user?.userId,
+        "approved",
+      );
       res
         .status(201)
-        .json({ success: true, message: "Đã nhận yêu cầu đặt bàn, đang chờ xác nhận", data: booking });
+        .json({ success: true, message: "Đặt bàn đã được xác nhận tự động", data: booking });
     } catch (error) {
       next(error);
     }
