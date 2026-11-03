@@ -13,6 +13,7 @@ const { User } = require("../dist/modules/user/user.model");
 const { Table } = require("../dist/modules/table/table.model");
 const { Booking } = require("../dist/modules/booking/booking.model");
 const { Invoice } = require("../dist/modules/invoice/invoice.model");
+const { Wallet } = require("../dist/modules/wallet/wallet.model");
 const { playingDetails } = require("../dist/modules/session/session.service");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
 
@@ -24,7 +25,7 @@ async function main() {
       dbName,
       serverSelectionTimeoutMS: 5000,
     });
-    await Promise.all([User.init(), Table.init(), Booking.init(), Invoice.init()]);
+    await Promise.all([User.init(), Table.init(), Booking.init(), Invoice.init(), Wallet.init()]);
     server = new App().app.listen(0, "127.0.0.1");
     await new Promise((resolve) => server.once("listening", resolve));
     const base = `http://127.0.0.1:${server.address().port}/api/v1`;
@@ -294,6 +295,76 @@ async function main() {
     );
     assert.equal(await Invoice.countDocuments(), 1);
     assert.equal((await Table.findById(second._id)).status, "available");
+
+    const walletMember = await User.create({
+      name: "Wallet member",
+      email: "wallet-member@check.invalid",
+      password: "CheckPassword123",
+      role: "customer",
+      phone: "0901234567",
+    });
+    const wallet = await Wallet.create({ userId: walletMember._id, balance: 0, points: 5 });
+    const walletLookup = await ok(
+      `/tables/customer-lookup?phone=${walletMember.phone}`,
+      "GET",
+      undefined,
+      token,
+    );
+    assert.equal(walletLookup.walletBalance, 0);
+    const walletSession = await ok(
+      `/tables/${table._id}/session`,
+      "POST",
+      { customerName: walletMember.name, customerPhone: walletMember.phone, isMember: true },
+      token,
+    );
+    const walletCheckout = {
+      sessionId: walletSession.currentSession.sessionId,
+      discountPercent: 0,
+      paymentMethod: "member_balance",
+      customerPhone: walletMember.phone,
+    };
+    const insufficientWalletCheckout = await request(
+      `/tables/${table._id}/session/checkout`,
+      "POST",
+      walletCheckout,
+      token,
+    );
+    assert.equal(insufficientWalletCheckout.success, false);
+    assert.equal(insufficientWalletCheckout.code, "WAL001");
+    assert.equal((await Wallet.findById(wallet._id)).balance, 0);
+    assert.equal((await Wallet.findById(wallet._id)).points, 5);
+    assert.equal((await Table.findById(table._id)).status, "playing");
+    assert.equal(await Invoice.countDocuments(), 1);
+
+    wallet.balance = 100000;
+    await wallet.save();
+    const walletReceipt = await ok(
+      `/tables/${table._id}/session/checkout`,
+      "POST",
+      walletCheckout,
+      token,
+    );
+    assert.equal(walletReceipt.paymentMethod, "member_balance");
+    assert.equal(walletReceipt.paymentStatus, "paid");
+    assert.equal(walletReceipt.pointsAwarded, 100);
+    const settledWallet = await Wallet.findById(wallet._id);
+    assert.equal(settledWallet.balance, 100000 - walletReceipt.finalAmount);
+    assert.equal(settledWallet.points, 105);
+    assert.equal(settledWallet.transactions.at(-1).referenceCode, walletReceipt.invoiceCode);
+    assert.equal(settledWallet.transactions.at(-1).pointsAwarded, 100);
+    assert.equal((await Invoice.findOne({ sessionId: walletCheckout.sessionId })).status, "paid");
+    const concurrentWalletCheckouts = await Promise.all([
+      request(`/tables/${table._id}/session/checkout`, "POST", walletCheckout, token),
+      request(`/tables/${table._id}/session/checkout`, "POST", walletCheckout, token),
+    ]);
+    assert.ok(concurrentWalletCheckouts.every((result) => result.success));
+    assert.equal(
+      concurrentWalletCheckouts[0].data.invoiceCode,
+      concurrentWalletCheckouts[1].data.invoiceCode,
+    );
+    assert.equal((await Wallet.findById(wallet._id)).balance, 100000 - walletReceipt.finalAmount);
+    assert.equal((await Wallet.findById(wallet._id)).points, 105);
+
     assert.equal((await ok("/bookings", "GET", undefined, token)).length, 3);
     assert.equal((await ok("/tables?isActive=true", "GET", undefined, token)).length, 2);
 

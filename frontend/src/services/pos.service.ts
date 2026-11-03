@@ -95,6 +95,7 @@ export const posService = {
     discountPercent: number,
     paymentMethod: string,
     voucherCode?: string,
+    customerPhone?: string,
   ): Promise<CheckoutReceipt> {
     const { data } = await api.post<ApiResponse<CheckoutReceipt>>(
       `/tables/${table.id}/session/checkout`,
@@ -103,6 +104,7 @@ export const posService = {
         discountPercent,
         paymentMethod,
         ...(voucherCode ? { voucherCode } : {}),
+        ...(paymentMethod === "member_balance" && customerPhone ? { customerPhone } : {}),
       },
     );
     return result(data);
@@ -116,6 +118,7 @@ export const posService = {
         rank: string;
         elo: number;
         isMember: boolean;
+        walletBalance: number;
         availableVouchers?: Array<{
           code: string;
           description?: string;

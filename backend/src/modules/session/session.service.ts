@@ -7,6 +7,7 @@ import { PricingTier, IPricingTier } from "../pricing/pricing.model";
 import { User } from "../user/user.model";
 import { emitTableStatusChanged, emitTableTimerStarted } from "../../utils/socketHolder";
 import { VoucherService } from "../voucher/voucher.service";
+import { WalletService } from "../wallet/wallet.service";
 
 export interface SplitTimeSlot {
   tierName: string;
@@ -259,6 +260,8 @@ export function playingDetails(
 }
 
 export class SessionService {
+  private readonly walletService = new WalletService();
+
   async open(tableId: string, input: any) {
     if (
       (input.customerName !== undefined &&
@@ -440,10 +443,12 @@ export class SessionService {
   }
 
   async checkout(tableId: string, input: any) {
-    const validPaymentMethods = ["cash", "transfer", "vnpay", "card"];
+    const validPaymentMethods = ["cash", "transfer", "vnpay", "card", "member_balance"];
     if (
       typeof input.sessionId !== "string" ||
       !validPaymentMethods.includes(input.paymentMethod) ||
+      (input.paymentMethod === "member_balance" &&
+        (typeof input.customerPhone !== "string" || !input.customerPhone.trim())) ||
       typeof input.discountPercent !== "number" ||
       !Number.isFinite(input.discountPercent) ||
       input.discountPercent < 0 ||
@@ -494,6 +499,15 @@ export class SessionService {
         ? voucher.discountAmount
         : Math.round((subtotal * input.discountPercent) / 100);
       const finalAmount = Math.max(0, subtotal - discountAmount - current.deposit);
+      const pointsAwarded =
+        input.paymentMethod === "member_balance"
+          ? await this.walletService.chargeForCheckout(
+              input.customerPhone.trim(),
+              finalAmount,
+              invoiceCode,
+              session,
+            )
+          : 0;
       const receipt = {
         tableName: table.name,
         typeName: table.type,
@@ -514,14 +528,19 @@ export class SessionService {
         discountAmount,
         deposit: current.deposit,
         finalAmount,
+        paymentStatus: "paid",
+        pointsAwarded,
         refundAmount: Math.max(0, current.deposit - (subtotal - discountAmount)),
         paymentMethod: input.paymentMethod || "cash",
         invoiceCode,
         checkoutTime: new Date().toISOString(),
       };
-      await Invoice.create([{ sessionId: current.sessionId, tableId: table._id, receipt }], {
-        session,
-      });
+      await Invoice.create(
+        [{ sessionId: current.sessionId, tableId: table._id, status: "paid", receipt }],
+        {
+          session,
+        },
+      );
       table.currentSession = undefined;
       table.status = TableStatus.AVAILABLE;
       await table.save({ session });
