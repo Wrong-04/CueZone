@@ -88,7 +88,9 @@ export interface CheckoutReceipt {
   deposit: number;
   finalAmount: number;
   refundAmount: number;
-  paymentMethod: "cash";
+  paymentMethod: "cash" | "transfer" | "vnpay" | "card" | "member_balance";
+  paymentStatus: "paid";
+  pointsAwarded: number;
   invoiceCode: string;
   checkoutTime: string;
 }

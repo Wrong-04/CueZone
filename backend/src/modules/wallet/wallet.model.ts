@@ -20,6 +20,8 @@ export interface IWalletTransaction {
 
   amount: number;
 
+  pointsAwarded?: number;
+
   description: string;
 
   referenceCode: string;
@@ -59,6 +61,8 @@ const transactionSchema = new Schema<IWalletTransaction>({
   status: { type: String, enum: Object.values(WalletTransactionStatus), required: true },
 
   amount: { type: Number, required: true, min: 1 },
+
+  pointsAwarded: { type: Number, min: 0 },
 
   description: { type: String, required: true, trim: true, maxlength: 250 },
 

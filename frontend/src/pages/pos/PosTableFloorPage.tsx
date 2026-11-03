@@ -29,6 +29,7 @@ import {
   FullscreenExitOutlined,
   ExclamationCircleOutlined,
   GiftOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -122,7 +123,9 @@ export const PosTableFloorPage: React.FC = () => {
       await loadTables();
       return true;
     } catch (error: any) {
-      message.error(error.response?.data?.message || error.message || "Không thể lưu thay đổi");
+      const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
+      const errorCode = error.response?.data?.code;
+      message.error(errorCode === "WAL001" ? `${errorCode}: ${errorMessage}` : errorMessage);
       await loadTables();
       return false;
     } finally {
@@ -184,6 +187,7 @@ export const PosTableFloorPage: React.FC = () => {
       discountValue: number;
       minOrderAmount: number;
     }>;
+    walletBalance: number;
   } | null>(null);
   const [isSearchingMember, setIsSearchingMember] = useState<boolean>(false);
   const [voucherCode, setVoucherCode] = useState("");
@@ -833,6 +837,7 @@ export const PosTableFloorPage: React.FC = () => {
           name: res.data.name,
           phone: res.data.phone,
           rank: res.data.rank,
+          walletBalance: res.data.walletBalance,
           availableVouchers: res.data.availableVouchers || [],
         });
         setDiscountPercent(10);
@@ -873,6 +878,7 @@ export const PosTableFloorPage: React.FC = () => {
         name: table.currentSession.customerName || "Hội viên CLB",
         phone: sessionPhone,
         rank: "VIP",
+        walletBalance: 0,
       });
       setDiscountPercent(10);
 
@@ -884,6 +890,7 @@ export const PosTableFloorPage: React.FC = () => {
               name: res.data.name,
               phone: res.data.phone,
               rank: res.data.rank,
+              walletBalance: res.data.walletBalance,
               availableVouchers: res.data.availableVouchers || [],
             });
           }
@@ -900,6 +907,10 @@ export const PosTableFloorPage: React.FC = () => {
   // Handler: Confirm Checkout & Print Receipt
   const handleConfirmCheckout = async () => {
     if (!selectedTable?.currentSession) return;
+    if (paymentMethod === "member_balance" && !loyaltyCustomer) {
+      message.warning("Vui lòng tra cứu số điện thoại hội viên trước khi thanh toán bằng ví.");
+      return;
+    }
     const saved = await save(async () => {
       setPaidSummary(
         await posService.checkout(
@@ -907,6 +918,7 @@ export const PosTableFloorPage: React.FC = () => {
           appliedVoucher ? 0 : discountPercent,
           paymentMethod,
           appliedVoucher?.code,
+          paymentMethod === "member_balance" ? loyaltyCustomer?.phone : undefined,
         ),
       );
     });
@@ -914,7 +926,13 @@ export const PosTableFloorPage: React.FC = () => {
     setCheckoutModalVisible(false);
     setReceiptModalVisible(true);
     message.success(
-      `Đã lưu hóa đơn thanh toán (${paymentMethod === "vnpay" ? "Chuyển khoản QR" : "Tiền mặt"}) cho ${selectedTable.name}!`,
+      `Đã thanh toán hóa đơn bằng ${
+        paymentMethod === "member_balance"
+          ? "Ví hội viên"
+          : paymentMethod === "vnpay"
+            ? "Chuyển khoản QR"
+            : "Tiền mặt"
+      } cho ${selectedTable.name}!`,
     );
   };
 
@@ -2176,7 +2194,7 @@ export const PosTableFloorPage: React.FC = () => {
                         )}
                       </span>
                       <span className="font-bold text-emerald-700 font-mono">
-                        +100 Điểm (SPA Loyalty)
+                        Ví: {loyaltyCustomer.walletBalance.toLocaleString("vi-VN")}đ
                       </span>
                     </div>
 
@@ -2431,12 +2449,21 @@ export const PosTableFloorPage: React.FC = () => {
                         </Button>
 
                         <Button
-                          variant="outline"
+                          variant={paymentMethod === "member_balance" ? "primary" : "outline"}
                           size="sm"
-                          disabled
-                          title="Ví hội viên đang cập nhật"
-                          leftIcon={<UserOutlined />}
-                          className="!h-12 !flex-col !gap-1 !rounded-xl !border-slate-200 !text-slate-400 opacity-50 cursor-not-allowed"
+                          disabled={!loyaltyCustomer}
+                          onClick={() => setPaymentMethod("member_balance")}
+                          title={
+                            loyaltyCustomer
+                              ? "Thanh toán từ số dư ví hội viên"
+                              : "Tra cứu hội viên theo số điện thoại trước"
+                          }
+                          leftIcon={<WalletOutlined />}
+                          className={`!h-12 !flex-col !gap-1 !rounded-xl ${
+                            paymentMethod === "member_balance"
+                              ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
+                              : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+                          }`}
                         >
                           <span className="text-[11px] font-bold">Ví Hội Viên</span>
                         </Button>
@@ -2557,6 +2584,23 @@ export const PosTableFloorPage: React.FC = () => {
                           <span>
                             Khách quét mã chuyển khoản thành công, nhấn{" "}
                             <strong>Xác Nhận & In Hóa Đơn</strong> để hoàn tất.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentMethod === "member_balance" && loyaltyCustomer && (
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200 space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-700">Số dư ví hiện tại:</span>
+                          <strong className="font-mono text-emerald-800">
+                            {loyaltyCustomer.walletBalance.toLocaleString("vi-VN")}đ
+                          </strong>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-emerald-800">
+                          <CheckCircleOutlined />
+                          <span>
+                            Thanh toán thành công sẽ được cộng {finalAmount > 0 ? "100" : "0"} điểm thưởng.
                           </span>
                         </div>
                       </div>
@@ -2721,8 +2765,20 @@ export const PosTableFloorPage: React.FC = () => {
               </div>
               <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
                 <span>Hình thức thanh toán:</span>
-                <span className="uppercase">{paidSummary.paymentMethod}</span>
+                <span>
+                  {paidSummary.paymentMethod === "member_balance"
+                    ? "Ví hội viên"
+                    : paidSummary.paymentMethod === "vnpay"
+                      ? "Chuyển khoản QR"
+                      : paidSummary.paymentMethod}
+                </span>
               </div>
+              {paidSummary.pointsAwarded > 0 && (
+                <div className="flex justify-between text-emerald-700 font-semibold">
+                  <span>Điểm thưởng ví hội viên:</span>
+                  <span>+{paidSummary.pointsAwarded}</span>
+                </div>
+              )}
             </div>
 
             <div className="text-center pt-3 border-t border-slate-200 text-[10px] text-slate-400">

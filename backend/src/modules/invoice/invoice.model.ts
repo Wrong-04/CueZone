@@ -5,6 +5,7 @@ export interface IInvoice extends Document {
 
   tableId: Types.ObjectId;
   transactionId?: Types.ObjectId;
+  status: "paid";
 
   receipt: Record<string, any>;
 
@@ -26,6 +27,7 @@ const invoiceSchema = new Schema<IInvoice>(
 
     tableId: { type: Schema.Types.ObjectId, ref: "Table", required: true },
     transactionId: { type: Schema.Types.ObjectId, ref: "Transaction" },
+    status: { type: String, enum: ["paid"], required: true, default: "paid" },
 
     receipt: { type: Schema.Types.Mixed, required: true },
   },

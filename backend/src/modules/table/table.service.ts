@@ -5,18 +5,23 @@ import { CreateTableDTO, UpdateTableDTO } from "./dto/table.dto";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
+import { Wallet } from "../wallet/wallet.model";
 
 const notificationService = new NotificationService();
 
 export class TableService {
   async lookupCustomer(phone: string) {
-    const clean = phone.replace(/[\s.-]/g, "");
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 8) return null;
+    const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
     const user = await User.findOne({
-      phone: { $regex: clean, $options: "i" },
+      phone: { $regex: phonePattern },
       role: UserRole.CUSTOMER,
       isActive: true,
+      isLocked: false,
     }).select("name phone rank elo");
     if (!user) return null;
+    const wallet = await Wallet.findOne({ userId: user._id }).select("balance");
 
     const now = new Date();
     let availableVouchers = await Voucher.find({
@@ -90,6 +95,7 @@ export class TableService {
       phone: user.phone,
       rank: user.rank || "Standard",
       elo: user.elo || 1000,
+      walletBalance: wallet?.balance ?? 0,
       isMember: true,
       availableVouchers: availableVouchers.map((v) => ({
         code: v.code,

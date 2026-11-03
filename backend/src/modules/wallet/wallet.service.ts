@@ -8,8 +8,10 @@ import { WalletPayment } from "./wallet-payment.model";
 
 const notifications = new NotificationService();
 
-const httpError = (message: string, httpCode = 400) =>
-  Object.assign(new Error(message), { httpCode });
+const httpError = (message: string, httpCode = 400, code?: string) =>
+  Object.assign(new Error(message), { httpCode, ...(code ? { code } : {}) });
+
+const CHECKOUT_REWARD_POINTS = 100;
 
 const VNPAY_PAYMENT_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
 const VNPAY_PRESET_AMOUNTS = [100_000, 200_000, 500_000];
@@ -414,6 +416,56 @@ export class WalletService {
     } as any);
     await wallet.save({ session });
     return wallet;
+  }
+
+  async chargeForCheckout(
+    phone: string,
+    amount: number,
+    invoiceCode: string,
+    session: ClientSession,
+  ): Promise<number> {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 8) throw httpError("Số điện thoại hội viên không hợp lệ");
+
+    const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+    const users = await User.find({
+      phone: { $regex: phonePattern },
+      role: "customer",
+      isActive: true,
+      isLocked: false,
+    })
+      .select("_id")
+      .session(session);
+    if (users.length !== 1) throw httpError("Không tìm thấy hội viên đang hoạt động với số điện thoại này");
+
+    if (!Number.isSafeInteger(amount) || amount < 0) {
+      throw httpError("Số tiền thanh toán không hợp lệ");
+    }
+
+    if (amount === 0) return 0;
+
+    const wallet = await Wallet.findOneAndUpdate(
+      { userId: users[0]._id, balance: { $gte: amount } },
+      { $inc: { balance: -amount, points: CHECKOUT_REWARD_POINTS } },
+      { new: true, session },
+    );
+    if (!wallet) {
+      throw httpError("Số dư ví hội viên không đủ để thanh toán hóa đơn", 409, "WAL001");
+    }
+
+    wallet.transactions.push({
+      type: WalletTransactionType.PAYMENT,
+      status: WalletTransactionStatus.SUCCESS,
+      amount,
+      pointsAwarded: CHECKOUT_REWARD_POINTS,
+      description: `Thanh toán hóa đơn ${invoiceCode}`,
+      referenceCode: invoiceCode,
+      balanceAfter: wallet.balance,
+      createdAt: new Date(),
+    } as any);
+    await wallet.save({ session });
+
+    return CHECKOUT_REWARD_POINTS;
   }
 
   async findOrCreateForUser(userId: string, session?: ClientSession): Promise<IWallet> {
