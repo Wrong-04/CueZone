@@ -1,4 +1,3 @@
-import { ExpressMiddlewareInterface } from "routing-controllers";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { appConfig } from "../config/app.config";
@@ -146,9 +145,3 @@ export const requirePermission = (moduleName: string, actionName: string) => {
     }
   };
 };
-
-export class AuthMiddleware implements ExpressMiddlewareInterface {
-  use(req: Request, res: Response, next: NextFunction): void {
-    authMiddleware(req, res, next);
-  }
-}

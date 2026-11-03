@@ -11,6 +11,7 @@ import { Wallet } from "./modules/wallet/wallet.model";
 import { WalletPayment } from "./modules/wallet/wallet-payment.model";
 import { Voucher, VoucherUsage } from "./modules/voucher/voucher.model";
 import { CustomerOrder } from "./modules/customer-order/customer-order.model";
+import { corsOptions } from "./config/cors.config";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
@@ -18,10 +19,7 @@ const appInstance = new App();
 const httpServer = createServer(appInstance.app);
 
 export const io = new Server(httpServer, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
+  cors: corsOptions,
 });
 
 setIO(io);

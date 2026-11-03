@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import { publicRouter, protectedRouter } from "./routes";
 import { authMiddleware } from "./middlewares/auth.middleware";
+import { corsOptions } from "./config/cors.config";
 
 export class App {
   public app: express.Application;
@@ -15,7 +16,7 @@ export class App {
   }
 
   private setupMiddlewares(): void {
-    this.app.use(cors());
+    this.app.use(cors(corsOptions));
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
   }
