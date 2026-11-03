@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { ConfigProvider, theme } from "antd";
-import { Lock, Mail, ArrowRight, Eye } from "lucide-react";
+import { Lock, Mail, ArrowRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authService } from "../../services/auth.service";
 import { UserRole } from "../../types";
@@ -96,7 +96,7 @@ const LoginPage: React.FC = () => {
       <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
         <AuthBrandingPanel />
 
-        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-8 lg:p-10 xl:p-12 bg-white border-l border-slate-200/80">
+        <div className="relative flex-1 min-h-screen flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 bg-white border-l border-slate-200/80">
           <div className="lg:hidden flex items-center justify-between pb-4 border-b border-slate-200">
             <Space align="center" size={8}>
               <img
@@ -118,18 +118,16 @@ const LoginPage: React.FC = () => {
             </Button>
           </div>
 
-          <div className="my-auto w-full max-w-md mx-auto py-6">
-            <div className="mb-6">
-              <Space align="center" size={8} className="mb-2">
-                <Title
-                  level={2}
-                  className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-0"
-                >
-                  Đăng Nhập CueZone
-                </Title>
-              </Space>
-              <Text className="!text-xs !text-slate-500 block leading-relaxed">
-                Đăng nhập một cổng duy nhất cho Hội viên, Khách chơi và Ban quản trị hệ thống.
+          <div className="my-auto w-full max-w-sm sm:max-w-md mx-auto py-8">
+            <div className="mb-7">
+              <Title
+                level={2}
+                className="!text-2xl sm:!text-3xl !font-black !text-slate-900 !tracking-tight !mb-2"
+              >
+                Đăng Nhập
+              </Title>
+              <Text className="!text-sm !text-slate-500 block leading-relaxed">
+                Chào mừng bạn trở lại với hệ thống quản lý & đặt bàn CueZone
               </Text>
             </div>
 
@@ -163,17 +161,16 @@ const LoginPage: React.FC = () => {
                 label={
                   <div className="flex w-full items-center justify-between">
                     <Text className="!text-xs !font-semibold !text-slate-700">Mật khẩu</Text>
-                    <Button
-                      variant="link"
-                      size="sm"
+                    <button
+                      type="button"
                       onClick={() => {
                         setForgotEmail(identifier);
                         setShowForgotModal(true);
                       }}
-                      className="!p-0 !h-auto !text-[11px] !font-medium !text-emerald-600 hover:!text-emerald-700"
+                      className="!text-xs !font-medium !text-emerald-600 hover:!text-emerald-700 hover:underline cursor-pointer"
                     >
                       Quên mật khẩu?
-                    </Button>
+                    </button>
                   </div>
                 }
                 className="!mb-3"
@@ -188,10 +185,10 @@ const LoginPage: React.FC = () => {
                 />
               </Form.Item>
 
-              <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
+              <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5 pb-1">
                 <Checkbox checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)}>
                   <Text className="!text-xs !text-slate-600">
-                    Ghi nhớ đăng nhập trên thiết bị này
+                    Ghi nhớ đăng nhập
                   </Text>
                 </Checkbox>
               </div>
@@ -202,98 +199,30 @@ const LoginPage: React.FC = () => {
                 size="large"
                 loading={loading}
                 rightIcon={!loading ? <ArrowRight className="h-4 w-4 ml-1.5" /> : undefined}
-                className="w-full !h-12 !text-sm !font-bold !rounded-xl shadow-md shadow-emerald-600/25 transition-all hover:scale-[1.008] active:scale-[0.99] mt-2 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white"
+                className="w-full !h-12 !text-sm !font-bold !rounded-xl shadow-md shadow-emerald-600/25 transition-all hover:scale-[1.008] active:scale-[0.99] !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white"
               >
-                {loading ? "Đang xác thực thông tin..." : "Đăng Nhập Hệ Thống"}
+                {loading ? "Đang xác thực thông tin..." : "Đăng Nhập"}
               </Button>
             </Form>
 
-            <div className="mt-5 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600">
-              <div className="font-semibold text-slate-800 mb-1.5 flex items-center justify-between">
-                <span>Tài khoản trải nghiệm nhanh:</span>
-                <span className="text-[10px] text-emerald-600 font-medium">Bấm để tự điền</span>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between py-0.5 border-b border-slate-200/50">
-                  <span className="text-slate-500">
-                    Hội viên: <strong className="text-slate-700">customer1@gmail.com</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier("customer1@gmail.com");
-                      setPassword("admin123");
-                    }}
-                    className="text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer text-[11px]"
-                  >
-                    Điền
-                  </button>
-                </div>
-                <div className="flex items-center justify-between py-0.5 border-b border-slate-200/50">
-                  <span className="text-slate-500">
-                    Admin: <strong className="text-slate-700">admin@cuezone.com</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier("admin@cuezone.com");
-                      setPassword("password123");
-                    }}
-                    className="text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer text-[11px]"
-                  >
-                    Điền
-                  </button>
-                </div>
-                <div className="flex items-center justify-between py-0.5">
-                  <span className="text-slate-500">
-                    Nhân viên POS: <strong className="text-slate-700">staff1@cuezone.com</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdentifier("staff1@cuezone.com");
-                      setPassword("admin123");
-                    }}
-                    className="text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer text-[11px]"
-                  >
-                    Điền
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-slate-200">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 flex items-center justify-between shadow-2xs">
-                <div className="pr-3">
-                  <Space align="center" size={6} className="mb-0.5">
-                    <Eye className="h-3.5 w-3.5 text-emerald-600" />
-                    <Text strong className="!text-xs !text-slate-900">
-                      Khách Vãng Lai (Không Cần Đăng Nhập)
-                    </Text>
-                  </Space>
-                  <Text className="!text-[11px] !text-slate-500 block">
-                    Xem danh sách bàn trống theo thời gian thực & đặt bàn nhanh
-                  </Text>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  to="/customer"
-                  className="!text-xs !h-8 !px-3 !border-slate-300 !bg-white !text-slate-700 hover:!border-emerald-600 hover:!text-emerald-700 flex-shrink-0"
-                >
-                  Xem Ngay
-                </Button>
-              </div>
-
-              <div className="mt-4 text-center text-xs text-slate-500">
-                <Text className="!text-xs !text-slate-500">Chưa có tài khoản hội viên?</Text>{" "}
-                <Button
-                  variant="link"
+            <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+              <div>
+                <span>Chưa có tài khoản?</span>{" "}
+                <Link
                   to="/register"
-                  className="!p-0 !h-auto !text-xs !font-bold !text-emerald-600 hover:!text-emerald-700 ml-1 inline-block"
+                  className="font-bold text-emerald-600 hover:text-emerald-700 hover:underline ml-1"
                 >
-                  Đăng ký tài khoản mới
-                </Button>
+                  Đăng ký ngay
+                </Link>
+              </div>
+
+              <div>
+                <Link
+                  to="/customer"
+                  className="font-medium text-slate-600 hover:text-emerald-600 hover:underline"
+                >
+                  Vào với tư cách Khách ➔
+                </Link>
               </div>
             </div>
           </div>
@@ -472,9 +401,9 @@ const LoginPage: React.FC = () => {
             </div>
           </Modal>
 
-          <div className="pt-3 text-center text-[11px] text-slate-500">
-            <Text className="!text-[11px] !text-slate-500">
-              CueZone Billiards Management & Bank Pool Tournament System • Phiên bản 2.0
+          <div className="pt-4 text-center text-[11px] text-slate-400">
+            <Text className="!text-[11px] !text-slate-400">
+              © 2026 CueZone Billiards System. All rights reserved.
             </Text>
           </div>
         </div>
