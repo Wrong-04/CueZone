@@ -34,4 +34,16 @@ router.get("/play-history", async (req, res, next) => {
   }
 });
 
+router.post("/reviews", async (req, res, next) => {
+  try {
+    const review = await service.submitPlayReview(
+      String((req as any).user.userId),
+      req.body,
+    );
+    res.status(201).json({ success: true, message: "Cảm ơn bạn đã gửi đánh giá", data: review });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
