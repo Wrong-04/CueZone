@@ -13,13 +13,17 @@ export default function BookingQrScanner({ open, onClose }: BookingQrScannerProp
   const [booking, setBooking] = useState<BookingQrDetails | null>(null);
   const [scanError, setScanError] = useState("");
   const [scanAttempt, setScanAttempt] = useState(0);
+  const [modalReady, setModalReady] = useState(false);
   const processingRef = useRef(false);
 
   useEffect(() => {
-    if (!open || booking) return;
+    if (!open || !modalReady || booking) return;
+    const reader = document.getElementById("booking-qr-reader");
+    if (!reader) return;
+
     let active = true;
     let started = false;
-    const scanner = new Html5Qrcode("booking-qr-reader", { verbose: false });
+    const scanner = new Html5Qrcode(reader.id, { verbose: false });
     processingRef.current = false;
 
     void scanner
@@ -80,7 +84,7 @@ export default function BookingQrScanner({ open, onClose }: BookingQrScannerProp
           .catch((error: unknown) => console.error("Không thể dừng camera quét QR:", error));
       }
     };
-  }, [open, booking, scanAttempt]);
+  }, [open, modalReady, booking, scanAttempt]);
 
   const handleClose = () => {
     setBooking(null);
@@ -92,6 +96,7 @@ export default function BookingQrScanner({ open, onClose }: BookingQrScannerProp
     <Modal
       open={open}
       onCancel={handleClose}
+      afterOpenChange={setModalReady}
       footer={[
         booking ? (
           <Button
