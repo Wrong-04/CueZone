@@ -6,10 +6,11 @@ import {
   CrownOutlined,
   GiftOutlined,
   StarOutlined,
+  StarFilled,
   TableOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
-import { Button, Card, Pagination, Tag, Typography } from "../../shared/ui";
+import { Button, Card, Input, message, Pagination, Tag, Typography } from "../../shared/ui";
 import {
   membershipService,
   type MembershipOverview,
@@ -32,6 +33,43 @@ const paymentLabels: Record<string, string> = {
   card: "Thẻ",
   member_balance: "Ví hội viên",
 };
+
+const RatingStars = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) => (
+  <div>
+    <div className="mb-1.5 text-xs font-semibold text-slate-700">{label}</div>
+    <div className="flex items-center gap-1" role="group" aria-label={label}>
+      {[1, 2, 3, 4, 5].map((rating) => (
+        <button
+          key={rating}
+          type="button"
+          onClick={() => onChange(rating)}
+          aria-label={`${rating} sao`}
+          aria-pressed={value === rating}
+          className="rounded p-1 text-xl text-amber-400 transition hover:scale-110 focus-visible:outline-2 focus-visible:outline-emerald-600"
+        >
+          {rating <= value ? <StarFilled /> : <StarOutlined />}
+        </button>
+      ))}
+      <span className="ml-1 text-xs text-slate-500">{value ? `${value}/5` : "Chọn số sao"}</span>
+    </div>
+  </div>
+);
+
+const ReadOnlyStars = ({ value }: { value: number }) => (
+  <span className="inline-flex text-amber-500" aria-label={`${value} trên 5 sao`}>
+    {Array.from({ length: 5 }, (_, index) =>
+      index < value ? <StarFilled key={index} /> : <StarOutlined key={index} />,
+    )}
+  </span>
+);
 
 const MemberOverviewTab = () => {
   const [overview, setOverview] = useState<MembershipOverview | null>(null);
@@ -189,6 +227,11 @@ const PlayHistoryTab = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
+  const [tableRating, setTableRating] = useState(0);
+  const [serviceRating, setServiceRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [savingReview, setSavingReview] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -211,6 +254,41 @@ const PlayHistoryTab = () => {
       active = false;
     };
   }, [page, refreshVersion]);
+
+  const handleSubmitReview = async (item: PlayHistoryItem) => {
+    if (!tableRating || !serviceRating) {
+      message.warning("Vui lòng đánh giá chất lượng bàn và phục vụ từ 1 đến 5 sao.");
+      return;
+    }
+
+    setSavingReview(true);
+    try {
+      await membershipService.submitPlayReview({
+        sessionId: item.sessionId,
+        tableRating,
+        serviceRating,
+        comment: reviewComment,
+      });
+      setReviewSessionId(null);
+      setTableRating(0);
+      setServiceRating(0);
+      setReviewComment("");
+      setLoading(true);
+      setRefreshVersion((current) => current + 1);
+      message.success("Cảm ơn bạn đã gửi đánh giá!");
+    } catch (cause) {
+      message.error(cause instanceof Error ? cause.message : "Không thể gửi đánh giá");
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
+  const openReviewForm = (sessionId: string) => {
+    setReviewSessionId(sessionId);
+    setTableRating(0);
+    setServiceRating(0);
+    setReviewComment("");
+  };
 
   return (
     <div className="space-y-4">
@@ -248,41 +326,121 @@ const PlayHistoryTab = () => {
         <div className="space-y-3">
           {items.map((item) => (
             <Card key={item.id} className="!rounded-2xl !border-slate-200">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Tag color="green" className="!m-0 !rounded-full">Đã thanh toán</Tag>
-                    <span className="font-mono text-[11px] text-slate-400">{item.invoiceCode}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600">
-                    <span className="flex items-center gap-1.5">
-                      <TableOutlined className="text-emerald-600" />
-                      {item.tableCode || item.tableName || "Bàn chơi"}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <CalendarOutlined className="text-emerald-600" />
-                      {formatDate(item.createdAt)}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <ClockCircleOutlined className="text-emerald-600" />
-                      {item.durationFormatted || `${item.durationMinutes} phút`}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    {item.sessionStart} – {item.sessionEnd} · {paymentLabels[item.paymentMethod] || item.paymentMethod}
-                    {item.pointsAwarded > 0 && (
-                      <span className="ml-2 font-semibold text-emerald-700">
-                        +{item.pointsAwarded} điểm
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Tag color="green" className="!m-0 !rounded-full">Đã thanh toán</Tag>
+                      <span className="font-mono text-[11px] text-slate-400">{item.invoiceCode}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600">
+                      <span className="flex items-center gap-1.5">
+                        <TableOutlined className="text-emerald-600" />
+                        {item.tableCode || item.tableName || "Bàn chơi"}
                       </span>
+                      <span className="flex items-center gap-1.5">
+                        <CalendarOutlined className="text-emerald-600" />
+                        {formatDate(item.createdAt)}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <ClockCircleOutlined className="text-emerald-600" />
+                        {item.durationFormatted || `${item.durationMinutes} phút`}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {item.sessionStart} – {item.sessionEnd} · {paymentLabels[item.paymentMethod] || item.paymentMethod}
+                      {item.pointsAwarded > 0 && (
+                        <span className="ml-2 font-semibold text-emerald-700">
+                          +{item.pointsAwarded} điểm
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
+                    <div className="sm:text-right">
+                      <div className="text-[11px] text-slate-500">Đã thanh toán</div>
+                      <strong className="text-base font-black text-emerald-700">
+                        {Number(item.finalAmount || 0).toLocaleString("vi-VN")}đ
+                      </strong>
+                    </div>
+                    {item.review ? (
+                      <Tag color="blue" className="!m-0 !rounded-full">
+                        Đã đánh giá
+                      </Tag>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openReviewForm(item.sessionId)}
+                        className="!rounded-xl"
+                      >
+                        Gửi đánh giá
+                      </Button>
                     )}
                   </div>
                 </div>
-                <div className="text-left sm:text-right">
-                  <div className="text-[11px] text-slate-500">Đã thanh toán</div>
-                  <strong className="text-base font-black text-emerald-700">
-                    {Number(item.finalAmount || 0).toLocaleString("vi-VN")}đ
-                  </strong>
-                </div>
+
+                {item.review ? (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 font-semibold text-slate-700">
+                      <span className="inline-flex items-center gap-1.5">
+                        Chất lượng bàn: <ReadOnlyStars value={item.review.tableRating} />{" "}
+                        {item.review.tableRating}/5
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        Phục vụ: <ReadOnlyStars value={item.review.serviceRating} />{" "}
+                        {item.review.serviceRating}/5
+                      </span>
+                    </div>
+                    {item.review.comment && (
+                      <p className="mb-0 mt-2 text-slate-600">{item.review.comment}</p>
+                    )}
+                  </div>
+                ) : reviewSessionId === item.sessionId ? (
+                  <div className="space-y-4 rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <RatingStars
+                        label="Chất lượng bàn chơi"
+                        value={tableRating}
+                        onChange={setTableRating}
+                      />
+                      <RatingStars
+                        label="Thái độ phục vụ"
+                        value={serviceRating}
+                        onChange={setServiceRating}
+                      />
+                    </div>
+                    <Input.TextArea
+                      rows={3}
+                      maxLength={1000}
+                      showCount
+                      value={reviewComment}
+                      onChange={(event) => setReviewComment(event.target.value)}
+                      placeholder="Chia sẻ cảm nhận của bạn (không bắt buộc)"
+                      className="!rounded-xl"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setReviewSessionId(null)}
+                        disabled={savingReview}
+                        className="!rounded-xl"
+                      >
+                        Hủy
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        loading={savingReview}
+                        onClick={() => void handleSubmitReview(item)}
+                        className="!rounded-xl"
+                      >
+                        Gửi đánh giá
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </Card>
           ))}

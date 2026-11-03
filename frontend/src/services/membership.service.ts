@@ -29,6 +29,7 @@ export interface MembershipOverview {
 
 export interface PlayHistoryItem {
   id: string;
+  sessionId: string;
   invoiceCode: string;
   tableCode?: string;
   tableName: string;
@@ -40,6 +41,12 @@ export interface PlayHistoryItem {
   paymentMethod: string;
   pointsAwarded: number;
   createdAt: string;
+  review: {
+    tableRating: number;
+    serviceRating: number;
+    comment: string;
+    createdAt: string;
+  } | null;
 }
 
 export interface PlayHistoryPage {
@@ -68,5 +75,15 @@ export const membershipService = {
       params: { page },
     });
     return unwrap(data, "Không thể tải lịch sử chơi");
+  },
+
+  async submitPlayReview(input: {
+    sessionId: string;
+    tableRating: number;
+    serviceRating: number;
+    comment: string;
+  }): Promise<void> {
+    const { data } = await api.post<ApiResponse<unknown>>("/customer/reviews", input);
+    if (!data.success) throw new Error(data.message || "Không thể gửi đánh giá");
   },
 };

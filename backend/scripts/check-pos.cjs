@@ -17,6 +17,7 @@ const { Wallet } = require("../dist/modules/wallet/wallet.model");
 const { playingDetails } = require("../dist/modules/session/session.service");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
 const { getMemberTier, getPointsForSpend } = require("../dist/modules/member/membership.policy");
+const { PlayReview } = require("../dist/modules/member/play-review.model");
 
 async function main() {
   assert.equal(getMemberTier(499).tier.name, "Đồng");
@@ -34,7 +35,14 @@ async function main() {
       dbName,
       serverSelectionTimeoutMS: 5000,
     });
-    await Promise.all([User.init(), Table.init(), Booking.init(), Invoice.init(), Wallet.init()]);
+    await Promise.all([
+      User.init(),
+      Table.init(),
+      Booking.init(),
+      Invoice.init(),
+      Wallet.init(),
+      PlayReview.init(),
+    ]);
     server = new App().app.listen(0, "127.0.0.1");
     await new Promise((resolve) => server.once("listening", resolve));
     const base = `http://127.0.0.1:${server.address().port}/api/v1`;
@@ -415,6 +423,59 @@ async function main() {
     assert.equal(memberHistory.total, 1);
     assert.equal(memberHistory.items[0].tableCode, "CHECK1");
     assert.equal(memberHistory.items[0].pointsAwarded, pointsAwarded);
+    assert.equal(memberHistory.items[0].review, null);
+    const invalidReview = await request(
+      "/customer/reviews",
+      "POST",
+      { sessionId: walletCheckout.sessionId, tableRating: 6, serviceRating: 5 },
+      memberLogin.accessToken,
+    );
+    assert.equal(invalidReview.success, false);
+    assert.match(invalidReview.message, /sao từ 1 đến 5/);
+    const reviewPayload = {
+      sessionId: walletCheckout.sessionId,
+      tableRating: 4,
+      serviceRating: 5,
+      comment: "Bàn sạch, nhân viên hỗ trợ nhiệt tình.",
+    };
+    const submittedReview = await ok(
+      "/customer/reviews",
+      "POST",
+      reviewPayload,
+      memberLogin.accessToken,
+    );
+    assert.equal(submittedReview.tableRating, 4);
+    assert.equal(submittedReview.serviceRating, 5);
+    const duplicateReview = await request(
+      "/customer/reviews",
+      "POST",
+      reviewPayload,
+      memberLogin.accessToken,
+    );
+    assert.equal(duplicateReview.success, false);
+    assert.equal(duplicateReview.message, "Phiên chơi này đã được đánh giá trước đó");
+    const incompleteSessionReview = await request(
+      "/customer/reviews",
+      "POST",
+      { ...reviewPayload, sessionId: "not-completed-session" },
+      memberLogin.accessToken,
+    );
+    assert.equal(incompleteSessionReview.success, false);
+    const staffReview = await request("/customer/reviews", "POST", reviewPayload, token);
+    assert.equal(staffReview.success, false);
+    assert.equal(await PlayReview.countDocuments({ sessionId: walletCheckout.sessionId }), 1);
+    const historyAfterReview = await ok(
+      "/customer/play-history?page=1",
+      "GET",
+      undefined,
+      memberLogin.accessToken,
+    );
+    const historyReview = historyAfterReview.items.find(
+      (item) => item.sessionId === walletCheckout.sessionId,
+    ).review;
+    assert.equal(historyReview.tableRating, 4);
+    assert.equal(historyReview.serviceRating, 5);
+    assert.equal(historyReview.comment, reviewPayload.comment);
     const updatedMembership = await ok(
       "/customer/membership",
       "GET",
