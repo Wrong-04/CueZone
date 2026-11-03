@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckOutlined, CloseOutlined, WalletOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, BellOutlined } from "@ant-design/icons";
 import {
   Button,
   Card,
@@ -60,16 +60,20 @@ export default function CustomerPaymentRequests() {
     }
   };
 
+  if (requests.length === 0) {
+    return null;
+  }
+
   return (
     <>
       <Button
-        variant="outline"
+        variant="primary"
         size="sm"
-        icon={<WalletOutlined />}
-        className="!rounded-xl !text-xs !h-8"
+        icon={<BellOutlined className="animate-bounce" />}
+        className="!rounded-xl !text-xs !h-8 !px-3 font-bold !bg-rose-600 hover:!bg-rose-700 !border-rose-600 text-white animate-pulse shadow-sm shrink-0"
         onClick={() => setOpen(true)}
       >
-        Thanh toán chờ {requests.length ? `(${requests.length})` : ""}
+        Khách gọi thanh toán ({requests.length})
       </Button>
       <Modal
         title="Yêu cầu thanh toán tại bàn"

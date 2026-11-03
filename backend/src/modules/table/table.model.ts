@@ -27,6 +27,43 @@ export enum TableStatus {
   MAINTENANCE = "maintenance",
 }
 
+export interface TableOrderItem {
+  id: string;
+  productId?: mongoose.Types.ObjectId | string;
+  name: string;
+  price: number;
+  quantity: number;
+  category: string;
+  orderTime: string;
+  status: string; // "served" | "cancelled" | "pending"
+  cancelledQuantity?: number;
+  cancelReason?: string;
+  cancelledAt?: Date;
+  cancelledBy?: string;
+  stockRestored?: boolean;
+  originTableName?: string;
+}
+
+export interface SessionTransferRecord {
+  action: "transfer" | "merge";
+  fromTableId: string;
+  fromTableCode: string;
+  fromTableName: string;
+  toTableId: string;
+  toTableCode: string;
+  toTableName: string;
+  transferredAt: Date;
+  transferredBy?: {
+    id?: string;
+    name?: string;
+  };
+  carriedCostSnapshot: number;
+  carriedFnbCount: number;
+  previousPricePerHour?: number;
+  newPricePerHour?: number;
+  reason?: string;
+}
+
 export interface TableSession {
   sessionId: string;
 
@@ -69,19 +106,13 @@ export interface TableSession {
 
   isMember: boolean;
 
-  orders: {
-    id: string;
-    name: string;
-    price: number;
-    quantity: number;
-    category: string;
-    orderTime: string;
-    status: string;
-  }[];
+  orders: TableOrderItem[];
 
   note?: string;
 
   deposit: number;
+
+  transfers?: SessionTransferRecord[];
 }
 
 export interface ITable extends Document {
@@ -193,12 +224,47 @@ const tableSchema = new Schema<ITable>(
               new Schema(
                 {
                   id: String,
+                  productId: { type: Schema.Types.ObjectId, ref: "Product" },
                   name: String,
                   price: Number,
                   quantity: Number,
                   category: String,
                   orderTime: String,
-                  status: String,
+                  status: { type: String, default: "served" },
+                  cancelledQuantity: { type: Number, default: 0 },
+                  cancelReason: String,
+                  cancelledAt: Date,
+                  cancelledBy: String,
+                  stockRestored: { type: Boolean, default: true },
+                  originTableName: String,
+                },
+                { _id: false },
+              ),
+            ],
+            default: [],
+          },
+
+          transfers: {
+            type: [
+              new Schema(
+                {
+                  action: { type: String, enum: ["transfer", "merge"], required: true },
+                  fromTableId: String,
+                  fromTableCode: String,
+                  fromTableName: String,
+                  toTableId: String,
+                  toTableCode: String,
+                  toTableName: String,
+                  transferredAt: { type: Date, default: Date.now },
+                  transferredBy: {
+                    id: String,
+                    name: String,
+                  },
+                  carriedCostSnapshot: { type: Number, default: 0 },
+                  carriedFnbCount: { type: Number, default: 0 },
+                  previousPricePerHour: Number,
+                  newPricePerHour: Number,
+                  reason: String,
                 },
                 { _id: false },
               ),

@@ -1,6 +1,12 @@
 import api from "./api";
 import type { ApiResponse, BilliardTable, PricingTier } from "../types";
-import type { PosTable, PosTableSession, BookingRequest, CheckoutReceipt } from "../types/pos";
+import type {
+  PosTable,
+  PosTableSession,
+  BookingRequest,
+  CheckoutReceipt,
+  EligibleMoveTargetsResponse,
+} from "../types/pos";
 
 const tableCategoryMap: Record<string, { type: "pool" | "carom" | "snooker"; typeName: string }> = {
   pool: { type: "pool", typeName: "Bàn Bida Lỗ (Pool)" },
@@ -101,12 +107,31 @@ export const posService = {
     );
     return result(data);
   },
-  async move(table: PosTable, targetTableId: string, action: "transfer" | "merge") {
+  async move(
+    table: PosTable,
+    targetTableId: string,
+    action: "transfer" | "merge",
+    options?: {
+      reason?: string;
+      pricingOption?: "keep_agreed" | "target_table";
+    },
+  ) {
     const { data } = await api.post<ApiResponse<TableRecord>>(`/tables/${table.id}/session/move`, {
       sessionId: table.currentSession?.sessionId,
       targetTableId,
       action,
+      reason: options?.reason,
+      pricingOption: options?.pricingOption,
     });
+    return result(data);
+  },
+  async getMoveTargets(
+    tableId: string,
+    action: "transfer" | "merge" = "transfer",
+  ): Promise<EligibleMoveTargetsResponse> {
+    const { data } = await api.get<ApiResponse<EligibleMoveTargetsResponse>>(
+      `/tables/${tableId}/session/move-targets?action=${action}`,
+    );
     return result(data);
   },
   async checkout(
@@ -115,6 +140,7 @@ export const posService = {
     paymentMethod: string,
     voucherCode?: string,
     customerPhone?: string,
+    paymentDetails?: { cashAmount?: number; transferAmount?: number },
   ): Promise<CheckoutReceipt> {
     const { data } = await api.post<ApiResponse<CheckoutReceipt>>(
       `/tables/${table.id}/session/checkout`,
@@ -124,6 +150,7 @@ export const posService = {
         paymentMethod,
         ...(voucherCode ? { voucherCode } : {}),
         ...(customerPhone ? { customerPhone } : {}),
+        ...(paymentDetails ? { paymentDetails } : {}),
       },
     );
     return result(data);
@@ -137,7 +164,8 @@ export const posService = {
         rank: string;
         elo: number;
         isMember: boolean;
-        walletBalance: number;
+        walletBalance?: number;
+        walletPoints?: number;
         availableVouchers?: Array<{
           code: string;
           description?: string;
@@ -159,6 +187,26 @@ export const posService = {
         discountAmount: number;
       }>
     >("/vouchers/validate", { code, subtotal });
+    return result(data);
+  },
+  async cancelOrderItem(
+    tableId: string,
+    sessionId: string,
+    orderItemId: string,
+    quantity: number,
+    reason: string,
+    restoreStock: boolean = true,
+  ) {
+    const { data } = await api.post<ApiResponse<TableRecord>>(
+      `/tables/${tableId}/session/orders/cancel`,
+      {
+        sessionId,
+        orderItemId,
+        quantity,
+        reason,
+        restoreStock,
+      },
+    );
     return result(data);
   },
   async updateOrders(tableId: string, sessionId: string, orders: any[]) {
@@ -194,9 +242,7 @@ export const bookingService = {
       phone: booking.phone || "",
       tableId:
         booking.tableId ||
-        (typeof booking.table === "object" && booking.table
-          ? booking.table._id
-          : booking.table) ||
+        (typeof booking.table === "object" && booking.table ? booking.table._id : booking.table) ||
         "",
       tableName:
         booking.tableName ||

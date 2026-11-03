@@ -1,11 +1,11 @@
 import { Table, ITable, TableStatus } from "./table.model";
 import { User, UserRole } from "../user/user.model";
 import { Voucher, VoucherDiscountType } from "../voucher/voucher.model";
+import { Wallet } from "../wallet/wallet.model";
 import { CreateTableDTO, UpdateTableDTO } from "./dto/table.dto";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
-import { Wallet } from "../wallet/wallet.model";
 
 const notificationService = new NotificationService();
 
@@ -21,7 +21,15 @@ export class TableService {
       isLocked: false,
     }).select("name phone rank elo");
     if (!user) return null;
-    const wallet = await Wallet.findOne({ userId: user._id }).select("balance");
+    let wallet = await Wallet.findOne({ userId: user._id });
+    if (!wallet) {
+      wallet = await Wallet.create({
+        userId: user._id,
+        balance: 0,
+        points: 0,
+        transactions: [],
+      });
+    }
 
     const now = new Date();
     let availableVouchers = await Voucher.find({
@@ -96,6 +104,7 @@ export class TableService {
       rank: user.rank || "Standard",
       elo: user.elo || 1000,
       walletBalance: wallet?.balance ?? 0,
+      walletPoints: wallet?.points ?? 0,
       isMember: true,
       availableVouchers: availableVouchers.map((v) => ({
         code: v.code,

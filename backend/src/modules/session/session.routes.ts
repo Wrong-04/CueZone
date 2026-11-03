@@ -43,11 +43,23 @@ router.patch("/pause", async (req, res, next) => {
     next(error);
   }
 });
-router.post("/move", async (req, res, next) => {
+router.get("/move-targets", async (req, res, next) => {
   try {
+    const action = req.query.action === "merge" ? "merge" : "transfer";
     res.json({
       success: true,
-      data: await service.move((req.params as { id: string }).id, req.body),
+      data: await service.getEligibleMoveTargets((req.params as { id: string }).id, action),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+router.post("/move", async (req, res, next) => {
+  try {
+    const user = (req as any).user;
+    res.json({
+      success: true,
+      data: await service.move((req.params as { id: string }).id, req.body, user),
     });
   } catch (error) {
     next(error);
@@ -58,6 +70,17 @@ router.post("/checkout", async (req, res, next) => {
     res.json({
       success: true,
       data: await service.checkout((req.params as { id: string }).id, req.body),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+router.post("/orders/cancel", async (req, res, next) => {
+  try {
+    const user = (req as any).user;
+    res.json({
+      success: true,
+      data: await service.cancelOrderItem((req.params as { id: string }).id, req.body, user),
     });
   } catch (error) {
     next(error);
