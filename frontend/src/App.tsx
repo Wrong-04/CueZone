@@ -111,7 +111,7 @@ const AppRoutes = () => {
       {/* Management / POS / Staff routes */}
       <Route
         element={
-          <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+          <ProtectedRoute roles={["admin", "staff"]}>
             <AdminLayout />
           </ProtectedRoute>
         }
@@ -306,7 +306,7 @@ const AppRoutes = () => {
         <Route
           path="/reports"
           element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+            <ProtectedRoute roles={["admin"]}>
               <RevenueReportPage />
             </ProtectedRoute>
           }
@@ -314,7 +314,7 @@ const AppRoutes = () => {
         <Route
           path="/reports/revenue"
           element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+            <ProtectedRoute roles={["admin"]}>
               <RevenueReportPage />
             </ProtectedRoute>
           }
@@ -322,7 +322,7 @@ const AppRoutes = () => {
         <Route
           path="/table-performance"
           element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+            <ProtectedRoute roles={["admin"]}>
               <TablePerformanceReportPage />
             </ProtectedRoute>
           }
@@ -330,7 +330,7 @@ const AppRoutes = () => {
         <Route
           path="/reports/table-performance"
           element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+            <ProtectedRoute roles={["admin"]}>
               <TablePerformanceReportPage />
             </ProtectedRoute>
           }
