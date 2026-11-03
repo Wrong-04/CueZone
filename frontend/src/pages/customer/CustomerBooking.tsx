@@ -23,6 +23,7 @@ import {
   Space,
 } from "../../shared/ui";
 import { bookingService } from "../../services/pos.service";
+import { getSocket } from "../../services/socket.service";
 
 const { Title, Paragraph } = Typography;
 
@@ -87,6 +88,17 @@ const CustomerBooking = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [availabilityVersion, setAvailabilityVersion] = useState<number>(0);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const refreshAvailability = () => setAvailabilityVersion((version) => version + 1);
+    socket.on("table:public_status_changed", refreshAvailability);
+    socket.on("table:guest_status_changed", refreshAvailability);
+    return () => {
+      socket.off("table:public_status_changed", refreshAvailability);
+      socket.off("table:guest_status_changed", refreshAvailability);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -184,7 +196,7 @@ const CustomerBooking = () => {
       });
       setShowSuccessModal(true);
       setAvailabilityVersion((version) => version + 1);
-      message.success("Đã gửi yêu cầu đặt bàn. Vui lòng theo dõi xác nhận trong Lịch sử đặt chỗ.");
+      message.success("Đặt bàn đã được xác nhận tự động.");
     } catch (err: any) {
       const errMsg =
         err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
@@ -208,7 +220,8 @@ const CustomerBooking = () => {
           Đặt Bàn Bida Chuẩn Thi Đấu
         </Title>
         <Paragraph className="!text-sm !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
-          Chọn loại bàn, ngày giờ chơi và gửi yêu cầu đặt chỗ. Lễ tân sẽ xác nhận lịch của bạn.
+          Chọn bàn và khung giờ còn trống. Lịch được xác nhận tự động; nhân viên sẽ nhận thông báo
+          để chuẩn bị bàn.
         </Paragraph>
       </div>
 
@@ -461,14 +474,14 @@ const CustomerBooking = () => {
         title={
           <Space align="center" size={8}>
             <CheckCircleOutlined className="text-emerald-600 text-lg" />
-            <span className="text-slate-900 font-bold">Đã Gửi Yêu Cầu Đặt Bàn</span>
+            <span className="text-slate-900 font-bold">Đặt Bàn Đã Được Xác Nhận</span>
           </Space>
         }
       >
         <div className="space-y-4 py-2 text-xs text-slate-700">
           <p className="text-sm">
-            Cảm ơn cơ thủ <strong>{name}</strong>! Yêu cầu đặt bàn của bạn đã được chuyển đến quầy
-            lễ tân CueZone.
+            Cảm ơn cơ thủ <strong>{name}</strong>! Bàn đã được giữ thành công cho khung giờ bạn chọn.
+            Nhân viên CueZone đã nhận thông báo để chuẩn bị đón bạn.
           </p>
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
             <div className="flex items-center gap-2">
@@ -500,7 +513,7 @@ const CustomerBooking = () => {
             </div>
           </div>
           <p className="text-slate-500">
-            Đơn đang chờ lễ tân xác nhận. Bạn có thể hủy đơn trước giờ chơi ít nhất 2 tiếng tại{" "}
+            Lịch đặt đã được xác nhận. Bạn có thể hủy trước giờ chơi ít nhất 2 tiếng tại{" "}
             <Link to="/customer/history" className="font-semibold text-emerald-700">
               Lịch sử đặt chỗ
             </Link>

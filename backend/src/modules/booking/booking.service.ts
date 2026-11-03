@@ -130,7 +130,7 @@ export class BookingService {
     if (startDate.getTime() <= Date.now()) return [];
     const tableFilter: Record<string, any> = {
       isActive: true,
-      status: { $ne: TableStatus.MAINTENANCE },
+      status: TableStatus.AVAILABLE,
     };
     if (input.type) tableFilter.type = input.type;
     const tables = await Table.find(tableFilter).sort({ code: 1 });
@@ -206,6 +206,9 @@ export class BookingService {
             isLocked: false,
           }).select("_id")
         : null;
+    if (customerId && !associatedCustomer) {
+      throw new Error("Tài khoản khách hàng không hợp lệ");
+    }
     const associatedCustomerId = associatedCustomer ? customerId : undefined;
     if (initialStatus === "pending" && !associatedCustomerId) {
       throw new Error("Vui lòng đăng nhập tài khoản khách hàng để đặt bàn");
@@ -274,8 +277,11 @@ export class BookingService {
     }
     await notificationService
       .create({
-        title: "Có lịch đặt bàn mới",
-        content: `${result.booking.customerName} đặt ${result.booking.tableName} ngày ${result.booking.date} lúc ${result.booking.time}.`,
+        title:
+          initialStatus === "approved"
+            ? "Lịch đặt bàn đã xác nhận tự động"
+            : "Có lịch đặt bàn mới",
+        content: `${result.booking.customerName} (${result.booking.phone}) đặt ${result.booking.tableName} ngày ${result.booking.date} lúc ${result.booking.time}, dự kiến ${result.booking.duration} giờ. Vui lòng chuẩn bị và giữ bàn.`,
         type: NotificationType.TABLE,
       })
       .catch(() => undefined);
@@ -292,11 +298,11 @@ export class BookingService {
     if (reason !== undefined && (typeof reason !== "string" || reason.length > 1000)) {
       throw new Error("Lý do hủy không được vượt quá 1000 ký tự");
     }
-    return mongoose.connection.transaction(async (session) => {
+    const result = await mongoose.connection.transaction(async (session) => {
       const booking = await Booking.findOne({ _id: id, customer: customerId }).session(session);
       if (!booking) throw new Error("Không tìm thấy đơn đặt bàn");
-      if (booking.status !== "pending") {
-        throw new Error("Chỉ có thể hủy đơn đặt bàn đang chờ xác nhận");
+      if (!["pending", "approved"].includes(booking.status)) {
+        throw new Error("Chỉ có thể hủy lịch đặt bàn chưa nhận bàn");
       }
       const { startDate } = getStoredBookingInterval(booking);
       if (!Number.isFinite(startDate.getTime())) {
@@ -305,13 +311,23 @@ export class BookingService {
       if (startDate.getTime() - CANCELLATION_CUTOFF_MS <= Date.now()) {
         throw new Error("Đã quá hạn hủy đặt bàn (trước giờ chơi ít nhất 2 tiếng)");
       }
-      await Table.updateOne(
-        { _id: booking.table },
-        { $inc: { bookingVersion: 1 } },
+      const tableFilter: Record<string, any> = { _id: booking.table };
+      const tableUpdate: Record<string, any> = { $inc: { bookingVersion: 1 } };
+      if (booking.status === "approved") {
+        tableFilter["bookedInfo.bookingId"] = id;
+        tableUpdate.$set = { status: TableStatus.AVAILABLE };
+        tableUpdate.$unset = { bookedInfo: 1 };
+      }
+      const tableUpdateResult = await Table.updateOne(
+        tableFilter,
+        tableUpdate,
         { session },
       );
+      if (booking.status === "approved" && tableUpdateResult.modifiedCount !== 1) {
+        throw new Error("Trạng thái giữ bàn đã thay đổi, vui lòng tải lại");
+      }
       const update = await Booking.updateOne(
-        { _id: id, customer: customerId, status: "pending" },
+        { _id: id, customer: customerId, status: booking.status },
         {
           $set: {
             status: "cancelled",
@@ -324,8 +340,13 @@ export class BookingService {
       if (update.modifiedCount !== 1) {
         throw new Error("Trạng thái đơn đã thay đổi, vui lòng tải lại");
       }
-      return { ...booking.toObject(), status: "cancelled", cancelledAt: new Date() };
+      return {
+        booking: { ...booking.toObject(), status: "cancelled", cancelledAt: new Date() },
+        tableId: String(booking.table),
+      };
     });
+    emitTableStatusChanged({ tableId: result.tableId });
+    return result.booking;
   }
 
   async update(id: string, input: any) {

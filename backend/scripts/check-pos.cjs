@@ -135,8 +135,8 @@ async function main() {
       "Concurrent online reservations must not claim the same slot",
     );
     const onlineBooking = onlineConcurrent.find((result) => result.success).data;
-    assert.equal(onlineBooking.status, "pending");
-    assert.equal((await Table.findById(second._id)).status, "available");
+    assert.equal(onlineBooking.status, "approved");
+    assert.equal((await Table.findById(second._id)).status, "booked");
     assert.equal(
       (await ok("/bookings/mine", "GET", undefined, customer.accessToken)).length,
       1,
@@ -154,17 +154,32 @@ async function main() {
       customer.accessToken,
     );
     assert.equal(cancelledOnlineBooking.status, "cancelled");
+    assert.equal((await Table.findById(second._id)).status, "available");
     const recreatedOnlineBooking = await ok(
       "/public/bookings",
       "POST",
       onlineDto,
       customer.accessToken,
     );
+    assert.equal(recreatedOnlineBooking.status, "approved");
     await ok(
       `/bookings/${recreatedOnlineBooking._id}/cancel`,
       "POST",
       { reason: "Check cleanup" },
       customer.accessToken,
+    );
+    const guestBooking = await ok(
+      "/public/bookings",
+      "POST",
+      { ...onlineDto, time: "15:00" },
+    );
+    assert.equal(guestBooking.status, "approved");
+    assert.equal(guestBooking.customer, null);
+    await ok(
+      `/bookings/${guestBooking._id}`,
+      "PATCH",
+      { status: "rejected", rejectionReason: "Check guest cleanup" },
+      token,
     );
     assert.throws(() =>
       bookingInput({
@@ -541,7 +556,7 @@ async function main() {
       2,
     );
 
-    assert.equal((await ok("/bookings", "GET", undefined, token)).length, 3);
+    assert.equal((await ok("/bookings", "GET", undefined, token)).length, 4);
     assert.equal((await ok("/tables?isActive=true", "GET", undefined, token)).length, 2);
 
     const poolAvailBefore = await ok("/tables/available?type=pool", "GET", undefined, token);
