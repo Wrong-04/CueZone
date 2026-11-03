@@ -104,7 +104,7 @@ const menuItems: MenuItemConfig[] = [
     path: "/fnb-orders",
     label: "Order F&B tại bàn",
     icon: <ShoppingOutlined />,
-    roles: ["admin", "staff", "cashier"],
+    roles: ["admin", "staff"],
   },
 
   {
@@ -124,25 +124,25 @@ const menuItems: MenuItemConfig[] = [
     path: "/wallet-topups",
     label: "Đối soát nạp ví",
     icon: <WalletOutlined />,
-    roles: ["admin", "staff", "cashier"],
+    roles: ["admin", "staff"],
   },
   {
     path: "/tournament-fees",
     label: "Đối soát lệ phí giải",
     icon: <TrophyOutlined />,
-    roles: ["admin", "staff", "cashier"],
+    roles: ["admin", "staff"],
   },
   {
     path: "/reports",
     label: "Báo cáo doanh thu",
     icon: <LineChartOutlined />,
-    roles: ["admin", "staff", "cashier"],
+    roles: ["admin"],
   },
   {
     path: "/table-performance",
     label: "Hiệu suất bàn",
     icon: <DashboardOutlined />,
-    roles: ["admin", "staff", "cashier"],
+    roles: ["admin"],
   },
   {
     path: "/employees",
@@ -165,10 +165,9 @@ const menuItems: MenuItemConfig[] = [
 ];
 
 const roleLabels: Record<string, string> = {
-  admin: "Quản Trị Viên",
+  admin: "Chủ Quán (Admin)",
   staff: "Nhân Viên Vận Hành & Thu Ngân",
-  cashier: "Thu Ngân",
-  customer: "Hội Viên",
+  customer: "Hội Viên CLB",
 };
 
 const typeIcons: Record<string, ReactNode> = {
