@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema, Types } from "mongoose";
 
-export type InventoryTransactionType = "in" | "out" | "adjustment";
+export type InventoryTransactionType = "in" | "out" | "adjustment" | "waste";
 
 export interface IInventoryTransaction extends Document {
   product: Types.ObjectId;
@@ -9,6 +9,8 @@ export interface IInventoryTransaction extends Document {
   previousStock: number;
   newStock: number;
   reason: string;
+  referenceId?: string;
+  referenceType?: string;
   performedBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -25,7 +27,7 @@ const inventoryTransactionSchema = new Schema<IInventoryTransaction>(
 
     type: {
       type: String,
-      enum: ["in", "out", "adjustment"],
+      enum: ["in", "out", "adjustment", "waste"],
       required: true,
     },
 
@@ -52,6 +54,17 @@ const inventoryTransactionSchema = new Schema<IInventoryTransaction>(
       required: true,
       trim: true,
       maxlength: 255,
+    },
+
+    referenceId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+
+    referenceType: {
+      type: String,
+      trim: true,
     },
 
     performedBy: {

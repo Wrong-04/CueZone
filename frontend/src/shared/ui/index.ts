@@ -7,6 +7,7 @@ export * from "./Card";
 export * from "./Checkbox";
 export * from "./ChoiceInput";
 export * from "./DataTable";
+export * from "./DatePicker";
 export * from "./Dialog";
 export * from "./Dropdown";
 export * from "./FloatingInput";

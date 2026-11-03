@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
+import dayjs, { Dayjs } from "dayjs";
+import { useAuth } from "../../contexts/AuthContext";
 import {
   InboxOutlined,
-  PlusOutlined,
   SearchOutlined,
   FileTextOutlined,
   ArrowDownOutlined,
@@ -10,9 +11,13 @@ import {
   WarningOutlined,
   CloseCircleOutlined,
   DollarOutlined,
-  ReloadOutlined,
-  FileDoneOutlined,
   EyeOutlined,
+  FileExcelOutlined,
+  DeleteOutlined,
+  BarChartOutlined,
+  ShoppingOutlined,
+  LockOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -23,13 +28,42 @@ import {
   Table,
   Input,
   Select,
+  DatePicker,
   SegmentedPillList,
+  Pagination,
   type TableColumnsType,
 } from "../../shared/ui";
+import {
+  inventoryReportService,
+  type InventoryReportItem,
+} from "../../services/inventory-report.service";
+import {
+  stockCheckService,
+  type StockCheckSession,
+} from "../../services/stock-check.service";
+import {
+  AuditOutlined,
+  SaveOutlined,
+  SendOutlined,
+  RollbackOutlined,
+  AlertOutlined,
+  CheckOutlined,
+} from "@ant-design/icons";
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface StockAlertItem {
+  sku: string;
+  name: string;
+  priority: "urgent" | "high" | "normal";
+  suggestedQty?: number;
+  note: string;
+  reportedBy: string;
+  reportedAt: string;
+}
 
 export interface WarehouseItem {
   id: string;
@@ -49,7 +83,7 @@ export interface WarehouseItem {
 export interface InventorySlip {
   id: string;
   slipCode: string;
-  type: "inward" | "outward";
+  type: "inward" | "outward" | "waste";
   date: string;
   createdTime: string;
   creator: string;
@@ -58,6 +92,7 @@ export interface InventorySlip {
   totalValue: number;
   status: "completed" | "pending";
   note: string;
+  reason?: string;
   details: {
     sku: string;
     name: string;
@@ -68,16 +103,15 @@ export interface InventorySlip {
   }[];
 }
 
-// ── Mock Initial Data ─────────────────────────────────────────────────────────
+// ── Mock Initial Data chuẩn Billiards ─────────────────────────────────────────
 
 const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
-  // Bida Equipment & Cues
   {
     id: "wh-01",
     sku: "EQ-CUE-01",
     name: "Cơ Bida Lỗ Predator Sneaky Pete Custom",
     category: "equipment",
-    categoryName: "Cơ & Ngọn Bida",
+    categoryName: "Cơ & Phụ Kiện Bida",
     stockQty: 8,
     minThreshold: 3,
     unit: "Cây",
@@ -91,7 +125,7 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     sku: "EQ-SHAFT-01",
     name: "Ngọn Cơ Carbon Predator REVO 12.4mm",
     category: "equipment",
-    categoryName: "Cơ & Ngọn Bida",
+    categoryName: "Cơ & Phụ Kiện Bida",
     stockQty: 5,
     minThreshold: 2,
     unit: "Ngọn",
@@ -105,7 +139,7 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     sku: "EQ-CHALK-01",
     name: "Lơ Bida Taom Pyro Chalk Xanh Cyan (Hộp 9 cục)",
     category: "equipment",
-    categoryName: "Phụ Kiện Bida",
+    categoryName: "Cơ & Phụ Kiện Bida",
     stockQty: 24,
     minThreshold: 10,
     unit: "Hộp",
@@ -119,7 +153,7 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     sku: "EQ-GLOVE-01",
     name: "Bao Tay Bida Chuyên Dụng Predator Second Skin",
     category: "equipment",
-    categoryName: "Phụ Kiện Bida",
+    categoryName: "Cơ & Phụ Kiện Bida",
     stockQty: 45,
     minThreshold: 15,
     unit: "Chiếc",
@@ -133,7 +167,7 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     sku: "EQ-TIP-01",
     name: "Đầu Cơ Bida Kamui Black Clear (Size M/H)",
     category: "equipment",
-    categoryName: "Phụ Kiện Bida",
+    categoryName: "Cơ & Phụ Kiện Bida",
     stockQty: 30,
     minThreshold: 10,
     unit: "Viên",
@@ -142,7 +176,6 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     location: "Kệ A2 - Hộp Nhỏ",
     supplier: "Kamui Japan Official",
   },
-
   {
     id: "wh-06",
     sku: "TB-FELT-01",
@@ -185,7 +218,6 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     location: "Kho Vật Tư Nặng B1",
     supplier: "K-Steel Korea Corp",
   },
-
   {
     id: "wh-09",
     sku: "FB-BEER-01",
@@ -228,7 +260,6 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     location: "Kệ C2 - Nước Đóng Chai",
     supplier: "Coca-Cola Beverages Vietnam",
   },
-
   {
     id: "wh-12",
     sku: "FB-INGR-01",
@@ -255,8 +286,6 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
     location: "Tủ Nguyên Liệu C3",
     supplier: "Vinamilk Việt Nam",
   },
-
-  // Maintenance & Cleaning
   {
     id: "wh-14",
     sku: "MT-CLEAN-01",
@@ -285,16 +314,16 @@ const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
   },
 ];
 
-const INITIAL_SLIPS: InventorySlip[] = [
+const getInitialSlips = (): InventorySlip[] => [
   {
     id: "slip-01",
     slipCode: "PNK-2026-101",
     type: "inward",
-    date: "01/10/2026",
+    date: dayjs().format("DD/MM/YYYY"),
     createdTime: "09:30",
     creator: "Nguyễn Văn Nam (Thủ kho)",
     partnerOrTarget: "Iwan Simonis Bỉ - Đại lý VN",
-    itemsCount: 4,
+    itemsCount: 1,
     totalValue: 24000000,
     status: "completed",
     note: "Nhập bổ sung 5 bộ nỉ Simonis 860 chuẩn bị cho giải đấu Q4",
@@ -313,7 +342,7 @@ const INITIAL_SLIPS: InventorySlip[] = [
     id: "slip-02",
     slipCode: "PNK-2026-102",
     type: "inward",
-    date: "02/10/2026",
+    date: dayjs().subtract(1, "day").format("DD/MM/YYYY"),
     createdTime: "08:15",
     creator: "Nguyễn Văn Nam (Thủ kho)",
     partnerOrTarget: "Đại lý Phân Phối Bia Nước Ngọt Tân Hiệp",
@@ -344,11 +373,11 @@ const INITIAL_SLIPS: InventorySlip[] = [
     id: "slip-03",
     slipCode: "PXK-2026-088",
     type: "outward",
-    date: "02/10/2026",
+    date: dayjs().subtract(2, "day").format("DD/MM/YYYY"),
     createdTime: "11:00",
     creator: "Nguyễn Văn Nam (Thủ kho)",
     partnerOrTarget: "Bàn Match 13 & Bàn Match 14 (Khu VAR)",
-    itemsCount: 2,
+    itemsCount: 1,
     totalValue: 9600000,
     status: "completed",
     note: "Xuất 2 bộ nỉ Simonis thay mới mặt bàn phục vụ vòng bán kết Bank Pool",
@@ -365,38 +394,135 @@ const INITIAL_SLIPS: InventorySlip[] = [
   },
   {
     id: "slip-04",
-    slipCode: "PXK-2026-089",
-    type: "outward",
-    date: "02/10/2026",
-    createdTime: "13:30",
+    slipCode: "PXH-2026-015",
+    type: "waste",
+    date: dayjs().format("DD/MM/YYYY"),
+    createdTime: "15:20",
     creator: "Nguyễn Văn Nam (Thủ kho)",
-    partnerOrTarget: "Quầy Bar & Quầy POS Bida Tầng 1",
-    itemsCount: 3,
-    totalValue: 5850000,
+    partnerOrTarget: "Khu vực Bàn VIP 01 - Thi đấu",
+    itemsCount: 1,
+    totalValue: 9500000,
     status: "completed",
-    note: "Cấp phát 10 thùng bia Heineken và 5 thùng nước suối lên quầy lạnh",
+    reason: "Cơ cong / Gãy ngọn / Bong phíp",
+    note: "Khách làm rơi gãy ngọn trong trận thi đấu, xuất hủy 1 cây gậy Predator để thay mới",
     details: [
       {
-        sku: "FB-BEER-01",
-        name: "Bia Heineken Silver Lon 330ml (Thùng 24 lon)",
-        qty: 10,
-        unit: "Thùng",
-        price: 395000,
-        subtotal: 3950000,
+        sku: "EQ-CUE-01",
+        name: "Cơ Bida Lỗ Predator Sneaky Pete Custom",
+        qty: 1,
+        unit: "Cây",
+        price: 9500000,
+        subtotal: 9500000,
+      },
+    ],
+  },
+  {
+    id: "slip-05",
+    slipCode: "PNK-2026-103",
+    type: "inward",
+    date: dayjs().subtract(3, "day").format("DD/MM/YYYY"),
+    createdTime: "14:00",
+    creator: "Nguyễn Văn Nam (Thủ kho)",
+    partnerOrTarget: "Đại lý Phụ kiện Bida Sài Gòn",
+    itemsCount: 2,
+    totalValue: 750000,
+    status: "completed",
+    note: "Nhập bổ sung lơ bida Master Blue và đầu cơ Kamui",
+    details: [
+      {
+        sku: "ACC-002",
+        name: "Lơ bida Master Blue",
+        qty: 30,
+        unit: "viên",
+        price: 5000,
+        subtotal: 150000,
       },
       {
-        sku: "FB-WATER-01",
-        name: "Nước Suối Tinh Khiết Dasani 500ml (Thùng 24 chai)",
-        qty: 20,
-        unit: "Thùng",
-        price: 95000,
-        subtotal: 1900000,
+        sku: "ACC-001",
+        name: "Đầu cơ Kamui 13mm",
+        qty: 40,
+        unit: "cái",
+        price: 15000,
+        subtotal: 600000,
+      },
+    ],
+  },
+  {
+    id: "slip-06",
+    slipCode: "PXK-2026-089",
+    type: "outward",
+    date: dayjs().subtract(1, "day").format("DD/MM/YYYY"),
+    createdTime: "17:30",
+    creator: "Nguyễn Văn Nam (Thủ kho)",
+    partnerOrTarget: "Quầy Thu Ngân & Phục Vụ Bàn VIP",
+    itemsCount: 2,
+    totalValue: 130000,
+    status: "completed",
+    note: "Cấp phát bao tay và lơ bida lên quầy dịch vụ",
+    details: [
+      {
+        sku: "ACC-002",
+        name: "Lơ bida Master Blue",
+        qty: 10,
+        unit: "viên",
+        price: 5000,
+        subtotal: 50000,
+      },
+      {
+        sku: "ACC-003",
+        name: "Bao tay bida Predator cao cấp",
+        qty: 2,
+        unit: "cái",
+        price: 40000,
+        subtotal: 80000,
       },
     ],
   },
 ];
 
+const INITIAL_SLIPS: InventorySlip[] = getInitialSlips();
+
+const parseSlipDate = (dateStr: string): Dayjs | null => {
+  if (!dateStr) return null;
+  const parts = dateStr.split("/");
+  if (parts.length === 3) {
+    const d = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const y = parseInt(parts[2], 10);
+    const fullYear = y < 100 ? y + 2000 : y;
+    return dayjs(new Date(fullYear, m, d));
+  }
+  const parsed = dayjs(dateStr);
+  return parsed.isValid() ? parsed : null;
+};
+
+const isSlipInDateRange = (slipDateStr: string, range: [Dayjs, Dayjs]): boolean => {
+  if (!slipDateStr || !range || !range[0] || !range[1]) return true;
+  const slipDate = parseSlipDate(slipDateStr);
+  if (!slipDate || !slipDate.isValid()) return true;
+
+  const start = range[0].startOf("day");
+  const end = range[1].endOf("day");
+  return (slipDate.isAfter(start) || slipDate.isSame(start, "day")) &&
+         (slipDate.isBefore(end) || slipDate.isSame(end, "day"));
+};
+
+const REASON_OPTIONS = [
+  { label: "Cơ cong vênh / Gãy ngọn / Bong phíp", value: "Cơ cong vênh / Gãy ngọn / Bong phíp" },
+  { label: "Mẻ bóng / Nứt vỡ bi thi đấu", value: "Mẻ bóng / Nứt vỡ bi thi đấu" },
+  { label: "Mòn lơ / Ẩm bột lơ", value: "Mòn lơ / Ẩm bột lơ" },
+  { label: "Rách bao tay bida", value: "Rách bao tay bida" },
+  { label: "Rách vải nỉ bàn / Mòn băng cao su", value: "Rách vải nỉ bàn / Mòn băng cao su" },
+  { label: "Hao mòn tự nhiên qua các trận đấu", value: "Hao mòn tự nhiên qua các trận đấu" },
+  { label: "Lý do khác", value: "Lý do khác" },
+];
+
 export const WarehouseInventoryPage: React.FC = () => {
+  // ── 0. AUTH / ROLE ────────────────────────────────────────────────────────
+  const { user } = useAuth();
+  // Chỉ admin và warehouse được tạo/xuất/hủy phiếu; staff chỉ xem
+  const isAdmin = user?.role === "admin" || user?.role === "warehouse";
+
   // ── 1. STATE ──────────────────────────────────────────────────────────────
   const [stockList, setStockList] = useState<WarehouseItem[]>(() => {
     const saved = localStorage.getItem("cuezone_warehouse_stock");
@@ -414,7 +540,16 @@ export const WarehouseInventoryPage: React.FC = () => {
     const saved = localStorage.getItem("cuezone_inventory_slips");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasCurrentMonth = parsed.some((s: InventorySlip) => {
+            const d = parseSlipDate(s.date);
+            return d && d.isSame(dayjs(), "month");
+          });
+          if (hasCurrentMonth) {
+            return parsed;
+          }
+        }
       } catch {
         // fallback
       }
@@ -430,36 +565,635 @@ export const WarehouseInventoryPage: React.FC = () => {
     localStorage.setItem("cuezone_inventory_slips", JSON.stringify(slipsList));
   }, [slipsList]);
 
+  // Stock Alerts reported by Staff
+  const [stockAlerts, setStockAlerts] = useState<Record<string, StockAlertItem>>(() => {
+    const saved = localStorage.getItem("cuezone_stock_alerts");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem("cuezone_stock_alerts", JSON.stringify(stockAlerts));
+  }, [stockAlerts]);
+
+  const [alertModalVisible, setAlertModalVisible] = useState<boolean>(false);
+  const [alertTargetItem, setAlertTargetItem] = useState<WarehouseItem | null>(null);
+  const [alertForm, setAlertForm] = useState<{
+    priority: "urgent" | "high" | "normal";
+    suggestedQty: number;
+    note: string;
+  }>({
+    priority: "high",
+    suggestedQty: 5,
+    note: "",
+  });
+
+  const handleOpenAlertModal = (item: WarehouseItem) => {
+    setAlertTargetItem(item);
+    const existing = stockAlerts[item.sku];
+    if (existing) {
+      setAlertForm({
+        priority: existing.priority,
+        suggestedQty: existing.suggestedQty || (item.minThreshold * 2 || 5),
+        note: existing.note || "",
+      });
+    } else {
+      setAlertForm({
+        priority: item.stockQty === 0 ? "urgent" : "high",
+        suggestedQty: item.minThreshold * 2 || 5,
+        note:
+          item.stockQty === 0
+            ? "Hết sạch tại quầy và bàn thi đấu, cần bổ sung gấp"
+            : "Số lượng sắp hết dưới ngưỡng an toàn",
+      });
+    }
+    setAlertModalVisible(true);
+  };
+
+  const handleSubmitStockAlert = () => {
+    if (!alertTargetItem) return;
+    const newAlert: StockAlertItem = {
+      sku: alertTargetItem.sku,
+      name: alertTargetItem.name,
+      priority: alertForm.priority,
+      suggestedQty: alertForm.suggestedQty,
+      note: alertForm.note.trim(),
+      reportedBy: user?.name || "Nhân viên vận hành",
+      reportedAt: dayjs().format("HH:mm DD/MM/YYYY"),
+    };
+
+    setStockAlerts((prev) => ({
+      ...prev,
+      [alertTargetItem.sku]: newAlert,
+    }));
+
+    message.success(`Đã gửi thông báo thiếu hàng "${alertTargetItem.name}" tới Quản lý kho!`);
+    setAlertModalVisible(false);
+  };
+
   // Main navigation tabs
   const [activeTab, setActiveTab] = useState<string>("stock");
 
-  // Filters
+  // Filters for Stock tab
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // ── 2. MODALS ─────────────────────────────────────────────────────────────
+  // Pagination states for each tab
+  const [stockPage, setStockPage] = useState<number>(1);
+  const [inwardPage, setInwardPage] = useState<number>(1);
+  const [outwardPage, setOutwardPage] = useState<number>(1);
+  const [reportPage, setReportPage] = useState<number>(1);
+  const pageSize = 8;
 
-  const [inwardModalVisible, setInwardModalVisible] = useState<boolean>(false);
-  const [inwardForm, setInwardForm] = useState({
-    sku: "TB-FELT-01",
-    qty: 5,
-    unitPrice: 4800000,
-    supplier: "Iwan Simonis Bỉ - Đại lý VN",
-    note: "Nhập bổ sung định kỳ cho kho bàn bida",
+  // ── Stock Check (Kiểm kê & Cân bằng kho) States ───────────────────────────
+  const [stockCheckList, setStockCheckList] = useState<StockCheckSession[]>(() => {
+    const saved = localStorage.getItem("cuezone_stock_checks");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    // Đợt kiểm kê mẫu ban đầu
+    const defaultCheck: StockCheckSession = {
+      _id: "sc-sample-01",
+      checkCode: `KK-${dayjs().format("YYYYMMDD")}-0001`,
+      title: `Kiểm kê định kỳ toàn bộ kho hàng hóa tháng ${dayjs().format("MM/YYYY")}`,
+      category: "all",
+      status: "submitted",
+      items: INITIAL_WAREHOUSE_STOCK.map((item, idx) => {
+        // Tạo một số mặt hàng có chênh lệch thực tế để đối soát
+        let actual = item.stockQty;
+        if (idx === 0) actual = item.stockQty - 1; // Thiếu 1 cây
+        else if (idx === 1) actual = item.stockQty + 2; // Thừa 2
+        const variance = actual - item.stockQty;
+        return {
+          product: item.id,
+          sku: item.sku,
+          name: item.name,
+          category: item.category,
+          unit: item.unit,
+          costPrice: item.costPrice,
+          systemStock: item.stockQty,
+          actualStock: actual,
+          variance: variance,
+          varianceValue: variance * item.costPrice,
+          note: variance !== 0 ? (variance > 0 ? "Thừa kiểm đếm thực tế" : "Khách làm hỏng chưa ghi nhận") : "",
+        };
+      }),
+      summary: {
+        totalItems: INITIAL_WAREHOUSE_STOCK.length,
+        matchedItems: INITIAL_WAREHOUSE_STOCK.length - 2,
+        surplusItems: 1,
+        deficitItems: 1,
+        totalVarianceValue: -1 * 9500000 + 2 * 8200000,
+      },
+      createdBy: {
+        _id: "usr-admin-01",
+        name: "Nguyễn Tiến Dũng (Chủ CLB)",
+        email: "dung.owner@cuezone.vn",
+      },
+      submittedBy: {
+        _id: "usr-staff-01",
+        name: "Nguyễn Văn Nam (Thủ kho)",
+        email: "nam.warehouse@cuezone.vn",
+      },
+      submittedAt: dayjs().format("YYYY-MM-DDTHH:mm:ssZ"),
+      createdAt: dayjs().subtract(1, "day").format("YYYY-MM-DDTHH:mm:ssZ"),
+      updatedAt: dayjs().format("YYYY-MM-DDTHH:mm:ssZ"),
+      note: "Đợt kiểm kê định kỳ đối soát toàn bộ cơ, nỉ, bi và đồ uống trước thềm giải đấu.",
+    };
+    return [defaultCheck];
   });
 
+  const [activeCheckSession, setActiveCheckSession] = useState<StockCheckSession | null>(null);
+  const [createCheckModalVisible, setCreateCheckModalVisible] = useState(false);
+  const [newCheckForm, setNewCheckForm] = useState({
+    title: "",
+    category: "all",
+    note: "",
+  });
+  const [editingActualCounts, setEditingActualCounts] = useState<Record<string, { actualStock: number; note: string }>>({});
+  const [stockCheckLoading, setStockCheckLoading] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("cuezone_stock_checks", JSON.stringify(stockCheckList));
+  }, [stockCheckList]);
+
+  // Load backend stock checks if available
+  useEffect(() => {
+    if (activeTab === "audit") {
+      stockCheckService.getStockChecks()
+        .then((res) => {
+          if (res && res.data && res.data.length > 0) {
+            setStockCheckList(res.data);
+          }
+        })
+        .catch(() => {
+          // Keep local fallback
+        });
+    }
+  }, [activeTab]);
+
+  // Tạo đợt kiểm kê mới kèm Snapshot tồn kho hiện tại (SCRUM-1065)
+  const handleCreateStockCheck = async () => {
+    if (!newCheckForm.title.trim()) {
+      message.warning("Vui lòng nhập tiêu đề đợt kiểm kê!");
+      return;
+    }
+
+    try {
+      setStockCheckLoading(true);
+      const res = await stockCheckService.createStockCheck({
+        title: newCheckForm.title.trim(),
+        category: newCheckForm.category !== "all" ? newCheckForm.category : undefined,
+        note: newCheckForm.note.trim(),
+      });
+      if (res) {
+        setStockCheckList((prev) => [res, ...prev]);
+        setActiveCheckSession(res);
+        message.success("Tạo đợt kiểm kê mới thành công kèm snapshot tồn kho!");
+      }
+    } catch {
+      // Local fallback
+      const catFilter = newCheckForm.category;
+      const targetItems = catFilter === "all" ? stockList : stockList.filter((it) => it.category === catFilter);
+      const newCode = `KK-${dayjs().format("YYYYMMDD")}-${String(stockCheckList.length + 1).padStart(4, "0")}`;
+
+      const newSession: StockCheckSession = {
+        _id: `sc-${Date.now()}`,
+        checkCode: newCode,
+        title: newCheckForm.title.trim(),
+        category: newCheckForm.category,
+        status: "draft",
+        items: targetItems.map((it) => ({
+          product: it.id,
+          sku: it.sku,
+          name: it.name,
+          category: it.category,
+          unit: it.unit,
+          costPrice: it.costPrice,
+          systemStock: it.stockQty,
+          actualStock: it.stockQty, // Mặc định bằng tồn hệ thống
+          variance: 0,
+          varianceValue: 0,
+          note: "",
+        })),
+        summary: {
+          totalItems: targetItems.length,
+          matchedItems: targetItems.length,
+          surplusItems: 0,
+          deficitItems: 0,
+          totalVarianceValue: 0,
+        },
+        createdBy: {
+          _id: user?._id || "usr-current",
+          name: user?.name || "Người quản lý",
+          email: user?.email || "",
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        note: newCheckForm.note.trim(),
+      };
+
+      setStockCheckList((prev) => [newSession, ...prev]);
+      setActiveCheckSession(newSession);
+      message.success("Đã khởi tạo đợt kiểm kê thành công (Chụp snapshot tồn kho)!");
+    } finally {
+      setStockCheckLoading(false);
+      setCreateCheckModalVisible(false);
+      setNewCheckForm({ title: "", category: "all", note: "" });
+    }
+  };
+
+  // Mở màn hình kiểm đếm chi tiết một phiên
+  const handleOpenCheckSession = (session: StockCheckSession) => {
+    setActiveCheckSession(session);
+    const initialCounts: Record<string, { actualStock: number; note: string }> = {};
+    session.items.forEach((it) => {
+      initialCounts[it.product] = {
+        actualStock: it.actualStock ?? it.systemStock,
+        note: it.note || "",
+      };
+    });
+    setEditingActualCounts(initialCounts);
+  };
+
+  // Lưu tạm hoặc Nộp phiếu kiểm kê (SCRUM-1064: submit = true)
+  const handleSaveOrSubmitCounts = async (submit: boolean) => {
+    if (!activeCheckSession) return;
+
+    const countsPayload = activeCheckSession.items.map((it) => {
+      const entry = editingActualCounts[it.product] || { actualStock: it.actualStock ?? it.systemStock, note: "" };
+      return {
+        productId: it.product,
+        actualStock: entry.actualStock,
+        note: entry.note,
+      };
+    });
+
+    try {
+      setStockCheckLoading(true);
+      const updated = await stockCheckService.updateCounts(activeCheckSession._id, countsPayload, submit);
+      if (updated) {
+        setStockCheckList((prev) => prev.map((s) => (s._id === updated._id ? updated : s)));
+        setActiveCheckSession(updated);
+        message.success(submit ? "Đã nộp phiếu kiểm kê (SUBMITTED) thành công, chờ Quản lý duyệt!" : "Đã lưu tạm kết quả kiểm đếm!");
+      }
+    } catch {
+      // Local fallback
+      let matched = 0;
+      let surplus = 0;
+      let deficit = 0;
+      let totalVarValue = 0;
+
+      const updatedItems = activeCheckSession.items.map((it) => {
+        const entry = editingActualCounts[it.product] || { actualStock: it.actualStock ?? it.systemStock, note: "" };
+        const actual = Math.max(0, entry.actualStock);
+        const variance = actual - it.systemStock;
+        const varianceVal = variance * it.costPrice;
+
+        if (variance === 0) matched++;
+        else if (variance > 0) surplus++;
+        else deficit++;
+        totalVarValue += varianceVal;
+
+        return {
+          ...it,
+          actualStock: actual,
+          variance: variance,
+          varianceValue: varianceVal,
+          note: entry.note,
+        };
+      });
+
+      const updatedSession: StockCheckSession = {
+        ...activeCheckSession,
+        status: submit ? "submitted" : "draft",
+        items: updatedItems,
+        summary: {
+          totalItems: updatedItems.length,
+          matchedItems: matched,
+          surplusItems: surplus,
+          deficitItems: deficit,
+          totalVarianceValue: totalVarValue,
+        },
+        submittedBy: submit
+          ? {
+              _id: user?._id || "usr-staff",
+              name: user?.name || "Thủ kho",
+              email: user?.email || "",
+            }
+          : activeCheckSession.submittedBy,
+        submittedAt: submit ? new Date().toISOString() : activeCheckSession.submittedAt,
+        updatedAt: new Date().toISOString(),
+      };
+
+      setStockCheckList((prev) => prev.map((s) => (s._id === updatedSession._id ? updatedSession : s)));
+      setActiveCheckSession(updatedSession);
+      message.success(
+        submit
+          ? `Đã nộp phiếu kiểm kê (SUBMITTED)! Phát hiện ${matched} mặt hàng khớp, ${surplus} thừa, ${deficit} thiếu.`
+          : "Đã lưu tạm kết quả kiểm đếm thành công!",
+      );
+    } finally {
+      setStockCheckLoading(false);
+    }
+  };
+
+  // Duyệt cân bằng tồn kho (SCRUM-1068 & SCRUM-1069)
+  const handleApproveBalance = async () => {
+    if (!activeCheckSession) return;
+
+    try {
+      setStockCheckLoading(true);
+      const approved = await stockCheckService.approveStockCheck(activeCheckSession._id);
+      if (approved) {
+        setStockCheckList((prev) => prev.map((s) => (s._id === approved._id ? approved : s)));
+        setActiveCheckSession(approved);
+      }
+    } catch {
+      // Local fallback
+    }
+
+    // Tự động cập nhật tồn kho `stockList` khớp 100% với số lượng thực tế đã đếm
+    const countMap: Record<string, number> = {};
+    activeCheckSession.items.forEach((it) => {
+      countMap[it.sku] = it.actualStock ?? it.systemStock;
+    });
+
+    setStockList((prev) =>
+      prev.map((item) => {
+        if (countMap[item.sku] !== undefined) {
+          return { ...item, stockQty: countMap[item.sku] };
+        }
+        return item;
+      }),
+    );
+
+    // Tự động tạo 1 chứng từ kiểm kê cân bằng kho vào slipsList để lưu vết
+    const varianceItems = activeCheckSession.items.filter((it) => it.variance !== 0);
+    if (varianceItems.length > 0) {
+      const balanceSlip: InventorySlip = {
+        id: `slip-balance-${Date.now()}`,
+        slipCode: `PKK-${Date.now().toString().slice(-4)}`,
+        type: "inward", // Dùng type inward để hiển thị trong nhật ký
+        date: dayjs().format("DD/MM/YYYY"),
+        createdTime: dayjs().format("HH:mm"),
+        creator: user?.name || "Nguyễn Tiến Dũng (Chủ CLB)",
+        partnerOrTarget: `Cân bằng đợt kiểm kê [${activeCheckSession.checkCode}]`,
+        itemsCount: varianceItems.length,
+        totalValue: Math.abs(activeCheckSession.summary.totalVarianceValue),
+        status: "completed",
+        note: `Tự động điều chỉnh cân bằng tồn kho cho ${varianceItems.length} mặt hàng chênh lệch theo biên bản ${activeCheckSession.checkCode}.`,
+        details: varianceItems.map((it) => ({
+          sku: it.sku,
+          name: it.name,
+          qty: Math.abs(it.variance),
+          unit: it.unit,
+          price: it.costPrice,
+          subtotal: Math.abs(it.varianceValue),
+        })),
+      };
+      setSlipsList((prev) => [balanceSlip, ...prev]);
+    }
+
+    // Đổi trạng thái phiên kiểm kê sang completed
+    const completedSession: StockCheckSession = {
+      ...activeCheckSession,
+      status: "completed",
+      approvedBy: {
+        _id: user?._id || "usr-admin",
+        name: user?.name || "Nguyễn Tiến Dũng (Chủ CLB)",
+        email: user?.email || "",
+      },
+      approvedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setStockCheckList((prev) => prev.map((s) => (s._id === completedSession._id ? completedSession : s)));
+    setActiveCheckSession(completedSession);
+    setStockCheckLoading(false);
+
+    message.success(
+      `Phê duyệt và cân bằng tồn kho thành công! Đã tự động điều chỉnh tồn kho cho ${varianceItems.length} mặt hàng chênh lệch theo biên bản ${activeCheckSession.checkCode}.`,
+    );
+  };
+
+
+  // ── Report Tab States ─────────────────────────────────────────────────────
+  const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>([
+    dayjs().startOf("month"),
+    dayjs().endOf("day"),
+  ]);
+  const [reportPreset, setReportPreset] = useState<"today" | "7days" | "thisMonth">("thisMonth");
+  const [reportCategory, setReportCategory] = useState<string>("all");
+  const [reportSearch, setReportSearch] = useState<string>("");
+  const [reportLoading, setReportLoading] = useState<boolean>(false);
+  const [reportExporting, setReportExporting] = useState<boolean>(false);
+  const [reportItems, setReportItems] = useState<InventoryReportItem[]>([]);
+
+
+
+  // ── 2. MODALS ─────────────────────────────────────────────────────────────
+
+  // Inward Modal
+  const [inwardModalVisible, setInwardModalVisible] = useState<boolean>(false);
+  const [inwardForm, setInwardForm] = useState({
+    sku: "EQ-CUE-01",
+    qty: 2,
+    unitPrice: 9500000,
+    supplier: "Predator Cues USA Distribution",
+    note: "Nhập bổ sung gậy bida chuyên nghiệp",
+  });
+
+  // Outward / Waste Modal
   const [outwardModalVisible, setOutwardModalVisible] = useState<boolean>(false);
+  const [outwardType, setOutwardType] = useState<"transfer" | "waste">("transfer");
   const [outwardForm, setOutwardForm] = useState({
-    sku: "FB-BEER-01",
-    qty: 5,
+    sku: "EQ-CUE-01",
+    qty: 1, // Default is 1 item! (If 1 cue broken among 8, report exactly 1)
     target: "Quầy Bar & POS Bàn Bida",
-    note: "Cấp phát hàng phục vụ khách cuối tuần",
+    reason: "Cơ cong / Gãy ngọn / Bong phíp",
+    customReason: "",
+    note: "",
   });
 
   const [selectedSlip, setSelectedSlip] = useState<InventorySlip | null>(null);
 
   // ── 3. ACTIONS ────────────────────────────────────────────────────────────
+
+  // Fetch report data
+  const fetchReportData = async () => {
+    try {
+      setReportLoading(true);
+      const fromDate = reportRange[0].startOf("day").toISOString();
+      const toDate = reportRange[1].endOf("day").toISOString();
+
+      const res = await inventoryReportService.getReport({
+        fromDate,
+        toDate,
+        category: reportCategory !== "all" ? reportCategory : undefined,
+        search: reportSearch.trim() || undefined,
+      });
+
+      const slipsInPeriod = slipsList.filter((s) => isSlipInDateRange(s.date, reportRange));
+
+      if (res && res.items) {
+        // Đồng bộ các phiếu trong kỳ vào items từ backend
+        const merged = res.items.map((it) => {
+          const localIn = slipsInPeriod
+            .filter((s) => s.type === "inward")
+            .flatMap((s) => s.details)
+            .filter((d) => d.sku === it.sku)
+            .reduce((acc, cur) => acc + cur.qty, 0);
+
+          const localOut = slipsInPeriod
+            .filter((s) => s.type === "outward")
+            .flatMap((s) => s.details)
+            .filter((d) => d.sku === it.sku)
+            .reduce((acc, cur) => acc + cur.qty, 0);
+
+          const localWaste = slipsInPeriod
+            .filter((s) => s.type === "waste")
+            .flatMap((s) => s.details)
+            .filter((d) => d.sku === it.sku)
+            .reduce((acc, cur) => acc + cur.qty, 0);
+
+          const finalIn = it.inStock + localIn;
+          const finalOut = it.outStock + localOut;
+          const finalWaste = it.wasteStock + localWaste;
+          const finalClosing = Math.max(0, it.openingStock + finalIn - finalOut - finalWaste);
+
+          return {
+            ...it,
+            inStock: finalIn,
+            outStock: finalOut,
+            wasteStock: finalWaste,
+            closingStock: finalClosing,
+            closingValue: finalClosing * it.costPrice,
+          };
+        });
+        setReportItems(merged);
+      }
+    } catch {
+      // Fallback: derive from local stock và slipsList trong khoảng thời gian đã chọn
+      const slipsInPeriod = slipsList.filter((s) => isSlipInDateRange(s.date, reportRange));
+      const derived: InventoryReportItem[] = stockList.map((item) => {
+        const inQty = slipsInPeriod
+          .filter((s) => s.type === "inward")
+          .flatMap((s) => s.details)
+          .filter((d) => d.sku === item.sku)
+          .reduce((acc, cur) => acc + cur.qty, 0);
+
+        const outQty = slipsInPeriod
+          .filter((s) => s.type === "outward")
+          .flatMap((s) => s.details)
+          .filter((d) => d.sku === item.sku)
+          .reduce((acc, cur) => acc + cur.qty, 0);
+
+        const wasteQty = slipsInPeriod
+          .filter((s) => s.type === "waste")
+          .flatMap((s) => s.details)
+          .filter((d) => d.sku === item.sku)
+          .reduce((acc, cur) => acc + cur.qty, 0);
+
+        const opening = Math.max(0, item.stockQty - inQty + outQty + wasteQty);
+
+        return {
+          productId: item.id,
+          sku: item.sku,
+          name: item.name,
+          category: item.category,
+          unit: item.unit,
+          costPrice: item.costPrice,
+          salePrice: item.sellingPrice || item.costPrice * 1.3,
+          openingStock: opening,
+          inStock: inQty,
+          outStock: outQty,
+          wasteStock: wasteQty,
+          closingStock: item.stockQty,
+          closingValue: item.stockQty * item.costPrice,
+        };
+      });
+
+      setReportItems(derived);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "report") {
+      fetchReportData();
+    }
+  }, [activeTab, reportRange, reportCategory, reportSearch]);
+
+  const handleExportExcel = async () => {
+    try {
+      setReportExporting(true);
+      const fromDate = reportRange[0].startOf("day").toISOString();
+      const toDate = reportRange[1].endOf("day").toISOString();
+
+      await inventoryReportService.exportExcel({
+        fromDate,
+        toDate,
+        category: reportCategory !== "all" ? reportCategory : undefined,
+        search: reportSearch.trim() || undefined,
+      });
+
+      message.success("Xuất báo cáo Excel thành công!");
+    } catch {
+      message.info("Đã tạo bảng tính báo cáo Xuất - Nhập - Tồn kho bida.");
+    } finally {
+      setReportExporting(false);
+    }
+  };
+
+  const setPresetRange = (preset: "today" | "7days" | "thisMonth") => {
+    setReportPreset(preset);
+    setReportPage(1);
+    setInwardPage(1);
+    setOutwardPage(1);
+    if (preset === "today") {
+      setReportRange([dayjs().startOf("day"), dayjs().endOf("day")]);
+    } else if (preset === "7days") {
+      setReportRange([dayjs().subtract(6, "day").startOf("day"), dayjs().endOf("day")]);
+    } else if (preset === "thisMonth") {
+      setReportRange([dayjs().startOf("month"), dayjs().endOf("day")]);
+    }
+  };
+
+  const handleRangePickerChange = (dates: any) => {
+    if (dates && dates[0] && dates[1]) {
+      const start = dates[0].startOf("day");
+      const end = dates[1].endOf("day");
+      setReportRange([start, end]);
+      setReportPage(1);
+      setInwardPage(1);
+      setOutwardPage(1);
+
+      const isToday = start.isSame(dayjs().startOf("day"), "day") && end.isSame(dayjs().endOf("day"), "day");
+      const is7Days = start.isSame(dayjs().subtract(6, "day").startOf("day"), "day") && end.isSame(dayjs().endOf("day"), "day");
+      const isThisMonth = start.isSame(dayjs().startOf("month"), "day") && end.isSame(dayjs().endOf("day"), "day");
+
+      if (isToday) setReportPreset("today");
+      else if (is7Days) setReportPreset("7days");
+      else if (isThisMonth) setReportPreset("thisMonth");
+      else setReportPreset(null as any);
+    }
+  };
+
   const handleCreateInwardSlip = () => {
     if (inwardForm.qty <= 0) {
       message.warning("Số lượng nhập kho phải lớn hơn 0!");
@@ -469,7 +1203,10 @@ export const WarehouseInventoryPage: React.FC = () => {
     const targetItem = stockList.find((i) => i.sku === inwardForm.sku);
     if (!targetItem) return;
 
-    const subtotal = inwardForm.qty * inwardForm.unitPrice;
+    // Unit price is STRICTLY locked to the target item's costPrice
+    const fixedCostPrice = targetItem.costPrice;
+    const subtotal = inwardForm.qty * fixedCostPrice;
+
     const newSlip: InventorySlip = {
       id: `slip-${Date.now()}`,
       slipCode: `PNK-${Date.now().toString().slice(-4)}`,
@@ -480,7 +1217,7 @@ export const WarehouseInventoryPage: React.FC = () => {
         minute: "2-digit",
       }),
       creator: "Nguyễn Văn Nam (Thủ kho)",
-      partnerOrTarget: inwardForm.supplier,
+      partnerOrTarget: inwardForm.supplier || targetItem.supplier,
       itemsCount: 1,
       totalValue: subtotal,
       status: "completed",
@@ -491,7 +1228,7 @@ export const WarehouseInventoryPage: React.FC = () => {
           name: targetItem.name,
           qty: inwardForm.qty,
           unit: targetItem.unit,
-          price: inwardForm.unitPrice,
+          price: fixedCostPrice,
           subtotal: subtotal,
         },
       ],
@@ -530,26 +1267,36 @@ export const WarehouseInventoryPage: React.FC = () => {
     }
 
     const subtotal = outwardForm.qty * targetItem.costPrice;
+    const isWaste = outwardType === "waste";
+
+    const selectedReason =
+      outwardForm.reason === "Khác" && outwardForm.customReason
+        ? outwardForm.customReason
+        : outwardForm.reason;
+
     const newSlip: InventorySlip = {
       id: `slip-${Date.now()}`,
-      slipCode: `PXK-${Date.now().toString().slice(-4)}`,
-      type: "outward",
+      slipCode: isWaste ? `PXH-${Date.now().toString().slice(-4)}` : `PXK-${Date.now().toString().slice(-4)}`,
+      type: isWaste ? "waste" : "outward",
       date: new Date().toLocaleDateString("vi-VN"),
       createdTime: new Date().toLocaleTimeString("vi-VN", {
         hour: "2-digit",
         minute: "2-digit",
       }),
       creator: "Nguyễn Văn Nam (Thủ kho)",
-      partnerOrTarget: outwardForm.target,
+      partnerOrTarget: isWaste ? `Xuất hủy phụ kiện (${selectedReason})` : outwardForm.target,
       itemsCount: 1,
       totalValue: subtotal,
       status: "completed",
-      note: outwardForm.note,
+      reason: isWaste ? selectedReason : undefined,
+      note: isWaste
+        ? `Xuất hủy ${outwardForm.qty} ${targetItem.unit} do: ${selectedReason}. ${outwardForm.note}`
+        : outwardForm.note,
       details: [
         {
           sku: targetItem.sku,
           name: targetItem.name,
-          qty: outwardForm.qty,
+          qty: outwardForm.qty, // Báo hỏng ĐÚNG số lượng hư hỏng (ví dụ: 1 cái hỏng trong 8 cái, báo 1)
           unit: targetItem.unit,
           price: targetItem.costPrice,
           subtotal: subtotal,
@@ -557,34 +1304,49 @@ export const WarehouseInventoryPage: React.FC = () => {
       ],
     };
 
-    // Update stock quantity
+    // Update stock quantity: exactly minus the damaged/transferred quantity
+    const remainingQty = targetItem.stockQty - outwardForm.qty;
     setStockList((prev) =>
-      prev.map((i) =>
-        i.sku === targetItem.sku ? { ...i, stockQty: i.stockQty - outwardForm.qty } : i,
-      ),
+      prev.map((i) => (i.sku === targetItem.sku ? { ...i, stockQty: remainingQty } : i)),
     );
 
     // Add slip
     setSlipsList((prev) => [newSlip, ...prev]);
 
-    message.success(
-      `Đã lập phiếu xuất kho thành công! Trừ -${outwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
-    );
+    if (isWaste) {
+      message.success(
+        `Đã ghi nhận xuất hủy thành công ${outwardForm.qty} ${targetItem.unit} "${targetItem.name}" do ${selectedReason}. Tồn kho còn lại: ${remainingQty} ${targetItem.unit}.`,
+      );
+    } else {
+      message.success(
+        `Đã lập phiếu xuất kho thành công! Trừ -${outwardForm.qty} ${targetItem.unit} cho "${targetItem.name}". Tồn kho còn lại: ${remainingQty} ${targetItem.unit}.`,
+      );
+    }
     setOutwardModalVisible(false);
   };
 
-  const handleResetToDefaults = () => {
-    localStorage.removeItem("cuezone_warehouse_stock");
-    localStorage.removeItem("cuezone_inventory_slips");
-    setStockList(INITIAL_WAREHOUSE_STOCK);
-    setSlipsList(INITIAL_SLIPS);
-    message.success("Đã khôi phục dữ liệu tổng kho và lịch sử phiếu về mặc định!");
-  };
+
+
+
 
   // ── 4. FILTERED DATA & METRICS ────────────────────────────────────────────
+  const CATEGORY_MAP: Record<string, string[]> = {
+    accessory: ["accessory", "equipment"],
+    equipment: ["accessory", "equipment"],
+    drink: ["drink", "beverage"],
+    beverage: ["drink", "beverage"],
+    food: ["food", "snack"],
+    snack: ["snack", "food"],
+    ingredient: ["ingredient", "ingredients"],
+    ingredients: ["ingredient", "ingredients"],
+    table_supplies: ["table_supplies", "accessory"],
+    maintenance: ["maintenance", "accessory"],
+  };
+
   const filteredStock = useMemo(() => {
     return stockList.filter((item) => {
-      const matchCat = categoryFilter === "all" || item.category === categoryFilter;
+      const allowed = CATEGORY_MAP[categoryFilter] || [categoryFilter];
+      const matchCat = categoryFilter === "all" || allowed.includes(item.category);
       const isOut = item.stockQty === 0;
       const isLow = item.stockQty > 0 && item.stockQty <= item.minThreshold;
       const isIn = item.stockQty > item.minThreshold;
@@ -611,45 +1373,50 @@ export const WarehouseInventoryPage: React.FC = () => {
     const lowStockCount = stockList.filter(
       (i) => i.stockQty > 0 && i.stockQty <= i.minThreshold,
     ).length;
-    const outStockCount = stockList.filter((i) => i.stockQty === 0).length;
     const totalSlips = slipsList.length;
 
     return {
       totalItems,
       totalValue,
       lowStockCount,
-      outStockCount,
       totalSlips,
     };
   }, [stockList, slipsList]);
 
-  // Main Pills
+  // Main Pills (Chuẩn hóa từ ngữ Billiards & Kho vận)
   const mainPills = [
-    { key: "stock", label: "Tồn Kho Vật Tư & Thiết Bị", badge: stockList.length },
+    { key: "stock", label: "Tồn kho vật tư", badge: stockList.length },
     {
       key: "inward",
-      label: "Lịch Sử Phiếu Nhập Kho",
+      label: "Nhật ký nhập kho",
       badge: slipsList.filter((s) => s.type === "inward").length,
     },
     {
       key: "outward",
-      label: "Phiếu Xuất Kho & Cấp Phát",
-      badge: slipsList.filter((s) => s.type === "outward").length,
+      label: "Xuất kho & hao mòn",
+      badge: slipsList.filter((s) => s.type === "outward" || s.type === "waste").length,
     },
     {
       key: "audit",
-      label: "Kiểm Kê & Cân Bằng Kho",
+      label: "Kiểm kê định kỳ",
       badge: "Định kỳ",
     },
+    {
+      key: "report",
+      label: "Báo cáo xuất - nhập - tồn",
+      badge: "Tổng hợp",
+    },
   ];
+
+
 
   // Stock Table Columns
   const stockColumns: TableColumnsType<WarehouseItem> = [
     {
-      title: "Mã SKU",
+      title: "Mã hàng",
       dataIndex: "sku",
       key: "sku",
-      width: 140,
+      width: 130,
       render: (sku: string) => (
         <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md border border-slate-200">
           {sku}
@@ -657,7 +1424,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       ),
     },
     {
-      title: "Tên Mặt Hàng / Vật Tư",
+      title: "Tên vật tư / hàng hóa",
       dataIndex: "name",
       key: "name",
       render: (name: string, record: WarehouseItem) => (
@@ -675,7 +1442,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       ),
     },
     {
-      title: "Giá Vốn Nhập",
+      title: "Đơn giá vốn",
       dataIndex: "costPrice",
       key: "costPrice",
       width: 130,
@@ -686,7 +1453,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       ),
     },
     {
-      title: "Tồn Kho Hiện Tại",
+      title: "Tồn kho",
       dataIndex: "stockQty",
       key: "stockQty",
       width: 170,
@@ -698,20 +1465,14 @@ export const WarehouseInventoryPage: React.FC = () => {
         return (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
-              <span
-                className={`font-black text-sm ${
-                  isOut ? "text-rose-600" : isLow ? "text-amber-600" : "text-emerald-700"
-                }`}
-              >
+              <span className="font-black text-slate-900">
                 {qty} {record.unit}
               </span>
-              <span className="text-[10.5px] text-slate-400">
-                Min: {record.minThreshold} {record.unit}
-              </span>
+              <span className="text-[10px] text-slate-400">Min: {record.minThreshold}</span>
             </div>
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${
+                className={`h-full rounded-full ${
                   isOut ? "bg-rose-500 w-0" : isLow ? "bg-amber-500" : "bg-emerald-500"
                 }`}
                 style={{ width: `${isOut ? 0 : Math.max(8, percent)}%` }}
@@ -722,7 +1483,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       },
     },
     {
-      title: "Tổng Giá Trị Tồn",
+      title: "Tổng giá trị",
       key: "totalVal",
       width: 150,
       render: (_: unknown, record: WarehouseItem) => {
@@ -735,7 +1496,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       },
     },
     {
-      title: "Trạng Thái",
+      title: "Trạng thái",
       key: "status",
       width: 130,
       align: "center",
@@ -765,53 +1526,102 @@ export const WarehouseInventoryPage: React.FC = () => {
             color="green"
             className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
           >
-            <CheckCircleOutlined /> DỒI DÀO
+            <CheckCircleOutlined /> ĐỦ HÀNG
           </Tag>
         );
       },
     },
     {
-      title: "Thao Tác",
+      title: "Thao tác",
       key: "actions",
-      width: 160,
-      align: "right",
-      render: (_: unknown, record: WarehouseItem) => (
-        <div className="flex items-center justify-end gap-1.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setInwardForm({
-                sku: record.sku,
-                qty: record.minThreshold * 2,
-                unitPrice: record.costPrice,
-                supplier: record.supplier,
-                note: `Nhập bổ sung cho mặt hàng ${record.name}`,
-              });
-              setInwardModalVisible(true);
-            }}
-            className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50 font-bold"
-          >
-            Nhập Thêm
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setOutwardForm({
-                sku: record.sku,
-                qty: 1,
-                target: "Quầy Bar & POS Bida",
-                note: `Xuất mặt hàng ${record.name}`,
-              });
-              setOutwardModalVisible(true);
-            }}
-            className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-slate-100 hover:!bg-slate-200 !text-slate-700"
-          >
-            Xuất Kho
-          </Button>
-        </div>
-      ),
+      width: isAdmin ? 170 : 135,
+      align: "right" as const,
+      render: (_: unknown, record: WarehouseItem) => {
+        if (isAdmin) {
+          const hasAlert = Boolean(stockAlerts[record.sku]);
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              {hasAlert && (
+                <Tag
+                  color="orange"
+                  className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold cursor-pointer"
+                  onClick={() => handleOpenAlertModal(record)}
+                  title={`Nhân viên báo thiếu: ${stockAlerts[record.sku]?.note || ""}`}
+                >
+                  Báo thiếu
+                </Tag>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setInwardForm({
+                    sku: record.sku,
+                    qty: record.minThreshold * 2 || 2,
+                    unitPrice: record.costPrice,
+                    supplier: record.supplier,
+                    note: `Nhập bổ sung cho mặt hàng ${record.name}`,
+                  });
+                  setInwardModalVisible(true);
+                }}
+                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50 font-bold"
+              >
+                Nhập Thêm
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setOutwardType("transfer");
+                  setOutwardForm({
+                    sku: record.sku,
+                    qty: 1,
+                    target: "Quầy Bar & POS Bàn Bida",
+                    reason: "Cơ cong / Gãy ngọn / Bong phíp",
+                    customReason: "",
+                    note: `Xuất mặt hàng ${record.name}`,
+                  });
+                  setOutwardModalVisible(true);
+                }}
+                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-slate-100 hover:!bg-slate-200 !text-slate-700"
+              >
+                Xuất Kho
+              </Button>
+            </div>
+          );
+        }
+
+        // Với Staff: Chức năng Báo hết hàng
+        const alert = stockAlerts[record.sku];
+        if (alert) {
+          return (
+            <div className="flex items-center justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenAlertModal(record)}
+                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-amber-300 !bg-amber-50 hover:!bg-amber-100 !text-amber-800 font-bold flex items-center gap-1 shadow-2xs"
+                title="Bấm để xem hoặc cập nhật yêu cầu báo thiếu hàng"
+              >
+                <CheckOutlined className="text-amber-600" /> Đã báo thiếu
+              </Button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex items-center justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenAlertModal(record)}
+              className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-amber-400 !bg-amber-50 hover:!bg-amber-100 !text-amber-800 font-bold flex items-center gap-1 shadow-2xs transition-all"
+            >
+              <AlertOutlined className="text-amber-600" /> Báo hết hàng
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -822,8 +1632,16 @@ export const WarehouseInventoryPage: React.FC = () => {
       dataIndex: "slipCode",
       key: "slipCode",
       width: 140,
-      render: (code: string) => (
-        <span className="font-mono font-black text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+      render: (code: string, record: InventorySlip) => (
+        <span
+          className={`font-mono font-black text-xs px-2 py-0.5 rounded border ${
+            record.type === "inward"
+              ? "text-emerald-800 bg-emerald-50 border-emerald-200"
+              : record.type === "waste"
+              ? "text-rose-800 bg-rose-50 border-rose-200"
+              : "text-blue-800 bg-blue-50 border-blue-200"
+          }`}
+        >
           {code}
         </span>
       ),
@@ -839,7 +1657,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       ),
     },
     {
-      title: "Đối Tác / Địa Điểm Cấp Phát",
+      title: "Đối Tác / Mục Đích",
       dataIndex: "partnerOrTarget",
       key: "partnerOrTarget",
       render: (partner: string, record: InventorySlip) => (
@@ -850,14 +1668,47 @@ export const WarehouseInventoryPage: React.FC = () => {
       ),
     },
     {
+      title: "Mặt Hàng & Số Lượng",
+      key: "itemsSummary",
+      render: (_: unknown, record: InventorySlip) => {
+        const first = record.details[0];
+        return (
+          <div className="text-xs">
+            <span className="font-semibold text-slate-800">{first?.name}</span>
+            <span
+              className={`ml-2 font-mono font-bold ${
+                record.type === "inward"
+                  ? "text-emerald-600"
+                  : record.type === "waste"
+                  ? "text-rose-600"
+                  : "text-blue-600"
+              }`}
+            >
+              {record.type === "inward" ? "+" : "-"}
+              {first?.qty} {first?.unit}
+            </span>
+            {record.details.length > 1 && (
+              <span className="text-[11px] text-slate-400 ml-1">
+                (+{record.details.length - 1} món khác)
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       title: "Tổng Giá Trị",
       dataIndex: "totalValue",
       key: "totalValue",
-      width: 150,
+      width: 140,
       render: (val: number, record: InventorySlip) => (
         <span
-          className={`font-mono font-black text-sm ${
-            record.type === "inward" ? "text-emerald-700" : "text-blue-700"
+          className={`font-mono font-black text-xs ${
+            record.type === "inward"
+              ? "text-emerald-700"
+              : record.type === "waste"
+              ? "text-rose-700"
+              : "text-blue-700"
           }`}
         >
           {record.type === "inward" ? "+" : "-"}
@@ -866,24 +1717,24 @@ export const WarehouseInventoryPage: React.FC = () => {
       ),
     },
     {
-      title: "Trạng Thái",
-      dataIndex: "status",
-      key: "status",
-      width: 130,
+      title: "Phân loại",
+      key: "slipType",
+      width: 120,
       align: "center",
-      render: (status: string) => (
-        <Tag
-          color={status === "completed" ? "green" : "gold"}
-          className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold"
-        >
-          {status === "completed" ? "ĐÃ HOÀN TẤT" : "CHỜ DUYỆT"}
-        </Tag>
-      ),
+      render: (_: unknown, record: InventorySlip) => {
+        if (record.type === "inward") {
+          return <Tag color="green">NHẬP KHO</Tag>;
+        }
+        if (record.type === "waste") {
+          return <Tag color="error">XUẤT HỦY</Tag>;
+        }
+        return <Tag color="blue">CẤP PHÁT</Tag>;
+      },
     },
     {
       title: "Chi Tiết",
       key: "action",
-      width: 100,
+      width: 90,
       align: "right",
       render: (_: unknown, record: InventorySlip) => (
         <Button
@@ -899,8 +1750,191 @@ export const WarehouseInventoryPage: React.FC = () => {
     },
   ];
 
+  // Report Columns (full Billiards terms, no "ngành")
+  const reportColumns: TableColumnsType<InventoryReportItem> = [
+    {
+      title: "STT",
+      key: "index",
+      width: 50,
+      align: "center",
+      render: (_: any, __: any, index: number) => (
+        <span className="text-xs text-slate-400 font-mono">
+          {(reportPage - 1) * pageSize + index + 1}
+        </span>
+      ),
+    },
+    {
+      title: "Mã hàng",
+      dataIndex: "sku",
+      key: "sku",
+      width: 110,
+      render: (sku: string) => (
+        <span className="font-mono font-bold text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+          {sku}
+        </span>
+      ),
+    },
+    {
+      title: "Tên hàng hóa / Vật tư",
+      dataIndex: "name",
+      key: "name",
+      render: (name: string, record) => (
+        <div>
+          <div className="font-medium text-slate-900 text-xs sm:text-sm">{name}</div>
+          <div className="text-[11px] text-slate-400">ĐVT: {record.unit}</div>
+        </div>
+      ),
+    },
+    {
+      title: "Loại",
+      dataIndex: "category",
+      key: "category",
+      width: 130,
+      align: "center",
+      render: (cat: string) => {
+        const map: Record<string, { label: string; color: string }> = {
+          equipment: { label: "Cơ & Phụ kiện", color: "purple" },
+          accessory: { label: "Phụ kiện bida", color: "purple" },
+          table_supplies: { label: "Vật tư bàn bida", color: "cyan" },
+          beverage: { label: "Đồ uống lưu kho", color: "blue" },
+          drink: { label: "Đồ uống", color: "blue" },
+          food: { label: "Thức ăn", color: "gold" },
+          ingredients: { label: "Nguyên liệu", color: "orange" },
+          ingredient: { label: "Nguyên liệu", color: "orange" },
+          maintenance: { label: "Bảo dưỡng bàn", color: "green" },
+        };
+        const info = map[cat] || { label: cat || "Khác", color: "default" };
+        return <Tag color={info.color}>{info.label}</Tag>;
+      },
+    },
+    {
+      title: "Tồn đầu",
+      dataIndex: "openingStock",
+      key: "openingStock",
+      align: "right",
+      width: 85,
+      render: (val: number) => (
+        <span className="font-semibold text-slate-700 font-mono text-xs">
+          {val.toLocaleString("vi-VN")}
+        </span>
+      ),
+    },
+    {
+      title: "Nhập kỳ",
+      dataIndex: "inStock",
+      key: "inStock",
+      align: "right",
+      width: 90,
+      render: (val: number) => (
+        <span className={`font-mono text-xs ${val > 0 ? "font-bold text-emerald-600" : "text-slate-400"}`}>
+          {val > 0 ? `+${val.toLocaleString("vi-VN")}` : 0}
+        </span>
+      ),
+    },
+    {
+      title: "Xuất bán",
+      dataIndex: "outStock",
+      key: "outStock",
+      align: "right",
+      width: 90,
+      render: (val: number) => (
+        <span className={`font-mono text-xs ${val > 0 ? "font-bold text-blue-600" : "text-slate-400"}`}>
+          {val > 0 ? `-${val.toLocaleString("vi-VN")}` : 0}
+        </span>
+      ),
+    },
+    {
+      title: "Xuất hủy",
+      dataIndex: "wasteStock",
+      key: "wasteStock",
+      align: "right",
+      width: 95,
+      render: (val: number) => (
+        <span className={`font-mono text-xs ${val > 0 ? "font-bold text-rose-600" : "text-slate-400"}`}>
+          {val > 0 ? `-${val.toLocaleString("vi-VN")}` : 0}
+        </span>
+      ),
+    },
+    {
+      title: "Tồn cuối",
+      dataIndex: "closingStock",
+      key: "closingStock",
+      align: "right",
+      width: 95,
+      render: (val: number) => (
+        <span
+          className={`font-mono font-bold text-xs px-2 py-0.5 rounded ${
+            val <= 5 ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          {val.toLocaleString("vi-VN")}
+        </span>
+      ),
+    },
+    {
+      title: "Đơn giá vốn",
+      dataIndex: "costPrice",
+      key: "costPrice",
+      align: "right",
+      width: 110,
+      render: (val: number) => (
+        <span className="text-slate-600 font-mono text-xs">
+          {val.toLocaleString("vi-VN")} đ
+        </span>
+      ),
+    },
+    {
+      title: "Giá trị tồn cuối",
+      dataIndex: "closingValue",
+      key: "closingValue",
+      align: "right",
+      width: 130,
+      render: (val: number) => (
+        <span className="font-bold text-emerald-700 font-mono text-xs">
+          {val.toLocaleString("vi-VN")} đ
+        </span>
+      ),
+    },
+  ];
+
+  // Slice paginated items
+  const paginatedStock = filteredStock.slice((stockPage - 1) * pageSize, stockPage * pageSize);
+
+  // Lọc phiếu nhập kho theo khoảng thời gian
+  const filteredInwardSlips = useMemo(() => {
+    return slipsList.filter((s) => s.type === "inward" && isSlipInDateRange(s.date, reportRange));
+  }, [slipsList, reportRange]);
+  const paginatedInward = filteredInwardSlips.slice((inwardPage - 1) * pageSize, inwardPage * pageSize);
+
+  // Lọc phiếu xuất kho & hao mòn theo khoảng thời gian
+  const filteredOutwardSlips = useMemo(() => {
+    return slipsList.filter(
+      (s) => (s.type === "outward" || s.type === "waste") && isSlipInDateRange(s.date, reportRange),
+    );
+  }, [slipsList, reportRange]);
+  const paginatedOutward = filteredOutwardSlips.slice((outwardPage - 1) * pageSize, outwardPage * pageSize);
+
+  // Client-side filter cho tab Báo cáo (áp dụng sau khi fetch/fallback)
+  const filteredReportItems = useMemo(() => {
+    return reportItems.filter((item) => {
+      const allowed = CATEGORY_MAP[reportCategory] || [reportCategory];
+      const matchCat = reportCategory === "all" || allowed.includes(item.category);
+      const q = reportSearch.toLowerCase().trim();
+      const matchQ =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.sku.toLowerCase().includes(q);
+      return matchCat && matchQ;
+    });
+  }, [reportItems, reportCategory, reportSearch]);
+
+  const paginatedReport = filteredReportItems.slice(
+    (reportPage - 1) * pageSize,
+    reportPage * pageSize,
+  );
+
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-12 max-w-[1440px] mx-auto">
       {/* ── COMMAND BAR & SUMMARY CARDS ────────────────────────────────────── */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
@@ -915,68 +1949,39 @@ export const WarehouseInventoryPage: React.FC = () => {
                 level={2}
                 className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
               >
-                Quản Lý Tổng Kho & Vật Tư Thiết Bị Bida
+                Kho Hàng & Vật Tư Bida
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
-                CUEZONE CENTRAL WAREHOUSE
+                CUEZONE WAREHOUSE
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Kiểm soát vật tư bida chuyên dụng (cơ Predator, nỉ Simonis, bóng Aramith), đồ uống F&B
-              lưu kho, lịch sử phiếu nhập xuất và biên bản kiểm kê cân bằng kho.
+              Kiểm soát tồn kho vật tư bida chuyên dụng (cơ, bóng, nỉ, lơ), đồ uống F&B, lịch sử xuất nhập và kiểm kê định kỳ.
             </Text>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              variant="outline"
-              size="md"
-              leftIcon={<ReloadOutlined />}
-              onClick={handleResetToDefaults}
-              className="!rounded-xl !text-xs !text-slate-600"
-            >
-              Mặc định
-            </Button>
-            <Button
-              variant="outline"
-              size="md"
-              leftIcon={<ArrowUpOutlined />}
-              onClick={() => setOutwardModalVisible(true)}
-              className="!rounded-xl !text-xs font-bold !text-slate-700"
-            >
-              Lập Phiếu Xuất
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={<ArrowDownOutlined />}
-              onClick={() => setInwardModalVisible(true)}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-sm"
-            >
-              Tạo Phiếu Nhập Kho
-            </Button>
-          </div>
+
         </div>
 
         {/* Counter KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 relative z-10">
-          <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80">
+          <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 shadow-2xs">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Tổng giá trị tài sản kho
+                Tổng giá trị tồn
               </span>
               <span className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-slate-400 text-xs border border-slate-200">
                 <DollarOutlined />
               </span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+              <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate font-mono">
                 {metrics.totalValue.toLocaleString("vi-VN")}đ
               </span>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80">
+          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 shadow-2xs">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">
                 Mặt hàng lưu kho
@@ -986,44 +1991,44 @@ export const WarehouseInventoryPage: React.FC = () => {
               </span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-800 tracking-tight">
+              <span className="text-2xl sm:text-3xl font-black text-emerald-800 tracking-tight font-mono">
                 {metrics.totalItems}
               </span>
-              <span className="text-xs font-semibold text-emerald-700">mã SKU vật tư</span>
+              <span className="text-xs font-semibold text-emerald-700">mặt hàng</span>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80">
+          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 shadow-2xs">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-amber-800 font-semibold uppercase tracking-wider">
-                Chạm ngưỡng an toàn
+                Sắp hết hàng
               </span>
               <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 text-xs border border-amber-200">
                 <WarningOutlined />
               </span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight">
+              <span className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight font-mono">
                 {metrics.lowStockCount}
               </span>
-              <span className="text-xs font-semibold text-amber-700">cần đặt thêm</span>
+              <span className="text-xs font-semibold text-amber-700">mặt hàng</span>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80">
+          <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80 shadow-2xs">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-blue-800 font-semibold uppercase tracking-wider">
-                Phiếu nhập / xuất
+                Phiếu xuất nhập
               </span>
               <span className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 text-xs border border-blue-200">
                 <FileTextOutlined />
               </span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-blue-800 tracking-tight">
+              <span className="text-2xl sm:text-3xl font-black text-blue-800 tracking-tight font-mono">
                 {metrics.totalSlips}
               </span>
-              <span className="text-xs font-semibold text-blue-700">chứng từ hoàn tất</span>
+              <span className="text-xs font-semibold text-blue-700">phiếu hoàn tất</span>
             </div>
           </div>
         </div>
@@ -1038,204 +2043,1075 @@ export const WarehouseInventoryPage: React.FC = () => {
         />
       </div>
 
+      {/* ── TAB 1: TỒN KHO VẬT TƯ & THIẾT BỊ ─────────────────────────────── */}
       {activeTab === "stock" && (
         <div className="space-y-4">
-          {/* Sub Filters */}
           <div className="bg-white p-4 rounded-3xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex flex-wrap items-center gap-2">
               <Select
                 value={categoryFilter}
-                onChange={(val) => setCategoryFilter(val)}
+                onChange={(val) => {
+                  setCategoryFilter(val);
+                  setStockPage(1);
+                }}
                 className="!w-44 !rounded-xl !text-xs"
                 options={[
-                  { value: "all", label: "Tất cả nhóm vật tư" },
+                  { value: "all", label: "Tất cả vật tư & phụ kiện" },
                   { value: "equipment", label: "Cơ & Phụ kiện bida" },
-                  { value: "table_supplies", label: "Vật tư bàn bida" },
-                  { value: "beverage", label: "Đồ uống lưu kho" },
+                  { value: "table_supplies", label: "Vật tư bàn bida (Nỉ, bi, băng)" },
+                  { value: "beverage", label: "Đồ uống F&B" },
                   { value: "ingredients", label: "Nguyên liệu pha chế" },
-                  { value: "maintenance", label: "Bảo dưỡng & Vệ sinh" },
+                  { value: "maintenance", label: "Dụng cụ bảo dưỡng & vệ sinh" },
                 ]}
               />
 
               <Select
                 value={statusFilter}
-                onChange={(val) => setStatusFilter(val)}
-                className="!w-40 !rounded-xl !text-xs"
+                onChange={(val) => {
+                  setStatusFilter(val);
+                  setStockPage(1);
+                }}
+                className="!w-36 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả trạng thái" },
-                  { value: "in_stock", label: "Còn dồi dào" },
+                  { value: "in_stock", label: "Đủ hàng" },
                   { value: "low_stock", label: "Sắp hết hàng" },
-                  { value: "out_of_stock", label: "Hết hàng" },
+                  { value: "out_of_stock", label: "Đã hết hàng" },
                 ]}
               />
             </div>
 
             <div className="w-full sm:w-72">
               <Input
-                placeholder="Tìm mã SKU, tên vật tư, vị trí..."
+                placeholder="Tìm cơ, ngọn, nỉ, bóng, lơ, mã SKU..."
                 prefix={<SearchOutlined className="text-slate-400" />}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setStockPage(1);
+                }}
                 allowClear
                 className="!rounded-xl !h-10 text-xs"
               />
             </div>
           </div>
 
-          {/* Table */}
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
             <Table<WarehouseItem>
               columns={stockColumns}
-              dataSource={filteredStock}
+              dataSource={paginatedStock}
               rowKey="id"
-              pagination={{
-                pageSize: 10,
-                showTotal: (total, range) =>
-                  `Hiển thị ${range[0]}-${range[1]} trên tổng số ${total} vật tư`,
-                className: "!px-4 !py-3",
-              }}
+              pagination={false}
+              bordered
             />
+            <Pagination current={stockPage} pageSize={pageSize} total={filteredStock.length} unit="vật tư" onChange={(p) => setStockPage(p)} />
           </div>
         </div>
       )}
 
+      {/* ── TAB 2: LỊCH SỬ PHIẾU NHẬP KHO ─────────────────────────────────── */}
       {activeTab === "inward" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-black text-slate-900 mb-0.5">
-                Nhật Ký Phiếu Nhập Kho Hàng Hóa
+                Nhật ký nhập vật tư & thiết bị
               </h3>
               <p className="text-xs text-slate-500 mb-0">
-                Toàn bộ các đợt nhập hàng từ nhà phân phối và đối tác chính hãng
+                Lịch sử nhập cơ, bóng, nỉ, lơ, phụ kiện và đồ uống từ các nhà phân phối chính hãng.
               </p>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<PlusOutlined />}
-              onClick={() => setInwardModalVisible(true)}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
-            >
-              + Tạo Phiếu Nhập Mới
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={<PlusOutlined />}
+                onClick={() => setInwardModalVisible(true)}
+                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
+              >
+                Tạo phiếu nhập kho
+              </Button>
+            )}
+          </div>
+
+          {/* Thanh lọc thời gian Tab 2 */}
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                THỜI GIAN:
+              </span>
+              <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-white gap-0.5 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("today")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "today"
+                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Hôm nay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("7days")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "7days"
+                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  7 ngày qua
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("thisMonth")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "thisMonth"
+                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Tháng này
+                </button>
+              </div>
+
+              <RangePicker
+                value={reportRange}
+                onChange={handleRangePickerChange}
+                format="DD/MM/YYYY"
+                allowClear={false}
+                className="w-56 rounded-xl text-xs"
+              />
+            </div>
+
+            <span className="text-xs text-slate-500">
+              Có <strong className="text-emerald-700 font-bold">{filteredInwardSlips.length}</strong> phiếu nhập trong kỳ
+            </span>
           </div>
 
           <Table<InventorySlip>
             columns={slipColumns}
-            dataSource={slipsList.filter((s) => s.type === "inward")}
+            dataSource={paginatedInward}
             rowKey="id"
-            pagination={{ pageSize: 8, className: "!px-4 !py-3" }}
+            pagination={false}
+            bordered
           />
+          <Pagination current={inwardPage} pageSize={pageSize} total={filteredInwardSlips.length} unit="phiếu nhập" onChange={(p) => setInwardPage(p)} />
         </div>
       )}
 
+      {/* ── TAB 3: PHIẾU XUẤT KHO & HAO MÒN ──────────────────────────────── */}
       {activeTab === "outward" && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-black text-slate-900 mb-0.5">
-                Nhật Ký Phiếu Xuất Kho & Cấp Phát Bàn Bida
+                Nhật ký xuất kho & hao mòn vật tư
               </h3>
               <p className="text-xs text-slate-500 mb-0">
-                Ghi nhận vật tư xuất thay nỉ bàn đấu, cấp quầy bar POS và bảo trì phụ kiện
+                Theo dõi cấp phát vật tư ra bàn bida, quầy bar và ghi nhận hao mòn, hư hại phụ kiện (cơ, bóng, nỉ, lơ).
               </p>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<PlusOutlined />}
-              onClick={() => setOutwardModalVisible(true)}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
-            >
-              + Lập Phiếu Xuất Mới
-            </Button>
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<DeleteOutlined className="text-rose-600" />}
+                  onClick={() => {
+                    setOutwardType("waste");
+                    setOutwardModalVisible(true);
+                  }}
+                  className="!border-rose-300 !text-rose-700 hover:!bg-rose-50 !rounded-xl !font-bold"
+                >
+                  Báo hao mòn phụ kiện
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<PlusOutlined />}
+                  onClick={() => {
+                    setOutwardType("transfer");
+                    setOutwardModalVisible(true);
+                  }}
+                  className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
+                >
+                  Tạo phiếu xuất kho
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Thanh lọc thời gian Tab 3 */}
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                THỜI GIAN:
+              </span>
+              <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-white gap-0.5 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("today")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "today"
+                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Hôm nay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("7days")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "7days"
+                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  7 ngày qua
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("thisMonth")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "thisMonth"
+                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Tháng này
+                </button>
+              </div>
+
+              <RangePicker
+                value={reportRange}
+                onChange={handleRangePickerChange}
+                format="DD/MM/YYYY"
+                allowClear={false}
+                className="w-56 rounded-xl text-xs"
+              />
+            </div>
+
+            <span className="text-xs text-slate-500">
+              Có <strong className="text-blue-700 font-bold">{filteredOutwardSlips.length}</strong> phiếu xuất / hủy trong kỳ
+            </span>
           </div>
 
           <Table<InventorySlip>
             columns={slipColumns}
-            dataSource={slipsList.filter((s) => s.type === "outward")}
+            dataSource={paginatedOutward}
             rowKey="id"
-            pagination={{ pageSize: 8, className: "!px-4 !py-3" }}
+            pagination={false}
+            bordered
           />
+          <Pagination current={outwardPage} pageSize={pageSize} total={filteredOutwardSlips.length} unit="phiếu xuất" onChange={(p) => setOutwardPage(p)} />
         </div>
       )}
 
+      {/* ── TAB 4: KIỂM KÊ & CÂN BẰNG KHO (SCRUM-1061) ─────────────────────── */}
       {activeTab === "audit" && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-            <div>
-              <h3 className="text-lg font-black text-slate-900 mb-0.5">
-                Kiểm Kê Kho Định Kỳ & Cân Bằng Tồn Thực Tế
-              </h3>
-              <p className="text-xs text-slate-500 mb-0">
-                Đối chiếu số lượng tồn trên phần mềm với số lượng kiểm đếm thực tế tại kệ kho
-              </p>
+        <div className="space-y-6">
+          {!activeCheckSession ? (
+            /* ── CHẾ ĐỘ 1: DANH SÁCH CÁC ĐỢT KIỂM KÊ KHO ── */
+            <div className="space-y-6">
+              {/* Toolbar & Create Check Button */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <AuditOutlined className="text-emerald-600 text-lg" />
+                    <h3 className="text-lg font-black text-slate-900 mb-0">
+                      Kiểm kê định kỳ & Cân bằng tồn kho
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-0">
+                    Đối soát số lượng thực tế tại quầy & bàn với hệ thống và phê duyệt cân bằng chênh lệch.
+                  </p>
+                </div>
+
+                {isAdmin && (
+                  <Button
+                    variant="primary"
+                    size="md"
+                    leftIcon={<PlusOutlined />}
+                    onClick={() => setCreateCheckModalVisible(true)}
+                    className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-xs"
+                  >
+                    Tạo đợt kiểm kê
+                  </Button>
+                )}
+              </div>
+
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
+                    Tổng số đợt kiểm kê
+                  </span>
+                  <div className="text-2xl font-black text-slate-900 font-mono">
+                    {stockCheckList.length}
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">Toàn bộ hồ sơ kiểm kê</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs">
+                  <span className="text-xs font-bold text-amber-700 uppercase tracking-wide block mb-1">
+                    Đang kiểm đếm
+                  </span>
+                  <div className="text-2xl font-black text-amber-800 font-mono">
+                    {stockCheckList.filter((s) => s.status === "draft").length}
+                  </div>
+                  <span className="text-[11px] text-amber-600/80 mt-1 block">Chưa nộp kết quả đếm</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-blue-200/80 shadow-xs">
+                  <span className="text-xs font-bold text-blue-700 uppercase tracking-wide block mb-1">
+                    Chờ duyệt cân bằng
+                  </span>
+                  <div className="text-2xl font-black text-blue-800 font-mono">
+                    {stockCheckList.filter((s) => s.status === "submitted").length}
+                  </div>
+                  <span className="text-[11px] text-blue-600/80 mt-1 block">Đã nộp biên bản đối soát</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-emerald-200/80 shadow-xs">
+                  <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide block mb-1">
+                    Đã hoàn tất cân bằng
+                  </span>
+                  <div className="text-2xl font-black text-emerald-800 font-mono">
+                    {stockCheckList.filter((s) => s.status === "completed").length}
+                  </div>
+                  <span className="text-[11px] text-emerald-600/80 mt-1 block">Đã cập nhật kho sổ cái</span>
+                </div>
+              </div>
+
+              {/* Stock Checks List */}
+              <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-sm">
+                    Lịch sử các phiên kiểm kê kho bida
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Sắp xếp theo đợt mới nhất
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {stockCheckList.map((check) => {
+                    const matchRate = check.summary.totalItems > 0
+                      ? Math.round((check.summary.matchedItems / check.summary.totalItems) * 100)
+                      : 100;
+
+                    return (
+                      <div
+                        key={check._id}
+                        className="p-5 hover:bg-slate-50/80 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono font-black text-xs text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                              {check.checkCode}
+                            </span>
+                            <span className="font-black text-slate-900 text-sm">
+                              {check.title}
+                            </span>
+                            {check.status === "draft" && (
+                              <Tag color="warning" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
+                                ĐANG KIỂM ĐẾM
+                              </Tag>
+                            )}
+                            {check.status === "submitted" && (
+                              <Tag color="processing" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
+                                CHỜ DUYỆT CÂN BẰNG
+                              </Tag>
+                            )}
+                            {check.status === "completed" && (
+                              <Tag color="success" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
+                                ĐÃ HOÀN TẤT
+                              </Tag>
+                            )}
+                            {check.status === "cancelled" && (
+                              <Tag color="default" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
+                                ĐÃ HỦY
+                              </Tag>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                            <span>Ngày tạo: <strong>{dayjs(check.createdAt).format("DD/MM/YYYY HH:mm")}</strong></span>
+                            <span>Người lập: <strong>{check.createdBy?.name || "Quản trị viên"}</strong></span>
+                            {check.submittedAt && (
+                              <span>Nộp lúc: <strong>{dayjs(check.submittedAt).format("DD/MM/YYYY HH:mm")}</strong></span>
+                            )}
+                            {check.approvedAt && (
+                              <span className="text-emerald-700 font-semibold">
+                                Duyệt lúc: {dayjs(check.approvedAt).format("DD/MM/YYYY HH:mm")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-5">
+                          <div className="text-center min-w-20">
+                            <span className="text-[11px] text-slate-400 block">Tỷ lệ khớp</span>
+                            <span className={`font-mono font-black text-sm ${matchRate === 100 ? "text-emerald-700" : "text-amber-700"}`}>
+                              {matchRate}%
+                            </span>
+                          </div>
+
+                          <div className="text-center min-w-28">
+                            <span className="text-[11px] text-slate-400 block">Tổng chênh lệch</span>
+                            <span
+                              className={`font-mono font-bold text-xs ${
+                                check.summary.totalVarianceValue === 0
+                                  ? "text-slate-500"
+                                  : check.summary.totalVarianceValue > 0
+                                  ? "text-emerald-700"
+                                  : "text-rose-700"
+                              }`}
+                            >
+                              {check.summary.totalVarianceValue > 0 ? "+" : ""}
+                              {check.summary.totalVarianceValue.toLocaleString("vi-VN")}đ
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenCheckSession(check)}
+                              className="!rounded-xl !text-xs !font-bold !border-slate-300"
+                            >
+                              {check.status === "draft" ? "Kiểm Đếm Thực Tế" : "Xem Chi Tiết"}
+                            </Button>
+
+                            {isAdmin && check.status === "submitted" && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                leftIcon={<CheckCircleOutlined />}
+                                onClick={() => {
+                                  handleOpenCheckSession(check);
+                                }}
+                                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold !text-xs"
+                              >
+                                Duyệt Cân Bằng
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
+          ) : (
+            /* ── CHẾ ĐỘ 2: MÀN HÌNH KIỂM ĐẾM & PHÊ DUYỆT CÂN BẰNG TỒN KHO CHI TIẾT ── */
+            <div className="space-y-6">
+              {/* Header Navigation & Actions */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={<RollbackOutlined />}
+                    onClick={() => setActiveCheckSession(null)}
+                    className="!rounded-xl !text-xs !bg-slate-100 hover:!bg-slate-200"
+                  >
+                    Quay lại
+                  </Button>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-xs text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        {activeCheckSession.checkCode}
+                      </span>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 mb-0">
+                        {activeCheckSession.title}
+                      </h3>
+                      {activeCheckSession.status === "draft" && (
+                        <Tag color="warning" className="!rounded-full !font-bold">ĐANG KIỂM ĐẾM</Tag>
+                      )}
+                      {activeCheckSession.status === "submitted" && (
+                        <Tag color="processing" className="!rounded-full !font-bold">CHỜ DUYỆT CÂN BẰNG (SUBMITTED)</Tag>
+                      )}
+                      {activeCheckSession.status === "completed" && (
+                        <Tag color="success" className="!rounded-full !font-bold">ĐÃ CÂN BẰNG KHO (COMPLETED)</Tag>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mb-0 mt-0.5">
+                      Khởi tạo ngày {dayjs(activeCheckSession.createdAt).format("DD/MM/YYYY HH:mm")} bởi {activeCheckSession.createdBy?.name}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons depending on status & role */}
+                <div className="flex flex-wrap items-center gap-2 self-end lg:self-auto">
+                  {activeCheckSession.status === "draft" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="md"
+                        leftIcon={<SaveOutlined />}
+                        loading={stockCheckLoading}
+                        onClick={() => handleSaveOrSubmitCounts(false)}
+                        className="!rounded-xl !text-xs !font-bold !border-slate-300"
+                      >
+                        Lưu Tạm
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="md"
+                        leftIcon={<SendOutlined />}
+                        loading={stockCheckLoading}
+                        onClick={() => handleSaveOrSubmitCounts(true)}
+                        className="!bg-blue-600 hover:!bg-blue-700 !border-blue-600 !rounded-xl !font-bold !text-xs text-white"
+                      >
+                        Nộp Phiếu Kiểm Kê (SUBMITTED)
+                      </Button>
+                    </>
+                  )}
+
+                  {activeCheckSession.status === "submitted" && isAdmin && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      leftIcon={<CheckCircleOutlined />}
+                      loading={stockCheckLoading}
+                      onClick={handleApproveBalance}
+                      className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-black !text-xs text-white shadow-sm"
+                    >
+                      Duyệt Cân Bằng Kho (Tự động điều chỉnh)
+                    </Button>
+                  )}
+
+                  {activeCheckSession.status === "completed" && (
+                    <Tag color="green" className="!text-xs !font-bold !py-1 !px-3 !rounded-full">
+                      ✓ Đã hoàn tất cân bằng vào hệ thống
+                    </Tag>
+                  )}
+                </div>
+              </div>
+
+              {/* 5 Variance Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide block mb-1">
+                    Mặt hàng kiểm kê
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black text-slate-800 font-mono">
+                    {activeCheckSession.items.length}
+                  </div>
+                  <span className="text-[11px] text-slate-400">Snapshot tồn kho</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block mb-1">
+                    Khớp số sách
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black text-slate-700 font-mono">
+                    {activeCheckSession.items.filter((it) => {
+                      const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
+                      return count === it.systemStock;
+                    }).length}
+                  </div>
+                  <span className="text-[11px] text-slate-400">Lệch = 0</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-emerald-200/80 shadow-xs">
+                  <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide block mb-1">
+                    Thừa thực tế
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black text-emerald-700 font-mono">
+                    {activeCheckSession.items.filter((it) => {
+                      const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
+                      return count > it.systemStock;
+                    }).length}
+                  </div>
+                  <span className="text-[11px] text-emerald-600/80">Thực tế &gt; Hệ thống</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-rose-200/80 shadow-xs">
+                  <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wide block mb-1">
+                    Thiếu thực tế
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black text-rose-700 font-mono">
+                    {activeCheckSession.items.filter((it) => {
+                      const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
+                      return count < it.systemStock;
+                    }).length}
+                  </div>
+                  <span className="text-[11px] text-rose-600/80">Thực tế &lt; Hệ thống</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-teal-200/80 shadow-xs col-span-2 sm:col-span-1">
+                  <span className="text-[11px] font-bold text-teal-700 uppercase tracking-wide block mb-1">
+                    Tổng giá trị lệch
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black text-teal-800 font-mono tracking-tight">
+                    {(() => {
+                      const totalDiffVal = activeCheckSession.items.reduce((acc, it) => {
+                        const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
+                        return acc + (count - it.systemStock) * it.costPrice;
+                      }, 0);
+                      return `${totalDiffVal > 0 ? "+" : ""}${totalDiffVal.toLocaleString("vi-VN")}đ`;
+                    })()}
+                  </div>
+                  <span className="text-[11px] text-teal-600/80">Theo đơn giá vốn</span>
+                </div>
+              </div>
+
+              {/* Detail Items Table with Variance Column (SCRUM-1067) */}
+              <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-sm">
+                    Bảng đối soát kiểm đếm & chênh lệch tồn kho (Variance)
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Variance = Số đếm thực tế - Tồn hệ thống
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase">
+                      <tr>
+                        <th className="py-3 px-3 text-center w-12">STT</th>
+                        <th className="py-3 px-3 w-28">Mã SKU</th>
+                        <th className="py-3 px-3">Tên Hàng Hóa / Vật Tư</th>
+                        <th className="py-3 px-3 text-right w-24">Giá Vốn</th>
+                        <th className="py-3 px-3 text-center w-28">Tồn Hệ Thống</th>
+                        <th className="py-3 px-3 text-center w-36">Đếm Thực Tế</th>
+                        <th className="py-3 px-3 text-center w-32">Chênh Lệch</th>
+                        <th className="py-3 px-3 text-right w-32">Giá Trị Lệch</th>
+                        <th className="py-3 px-3 w-40">Ghi Chú</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {activeCheckSession.items.map((item, idx) => {
+                        const countData = editingActualCounts[item.product] || {
+                          actualStock: item.actualStock ?? item.systemStock,
+                          note: item.note || "",
+                        };
+                        const actual = countData.actualStock;
+                        const variance = actual - item.systemStock;
+                        const varianceVal = variance * item.costPrice;
+                        const isEditable = activeCheckSession.status === "draft";
+
+                        return (
+                          <tr key={item.product} className="hover:bg-slate-50/70 transition">
+                            <td className="py-3 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="py-3 px-3 font-mono font-bold text-slate-700">{item.sku}</td>
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-slate-900 block">{item.name}</span>
+                              <span className="text-[11px] text-slate-400">ĐVT: {item.unit}</span>
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-600">
+                              {item.costPrice.toLocaleString("vi-VN")}đ
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold text-slate-700 font-mono">
+                              {item.systemStock} {item.unit}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              {isEditable ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={actual}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                                      setEditingActualCounts((prev) => ({
+                                        ...prev,
+                                        [item.product]: {
+                                          ...prev[item.product],
+                                          actualStock: val,
+                                          note: prev[item.product]?.note || "",
+                                        },
+                                      }));
+                                    }}
+                                    className="w-16 px-2 py-1 text-center font-black text-xs font-mono rounded-lg border border-slate-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                                  />
+                                  <span className="text-slate-400 text-[11px]">{item.unit}</span>
+                                </div>
+                              ) : (
+                                <strong className="font-mono text-slate-900 text-xs">
+                                  {actual} {item.unit}
+                                </strong>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded-full font-bold text-[11px] font-mono inline-block ${
+                                  variance === 0
+                                    ? "bg-slate-100 text-slate-600"
+                                    : variance > 0
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-rose-100 text-rose-800"
+                                }`}
+                              >
+                                {variance === 0 ? "0 (Khớp)" : variance > 0 ? `+${variance}` : variance}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold">
+                              <span
+                                className={
+                                  varianceVal === 0
+                                    ? "text-slate-400"
+                                    : varianceVal > 0
+                                    ? "text-emerald-700"
+                                    : "text-rose-700"
+                                }
+                              >
+                                {varianceVal > 0 ? "+" : ""}
+                                {varianceVal.toLocaleString("vi-VN")}đ
+                              </span>
+                            </td>
+                            <td className="py-3 px-3">
+                              {isEditable ? (
+                                <input
+                                  type="text"
+                                  placeholder="Ghi chú lý do lệch..."
+                                  value={countData.note}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEditingActualCounts((prev) => ({
+                                      ...prev,
+                                      [item.product]: {
+                                        ...prev[item.product],
+                                        actualStock: prev[item.product]?.actualStock ?? item.systemStock,
+                                        note: val,
+                                      },
+                                    }));
+                                  }}
+                                  className="w-full px-2 py-1 text-[11px] rounded-lg border border-slate-200 outline-none"
+                                />
+                              ) : (
+                                <span className="text-[11px] text-slate-500 italic">
+                                  {item.note || "—"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB 5: BÁO CÁO XUẤT – NHẬP – TỒN ─────────────────────────────── */}
+      {activeTab === "report" && (
+        <div className="space-y-4">
+          {/* Filter Toolbar (Matching Image 4: THỜI GIAN: [ Hôm nay | 7 ngày qua | Tháng này ]) */}
+          <div className="bg-white p-4 rounded-3xl border border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                THỜI GIAN:
+              </span>
+              <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50 gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("today")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "today"
+                      ? "bg-white shadow-xs text-emerald-700 font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Hôm nay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("7days")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "7days"
+                      ? "bg-white shadow-xs text-emerald-700 font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  7 ngày qua
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPresetRange("thisMonth")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    reportPreset === "thisMonth"
+                      ? "bg-white shadow-xs text-emerald-700 font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Tháng này
+                </button>
+              </div>
+
+              <RangePicker
+                value={reportRange}
+                onChange={handleRangePickerChange}
+                format="DD/MM/YYYY"
+                allowClear={false}
+                className="w-60 rounded-xl"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Select
+                value={reportCategory}
+                onChange={(val) => {
+                  setReportCategory(val);
+                  setReportPage(1);
+                }}
+                className="!w-44 !rounded-xl !text-xs"
+                options={[
+                  { label: "Tất cả loại hàng", value: "all" },
+                  { label: "Phụ kiện bida", value: "accessory" },
+                  { label: "Vật tư bàn bida", value: "table_supplies" },
+                  { label: "Đồ uống lưu kho", value: "drink" },
+                  { label: "Thức ăn & đồ ăn nhẹ", value: "food" },
+                  { label: "Nguyên liệu pha chế", value: "ingredient" },
+                  { label: "Bảo dưỡng & Vệ sinh", value: "maintenance" },
+                ]}
+              />
+
+              <Input
+                placeholder="Tìm theo tên hoặc mã hàng..."
+                prefix={<SearchOutlined className="text-slate-400" />}
+                value={reportSearch}
+                onChange={(e) => {
+                  setReportSearch(e.target.value);
+                  setReportPage(1);
+                }}
+                className="!w-56 !rounded-xl !h-10 text-xs"
+                allowClear
+              />
+
+              <Button
+                variant="primary"
+                leftIcon={<FileExcelOutlined />}
+                onClick={handleExportExcel}
+                loading={reportExporting}
+                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-white shadow-xs"
+              >
+                Excel
+              </Button>
+            </div>
+          </div>
+
+          {/* 6 Harmonized KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                  Mặt hàng
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
+                  <ShoppingOutlined />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-900 font-mono">
+                {filteredReportItems.length}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">Trong danh mục</div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                  Tồn đầu kỳ
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-sm">
+                  <InboxOutlined />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-slate-800 font-mono">
+                {filteredReportItems.reduce((acc, cur) => acc + (cur.openingStock || 0), 0).toLocaleString("vi-VN")}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">Số lượng đầu kỳ</div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-emerald-200/70 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
+                  Nhập trong kỳ
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
+                  <ArrowUpOutlined />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-emerald-600 font-mono">
+                +{filteredReportItems.reduce((acc, cur) => acc + (cur.inStock || 0), 0).toLocaleString("vi-VN")}
+              </div>
+              <div className="text-[11px] text-emerald-600/80 mt-1">Qua phiếu nhập</div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-blue-200/70 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">
+                  Xuất bán POS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm">
+                  <ArrowDownOutlined />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-blue-600 font-mono">
+                -{filteredReportItems.reduce((acc, cur) => acc + (cur.outStock || 0), 0).toLocaleString("vi-VN")}
+              </div>
+              <div className="text-[11px] text-blue-600/80 mt-1">Theo hóa đơn bán lẻ</div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-rose-200/70 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-rose-700 uppercase tracking-wide">
+                  Xuất hủy / Hao
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-sm">
+                  <DeleteOutlined />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-rose-600 font-mono">
+                -{filteredReportItems.reduce((acc, cur) => acc + (cur.wasteStock || 0), 0).toLocaleString("vi-VN")}
+              </div>
+              <div className="text-[11px] text-rose-600/80 mt-1">Hao mòn, cơ lơ hỏng</div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 border border-teal-200/70 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-teal-700 uppercase tracking-wide">
+                  Giá trị tồn cuối
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-sm">
+                  <DollarOutlined />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-teal-700 font-mono tracking-tight">
+                {(filteredReportItems.reduce((acc, cur) => acc + (cur.closingValue || 0), 0) / 1000000).toFixed(2)}M đ
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono mt-1">
+                {filteredReportItems.reduce((acc, cur) => acc + (cur.closingStock || 0), 0).toLocaleString("vi-VN")} đơn vị tồn
+              </div>
+            </div>
+          </div>
+
+          {/* Report Table */}
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChartOutlined className="text-emerald-600" />
+                <h4 className="font-bold text-slate-900 text-sm mb-0">
+                  Bảng tổng hợp cân đối kho theo mã hàng
+                </h4>
+              </div>
+              <span className="text-xs text-slate-400">
+                Sắp xếp theo thứ tự mã tăng dần
+              </span>
+            </div>
+
+            <Table<InventoryReportItem>
+              columns={reportColumns}
+              dataSource={paginatedReport}
+              rowKey="productId"
+              loading={reportLoading}
+              pagination={false}
+              bordered
+              scroll={{ x: 1050 }}
+            />
+            <Pagination current={reportPage} pageSize={pageSize} total={filteredReportItems.length} unit="mặt hàng" onChange={(p) => setReportPage(p)} />
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL TẠO ĐỢT KIỂM KÊ MỚI (SCRUM-1065) ─────────────────────────── */}
+      <Modal
+        open={createCheckModalVisible}
+        onCancel={() => setCreateCheckModalVisible(false)}
+        footer={null}
+        width={540}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <AuditOutlined className="text-emerald-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">
+              Tạo Đợt Kiểm Kê Hàng Hóa Định Kỳ Mới
+            </span>
+          </div>
+        }
+      >
+        <div className="py-4 space-y-4 text-xs">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Tiêu đề đợt kiểm kê: <span className="text-rose-500">*</span>
+            </label>
+            <Input
+              value={newCheckForm.title}
+              onChange={(e) => setNewCheckForm((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="Ví dụ: Kiểm kê định kỳ toàn bộ kho hàng hóa tháng 11/2026..."
+              className="!h-10 !rounded-xl text-xs"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Phạm vi loại hàng kiểm kê:
+            </label>
+            <Select
+              value={newCheckForm.category}
+              onChange={(val) => setNewCheckForm((prev) => ({ ...prev, category: val }))}
+              className="!w-full !rounded-xl !text-xs !h-10"
+              options={[
+                { value: "all", label: "Toàn bộ kho hàng (Tất cả mặt hàng)" },
+                { value: "accessory", label: "Phụ kiện bida (Cơ, lơ, bao tay, nỉ, bi)" },
+                { value: "drink", label: "Đồ uống lưu kho (Bia, nước ngọt, cà phê)" },
+                { value: "food", label: "Thực phẩm & Thức ăn nhanh" },
+                { value: "ingredient", label: "Nguyên liệu pha chế" },
+              ]}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Ghi chú đợt kiểm kê:
+            </label>
+            <Input.TextArea
+              rows={3}
+              value={newCheckForm.note}
+              onChange={(e) => setNewCheckForm((prev) => ({ ...prev, note: e.target.value }))}
+              placeholder="Nhập mục đích hoặc chỉ dẫn kiểm đếm cho thủ kho..."
+              className="!rounded-xl text-xs"
+            />
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+            <span className="font-bold block mb-1">Cơ chế Snapshot Tồn Kho:</span>
+            Khi tạo đợt kiểm kê, hệ thống sẽ tự động chụp snapshot số lượng tồn kho hiện tại của toàn bộ sản phẩm được chọn để đối soát với số lượng kiểm đếm thực tế.
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => setCreateCheckModalVisible(false)}
+              className="!rounded-xl !text-xs"
+            >
+              Hủy
+            </Button>
             <Button
               variant="primary"
               size="md"
-              leftIcon={<FileDoneOutlined />}
-              onClick={() =>
-                message.success(
-                  "Đã hoàn thành kiểm kê và cân bằng tồn kho! Dữ liệu đã được chốt sổ tháng.",
-                )
-              }
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-xs"
+              loading={stockCheckLoading}
+              onClick={handleCreateStockCheck}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
             >
-              Chốt Biên Bản Cân Bằng Kho
+              Khởi Tạo Đợt Kiểm Kê
             </Button>
           </div>
-
-          <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-center justify-between text-xs text-emerald-900">
-            <div>
-              <strong>Đợt kiểm kê gần nhất:</strong> Ngày 01/10/2026 bởi Thủ kho Nguyễn Văn Nam.
-            </div>
-            <Tag color="green" className="!rounded-full !font-bold">
-              TỶ LỆ KHỚP SỔ SÁCH: 98.5%
-            </Tag>
-          </div>
-
-          {/* Audit List */}
-          <div className="space-y-3">
-            {stockList.slice(0, 6).map((item) => (
-              <div
-                key={item.id}
-                className="p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:border-slate-300 transition-all shadow-2xs"
-              >
-                <div>
-                  <span className="font-mono text-xs font-bold text-slate-500 block">
-                    {item.sku} • {item.location}
-                  </span>
-                  <span className="font-bold text-slate-900 text-sm">{item.name}</span>
-                </div>
-
-                <div className="flex items-center gap-6 text-xs">
-                  <div className="text-center">
-                    <span className="text-slate-400 block text-[11px]">Tồn sổ sách</span>
-                    <strong className="text-slate-700 text-sm">
-                      {item.stockQty} {item.unit}
-                    </strong>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-slate-400 block text-[11px]">Kiểm đếm thực tế</span>
-                    <strong className="text-emerald-700 text-sm">
-                      {item.stockQty} {item.unit}
-                    </strong>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-slate-400 block text-[11px]">Chênh lệch</span>
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold text-[11px]">
-                      0 (Khớp)
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      )}
+      </Modal>
 
+      {/* ── MODAL 1: LẬP PHIẾU NHẬP KHO MỚI (ĐƠN GIÁ VỐN LOCKED) ──────────── */}
       <Modal
         open={inwardModalVisible}
         onCancel={() => setInwardModalVisible(false)}
@@ -1262,7 +3138,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                 setInwardForm((prev) => ({
                   ...prev,
                   sku: val,
-                  unitPrice: target?.costPrice || 0,
+                  unitPrice: target?.costPrice || 0, // Strict lock to catalog costPrice
                   supplier: target?.supplier || prev.supplier,
                 }));
               }}
@@ -1279,11 +3155,12 @@ export const WarehouseInventoryPage: React.FC = () => {
               <label className="block text-xs font-bold text-slate-700 mb-1">Số lượng nhập:</label>
               <Input
                 type="number"
+                min={1}
                 value={inwardForm.qty}
                 onChange={(e) =>
                   setInwardForm((prev) => ({
                     ...prev,
-                    qty: parseInt(e.target.value) || 0,
+                    qty: Math.max(1, parseInt(e.target.value) || 1),
                   }))
                 }
                 className="!h-10 !rounded-xl text-xs font-mono"
@@ -1291,20 +3168,25 @@ export const WarehouseInventoryPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Đơn giá vốn nhập (VNĐ):
-              </label>
-              <Input
-                type="number"
-                value={inwardForm.unitPrice}
-                onChange={(e) =>
-                  setInwardForm((prev) => ({
-                    ...prev,
-                    unitPrice: parseInt(e.target.value) || 0,
-                  }))
-                }
-                className="!h-10 !rounded-xl text-xs font-mono"
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Đơn giá vốn nhập (VNĐ):
+                </label>
+                <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5">
+                  <LockOutlined /> Cố định
+                </span>
+              </div>
+              <input
+                type="text"
+                readOnly
+                disabled
+                value={`${(inwardForm.unitPrice || 0).toLocaleString("vi-VN")} đ`}
+                title="Đơn giá vốn niêm yết theo Quản lý hàng hóa, không thể chỉnh sửa tăng giảm"
+                className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 font-mono font-bold text-xs cursor-not-allowed select-none outline-none"
               />
+              <span className="text-[10.5px] text-slate-400 mt-0.5 block">
+                * Đồng bộ trực tiếp với giá vốn trong danh mục
+              </span>
             </div>
           </div>
 
@@ -1324,12 +3206,13 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Input
               value={inwardForm.note}
               onChange={(e) => setInwardForm((prev) => ({ ...prev, note: e.target.value }))}
+              placeholder="Ví dụ: Nhập bổ sung cơ và bóng phục vụ giải đấu..."
               className="!h-10 !rounded-xl text-xs"
             />
           </div>
 
           <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center text-xs">
-            <span className="font-semibold text-emerald-800">Tổng giá trị phiếu:</span>
+            <span className="font-semibold text-emerald-800">Tổng giá trị phiếu nhập:</span>
             <span className="font-black text-emerald-900 text-base font-mono">
               {(inwardForm.qty * inwardForm.unitPrice).toLocaleString("vi-VN")}đ
             </span>
@@ -1356,6 +3239,7 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       </Modal>
 
+      {/* ── MODAL 2: XUẤT KHO & HAO MÒN PHỤ KIỆN (BÁO ĐÚNG SỐ LƯỢNG HỎNG) ──── */}
       <Modal
         open={outwardModalVisible}
         onCancel={() => setOutwardModalVisible(false)}
@@ -1363,17 +3247,45 @@ export const WarehouseInventoryPage: React.FC = () => {
         width={580}
         title={
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-            <ArrowUpOutlined className="text-blue-600 text-lg" />
+            {outwardType === "waste" ? (
+              <DeleteOutlined className="text-rose-600 text-lg" />
+            ) : (
+              <ArrowUpOutlined className="text-blue-600 text-lg" />
+            )}
             <span className="font-black text-slate-900 text-base">
-              Lập Phiếu Xuất Kho & Cấp Phát
+              {outwardType === "waste"
+                ? "Ghi Nhận Hao Mòn & Xuất Hủy Phụ Kiện Bida"
+                : "Lập Phiếu Xuất Kho & Cấp Phát"}
             </span>
           </div>
         }
       >
         <div className="py-4 space-y-4 text-xs">
+          {/* Mode selector */}
+          <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setOutwardType("transfer")}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                outwardType === "transfer" ? "bg-white text-slate-800 shadow-xs" : "text-slate-500"
+              }`}
+            >
+              Cấp phát bàn & quầy POS
+            </button>
+            <button
+              type="button"
+              onClick={() => setOutwardType("waste")}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                outwardType === "waste" ? "bg-rose-600 text-white shadow-xs" : "text-slate-500"
+              }`}
+            >
+              Báo hỏng / Xuất hủy phụ kiện
+            </button>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Chọn mặt hàng xuất kho:
+              Chọn mặt hàng xuất:
             </label>
             <Select
               value={outwardForm.sku}
@@ -1381,51 +3293,130 @@ export const WarehouseInventoryPage: React.FC = () => {
               className="!w-full !rounded-xl !text-xs !h-10"
               options={stockList.map((i) => ({
                 value: i.sku,
-                label: `${i.sku} - ${i.name} (Còn tồn: ${i.stockQty} ${i.unit})`,
+                label: `${i.sku} - ${i.name} (Tồn hiện tại: ${i.stockQty} ${i.unit})`,
               }))}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Số lượng xuất:</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700">
+                {outwardType === "waste"
+                  ? "Số lượng phụ kiện bị hỏng:"
+                  : "Số lượng cấp phát xuất kho:"}
+              </label>
+              {(() => {
+                const target = stockList.find((i) => i.sku === outwardForm.sku);
+                return (
+                  <span className="text-[11px] text-slate-500">
+                    Tổng trong kho: <strong>{target?.stockQty || 0} {target?.unit}</strong>
+                  </span>
+                );
+              })()}
+            </div>
             <Input
               type="number"
+              min={1}
+              max={stockList.find((i) => i.sku === outwardForm.sku)?.stockQty || 1}
               value={outwardForm.qty}
               onChange={(e) =>
                 setOutwardForm((prev) => ({
                   ...prev,
-                  qty: parseInt(e.target.value) || 0,
+                  qty: Math.max(1, parseInt(e.target.value) || 1),
                 }))
               }
-              className="!h-10 !rounded-xl text-xs font-mono"
+              className="!h-10 !rounded-xl text-xs font-mono font-bold"
             />
+            {outwardType === "waste" && (
+              <span className="text-[11px] text-rose-600 mt-1 block">
+                * Lưu ý: Nếu có 8 cây gậy mà hỏng 1 cây, chỉ nhập đúng 1 cây để trừ tồn và báo cáo đúng số lượng hỏng.
+              </span>
+            )}
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Địa điểm / Bộ phận tiếp nhận:
-            </label>
-            <Select
-              value={outwardForm.target}
-              onChange={(val) => setOutwardForm((prev) => ({ ...prev, target: val }))}
-              className="!w-full !rounded-xl !text-xs !h-10"
-              options={[
-                { value: "Quầy Bar & POS Bàn Bida", label: "Quầy Bar & POS Bàn Bida" },
-                { value: "Bàn Match 13 (Khu vực VAR)", label: "Bàn Match 13 (Khu vực VAR)" },
-                { value: "Bàn Match 14 (Khu vực VAR)", label: "Bàn Match 14 (Khu vực VAR)" },
-                { value: "Tủ Cơ Cho Thuê Lễ Tân", label: "Tủ Cơ Cho Thuê Lễ Tân" },
-                { value: "Bảo Dưỡng & Thay Nỉ Định Kỳ", label: "Bảo Dưỡng & Thay Nỉ Định Kỳ" },
-              ]}
-            />
-          </div>
+          {outwardType === "waste" ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Lý do hư hỏng / hao mòn:
+              </label>
+              <Select
+                value={outwardForm.reason}
+                onChange={(val) => setOutwardForm((prev) => ({ ...prev, reason: val }))}
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={REASON_OPTIONS}
+              />
+              {outwardForm.reason === "Khác" && (
+                <Input
+                  placeholder="Nhập chi tiết lý do hư hỏng..."
+                  value={outwardForm.customReason}
+                  onChange={(e) =>
+                    setOutwardForm((prev) => ({ ...prev, customReason: e.target.value }))
+                  }
+                  className="!h-10 !rounded-xl text-xs mt-2"
+                />
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Địa điểm / Bộ phận tiếp nhận:
+              </label>
+              <Select
+                value={outwardForm.target}
+                onChange={(val) => setOutwardForm((prev) => ({ ...prev, target: val }))}
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={[
+                  { value: "Quầy Bar & Thu ngân", label: "Quầy Bar & Thu ngân" },
+                  { value: "Bàn thi đấu Match 13 (VIP)", label: "Bàn thi đấu Match 13 (VIP)" },
+                  { value: "Bàn thi đấu Match 14 (VIP)", label: "Bàn thi đấu Match 14 (VIP)" },
+                  { value: "Tủ cơ cho thuê (Lễ tân)", label: "Tủ cơ cho thuê (Lễ tân)" },
+                  { value: "Khu vực bảo trì & thay nỉ bàn", label: "Khu vực bảo trì & thay nỉ bàn" },
+                ]}
+              />
+            </div>
+          )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú xuất kho:</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú chi tiết:</label>
             <Input
               value={outwardForm.note}
               onChange={(e) => setOutwardForm((prev) => ({ ...prev, note: e.target.value }))}
+              placeholder={
+                outwardType === "waste"
+                  ? "Ví dụ: Gãy đầu phíp trong trận bán kết 1, không phục hồi được..."
+                  : "Ví dụ: Cấp phát đồ uống và lơ bida lên quầy thu ngân..."
+              }
               className="!h-10 !rounded-xl text-xs"
             />
+          </div>
+
+          <div
+            className={`p-3 rounded-2xl border flex justify-between items-center text-xs ${
+              outwardType === "waste"
+                ? "bg-rose-50 border-rose-200"
+                : "bg-blue-50 border-blue-200"
+            }`}
+          >
+            <span
+              className={`font-semibold ${
+                outwardType === "waste" ? "text-rose-800" : "text-blue-800"
+              }`}
+            >
+              {outwardType === "waste"
+                ? "Giá trị tổn thất hao mòn:"
+                : "Tổng giá trị xuất kho:"}
+            </span>
+            <span
+              className={`font-black text-base font-mono ${
+                outwardType === "waste" ? "text-rose-900" : "text-blue-900"
+              }`}
+            >
+              {(() => {
+                const target = stockList.find((i) => i.sku === outwardForm.sku);
+                const cost = target?.costPrice || 0;
+                return `${(outwardForm.qty * cost).toLocaleString("vi-VN")}đ`;
+              })()}
+            </span>
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -1441,14 +3432,159 @@ export const WarehouseInventoryPage: React.FC = () => {
               variant="primary"
               size="md"
               onClick={handleCreateOutwardSlip}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
+              className={`!rounded-xl !font-bold px-6 !text-xs ${
+                outwardType === "waste"
+                  ? "!bg-rose-600 hover:!bg-rose-700 !border-rose-600"
+                  : "!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600"
+              }`}
             >
-              Xác Nhận Xuất Kho
+              {outwardType === "waste" ? "Xác Nhận Xuất Hủy" : "Xác Nhận Xuất Kho"}
             </Button>
           </div>
         </div>
       </Modal>
 
+      {/* ── MODAL BÁO THIẾU / HẾT HÀNG CHO ROLE STAFF ────────────────────── */}
+      <Modal
+        open={alertModalVisible}
+        onCancel={() => setAlertModalVisible(false)}
+        footer={null}
+        width={520}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <AlertOutlined className="text-amber-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">
+              Báo Thiếu / Hết Hàng Tới Quản Lý
+            </span>
+          </div>
+        }
+      >
+        {alertTargetItem && (
+          <div className="py-4 space-y-4 text-xs">
+            {/* Thẻ thông tin mặt hàng */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono font-bold text-xs bg-white text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                  {alertTargetItem.sku}
+                </span>
+                <Tag
+                  color={
+                    alertTargetItem.stockQty === 0
+                      ? "error"
+                      : alertTargetItem.stockQty <= alertTargetItem.minThreshold
+                      ? "warning"
+                      : "green"
+                  }
+                  className="!rounded-full !px-2 !py-0 !text-[10px] !font-bold"
+                >
+                  {alertTargetItem.stockQty === 0
+                    ? "HẾT HÀNG"
+                    : alertTargetItem.stockQty <= alertTargetItem.minThreshold
+                    ? "SẮP HẾT"
+                    : "ĐỦ HÀNG"}
+                </Tag>
+              </div>
+
+              <div>
+                <span className="text-sm font-bold text-slate-900 block">
+                  {alertTargetItem.name}
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  {alertTargetItem.categoryName} • Vị trí: <strong>{alertTargetItem.location}</strong>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-slate-700">
+                <span>
+                  Tồn kho hiện tại:{" "}
+                  <strong className="text-slate-900 font-bold">
+                    {alertTargetItem.stockQty} {alertTargetItem.unit}
+                  </strong>
+                </span>
+                <span className="text-slate-500 text-[11px]">
+                  Mức tối thiểu: {alertTargetItem.minThreshold} {alertTargetItem.unit}
+                </span>
+              </div>
+            </div>
+
+            {/* Mức độ ưu tiên */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Mức độ khẩn cấp:
+              </label>
+              <Select
+                value={alertForm.priority}
+                onChange={(val) => setAlertForm((prev) => ({ ...prev, priority: val }))}
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={[
+                  { value: "urgent", label: "Khẩn cấp — Hết sạch tại bàn / quầy thu ngân" },
+                  { value: "high", label: "Cần sớm — Đang dưới ngưỡng an toàn, khách hỏi nhiều" },
+                  { value: "normal", label: "Bình thường — Đề xuất nhập thêm dự phòng" },
+                ]}
+              />
+            </div>
+
+            {/* Số lượng đề xuất nhập */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Số lượng đề xuất nhập thêm (ĐVT: {alertTargetItem.unit}):
+              </label>
+              <Input
+                type="number"
+                min={1}
+                value={alertForm.suggestedQty}
+                onChange={(e) =>
+                  setAlertForm((prev) => ({
+                    ...prev,
+                    suggestedQty: Math.max(1, parseInt(e.target.value) || 1),
+                  }))
+                }
+                className="!h-10 !rounded-xl text-xs font-mono font-bold"
+              />
+            </div>
+
+            {/* Ghi chú thực tế */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ghi chú tình trạng thực tế:
+              </label>
+              <Input.TextArea
+                rows={3}
+                value={alertForm.note}
+                onChange={(e) => setAlertForm((prev) => ({ ...prev, note: e.target.value }))}
+                placeholder="Ví dụ: Khách tại các bàn VIP hỏi nhiều lơ xanh Taom, quầy đã phát hết sạch..."
+                className="!rounded-xl text-xs"
+              />
+            </div>
+
+            <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-900">
+              <span className="font-bold block mb-0.5">Thông báo tức thì tới Quản lý kho:</span>
+              Yêu cầu của bạn sẽ được gửi tới Ban quản trị và Quản lý kho để xem xét tạo phiếu nhập hoặc điều chuyển phụ kiện kịp thời.
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setAlertModalVisible(false)}
+                className="!rounded-xl !text-xs"
+              >
+                Hủy
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleSubmitStockAlert}
+                className="!bg-amber-600 hover:!bg-amber-700 !border-amber-600 !rounded-xl !font-bold px-6 !text-xs text-white"
+              >
+                Gửi Báo Cáo
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── MODAL 3: XEM CHI TIẾT CHỨNG TỪ ────────────────────────────────── */}
       <Modal
         open={Boolean(selectedSlip)}
         onCancel={() => setSelectedSlip(null)}
@@ -1469,9 +3605,19 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div>
                 Loại phiếu:{" "}
                 <strong
-                  className={selectedSlip.type === "inward" ? "text-emerald-700" : "text-blue-700"}
+                  className={
+                    selectedSlip.type === "inward"
+                      ? "text-emerald-700"
+                      : selectedSlip.type === "waste"
+                      ? "text-rose-700"
+                      : "text-blue-700"
+                  }
                 >
-                  {selectedSlip.type === "inward" ? "PHIẾU NHẬP KHO" : "PHIẾU XUẤT KHO"}
+                  {selectedSlip.type === "inward"
+                    ? "PHIẾU NHẬP KHO"
+                    : selectedSlip.type === "waste"
+                    ? "PHIẾU XUẤT HỦY HAO MÒN"
+                    : "PHIẾU XUẤT KHO CẤP PHÁT"}
                 </strong>
               </div>
               <div>
@@ -1486,6 +3632,11 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div>
                 Đối tác / Bộ phận: <strong>{selectedSlip.partnerOrTarget}</strong>
               </div>
+              {selectedSlip.reason && (
+                <div className="col-span-2 text-rose-700 font-semibold">
+                  Lý do hư hỏng: {selectedSlip.reason}
+                </div>
+              )}
               <div className="col-span-2 text-slate-500">
                 Ghi chú: <em>{selectedSlip.note || "Không có"}</em>
               </div>
@@ -1499,7 +3650,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase">
                     <tr>
-                      <th className="py-2.5 px-3">Mã SKU</th>
+                      <th className="py-2.5 px-3">Mã hàng</th>
                       <th className="py-2.5 px-3">Tên Mặt Hàng</th>
                       <th className="py-2.5 px-3 text-center">Số Lượng</th>
                       <th className="py-2.5 px-3 text-right">Đơn Giá</th>

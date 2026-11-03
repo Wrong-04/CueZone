@@ -1,8 +1,5 @@
-const API_BASE = (import.meta.env.VITE_API_URL || "/api/v1").replace(/\/+$/, "");
-
-function getToken(): string | null {
-  return localStorage.getItem("token") || localStorage.getItem("accessToken");
-}
+import api from "./api";
+import axios from "axios";
 
 export type ApiResult<T> = {
   success: boolean;
@@ -58,80 +55,37 @@ type ProductPayload = {
   isForSale: boolean;
 };
 
-function getErrorMessage(body: unknown, fallback: string): string {
-  if (
-    body &&
-    typeof body === "object" &&
-    "message" in body &&
-    typeof body.message === "string" &&
-    body.message.trim()
-  ) {
-    return body.message;
-  }
-
-  if (
-    body &&
-    typeof body === "object" &&
-    "error" in body &&
-    typeof body.error === "string" &&
-    body.error.trim()
-  ) {
-    return body.error;
-  }
-
-  return fallback;
-}
-
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const headers = new Headers(options.headers);
-
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  headers.set("Accept", "application/json");
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  let response: Response;
-
+async function request<T>(
+  path: string,
+  options: {
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    body?: string;
+  } = {},
+): Promise<T> {
   try {
-    response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
+    const response = await api.request<T>({
+      url: path,
+      method: options.method || "GET",
+      data: options.body ? JSON.parse(options.body) : undefined,
     });
-  } catch {
-    throw new Error("Không thể kết nối máy chủ. Vui lòng kiểm tra backend và địa chỉ API.");
-  }
 
-  const rawBody = await response.text();
-  let body: unknown = null;
-
-  if (rawBody.trim()) {
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      if (response.ok) {
-        throw new Error("Máy chủ trả về dữ liệu không hợp lệ.");
-      }
+    return response.data;
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      const responseData = error.response?.data as { message?: string; error?: string } | null | undefined;
+      const msg =
+        responseData?.message ||
+        responseData?.error ||
+        (error.response?.status ? `Yêu cầu thất bại (HTTP ${error.response.status}).` : error.message);
+      throw new Error(msg || "Không thể kết nối máy chủ. Vui lòng kiểm tra backend và địa chỉ API.");
     }
-  }
 
-  if (!response.ok) {
-    throw new Error(getErrorMessage(body, `Yêu cầu thất bại (HTTP ${response.status}).`));
-  }
+    if (error instanceof Error) {
+      throw error;
+    }
 
-  if (body === null) {
-    return {
-      success: true,
-      data: null,
-    } as T;
+    throw new Error("Đã xảy ra lỗi không xác định.");
   }
-
-  return body as T;
 }
 
 function normalizeList<T>(response: unknown): T[] {

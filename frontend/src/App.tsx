@@ -19,6 +19,12 @@ import VoucherManagementPage from "./pages/admin/VoucherManagementPage";
 import FnbOrderQueuePage from "./pages/admin/FnbOrderQueuePage";
 import StockCatalogPage from "./pages/admin/StockCatalogPage";
 import SupplierManagementPage from "./pages/admin/SupplierManagementPage";
+import GoodsReceiptPage from "./pages/admin/GoodsReceiptPage";
+import InventoryReportPage from "./pages/admin/InventoryReportPage";
+import RevenueReportPage from "./pages/admin/RevenueReportPage";
+import AccessoryWastePage from "./pages/admin/AccessoryWastePage";
+import TablePerformanceReportPage from "./pages/admin/TablePerformanceReportPage";
+import StockCheckPage from "./pages/admin/StockCheckPage";
 
 import CustomerHome from "./pages/customer/CustomerHome";
 import CustomerBooking from "./pages/customer/CustomerBooking";
@@ -40,13 +46,12 @@ import {
   FnBPage,
   InventoryPage,
   InvoicesPage,
-  ReportsPage,
   EmployeesPage,
   NewsPage,
   SettingsPage,
 } from "./pages/PlaceholderPage";
 
-type UserRole = "admin" | "staff" | "cashier" | "customer";
+type UserRole = "admin" | "staff" | "cashier" | "warehouse" | "referee" | "customer";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -223,6 +228,54 @@ const AppRoutes = () => {
           }
         />
 
+        {/* 4. Goods receipt */}
+        <Route
+          path="/goods-receipts"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <GoodsReceiptPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 5. Accessory waste (SCRUM-909) */}
+        <Route
+          path="/accessory-waste"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <AccessoryWastePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 6. Inventory report (SCRUM-985) */}
+        <Route
+          path="/inventory-report"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <InventoryReportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory/report"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <InventoryReportPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 7. Stock Check (SCRUM-1062) */}
+        <Route
+          path="/stock-checks"
+          element={
+            <ProtectedRoute roles={["admin", "warehouse"]}>
+              <StockCheckPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/invoices"
           element={
@@ -253,8 +306,32 @@ const AppRoutes = () => {
         <Route
           path="/reports"
           element={
-            <ProtectedRoute roles={["admin"]}>
-              <ReportsPage />
+            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+              <RevenueReportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports/revenue"
+          element={
+            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+              <RevenueReportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/table-performance"
+          element={
+            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+              <TablePerformanceReportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports/table-performance"
+          element={
+            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+              <TablePerformanceReportPage />
             </ProtectedRoute>
           }
         />

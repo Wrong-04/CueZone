@@ -30,6 +30,8 @@ function requireSupplierManager(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+router.use(requireSupplierManager);
+
 function validateSupplier(body: any) {
   if (!body || typeof body.name !== "string" || !body.name.trim()) {
     return "Tên nhà cung cấp là bắt buộc.";

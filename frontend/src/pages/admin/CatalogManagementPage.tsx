@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  ShoppingOutlined,
+  TagsOutlined,
+  CloseOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
+import {
   AlertCircle,
   Check,
   CirclePlus,
@@ -765,299 +771,376 @@ export default function CatalogManagementPage() {
 
       {productModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-md animate-in fade-in duration-200"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !saving) {
               setProductModal(false);
             }
           }}
         >
-          <form
-            onSubmit={handleProductSubmit}
-            className="my-auto w-full max-w-2xl space-y-5 rounded-2xl bg-white p-6 shadow-2xl sm:p-7"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">
-                  {editingProduct ? "Sửa hàng hóa" : "Thêm hàng hóa"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">Nhập thông tin hàng hóa của quán.</p>
+          <div className="relative my-auto w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
+            {/* Top accent gradient bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
+
+            <form onSubmit={handleProductSubmit} className="p-6 sm:p-7 space-y-6">
+              {/* Modal Header */}
+              <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl shadow-xs">
+                    <ShoppingOutlined />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight mb-0.5">
+                      {editingProduct ? "Cập Nhật Thông Tin Hàng Hóa" : "Thêm Hàng Hóa Mới"}
+                    </h2>
+                    <p className="text-xs text-slate-500 mb-0">
+                      Quản lý mã SKU, danh mục, đơn giá vốn và giá niêm yết bán tại quầy POS.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setProductModal(false)}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  aria-label="Đóng"
+                >
+                  <CloseOutlined className="text-sm" />
+                </button>
               </div>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => setProductModal(false)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-                aria-label="Đóng"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-1.5 text-sm font-medium">
-                Tên hàng hóa *
-                <input
-                  required
-                  value={productForm.name}
-                  onChange={(e) => setProductForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-                />
-              </label>
+              {/* Section 1: Thông tin cơ bản */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    1. Thông tin cơ bản
+                  </span>
+                </div>
 
-              <label className="space-y-1.5 text-sm font-medium">
-                Mã SKU *
-                <input
-                  required
-                  value={productForm.sku}
-                  onChange={(e) => setProductForm((f) => ({ ...f, sku: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-                />
-              </label>
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      Tên hàng hóa <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      required
+                      value={productForm.name}
+                      onChange={(e) => setProductForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="Ví dụ: Bia Heineken Silver, Đầu cơ Kamui..."
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
+                    />
+                  </div>
 
-              <label className="space-y-1.5 text-sm font-medium">
-                Danh mục *
-                <select
-                  required
-                  value={productForm.category}
-                  onChange={(e) =>
-                    setProductForm((f) => ({
-                      ...f,
-                      category: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-emerald-500"
-                >
-                  <option value="">Chọn danh mục</option>
-                  {categories
-                    .filter((c) => c.isActive !== false)
-                    .map((category) => (
-                      <option key={category._id} value={category.code}>
-                        {category.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      Mã SKU <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        required
+                        value={productForm.sku}
+                        onChange={(e) => setProductForm((f) => ({ ...f, sku: e.target.value }))}
+                        placeholder="Ví dụ: DRK-001, ACC-002..."
+                        className="w-full font-mono uppercase rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
+                      />
+                    </div>
+                  </div>
 
-              <label className="space-y-1.5 text-sm font-medium">
-                Đơn vị *
-                <input
-                  required
-                  value={productForm.unit}
-                  onChange={(e) => setProductForm((f) => ({ ...f, unit: e.target.value }))}
-                  placeholder="cái, hộp, kg..."
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-                />
-              </label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      Danh mục <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={productForm.category}
+                      onChange={(e) => setProductForm((f) => ({ ...f, category: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    >
+                      <option value="">-- Chọn danh mục hàng hóa --</option>
+                      {categories
+                        .filter((c) => c.isActive !== false)
+                        .map((category) => (
+                          <option key={category._id} value={category.code}>
+                            {category.name} ({category.code})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
 
-              <label className="space-y-1.5 text-sm font-medium">
-                Giá nhập (VNĐ) *
-                <input
-                  required
-                  min="0"
-                  type="number"
-                  value={productForm.costPrice}
-                  onChange={(e) =>
-                    setProductForm((f) => ({
-                      ...f,
-                      costPrice: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-                />
-              </label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      Đơn vị tính <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      required
+                      value={productForm.unit}
+                      onChange={(e) => setProductForm((f) => ({ ...f, unit: e.target.value }))}
+                      placeholder="Ví dụ: lon, chai, cái, hộp, gói..."
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
 
-              <label className="space-y-1.5 text-sm font-medium">
-                Giá bán (VNĐ) *
-                <input
-                  required
-                  min="0"
-                  type="number"
-                  value={productForm.salePrice}
-                  onChange={(e) =>
-                    setProductForm((f) => ({
-                      ...f,
-                      salePrice: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-                />
-              </label>
+              {/* Section 2: Giá cả & Quản lý tồn kho */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    2. Giá bán & Quản lý kho
+                  </span>
+                </div>
 
-              <label className="space-y-1.5 text-sm font-medium">
-                Tồn kho tối thiểu
-                <input
-                  min="0"
-                  type="number"
-                  value={productForm.minStock}
-                  onChange={(e) =>
-                    setProductForm((f) => ({
-                      ...f,
-                      minStock: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-                />
-              </label>
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                        Giá nhập vốn <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        {formatMoney(Number(productForm.costPrice) || 0)}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        required
+                        min="0"
+                        type="number"
+                        value={productForm.costPrice}
+                        onChange={(e) => setProductForm((f) => ({ ...f, costPrice: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                      />
+                    </div>
+                  </div>
 
-              <label className="space-y-1.5 text-sm font-medium">
-                Trạng thái kinh doanh
-                <select
-                  value={productForm.isForSale ? "active" : "inactive"}
-                  onChange={(e) =>
-                    setProductForm((f) => ({
-                      ...f,
-                      isForSale: e.target.value === "active",
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-emerald-500"
-                >
-                  <option value="active">Đang kinh doanh</option>
-                  <option value="inactive">Ngừng bán</option>
-                </select>
-              </label>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                        Giá bán niêm yết <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[11px] font-mono font-bold text-emerald-600">
+                        {formatMoney(Number(productForm.salePrice) || 0)}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        required
+                        min="0"
+                        type="number"
+                        value={productForm.salePrice}
+                        onChange={(e) => setProductForm((f) => ({ ...f, salePrice: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                      />
+                    </div>
+                  </div>
 
-              <label className="space-y-1.5 text-sm font-medium sm:col-span-2">
-                Mô tả
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Tồn kho tối thiểu (Cảnh báo)
+                    </label>
+                    <input
+                      min="0"
+                      type="number"
+                      value={productForm.minStock}
+                      onChange={(e) => setProductForm((f) => ({ ...f, minStock: e.target.value }))}
+                      placeholder="Mặc định: 0"
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Trạng thái kinh doanh
+                    </label>
+                    <select
+                      value={productForm.isForSale ? "active" : "inactive"}
+                      onChange={(e) =>
+                        setProductForm((f) => ({
+                          ...f,
+                          isForSale: e.target.value === "active",
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    >
+                      <option value="active">Đang kinh doanh tại quầy / bàn</option>
+                      <option value="inactive">Tạm ngừng bán</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Mô tả */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                <label className="text-xs font-bold text-slate-700">
+                  Mô tả & Ghi chú sản phẩm
+                </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={productForm.description}
-                  onChange={(e) =>
-                    setProductForm((f) => ({
-                      ...f,
-                      description: e.target.value,
-                    }))
-                  }
-                  className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
+                  onChange={(e) => setProductForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Quy cách đóng gói, hương vị, vị trí bảo quản..."
+                  className="w-full resize-none rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                 />
-              </label>
-            </div>
+              </div>
 
-            {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+              {error && (
+                <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700 font-medium">
+                  {error}
+                </div>
+              )}
 
-            <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => setProductModal(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 font-medium hover:bg-slate-50"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                {editingProduct ? "Lưu thay đổi" : "Thêm hàng hóa"}
-              </button>
-            </div>
-          </form>
+              {/* Footer Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setProductModal(false)}
+                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-60 transition-all cursor-pointer"
+                >
+                  {saving ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SaveOutlined />
+                  )}
+                  {editingProduct ? "Lưu thay đổi" : "Thêm hàng hóa"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
       {categoryModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-md animate-in fade-in duration-200"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !saving) {
               setCategoryModal(false);
             }
           }}
         >
-          <form
-            onSubmit={handleCategorySubmit}
-            className="my-auto w-full max-w-lg space-y-5 rounded-2xl bg-white p-6 shadow-2xl sm:p-7"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">
-                  {editingCategory ? "Sửa danh mục" : "Thêm danh mục"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">Quản lý nhóm hàng hóa của quán.</p>
+          <div className="relative my-auto w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
+            {/* Top accent gradient bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
+
+            <form onSubmit={handleCategorySubmit} className="p-6 sm:p-7 space-y-5">
+              {/* Modal Header */}
+              <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl shadow-xs">
+                    <TagsOutlined />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight mb-0.5">
+                      {editingCategory ? "Cập Nhật Danh Mục" : "Thêm Danh Mục Mới"}
+                    </h2>
+                    <p className="text-xs text-slate-500 mb-0">
+                      Quản lý nhóm phân loại đồ uống, thức ăn, phụ kiện cho quán.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setCategoryModal(false)}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  aria-label="Đóng"
+                >
+                  <CloseOutlined className="text-sm" />
+                </button>
               </div>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => setCategoryModal(false)}
-                aria-label="Đóng"
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            <label className="block space-y-1.5 text-sm font-medium">
-              Tên danh mục *
-              <input
-                required
-                value={categoryForm.name}
-                onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Ví dụ: Đồ uống"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-              />
-            </label>
+              {/* Body Fields */}
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                    Tên danh mục <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    required
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Ví dụ: Đồ uống, Thức ăn nhanh, Phụ kiện..."
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
+                  />
+                  <p className="text-[11px] text-slate-400">Tên nhóm hàng sẽ hiển thị trên menu và quầy thu ngân POS.</p>
+                </div>
 
-            <label className="block space-y-1.5 text-sm font-medium">
-              Mã danh mục *
-              <input
-                required
-                disabled={Boolean(editingCategory)}
-                value={categoryForm.code}
-                onChange={(e) =>
-                  setCategoryForm((f) => ({
-                    ...f,
-                    code: e.target.value,
-                  }))
-                }
-                placeholder="Ví dụ: drink"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500 disabled:bg-slate-100"
-              />
-              {editingCategory && (
-                <span className="text-xs font-normal text-slate-400">
-                  Mã danh mục được giữ nguyên khi chỉnh sửa.
-                </span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      Mã danh mục (Code) <span className="text-rose-500">*</span>
+                    </label>
+                    {editingCategory && (
+                      <span className="text-[10.5px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                        Mã cố định khi chỉnh sửa
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    required
+                    disabled={Boolean(editingCategory)}
+                    value={categoryForm.code}
+                    onChange={(e) => setCategoryForm((f) => ({ ...f, code: e.target.value }))}
+                    placeholder="Ví dụ: drink, snack, accessory..."
+                    className="w-full font-mono rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all disabled:bg-slate-100 disabled:text-slate-500"
+                  />
+                  <p className="text-[11px] text-slate-400">Mã định danh duy nhất (viết thường không dấu, dùng liên kết dữ liệu).</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">
+                    Mô tả nhóm hàng hóa
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={categoryForm.description}
+                    onChange={(e) => setCategoryForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Ghi chú phạm vi mặt hàng, lưu ý bảo quản..."
+                    className="w-full resize-none rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700 font-medium">
+                  {error}
+                </div>
               )}
-            </label>
 
-            <label className="block space-y-1.5 text-sm font-medium">
-              Mô tả
-              <textarea
-                rows={3}
-                value={categoryForm.description}
-                onChange={(e) =>
-                  setCategoryForm((f) => ({
-                    ...f,
-                    description: e.target.value,
-                  }))
-                }
-                placeholder="Mô tả danh mục..."
-                className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500"
-              />
-            </label>
-
-            {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-
-            <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => setCategoryModal(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 font-medium hover:bg-slate-50"
-              >
-                Hủy
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                {editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
-              </button>
-            </div>
-          </form>
+              {/* Footer Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setCategoryModal(false)}
+                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-60 transition-all cursor-pointer"
+                >
+                  {saving ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SaveOutlined />
+                  )}
+                  {editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
