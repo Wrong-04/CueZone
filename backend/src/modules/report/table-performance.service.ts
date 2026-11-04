@@ -223,10 +223,15 @@ export class TablePerformanceService {
       item.rank = idx + 1;
     });
 
-    // Filter theo loại bàn nếu có
-    const filteredTopTables = filter.type && filter.type !== "all"
-      ? tableItems.filter((t) => t.type === filter.type)
+    // Xác định loại bàn được filter
+    const selectedType = filter.type && filter.type !== "all" ? this.normalizeTableType(filter.type) : "all";
+
+    // Danh sách bàn mục tiêu dựa trên filter
+    const targetTables = selectedType !== "all"
+      ? tableItems.filter((t) => t.type === selectedType)
       : tableItems;
+
+    const filteredTopTables = targetTables;
 
     // 5. So sánh hiệu suất giữa 3 loại bàn (SCRUM-1019)
     const typeGroupMap: Record<string, { tables: typeof tableItems }> = {
@@ -267,19 +272,33 @@ export class TablePerformanceService {
     });
 
     // 6. Biểu đồ tỷ lệ lấp đầy theo khung giờ (SCRUM-1024)
+    // Tính khung giờ dựa trên targetTables
+    const targetTableIds = new Set(targetTables.map((t) => t.tableId));
+    const targetHourlyCounts = new Array(24).fill(0);
+
+    for (const inv of invoices) {
+      const tId = inv.tableId ? inv.tableId.toString() : "";
+      if (targetTableIds.has(tId)) {
+        const hour = new Date(inv.createdAt).getHours();
+        if (hour >= 0 && hour < 24) {
+          targetHourlyCounts[hour] += 1;
+        }
+      }
+    }
+
     const hourlyFillRates: HourlyFillRate[] = [];
     let maxHour = 20;
     let maxCount = 0;
 
     for (let h = 8; h <= 23; h++) {
-      const count = hourlyCounts[h];
+      const count = targetHourlyCounts[h];
       if (count > maxCount) {
         maxCount = count;
         maxHour = h;
       }
 
-      // Giả định công suất tối đa giờ h = tổng số bàn * số ngày
-      const maxSlots = Math.max(1, tables.length * diffDays);
+      // Công suất tối đa giờ h = tổng số bàn mục tiêu * số ngày
+      const maxSlots = Math.max(1, targetTables.length * diffDays);
       const pct = Math.min(100, Math.round((count / maxSlots) * 100));
 
       hourlyFillRates.push({
@@ -290,12 +309,12 @@ export class TablePerformanceService {
       });
     }
 
-    // 7. Tổng hợp chung
-    const totalPlayMinsAll = tableItems.reduce((acc, t) => acc + t.totalPlayMinutes, 0);
-    const totalRevenueAll = tableItems.reduce((acc, t) => acc + t.totalRevenue, 0);
-    const totalCapacityAll = tables.length * operatingMinutesPerTable;
-    const avgUtil = totalCapacityAll > 0
-      ? Math.min(100, Number(((totalPlayMinsAll / totalCapacityAll) * 100).toFixed(1)))
+    // 7. Tổng hợp chung theo targetTables (phản ánh chính xác khi filter loại bàn)
+    const targetPlayMins = targetTables.reduce((acc, t) => acc + t.totalPlayMinutes, 0);
+    const targetRevenue = targetTables.reduce((acc, t) => acc + t.totalRevenue, 0);
+    const targetCapacity = targetTables.length * operatingMinutesPerTable;
+    const targetAvgUtil = targetCapacity > 0
+      ? Math.min(100, Number(((targetPlayMins / targetCapacity) * 100).toFixed(1)))
       : 0;
 
     return {
@@ -306,11 +325,11 @@ export class TablePerformanceService {
         daysCount: diffDays,
       },
       summary: {
-        totalTables: tables.length,
-        totalPlayHours: Number((totalPlayMinsAll / 60).toFixed(1)),
-        averageUtilizationRate: avgUtil,
-        totalRevenue: totalRevenueAll,
-        peakHour: `${maxHour}:00 - ${maxHour + 1}:00`,
+        totalTables: targetTables.length,
+        totalPlayHours: Number((targetPlayMins / 60).toFixed(1)),
+        averageUtilizationRate: targetAvgUtil,
+        totalRevenue: targetRevenue,
+        peakHour: maxCount > 0 ? `${maxHour}:00 - ${maxHour + 1}:00` : "20:00 - 21:00",
       },
       typeComparison,
       hourlyFillRates,

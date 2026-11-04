@@ -363,7 +363,31 @@ export const TablePerformanceReportPage: React.FC = () => {
     },
   ];
 
-  const summary = data?.summary;
+  const TYPE_LABEL_MAP: Record<string, string> = {
+    all: "Tất cả 3 loại bàn",
+    pool: "Bida Lỗ (Pool)",
+    carom: "Bida Phăng (Carom)",
+    snooker: "Bida Thi Đấu (Snooker)",
+  };
+
+  const activeSummary = React.useMemo(() => {
+    if (!data?.summary) return null;
+    if (tableType === "all") return data.summary;
+
+    const matchedType = data.typeComparison?.find((tc) => tc.type === tableType);
+    if (matchedType) {
+      return {
+        totalTables: matchedType.tableCount,
+        totalPlayHours: matchedType.totalPlayHours,
+        averageUtilizationRate: matchedType.utilizationRate,
+        totalRevenue: matchedType.totalRevenue,
+        peakHour: data.summary.peakHour,
+      };
+    }
+    return data.summary;
+  }, [data, tableType]);
+
+  const summary = activeSummary;
 
   return (
     <div className="space-y-6 p-2 sm:p-4 max-w-[1400px] mx-auto">
@@ -535,7 +559,9 @@ export const TablePerformanceReportPage: React.FC = () => {
             {summary?.totalPlayHours || 0} giờ
           </div>
           <div className="text-xs text-slate-400 mt-2">
-            Trên tổng số {summary?.totalTables || 0} bàn hoạt động
+            {tableType === "all"
+              ? `Trên tổng số ${summary?.totalTables || 0} bàn hoạt động`
+              : `Trên tổng số ${summary?.totalTables || 0} bàn ${TYPE_LABEL_MAP[tableType]} hoạt động`}
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
         </div>
@@ -581,9 +607,16 @@ export const TablePerformanceReportPage: React.FC = () => {
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
         <div className="mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h3 className="text-base font-black text-slate-900 mb-0.5">
-              Biểu đồ tỷ lệ lấp đầy bàn theo khung giờ trong ngày (08:00 - 24:00)
-            </h3>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h3 className="text-base font-black text-slate-900 mb-0">
+                Biểu đồ tỷ lệ lấp đầy bàn theo khung giờ trong ngày (08:00 - 24:00)
+              </h3>
+              {tableType !== "all" && (
+                <Tag color="cyan" className="!font-bold !rounded-md">
+                  Đang lọc: {TYPE_LABEL_MAP[tableType]}
+                </Tag>
+              )}
+            </div>
             <p className="text-xs text-slate-500 mb-0">
               Nhận diện các khung giờ vắng khách để áp dụng chính sách giảm giá kích cầu và tối ưu nhân sự phục vụ.
             </p>
@@ -611,7 +644,11 @@ export const TablePerformanceReportPage: React.FC = () => {
 
         <Table<TableTypePerformance>
           columns={typeColumns}
-          dataSource={data?.typeComparison || []}
+          dataSource={
+            tableType === "all"
+              ? (data?.typeComparison || [])
+              : (data?.typeComparison || []).filter((tc) => tc.type === tableType)
+          }
           rowKey="type"
           loading={loading}
           pagination={false}
@@ -636,7 +673,11 @@ export const TablePerformanceReportPage: React.FC = () => {
 
         <Table<TablePerformanceItem>
           columns={topTableColumns}
-          dataSource={data?.topTables || []}
+          dataSource={
+            tableType === "all"
+              ? (data?.topTables || [])
+              : (data?.topTables || []).filter((t) => t.type === tableType)
+          }
           rowKey="tableId"
           loading={loading}
           pagination={{ pageSize: 10, showSizeChanger: true }}
