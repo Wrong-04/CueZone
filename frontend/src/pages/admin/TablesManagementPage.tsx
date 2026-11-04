@@ -769,40 +769,41 @@ export const TablesManagementPage: React.FC = () => {
         styles={{ body: { padding: 0 } }}
         className="!rounded-2xl !border-slate-200 shadow-2xs overflow-hidden bg-white"
       >
-        <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+        <div className="p-4 sm:p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-slate-100">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <Title
                 level={3}
-                className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
+                className="!text-lg sm:!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
               >
                 Quản Lý Danh Mục Bàn & Cấu Hình Bảng Giá
               </Title>
+
+              {/* Realtime Active Pricing Pill đặt cạnh tiêu đề gọn gàng */}
+              <div className="px-2.5 py-1 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center gap-1.5 shadow-2xs shrink-0">
+                <ClockCircleOutlined className="text-emerald-700 text-xs shrink-0" />
+                <span className="text-xs text-emerald-900 font-semibold flex items-center gap-1.5">
+                  <span>
+                    Đang áp dụng: <strong>{formatActivePricingLabel(activePricingTier)}</strong>
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                </span>
+              </div>
             </div>
             <Text className="!text-xs !text-slate-500 block">
               Quản lý danh sách bàn bida, khu vực và cấu hình bảng giá giờ chơi theo khung giờ
             </Text>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
-            {/* Realtime Active Pricing Pill */}
-            <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center gap-2 shadow-2xs">
-              <ClockCircleOutlined className="text-emerald-700 text-xs" />
-              <span className="text-xs text-emerald-900 font-semibold flex items-center gap-1.5">
-                <span>
-                  Đang áp dụng: <strong>{formatActivePricingLabel(activePricingTier)}</strong>
-                </span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              </span>
-            </div>
-
+          {/* Các nút thao tác luôn thẳng hàng ngang ở góc phải */}
+          <div className="flex items-center gap-2 shrink-0 self-start xl:self-center">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate("/pos")}
               leftIcon={<ThunderboltOutlined />}
-              className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs shadow-2xs"
+              className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs shadow-2xs whitespace-nowrap"
             >
               Mở Sơ Đồ Bàn POS
             </Button>
@@ -813,7 +814,7 @@ export const TablesManagementPage: React.FC = () => {
                 size="sm"
                 onClick={handleOpenAddTable}
                 leftIcon={<PlusOutlined />}
-                className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
+                className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs whitespace-nowrap"
               >
                 Thêm Bàn Mới
               </Button>
@@ -823,7 +824,7 @@ export const TablesManagementPage: React.FC = () => {
                 size="sm"
                 onClick={handleOpenAddPricing}
                 leftIcon={<PlusOutlined />}
-                className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
+                className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs whitespace-nowrap"
               >
                 Thêm Khung Giờ Mới
               </Button>

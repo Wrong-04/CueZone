@@ -81,7 +81,7 @@ export const posService = {
     return result(data);
   },
   async getPricingTiers(): Promise<PricingTier[]> {
-    const { data } = await api.get<ApiResponse<PricingTier[]>>("/pricing");
+    const { data } = await api.get<ApiResponse<PricingTier[]>>("/public/pricing").catch(() => api.get<ApiResponse<PricingTier[]>>("/pricing"));
     return result(data);
   },
   async open(

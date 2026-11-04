@@ -28,6 +28,7 @@ import reportRouter from "../modules/report/revenue-report.routes";
 import invoiceRouter from "../modules/invoice/invoice.routes";
 
 import { BANK_POOL_RULES_DATA } from "../modules/rule/bankPoolRules.data";
+import * as pricingController from "../modules/pricing/pricing.controller";
 
 const bookingService = new BookingService();
 const walletService = new WalletService();
@@ -64,6 +65,7 @@ publicRouter.get("/public/booking-availability", async (req, res, next) => {
     next(error);
   }
 });
+publicRouter.get("/public/pricing", pricingController.getAll);
 publicRouter.get("/public/bank-pool-rules", (req, res) => {
   res.json({
     success: true,
