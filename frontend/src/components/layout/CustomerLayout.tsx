@@ -461,11 +461,11 @@ const CustomerLayout = () => {
                     variant="ghost"
                     size="sm"
                     onClick={handleLogout}
-                    leftIcon={<LogoutOutlined className="text-sm" />}
-                    className="!h-9 !px-2.5 !text-xs !text-slate-500 hover:!text-rose-600 hover:!bg-rose-50 !rounded-xl shrink-0"
+                    leftIcon={<LogoutOutlined className="text-sm text-rose-500" />}
+                    className="!h-9 !px-3 !text-xs !text-rose-600 hover:!text-white hover:!bg-rose-600 !border !border-rose-200 hover:!border-rose-600 !rounded-xl shrink-0 font-semibold transition-colors"
                     title="Đăng xuất"
                   >
-                    <span className="hidden sm:inline">Thoát</span>
+                    <span>Đăng xuất</span>
                   </Button>
                 </>
               ) : (
@@ -522,6 +522,16 @@ const CustomerLayout = () => {
                 <WalletOutlined />
                 <span>Ví CueZone</span>
               </Link>
+            )}
+            {user && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="h-8 px-3 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 transition cursor-pointer"
+              >
+                <LogoutOutlined />
+                <span>Đăng xuất</span>
+              </button>
             )}
           </div>
         </div>

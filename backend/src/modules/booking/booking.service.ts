@@ -209,13 +209,28 @@ export class BookingService {
     };
     if (input.type) tableFilter.type = input.type;
     const tables = await Table.find(tableFilter).sort({ code: 1 });
-    const available = [];
-    for (const table of tables) {
-      if (!(await this.hasSlotConflict(String(table._id), startDate, endDate))) {
-        available.push(table);
+    if (tables.length === 0) return [];
+
+    const tableIds = tables.map((t) => t._id);
+    const activeBookings = await Booking.find({
+      table: { $in: tableIds },
+      status: { $in: ACTIVE_BOOKING_STATUSES },
+    }).select("table date time duration startDate endDate");
+
+    const conflictingTableIds = new Set<string>();
+    for (const booking of activeBookings) {
+      const interval = getStoredBookingInterval(booking);
+      if (
+        Number.isFinite(interval.startDate.getTime()) &&
+        Number.isFinite(interval.endDate.getTime()) &&
+        interval.startDate < endDate &&
+        interval.endDate > startDate
+      ) {
+        conflictingTableIds.add(String(booking.table));
       }
     }
-    return available;
+
+    return tables.filter((table) => !conflictingTableIds.has(String(table._id)));
   }
 
   async getAll() {

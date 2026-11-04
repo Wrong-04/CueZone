@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   UserOutlined,
   MailOutlined,
@@ -11,6 +12,7 @@ import {
   CrownOutlined,
   KeyOutlined,
   HistoryOutlined,
+  LogoutOutlined,
 } from "@ant-design/icons";
 import { Button, Tag, Input, Typography, message, Space, Modal, Tabs } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
@@ -19,7 +21,13 @@ import { MemberOverviewTab, PlayHistoryTab } from "./CustomerMembershipCenter";
 const { Title } = Typography;
 
 export const CustomerProfile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   const [name, setName] = useState<string>(user?.name || "");
   const email = user?.email || "";
@@ -100,7 +108,8 @@ export const CustomerProfile: React.FC = () => {
         </div>
 
         <div className="flex-1 text-center sm:text-left space-y-2">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
             <Title level={2} className="!text-2xl !font-bold !text-white !mb-0">
               {name}
             </Title>
@@ -110,6 +119,16 @@ export const CustomerProfile: React.FC = () => {
             >
               <CrownOutlined className="mr-1" />               HỘI VIÊN CUEZONE
             </Tag>
+          </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              leftIcon={<LogoutOutlined />}
+              className="!border-rose-400/50 !text-rose-300 hover:!text-white hover:!bg-rose-600 hover:!border-rose-600 !rounded-xl !text-xs !font-bold self-center sm:self-auto cursor-pointer"
+            >
+              Đăng Xuất
+            </Button>
           </div>
 
           <p className="text-xs text-slate-300">
