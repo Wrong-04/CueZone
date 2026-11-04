@@ -25,7 +25,9 @@ import {
   Modal,
   Space,
 } from "../../shared/ui";
-import { bookingService } from "../../services/pos.service";
+import { bookingService, posService } from "../../services/pos.service";
+import { defaultPricingTiers } from "../../utils/pricing";
+import type { PricingTier } from "../../types";
 import { getSocket } from "../../services/socket.service";
 import { productService, type ProductMenu } from "../../services/product.service";
 import QRCode from "qrcode";
@@ -47,6 +49,7 @@ const CustomerBooking = () => {
   const preSelectedParam = searchParams.get("table") || "";
   const [now] = useState(() => Date.now());
 
+  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>(defaultPricingTiers);
   const [tablesList, setTablesList] = useState<BookingTableItem[]>([]);
   const [loadingTables, setLoadingTables] = useState<boolean>(true);
   const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam);
@@ -72,22 +75,86 @@ const CustomerBooking = () => {
   }, [now]);
 
   const [date, setDate] = useState<string>(() => {
-    const d = new Date(now + 7 * 3600000);
+    const currentH = new Date().getHours();
+    // Nếu hiện tại đã quá 22:30 đêm thì mặc định chọn Ngày mai
+    const daysOffset = currentH >= 22 ? 1 : 0;
+    const d = new Date(now + 7 * 3600000 + daysOffset * 86400000);
     return d.toISOString().slice(0, 10);
   });
   const timeOptions = useMemo(() => {
-    const slots: { value: string; label: string }[] = [];
-    for (let h = 9; h <= 23; h++) {
-      const hh = String(h).padStart(2, "0");
-      const val = `${hh}:00`;
-      let label = val;
-      if (h >= 13 && h <= 16) label += " (Giờ vàng -20%)";
-      else if (h >= 18 && h <= 21) label += " (Cao điểm)";
-      slots.push({ value: val, label });
+    const slots: { value: string; label: string; disabled?: boolean }[] = [];
+    const todayIso = new Date(now + 7 * 3600000).toISOString().slice(0, 10);
+    const isToday = date === todayIso;
+    const currentH = new Date().getHours();
+    const currentM = new Date().getMinutes();
+
+    const dayOfWeek = new Date(date).getDay();
+
+    // Hỗ trợ đặt bàn 24/7 theo đúng Cấu hình Khung giờ & Bảng giá từ hệ thống
+    for (let h = 0; h < 24; h++) {
+      for (const m of [0, 30]) {
+        const hh = String(h).padStart(2, "0");
+        const mm = String(m).padStart(2, "0");
+        const val = `${hh}:${mm}`;
+        let label = val;
+
+        const isPast = isToday && (h < currentH || (h === currentH && currentM >= m));
+
+        // Khớp chính xác với cấu hình bảng giá trong Database
+        const timeMins = h * 60 + m;
+        const matchedTier = pricingTiers.find((tier) => {
+          if (tier.daysOfWeek && tier.daysOfWeek.length > 0 && !tier.daysOfWeek.includes(dayOfWeek)) {
+            return false;
+          }
+          const [sH, sM] = tier.startTime.split(":").map(Number);
+          const [eH, eM] = tier.endTime === "24:00" ? [24, 0] : tier.endTime.split(":").map(Number);
+          const startMins = sH * 60 + sM;
+          const endMins = eH * 60 + eM;
+          return timeMins >= startMins && timeMins < endMins;
+        });
+
+        if (matchedTier) {
+          const pricePool = matchedTier.prices?.standard ? `${Math.round(matchedTier.prices.standard / 1000)}k` : "";
+          if (matchedTier.name.includes("Đêm Khuya") || matchedTier.startTime === "00:00") {
+            label += ` (🌙 Đêm Khuya • ${pricePool}/h)`;
+          } else if (matchedTier.name.includes("Cao Điểm") || matchedTier.dayType === "peak") {
+            label += ` (🔥 Cao Điểm • ${pricePool}/h)`;
+          } else if (matchedTier.name.includes("Cuối Tuần") || matchedTier.dayType === "weekend") {
+            label += ` (🎉 Cuối Tuần • ${pricePool}/h)`;
+          } else {
+            label += ` (☀️ Tiêu Chuẩn • ${pricePool}/h)`;
+          }
+        } else {
+          if (h >= 0 && h <= 5) label += " (🌙 Cú đêm)";
+        }
+
+        if (isPast) label += " — Đã qua";
+
+        slots.push({ value: val, label, disabled: isPast });
+      }
     }
     return slots;
-  }, []);
-  const [time, setTime] = useState<string>("19:00");
+  }, [date, now, pricingTiers]);
+
+  const isTodayAllSlotsPassed = useMemo(() => {
+    return timeOptions.length > 0 && timeOptions.every((slot) => slot.disabled);
+  }, [timeOptions]);
+
+  const [time, setTime] = useState<string>(() => {
+    const currentH = new Date().getHours();
+    if (currentH >= 22) return "10:00";
+    const nextH = Math.min(23, Math.max(9, currentH + 1));
+    return `${String(nextH).padStart(2, "0")}:00`;
+  });
+
+  // Tự động nhảy sang khung giờ hợp lệ tiếp theo nếu giờ hiện tại đã qua
+  useEffect(() => {
+    const validSlot = timeOptions.find((slot) => !slot.disabled);
+    const currentSlotObj = timeOptions.find((slot) => slot.value === time);
+    if ((!currentSlotObj || currentSlotObj.disabled) && validSlot) {
+      setTime(validSlot.value);
+    }
+  }, [timeOptions, time]);
   const [duration, setDuration] = useState<number>(2);
   const [note, setNote] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -97,6 +164,17 @@ const CustomerBooking = () => {
   const [selectedFnb, setSelectedFnb] = useState<Record<string, number>>({});
   const [bookingQr, setBookingQr] = useState<{ dataUrl: string; booking: any } | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
+
+  useEffect(() => {
+    posService
+      .getPricingTiers()
+      .then((tiers) => {
+        if (Array.isArray(tiers) && tiers.length > 0) {
+          setPricingTiers(tiers);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     productService
@@ -314,7 +392,28 @@ const CustomerBooking = () => {
               </div>
             ) : tablesList.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
-                Không có bàn trống cho khung giờ đã chọn. Vui lòng đổi loại bàn hoặc thời gian.
+                {isTodayAllSlotsPassed ? (
+                  <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-2xl text-amber-800 text-xs text-center space-y-2 max-w-md mx-auto shadow-2xs">
+                    <div className="font-bold flex items-center justify-center gap-1.5 text-amber-900">
+                      <ClockCircleOutlined className="text-amber-600" />
+                      Các khung giờ đặt bàn hôm nay đã kết thúc
+                    </div>
+                    <p className="text-slate-600 mb-0 leading-relaxed">
+                      Hiện tại đã qua giờ nhận đặt bàn của hôm nay ({dateOptions[0]?.label}). Quý khách vui lòng chọn{" "}
+                      <span
+                        className="font-bold text-emerald-700 underline cursor-pointer hover:text-emerald-800"
+                        onClick={() => setDate(dateOptions[1]?.value)}
+                      >
+                        {dateOptions[1]?.label}
+                      </span>{" "}
+                      để xem các bàn còn trống và đặt trước!
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    Không có bàn trống cho khung giờ đã chọn. Vui lòng đổi loại bàn hoặc thời gian khác.
+                  </div>
+                )}
               </div>
             ) : (
               <div
@@ -453,6 +552,23 @@ const CustomerBooking = () => {
                     options={timeOptions}
                   />
                 </div>
+              </div>
+
+              {/* Phím tắt đặt chơi đêm / rạng sáng */}
+              <div className="flex items-center justify-between bg-indigo-50/70 border border-indigo-100 rounded-xl px-2.5 py-1.5 text-[11px]">
+                <span className="text-slate-600 font-medium flex items-center gap-1">
+                  <span>🌙</span> Quán mở 24/7 xuyên đêm
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDate(dateOptions[1]?.value);
+                    setTime("00:00");
+                  }}
+                  className="font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                >
+                  Đặt đêm nay (00:00 - 05:00) ➔
+                </button>
               </div>
 
               <div>
@@ -662,7 +778,7 @@ const CustomerBooking = () => {
               <div className="border-t border-emerald-200 pt-2">
                 <strong>Món F&B đặt trước:</strong>
                 <ul className="mt-1 list-disc pl-5">
-                  {bookingQr.booking.preOrderItems.map((item: any) => (
+                  {bookingQr?.booking?.preOrderItems?.map((item: any) => (
                     <li key={String(item.productId)}>
                       {item.name} × {item.quantity} —{" "}
                       {(item.unitPrice * item.quantity).toLocaleString("vi-VN")}đ
