@@ -120,7 +120,7 @@ const CustomerBooking = () => {
 
   useEffect(() => {
     let isMounted = true;
-    const fetchTables = async () => {
+    const timer = setTimeout(async () => {
       setLoadingTables(true);
       try {
         const data = await bookingService.getAvailableTables({
@@ -166,10 +166,11 @@ const CustomerBooking = () => {
       } finally {
         if (isMounted) setLoadingTables(false);
       }
-    };
-    fetchTables();
+    }, 120);
+
     return () => {
       isMounted = false;
+      clearTimeout(timer);
     };
   }, [date, time, duration, tableType, preSelectedParam, availabilityVersion]);
 
@@ -275,27 +276,52 @@ const CustomerBooking = () => {
         <div className="lg:col-span-7 space-y-6">
           <Card className="!rounded-3xl !border-slate-200 !bg-white p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0">
-                1. Chọn Bàn Bida
-              </Title>
-              <Tag color="green" className="!text-xs !font-bold">
-                {tablesList.length} BÀN SẴN SÀNG
+              <div className="flex items-center gap-2">
+                <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0">
+                  1. Chọn Bàn Bida
+                </Title>
+                {loadingTables && tablesList.length > 0 && (
+                  <SyncOutlined spin className="text-emerald-600 text-xs" />
+                )}
+              </div>
+              <Tag color={loadingTables && tablesList.length === 0 ? "default" : "green"} className="!text-xs !font-bold">
+                {loadingTables && tablesList.length === 0
+                  ? "ĐANG TẢI..."
+                  : `${tablesList.length} BÀN SẴN SÀNG`}
               </Tag>
             </div>
 
-            {loadingTables ? (
-              <div className="py-12 flex flex-col items-center justify-center gap-2">
-                <SyncOutlined spin className="text-emerald-600 text-2xl" />
-                <span className="text-xs text-slate-500">
-                  Đang đồng bộ danh sách bàn từ hệ thống...
-                </span>
+            {loadingTables && tablesList.length === 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-pulse">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div
+                    key={i}
+                    className="p-3.5 rounded-2xl border border-slate-200/60 bg-slate-50/70 flex flex-col justify-between h-28 space-y-2"
+                  >
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <div className="h-4 w-12 bg-slate-200 rounded-md" />
+                        <div className="h-4 w-20 bg-slate-200 rounded-md" />
+                      </div>
+                      <div className="h-3 w-28 bg-slate-200 rounded-md mt-1" />
+                    </div>
+                    <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center">
+                      <div className="h-4 w-16 bg-slate-200 rounded-md" />
+                      <div className="h-3 w-12 bg-slate-200 rounded-md" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : tablesList.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
                 Không có bàn trống cho khung giờ đã chọn. Vui lòng đổi loại bàn hoặc thời gian.
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div
+                className={`grid grid-cols-2 sm:grid-cols-3 gap-3 transition-opacity duration-200 ${
+                  loadingTables ? "opacity-60 pointer-events-none" : "opacity-100"
+                }`}
+              >
                 {tablesList.map((t) => {
                   const isSelected = t.id === selectedTableId || t.code === selectedTableId;
 
