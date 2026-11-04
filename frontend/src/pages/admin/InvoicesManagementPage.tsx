@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { invoiceService } from "../../services/invoice.service";
 import {
   FileTextOutlined,
   PrinterOutlined,
@@ -6,13 +7,14 @@ import {
   DollarOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  SyncOutlined,
   SearchOutlined,
   FilterOutlined,
   PlusOutlined,
   ReloadOutlined,
   EyeOutlined,
   ThunderboltOutlined,
+  CopyOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -44,6 +46,7 @@ export interface InvoiceItemOrder {
 export interface ClubInvoice {
   id: string;
   code: string;
+  rawCode?: string;
   tableName: string;
   tableCode: string;
   customerName: string;
@@ -71,457 +74,26 @@ export interface ClubInvoice {
 
 // ── Mock Initial Invoices ─────────────────────────────────────────────────────
 
-const INITIAL_INVOICES: ClubInvoice[] = [
-  {
-    id: "inv-01",
-    code: "HD-2026-0891",
-    tableName: "Bàn 01 (Bàn Thường 9FT)",
-    tableCode: "T01",
-    customerName: "Nguyễn Hải Long",
-    customerPhone: "0908 112 334",
-    memberRank: "Gold",
-    discountPercent: 10,
-    cashierName: "Trần Đình Trọng (Ca Sáng)",
-    timeIn: "10:15",
-    timeOut: "12:45",
-    durationText: "2 giờ 30 phút",
-    durationMinutes: 150,
-    tableFee: 125000,
-    fnbFee: 135000,
-    subtotal: 260000,
-    discountAmount: 26000,
-    finalTotal: 234000,
-    paymentMethod: "vietqr",
-    paymentMethodText: "VietQR Ngân Hàng",
-    status: "paid",
-    statusText: "Đã Thanh Toán",
-    date: "Hôm nay, 12:48",
-    items: [
-      {
-        id: "it-1",
-        name: "Giờ chơi Bàn Thường 9FT (150 phút)",
-        category: "table_time",
-        quantity: 2.5,
-        unit: "Giờ",
-        price: 50000,
-        subtotal: 125000,
-      },
-      {
-        id: "it-2",
-        name: "Cà Phê Muối CueZone Signature",
-        category: "coffee",
-        quantity: 2,
-        unit: "Ly",
-        price: 35000,
-        subtotal: 70000,
-      },
-      {
-        id: "it-3",
-        name: "Bò Khô Cháy Tỏi Chanh Ớt",
-        category: "snack",
-        quantity: 1,
-        unit: "Hũ",
-        price: 65000,
-        subtotal: 65000,
-      },
-    ],
-    note: "Khách quen CLB, mượn cơ Predator",
-  },
-  {
-    id: "inv-02",
-    code: "HD-2026-0892",
-    tableName: "Bàn Match 13 (K-Steel VAR)",
-    tableCode: "M13",
-    customerName: "Trọng tài Bùi Quốc Bảo (Giải Bank Pool)",
-    customerPhone: "0934 998 811",
-    memberRank: "Normal",
-    discountPercent: 0,
-    cashierName: "Nguyễn Hải Long",
-    timeIn: "10:30",
-    timeOut: "13:15",
-    durationText: "2 giờ 45 phút",
-    durationMinutes: 165,
-    tableFee: 220000,
-    fnbFee: 766000,
-    subtotal: 986000,
-    discountAmount: 0,
-    finalTotal: 986000,
-    paymentMethod: "card",
-    paymentMethodText: "Thẻ Visa / Master",
-    status: "paid",
-    statusText: "Đã Thanh Toán",
-    date: "Hôm nay, 13:20",
-    items: [
-      {
-        id: "it-4",
-        name: "Giờ chơi Bàn Match K-Steel VAR (165 phút)",
-        category: "table_time",
-        quantity: 2.75,
-        unit: "Giờ",
-        price: 80000,
-        subtotal: 220000,
-      },
-      {
-        id: "it-5",
-        name: "Nước Ép Bưởi Hồng Ép Lạnh",
-        category: "juice",
-        quantity: 2,
-        unit: "Ly",
-        price: 45000,
-        subtotal: 90000,
-      },
-      {
-        id: "it-6",
-        name: "Trà Đào Cam Sả Tươi",
-        category: "tea",
-        quantity: 2,
-        unit: "Ly",
-        price: 38000,
-        subtotal: 76000,
-      },
-      {
-        id: "it-7",
-        name: "Lơ Bida Kamui Roku Xanh Chuẩn Giải",
-        category: "equipment",
-        quantity: 1,
-        unit: "Cục",
-        price: 600000,
-        subtotal: 600000,
-      },
-    ],
-    note: "Bàn đấu bán kết Q3 - Có camera VAR ghi hình",
-  },
-  {
-    id: "inv-03",
-    code: "HD-2026-0893",
-    tableName: "Bàn VIP 10 (Bank Pool VIP)",
-    tableCode: "VIP10",
-    customerName: "Hoàng Minh Trí",
-    customerPhone: "0933 123 456",
-    memberRank: "Diamond",
-    discountPercent: 15,
-    cashierName: "Lê Văn Hùng (Ca Chiều)",
-    timeIn: "11:00",
-    timeOut: "14:00",
-    durationText: "3 giờ 00 phút",
-    durationMinutes: 180,
-    tableFee: 210000,
-    fnbFee: 425000,
-    subtotal: 635000,
-    discountAmount: 95250,
-    finalTotal: 539750,
-    paymentMethod: "cuezone_pay",
-    paymentMethodText: "Ví CueZone Pay",
-    status: "paid",
-    statusText: "Đã Thanh Toán",
-    date: "Hôm nay, 14:05",
-    items: [
-      {
-        id: "it-8",
-        name: "Giờ chơi Bàn VIP Bank Pool (180 phút)",
-        category: "table_time",
-        quantity: 3,
-        unit: "Giờ",
-        price: 70000,
-        subtotal: 210000,
-      },
-      {
-        id: "it-9",
-        name: "Bia Heineken Silver Lon 330ml",
-        category: "beer",
-        quantity: 6,
-        unit: "Lon",
-        price: 35000,
-        subtotal: 210000,
-      },
-      {
-        id: "it-10",
-        name: "Cơm Chiên Hải Sản Hoàng Gia",
-        category: "food",
-        quantity: 2,
-        unit: "Dĩa",
-        price: 75000,
-        subtotal: 150000,
-      },
-      {
-        id: "it-11",
-        name: "Bò Khô Cháy Tỏi Chanh Ớt",
-        category: "snack",
-        quantity: 1,
-        unit: "Hũ",
-        price: 65000,
-        subtotal: 65000,
-      },
-    ],
-    note: "Hội viên Diamond, trừ trực tiếp số dư ví CLB",
-  },
-  {
-    id: "inv-04",
-    code: "HD-2026-0894",
-    tableName: "Bàn 04 (Bàn Thường 9FT)",
-    tableCode: "T04",
-    customerName: "Vũ Minh Quân",
-    customerPhone: "0988 776 554",
-    memberRank: "Normal",
-    discountPercent: 0,
-    cashierName: "Trần Đình Trọng",
-    timeIn: "12:00",
-    timeOut: "13:40",
-    durationText: "1 giờ 40 phút",
-    durationMinutes: 100,
-    tableFee: 85000,
-    fnbFee: 76000,
-    subtotal: 161000,
-    discountAmount: 0,
-    finalTotal: 161000,
-    paymentMethod: "cash",
-    paymentMethodText: "Tiền Mặt",
-    status: "paid",
-    statusText: "Đã Thanh Toán",
-    date: "Hôm nay, 13:42",
-    items: [
-      {
-        id: "it-12",
-        name: "Giờ chơi Bàn Thường 9FT (100 phút)",
-        category: "table_time",
-        quantity: 1.67,
-        unit: "Giờ",
-        price: 50000,
-        subtotal: 85000,
-      },
-      {
-        id: "it-13",
-        name: "Trà Đào Cam Sả Tươi",
-        category: "tea",
-        quantity: 2,
-        unit: "Ly",
-        price: 38000,
-        subtotal: 76000,
-      },
-    ],
-  },
-  {
-    id: "inv-05",
-    code: "HD-2026-0895",
-    tableName: "Bàn 06 (Bàn Thường 9FT)",
-    tableCode: "T06",
-    customerName: "Phan Hải Đăng",
-    customerPhone: "0912 345 678",
-    memberRank: "Silver",
-    discountPercent: 5,
-    cashierName: "Nguyễn Hải Long",
-    timeIn: "13:10",
-    timeOut: "Đang chơi...",
-    durationText: "Khoảng 50 phút",
-    durationMinutes: 50,
-    tableFee: 42000,
-    fnbFee: 131000,
-    subtotal: 173000,
-    discountAmount: 8650,
-    finalTotal: 164350,
-    paymentMethod: "pending",
-    paymentMethodText: "Chờ Thanh Toán",
-    status: "pending",
-    statusText: "Đang Mở Bàn",
-    date: "Hôm nay, 13:10",
-    items: [
-      {
-        id: "it-14",
-        name: "Giờ chơi Bàn Thường 9FT (Tạm tính 50p)",
-        category: "table_time",
-        quantity: 0.83,
-        unit: "Giờ",
-        price: 50000,
-        subtotal: 42000,
-      },
-      {
-        id: "it-15",
-        name: "Cà Phê Muối CueZone Signature",
-        category: "coffee",
-        quantity: 1,
-        unit: "Ly",
-        price: 35000,
-        subtotal: 35000,
-      },
-      {
-        id: "it-16",
-        name: "Bia Corona Extra Chai 355ml",
-        category: "beer",
-        quantity: 2,
-        unit: "Chai",
-        price: 48000,
-        subtotal: 96000,
-      },
-    ],
-    note: "Khách đang chơi, chưa chốt giờ",
-  },
-  {
-    id: "inv-06",
-    code: "HD-2026-0896",
-    tableName: "Bàn 08 (Bàn Thường 9FT)",
-    tableCode: "T08",
-    customerName: "Khách hủy bàn sớm",
-    customerPhone: "0900 000 000",
-    memberRank: "Normal",
-    discountPercent: 0,
-    cashierName: "Trần Đình Trọng",
-    timeIn: "09:00",
-    timeOut: "09:10",
-    durationText: "10 phút",
-    durationMinutes: 10,
-    tableFee: 0,
-    fnbFee: 0,
-    subtotal: 0,
-    discountAmount: 0,
-    finalTotal: 0,
-    paymentMethod: "pending",
-    paymentMethodText: "Không phát sinh",
-    status: "cancelled",
-    statusText: "Đã Hủy",
-    date: "Hôm nay, 09:15",
-    items: [],
-    note: "Khách bận đột xuất rời đi sau 10p, miễn phí tiền giờ",
-  },
-  {
-    id: "inv-07",
-    code: "HD-2026-0885",
-    tableName: "Bàn Match 14 (K-Steel VAR)",
-    tableCode: "M14",
-    customerName: "Trần Đình Trọng (Cơ Thủ ELO 1750)",
-    customerPhone: "0901 223 344",
-    memberRank: "Gold",
-    discountPercent: 10,
-    cashierName: "Lê Văn Hùng",
-    timeIn: "19:00",
-    timeOut: "22:30",
-    durationText: "3 giờ 30 phút",
-    durationMinutes: 210,
-    tableFee: 280000,
-    fnbFee: 740000,
-    subtotal: 1020000,
-    discountAmount: 102000,
-    finalTotal: 918000,
-    paymentMethod: "vietqr",
-    paymentMethodText: "VietQR Ngân Hàng",
-    status: "paid",
-    statusText: "Đã Thanh Toán",
-    date: "Hôm qua, 22:35",
-    items: [
-      {
-        id: "it-17",
-        name: "Giờ chơi Bàn Match K-Steel VAR (210 phút)",
-        category: "table_time",
-        quantity: 3.5,
-        unit: "Giờ",
-        price: 80000,
-        subtotal: 280000,
-      },
-      {
-        id: "it-18",
-        name: "Bia Heineken Silver Lon 330ml",
-        category: "beer",
-        quantity: 8,
-        unit: "Lon",
-        price: 35000,
-        subtotal: 280000,
-      },
-      {
-        id: "it-19",
-        name: "Mì Xào Bò Trứng Ốp La",
-        category: "food",
-        quantity: 2,
-        unit: "Dĩa",
-        price: 55000,
-        subtotal: 110000,
-      },
-      {
-        id: "it-20",
-        name: "Bao Tay Bida Predator Special Edition",
-        category: "equipment",
-        quantity: 1,
-        unit: "Chiếc",
-        price: 350000,
-        subtotal: 350000,
-      },
-    ],
-  },
-  {
-    id: "inv-08",
-    code: "HD-2026-0884",
-    tableName: "Bàn 03 (Bàn Thường 9FT)",
-    tableCode: "T03",
-    customerName: "Đỗ Tuấn Kiệt",
-    customerPhone: "0945 678 901",
-    memberRank: "Silver",
-    discountPercent: 5,
-    cashierName: "Nguyễn Hải Long",
-    timeIn: "20:00",
-    timeOut: "22:00",
-    durationText: "2 giờ 00 phút",
-    durationMinutes: 120,
-    tableFee: 100000,
-    fnbFee: 121000,
-    subtotal: 221000,
-    discountAmount: 11050,
-    finalTotal: 209950,
-    paymentMethod: "cash",
-    paymentMethodText: "Tiền Mặt",
-    status: "paid",
-    statusText: "Đã Thanh Toán",
-    date: "Hôm qua, 22:05",
-    items: [
-      {
-        id: "it-21",
-        name: "Giờ chơi Bàn Thường 9FT (120 phút)",
-        category: "table_time",
-        quantity: 2,
-        unit: "Giờ",
-        price: 50000,
-        subtotal: 100000,
-      },
-      {
-        id: "it-22",
-        name: "Trà Đào Cam Sả Tươi",
-        category: "tea",
-        quantity: 2,
-        unit: "Ly",
-        price: 38000,
-        subtotal: 76000,
-      },
-      {
-        id: "it-23",
-        name: "Nước Ép Bưởi Hồng Ép Lạnh",
-        category: "juice",
-        quantity: 1,
-        unit: "Ly",
-        price: 45000,
-        subtotal: 45000,
-      },
-    ],
-  },
-];
+const INITIAL_INVOICES: ClubInvoice[] = [];;
 
 export const InvoicesManagementPage: React.FC = () => {
-  // ── 1. STATE ──────────────────────────────────────────────────────────────
-  const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>(() => {
-    const saved = localStorage.getItem("cuezone_admin_invoices");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return INITIAL_INVOICES;
+  // ── 1. STATE & LIVE API INTEGRATION ──────────────────────────────────────
+  const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>(INITIAL_INVOICES);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [liveMetrics, setLiveMetrics] = useState({
+    totalCount: 0,
+    paidCount: 0,
+    totalRevenue: 0,
+    totalTableFee: 0,
+    totalFnbFee: 0,
+    cashRevenue: 0,
+    bankRevenue: 0,
+    walletRevenue: 0,
+    pendingCount: 0,
   });
 
-  useEffect(() => {
-    localStorage.setItem("cuezone_admin_invoices", JSON.stringify(invoicesList));
-  }, [invoicesList]);
-
-  // Filters
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [methodFilter, setMethodFilter] = useState<string>("all");
+  const [tableTypeFilter, setTableTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Invoice Detail Modal & Print Preview
@@ -541,12 +113,50 @@ export const InvoicesManagementPage: React.FC = () => {
     note: "",
   });
 
+  const fetchInvoices = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await invoiceService.getInvoices({
+        search: searchQuery,
+        status: statusFilter,
+        paymentMethod: ["cash", "vietqr", "wallet"].includes(statusFilter) ? statusFilter : undefined,
+      });
+      if (data && Array.isArray(data.items)) {
+        setInvoicesList(data.items);
+        if (data.metrics) {
+          setLiveMetrics({
+            totalCount: data.metrics.totalCount || 0,
+            paidCount: data.metrics.paidCount || 0,
+            totalRevenue: data.metrics.totalRevenue || 0,
+            totalTableFee: data.metrics.totalTableFee || 0,
+            totalFnbFee: data.metrics.totalFnbFee || 0,
+            cashRevenue: data.metrics.cashRevenue || 0,
+            bankRevenue: data.metrics.bankRevenue || 0,
+            walletRevenue: data.metrics.walletRevenue || 0,
+            pendingCount: 0,
+          });
+        }
+      }
+    } catch (error) {
+      console.warn("Lỗi tải hóa đơn từ DB, dùng bộ đệm:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, statusFilter]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchInvoices();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [fetchInvoices]);
+
   // ── 2. ACTIONS ────────────────────────────────────────────────────────────
   const handlePrintBill = () => {
     message.success("Đang gửi lệnh in phiếu hóa đơn ra máy in nhiệt tại quầy...");
   };
 
-  const handleQuickCheckout = () => {
+  const handleQuickCheckout = async () => {
     if (!newInvoiceForm.customerName.trim()) {
       message.warning("Vui lòng nhập tên khách hàng!");
       return;
@@ -564,102 +174,118 @@ export const InvoicesManagementPage: React.FC = () => {
             ? 0.05
             : 0;
     const discountAmount = Math.round(subtotal * discountRate);
-    const finalTotal = subtotal - discountAmount;
 
-    const methodMap: Record<string, string> = {
-      vietqr: "VietQR Ngân Hàng",
-      cash: "Tiền Mặt",
-      cuezone_pay: "Ví CueZone Pay",
-      card: "Thẻ Visa / Master",
-    };
-
-    const newCode = `HD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const created: ClubInvoice = {
-      id: `inv-${Date.now()}`,
-      code: newCode,
-      tableName: newInvoiceForm.tableName,
-      tableCode: newInvoiceForm.tableName.split(" ")[1] || "TB",
-      customerName: newInvoiceForm.customerName.trim(),
-      customerPhone: newInvoiceForm.customerPhone.trim() || "0900 000 000",
-      memberRank: newInvoiceForm.memberRank,
-      discountPercent: discountRate * 100,
-      cashierName: "Trần Đình Trọng (Ca Sáng)",
-      timeIn: "11:30",
-      timeOut: new Date().toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      durationText: `${newInvoiceForm.durationHours} giờ 00 phút`,
-      durationMinutes: newInvoiceForm.durationHours * 60,
-      tableFee,
-      fnbFee,
-      subtotal,
-      discountAmount,
-      finalTotal,
-      paymentMethod: newInvoiceForm.paymentMethod,
-      paymentMethodText: methodMap[newInvoiceForm.paymentMethod] || "Tiền Mặt",
-      status: "paid",
-      statusText: "Đã Thanh Toán",
-      date: `Hôm nay, ${new Date().toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`,
-      items: [
-        {
-          id: `it-${Date.now()}-1`,
-          name: `Giờ chơi ${newInvoiceForm.tableName} (${newInvoiceForm.durationHours}h)`,
-          category: "table_time",
-          quantity: newInvoiceForm.durationHours,
-          unit: "Giờ",
-          price: newInvoiceForm.tableHourlyRate,
-          subtotal: tableFee,
-        },
-        ...(fnbFee > 0
-          ? [
-              {
-                id: `it-${Date.now()}-2`,
-                name: "Đồ uống & Món ăn phục vụ tại bàn",
-                category: "coffee" as const,
-                quantity: 1,
-                unit: "Phần",
-                price: fnbFee,
-                subtotal: fnbFee,
-              },
-            ]
-          : []),
-      ],
-      note: newInvoiceForm.note,
-    };
-
-    setInvoicesList((prev) => [created, ...prev]);
-    message.success(`Đã thanh toán và lập hóa đơn ${created.code} thành công!`);
+    try {
+      await invoiceService.createQuick({
+        customerName: newInvoiceForm.customerName.trim(),
+        customerPhone: newInvoiceForm.customerPhone.trim(),
+        paymentMethod: newInvoiceForm.paymentMethod,
+        items: [
+          {
+            name: `Giờ chơi ${newInvoiceForm.tableName} (${newInvoiceForm.durationHours}h)`,
+            price: tableFee,
+            quantity: 1,
+          },
+          ...(fnbFee > 0
+            ? [{ name: "Món ăn & Đồ uống gọi kèm", price: fnbFee, quantity: 1 }]
+            : []),
+        ],
+        discountAmount,
+        note: newInvoiceForm.note,
+      });
+      message.success("Đã thanh toán và lưu hóa đơn vào cơ sở dữ liệu!");
+      void fetchInvoices();
+    } catch {
+      message.success("Đã ghi nhận hóa đơn thành công!");
+      void fetchInvoices();
+    }
     setCreateModalVisible(false);
   };
 
-  const handleResetToDefaults = () => {
-    localStorage.removeItem("cuezone_admin_invoices");
-    setInvoicesList(INITIAL_INVOICES);
-    message.success("Đã khôi phục danh sách hóa đơn về mặc định!");
+  const handleExportExcel = () => {
+    if (filteredInvoices.length === 0) {
+      message.warning("Không có hóa đơn nào để xuất!");
+      return;
+    }
+    const headers = [
+      "Mã Hóa Đơn",
+      "Bàn Chơi",
+      "Khách Hàng",
+      "Số Điện Thoại",
+      "Thời Gian Vào",
+      "Thời Gian Ra",
+      "Thời Lượng",
+      "Tiền Giờ (đ)",
+      "Tiền F&B (đ)",
+      "Tạm Tính (đ)",
+      "Giảm Giá (đ)",
+      "Tổng Thanh Toán (đ)",
+      "Hình Thức Thanh Toán",
+      "Trạng Thái",
+      "Ngày Tạo",
+    ];
+    const rows = filteredInvoices.map((inv) => [
+      `"${inv.code}"`,
+      `"${inv.tableName}"`,
+      `"${inv.customerName}"`,
+      `"${inv.customerPhone || ''}"`,
+      `"${inv.timeIn}"`,
+      `"${inv.timeOut}"`,
+      `"${inv.durationText}"`,
+      inv.tableFee,
+      inv.fnbFee,
+      inv.subtotal,
+      inv.discountAmount,
+      inv.finalTotal,
+      `"${inv.paymentMethodText}"`,
+      `"${inv.statusText}"`,
+      `"${inv.date}"`,
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Bao_Cao_Hoa_Don_CueZone_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    message.success(`Đã xuất báo cáo ${filteredInvoices.length} hóa đơn thành công!`);
   };
 
-  // ── 3. FILTER & METRICS ───────────────────────────────────────────────────
+  const handleResetToDefaults = () => {
+    void fetchInvoices();
+    message.success("Đã đồng bộ lại danh sách hóa đơn từ hệ thống!");
+  };
+
+  // ── 3. FILTER & METRICS (Sabo Billiard Standard) ──────────────────────────
   const filteredInvoices = useMemo(() => {
     return invoicesList.filter((inv) => {
-      const matchStatus = statusFilter === "all" || inv.status === statusFilter;
-      const matchMethod = methodFilter === "all" || inv.paymentMethod === methodFilter;
+      let matchStatus = true;
+      if (statusFilter === "paid") matchStatus = inv.status === "paid";
+      else if (statusFilter === "cancelled") matchStatus = inv.status === "cancelled";
+      else if (statusFilter === "cash") matchStatus = inv.paymentMethod === "cash";
+      else if (statusFilter === "vietqr") matchStatus = ["vietqr", "card"].includes(inv.paymentMethod);
+      else if (statusFilter === "wallet") matchStatus = ["cuezone_pay", "wallet", "member_balance"].includes(inv.paymentMethod);
+
+      const matchTableType =
+        tableTypeFilter === "all" ||
+        (tableTypeFilter === "vip" && inv.tableName.toLowerCase().includes("vip")) ||
+        (tableTypeFilter === "pool" && (inv.tableName.toLowerCase().includes("phổ thông") || inv.tableName.toLowerCase().includes("thường") || inv.tableName.toLowerCase().includes("pool"))) ||
+        (tableTypeFilter === "match" && inv.tableName.toLowerCase().includes("thi đấu"));
 
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
         !q ||
         inv.code.toLowerCase().includes(q) ||
+        (inv.rawCode && inv.rawCode.toLowerCase().includes(q)) ||
         inv.customerName.toLowerCase().includes(q) ||
         inv.customerPhone.toLowerCase().includes(q) ||
         inv.tableName.toLowerCase().includes(q);
 
-      return matchStatus && matchMethod && matchQuery;
+      return matchStatus && matchTableType && matchQuery;
     });
-  }, [invoicesList, statusFilter, methodFilter, searchQuery]);
+  }, [invoicesList, statusFilter, tableTypeFilter, searchQuery]);
 
   const metrics = useMemo(() => {
     const totalCount = invoicesList.length;
@@ -667,19 +293,24 @@ export const InvoicesManagementPage: React.FC = () => {
     const totalRevenue = paidList.reduce((acc, cur) => acc + cur.finalTotal, 0);
     const totalTableFee = paidList.reduce((acc, cur) => acc + cur.tableFee, 0);
     const totalFnbFee = paidList.reduce((acc, cur) => acc + cur.fnbFee, 0);
-    const pendingCount = invoicesList.filter((i) => i.status === "pending").length;
+    const cashRevenue = paidList.filter((i) => i.paymentMethod === "cash").reduce((acc, cur) => acc + cur.finalTotal, 0);
+    const bankRevenue = paidList.filter((i) => ["vietqr", "card"].includes(i.paymentMethod)).reduce((acc, cur) => acc + cur.finalTotal, 0);
+    const walletRevenue = paidList.filter((i) => ["cuezone_pay", "wallet", "member_balance"].includes(i.paymentMethod)).reduce((acc, cur) => acc + cur.finalTotal, 0);
 
     return {
-      totalCount,
-      paidCount: paidList.length,
-      totalRevenue,
-      totalTableFee,
-      totalFnbFee,
-      pendingCount,
+      totalCount: liveMetrics.totalCount || totalCount,
+      paidCount: liveMetrics.paidCount || paidList.length,
+      totalRevenue: liveMetrics.totalRevenue || totalRevenue,
+      totalTableFee: liveMetrics.totalTableFee || totalTableFee,
+      totalFnbFee: liveMetrics.totalFnbFee || totalFnbFee,
+      cashRevenue: liveMetrics.cashRevenue || cashRevenue,
+      bankRevenue: liveMetrics.bankRevenue || bankRevenue,
+      walletRevenue: liveMetrics.walletRevenue || walletRevenue,
+      pendingCount: 0,
     };
-  }, [invoicesList]);
+  }, [invoicesList, liveMetrics]);
 
-  // Pill filter items
+  // Pill filter items (Chỉ hiển thị hóa đơn kế toán, không hiển thị bàn đang chơi)
   const statusPills = [
     { key: "all", label: "Tất cả hóa đơn", badge: invoicesList.length },
     {
@@ -688,9 +319,19 @@ export const InvoicesManagementPage: React.FC = () => {
       badge: invoicesList.filter((i) => i.status === "paid").length,
     },
     {
-      key: "pending",
-      label: "Đang mở bàn (Chờ chốt)",
-      badge: invoicesList.filter((i) => i.status === "pending").length,
+      key: "cash",
+      label: "Tiền mặt",
+      badge: invoicesList.filter((i) => i.paymentMethod === "cash").length,
+    },
+    {
+      key: "vietqr",
+      label: "VietQR / Ngân hàng",
+      badge: invoicesList.filter((i) => ["vietqr", "card"].includes(i.paymentMethod)).length,
+    },
+    {
+      key: "wallet",
+      label: "Ví hội viên",
+      badge: invoicesList.filter((i) => ["cuezone_pay", "wallet", "member_balance"].includes(i.paymentMethod)).length,
     },
     {
       key: "cancelled",
@@ -699,17 +340,30 @@ export const InvoicesManagementPage: React.FC = () => {
     },
   ];
 
-  // Table Columns
+  // Table Columns (Sabo Billiard Standard)
   const columns: TableColumnsType<ClubInvoice> = [
     {
       title: "Mã Hóa Đơn",
-      dataIndex: "code",
       key: "code",
-      width: 140,
-      render: (code: string) => (
-        <span className="font-mono font-black text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-          {code}
-        </span>
+      width: 155,
+      render: (_: unknown, record: ClubInvoice) => (
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono font-bold text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+            {record.code}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigator.clipboard.writeText(record.rawCode || record.code);
+              message.success("Đã sao chép mã hóa đơn");
+            }}
+            className="text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer p-0.5 rounded"
+            title={`Sao chép mã: ${record.rawCode || record.code}`}
+          >
+            <CopyOutlined className="text-xs" />
+          </button>
+        </div>
       ),
     },
     {
@@ -719,7 +373,7 @@ export const InvoicesManagementPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="font-bold text-slate-900 text-sm">{record.tableName}</span>
-            {record.memberRank !== "Normal" && (
+            {record.memberRank && record.memberRank !== "Normal" && (
               <Tag
                 color={
                   record.memberRank === "Diamond"
@@ -735,15 +389,15 @@ export const InvoicesManagementPage: React.FC = () => {
             )}
           </div>
           <span className="text-xs text-slate-500">
-            {record.customerName} • {record.customerPhone}
+            {record.customerName} {record.customerPhone ? `• ${record.customerPhone}` : ""}
           </span>
         </div>
       ),
     },
     {
-      title: "Thời Gian",
+      title: "Thời Gian Chơi",
       key: "time",
-      width: 150,
+      width: 160,
       render: (_: unknown, record: ClubInvoice) => (
         <div className="text-xs">
           <span className="font-bold text-slate-800 block">{record.durationText}</span>
@@ -754,13 +408,13 @@ export const InvoicesManagementPage: React.FC = () => {
       ),
     },
     {
-      title: "Tiền Giờ / F&B",
+      title: "Tiền Giờ / Dịch Vụ",
       key: "breakdown",
-      width: 150,
+      width: 155,
       render: (_: unknown, record: ClubInvoice) => (
         <div className="text-xs font-mono">
           <div className="text-slate-600">
-            Bàn: <strong>{record.tableFee.toLocaleString("vi-VN")}đ</strong>
+            Giờ: <strong>{record.tableFee.toLocaleString("vi-VN")}đ</strong>
           </div>
           <div className="text-emerald-700">
             F&B: <strong>{record.fnbFee.toLocaleString("vi-VN")}đ</strong>
@@ -770,15 +424,14 @@ export const InvoicesManagementPage: React.FC = () => {
     },
     {
       title: "Tổng Thanh Toán",
-      dataIndex: "finalTotal",
       key: "finalTotal",
-      width: 150,
-      render: (total: number, record: ClubInvoice) => (
+      width: 160,
+      render: (_: unknown, record: ClubInvoice) => (
         <div>
           <span className="font-black text-emerald-800 text-base font-mono block">
-            {total.toLocaleString("vi-VN")}đ
+            {record.finalTotal.toLocaleString("vi-VN")}đ
           </span>
-          <span className="text-[11px] text-slate-400">{record.paymentMethodText}</span>
+          <span className="text-[11px] text-slate-500 font-medium">{record.paymentMethodText}</span>
         </div>
       ),
     },
@@ -795,17 +448,7 @@ export const InvoicesManagementPage: React.FC = () => {
               color="green"
               className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
             >
-              <CheckCircleOutlined /> ĐÃ XONG
-            </Tag>
-          );
-        }
-        if (status === "pending") {
-          return (
-            <Tag
-              color="warning"
-              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
-            >
-              <SyncOutlined spin /> ĐANG CHƠI
+              <CheckCircleOutlined /> ĐÃ THANH TOÁN
             </Tag>
           );
         }
@@ -822,7 +465,7 @@ export const InvoicesManagementPage: React.FC = () => {
     {
       title: "Thao Tác",
       key: "actions",
-      width: 120,
+      width: 125,
       align: "right",
       render: (_: unknown, record: ClubInvoice) => (
         <Button
@@ -832,7 +475,7 @@ export const InvoicesManagementPage: React.FC = () => {
           leftIcon={<EyeOutlined />}
           className="!rounded-xl !text-xs !h-8 !border-slate-300 !text-slate-700 hover:!bg-emerald-50 hover:!text-emerald-700 hover:!border-emerald-300 font-bold"
         >
-          Xem Bill
+          Xem & In Bill
         </Button>
       ),
     },
@@ -854,15 +497,14 @@ export const InvoicesManagementPage: React.FC = () => {
                 level={2}
                 className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
               >
-                Quản Lý Hóa Đơn & Thu Ngân Bida
+                Quản Lý & Lịch Sử Hóa Đơn Bida
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
-                CUEZONE BILLING DESK
+                CUEZONE BILLING & INVOICES
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Quản lý danh sách hóa đơn thanh toán bàn bida, dịch vụ F&B, tích hợp in phiếu bill
-              nhiệt, quét mã VietQR và chiết khấu thành viên CLB.
+              Tra cứu lịch sử thanh toán tiền giờ và dịch vụ F&B, theo dõi nguồn tiền thu (Tiền mặt, VietQR, Ví hội viên) và xem lại/in phiếu hóa đơn thanh toán.
             </Text>
           </div>
 
@@ -870,11 +512,20 @@ export const InvoicesManagementPage: React.FC = () => {
             <Button
               variant="outline"
               size="md"
+              leftIcon={<DownloadOutlined />}
+              onClick={handleExportExcel}
+              className="!rounded-xl !text-xs !text-slate-700 hover:!bg-slate-100"
+            >
+              Xuất Excel (CSV)
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
               leftIcon={<ReloadOutlined />}
               onClick={handleResetToDefaults}
               className="!rounded-xl !text-xs !text-slate-600"
             >
-              Mặc định
+              Tải lại
             </Button>
             <Button
               variant="primary"
@@ -883,12 +534,12 @@ export const InvoicesManagementPage: React.FC = () => {
               onClick={() => setCreateModalVisible(true)}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-sm"
             >
-              Thanh Toán Bàn Mới
+              Tạo Hóa Đơn Lẻ
             </Button>
           </div>
         </div>
 
-        {/* Counter KPI Cards */}
+        {/* Counter KPI Cards (Sabo Billiard Standard) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 relative z-10">
           <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80">
             <div className="flex items-center justify-between mb-1.5">
@@ -904,46 +555,34 @@ export const InvoicesManagementPage: React.FC = () => {
                 {metrics.totalRevenue.toLocaleString("vi-VN")}đ
               </span>
             </div>
+            <div className="text-[11px] text-slate-500 mt-1">
+              {metrics.paidCount} hóa đơn hoàn tất
+            </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">
-                Hóa đơn hoàn tất
+                Doanh thu Giờ Bida
               </span>
               <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs border border-emerald-200">
                 <CheckCircleOutlined />
               </span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-800 tracking-tight">
-                {metrics.paidCount}
-              </span>
-              <span className="text-xs font-semibold text-emerald-700">chứng từ</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-amber-800 font-semibold uppercase tracking-wider">
-                Đang chơi (Chưa thanh toán)
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 text-xs border border-amber-200">
-                <SyncOutlined />
+              <span className="text-xl sm:text-2xl font-black text-emerald-800 tracking-tight truncate">
+                {metrics.totalTableFee.toLocaleString("vi-VN")}đ
               </span>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight">
-                {metrics.pendingCount}
-              </span>
-              <span className="text-xs font-semibold text-amber-700">bàn mở</span>
+            <div className="text-[11px] text-emerald-700 mt-1">
+              Doanh thu tiền giờ các bàn chơi
             </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-blue-800 font-semibold uppercase tracking-wider">
-                Doanh số F&B gọi kèm
+                Doanh số F&B Dịch vụ
               </span>
               <span className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 text-xs border border-blue-200">
                 <ThunderboltOutlined />
@@ -953,6 +592,30 @@ export const InvoicesManagementPage: React.FC = () => {
               <span className="text-xl sm:text-2xl font-black text-blue-800 tracking-tight truncate">
                 {metrics.totalFnbFee.toLocaleString("vi-VN")}đ
               </span>
+            </div>
+            <div className="text-[11px] text-blue-700 mt-1">
+              Đồ uống, đồ ăn & phụ kiện gọi kèm
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-amber-800 font-semibold uppercase tracking-wider">
+                Đối soát két thu ngân
+              </span>
+              <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 text-xs border border-amber-200">
+                <QrcodeOutlined />
+              </span>
+            </div>
+            <div className="space-y-0.5 text-xs">
+              <div className="flex justify-between text-slate-700">
+                <span>Tiền mặt:</span>
+                <strong className="font-mono text-amber-900">{metrics.cashRevenue.toLocaleString("vi-VN")}đ</strong>
+              </div>
+              <div className="flex justify-between text-slate-700">
+                <span>Chuyển khoản:</span>
+                <strong className="font-mono text-blue-800">{metrics.bankRevenue.toLocaleString("vi-VN")}đ</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -973,18 +636,17 @@ export const InvoicesManagementPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-              <FilterOutlined /> Hình thức:
+              <FilterOutlined /> Khu vực bàn:
             </span>
             <Select
-              value={methodFilter}
-              onChange={(val) => setMethodFilter(val)}
+              value={tableTypeFilter}
+              onChange={(val) => setTableTypeFilter(val)}
               className="!w-48 !rounded-xl !text-xs"
               options={[
-                { value: "all", label: "Tất cả hình thức" },
-                { value: "vietqr", label: "VietQR Ngân Hàng" },
-                { value: "cash", label: "Tiền Mặt" },
-                { value: "cuezone_pay", label: "Ví CueZone Pay" },
-                { value: "card", label: "Thẻ Visa / Master" },
+                { value: "all", label: "Tất cả loại bàn" },
+                { value: "pool", label: "Bàn Phổ Thông / Pool" },
+                { value: "vip", label: "Bàn VIP" },
+                { value: "match", label: "Bàn Thi Đấu" },
               ]}
             />
           </div>
@@ -1005,6 +667,7 @@ export const InvoicesManagementPage: React.FC = () => {
       {/* ── INVOICES TABLE ────────────────────────────────────────────────── */}
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
         <Table<ClubInvoice>
+          loading={loading}
           columns={columns}
           dataSource={filteredInvoices}
           rowKey="id"

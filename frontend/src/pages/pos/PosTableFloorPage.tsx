@@ -510,30 +510,55 @@ export const PosTableFloorPage: React.FC = () => {
     return calculateSplitPlayingDetails(table, pricingTiers, currentTime);
   };
 
+  // Helper to parse booking date and time
+  const parseBookingDateTime = (timeStr?: string, refTime = currentTime): Date | null => {
+    if (!timeStr) return null;
+    const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (!timeMatch) return null;
+    const h = parseInt(timeMatch[1], 10);
+    const m = parseInt(timeMatch[2], 10);
+
+    const bookingDate = new Date(refTime);
+    const dateMatch = timeStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      bookingDate.setFullYear(
+        parseInt(dateMatch[1], 10),
+        parseInt(dateMatch[2], 10) - 1,
+        parseInt(dateMatch[3], 10),
+      );
+    }
+    bookingDate.setHours(h, m, 0, 0);
+    return bookingDate;
+  };
+
   const getBookingOverdueMinutes = (timeStr?: string): number => {
-    if (!timeStr) return 0;
-    const match = timeStr.match(/(\d{1,2}):(\d{2})/);
-    if (!match) return 0;
-    const [_, hStr, mStr] = match;
-    const now = new Date(currentTime);
-    const bookingDate = new Date(now);
-    bookingDate.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
-    const diffMs = now.getTime() - bookingDate.getTime();
-    if (diffMs <= 0) return 0;
-    return Math.floor(diffMs / 60000);
+    const bDate = parseBookingDateTime(timeStr, currentTime);
+    if (!bDate) return 0;
+    const diffMs = currentTime - bDate.getTime();
+    return diffMs > 0 ? Math.floor(diffMs / 60000) : 0;
   };
 
   const getBookingUpcomingMinutes = (timeStr?: string): number => {
-    if (!timeStr) return -1;
-    const match = timeStr.match(/(\d{1,2}):(\d{2})/);
-    if (!match) return -1;
-    const [_, hStr, mStr] = match;
+    const bDate = parseBookingDateTime(timeStr, currentTime);
+    if (!bDate) return -1;
+    const diffMs = bDate.getTime() - currentTime;
+    return diffMs > 0 ? Math.floor(diffMs / 60000) : -1;
+  };
+
+  // Helper format giờ mở bàn thực tế (hiển thị kèm ngày nếu bắt đầu từ ngày hôm trước)
+  const formatSessionStartTime = (startedAt?: number, sessionStartFallback?: string): string => {
+    if (!startedAt) return sessionStartFallback || "19:45";
+    const date = new Date(startedAt);
     const now = new Date(currentTime);
-    const bookingDate = new Date(now);
-    bookingDate.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
-    const diffMs = bookingDate.getTime() - now.getTime();
-    if (diffMs < 0) return -1;
-    return Math.floor(diffMs / 60000);
+    const isToday = date.toDateString() === now.toDateString();
+    const timeStr = date.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    if (isToday) return timeStr;
+    const dateStr = `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1).toString().padStart(2, "0")}`;
+    return `${timeStr} (${dateStr})`;
   };
 
   const normalizeSearchText = (str?: string): string => {
@@ -570,7 +595,21 @@ export const PosTableFloorPage: React.FC = () => {
           (t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng"))) ||
         (filterType === "snooker" && (t.type === "snooker" || t.typeName?.includes("Snooker")));
 
-      const matchStatus = filterStatus === "all" || t.status === filterStatus;
+      const isBookedTable = t.status === "booked";
+      const upMinTable = isBookedTable ? getBookingUpcomingMinutes(t.bookedInfo?.time) : -1;
+      const overMinTable = isBookedTable ? getBookingOverdueMinutes(t.bookedInfo?.time) : 0;
+      const isHoldingTable =
+        isBookedTable &&
+        ((upMinTable >= 0 && upMinTable <= 45) || (overMinTable > 0 && overMinTable <= 15));
+      const isAvailableForPlay = t.status === "available" || (isBookedTable && !isHoldingTable);
+
+      const matchStatus =
+        filterStatus === "all" ||
+        (filterStatus === "available" && isAvailableForPlay) ||
+        (filterStatus === "playing" && t.status === "playing") ||
+        (filterStatus === "paused" && t.status === "paused") ||
+        (filterStatus === "booked" && isHoldingTable) ||
+        t.status === filterStatus;
 
       if (!qRaw) return matchArea && matchType && matchStatus;
 
@@ -630,9 +669,23 @@ export const PosTableFloorPage: React.FC = () => {
         t.type === "carom" || t.typeName?.includes("Carom") || t.typeName?.includes("Phăng");
       const isSnooker = t.type === "snooker" || t.typeName?.includes("Snooker");
 
+      const isBookedItem = t.status === "booked";
+      const upMinItem = isBookedItem ? getBookingUpcomingMinutes(t.bookedInfo?.time) : -1;
+      const overMinItem = isBookedItem ? getBookingOverdueMinutes(t.bookedInfo?.time) : 0;
+      const isHoldingItem =
+        isBookedItem &&
+        ((upMinItem >= 0 && upMinItem <= 45) || (overMinItem > 0 && overMinItem <= 15));
+
       if (t.status === "playing") playing++;
       else if (t.status === "paused") paused++;
-      else if (t.status === "booked") booked++;
+      else if (t.status === "booked") {
+        if (isHoldingItem) {
+          booked++;
+        } else {
+          available++;
+          booked++;
+        }
+      }
       else if (t.status === "available") {
         available++;
         if (isPool) poolAvailable++;
@@ -1358,6 +1411,17 @@ export const PosTableFloorPage: React.FC = () => {
             {/* Yêu cầu thanh toán tại bàn */}
             <CustomerPaymentRequests />
 
+            {/* Quét QR Nhận Bàn */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBookingQrScannerOpen(true)}
+              leftIcon={<QrcodeOutlined className="text-indigo-600 text-sm" />}
+              className="!rounded-xl !text-xs !h-8 !px-3 font-bold !border-indigo-200 !bg-indigo-50/80 !text-indigo-800 hover:!bg-indigo-100 hover:!border-indigo-300 shadow-2xs"
+            >
+              Quét QR Nhận Bàn
+            </Button>
+
             {/* Danh sách khách chờ */}
             <Button
               variant="outline"
@@ -1579,7 +1643,11 @@ export const PosTableFloorPage: React.FC = () => {
           const isMaintenance = table.status === "maintenance";
           const overdueMinutes = isBooked ? getBookingOverdueMinutes(table.bookedInfo?.time) : 0;
           const upcomingMinutes = isBooked ? getBookingUpcomingMinutes(table.bookedInfo?.time) : -1;
-          const isUpcoming = isBooked && upcomingMinutes >= 0 && upcomingMinutes <= 30;
+          const isUpcoming = isBooked && upcomingMinutes >= 0 && upcomingMinutes <= 45;
+          const isOverdue = isBooked && overdueMinutes > 0;
+          const isExpiredHold = isBooked && overdueMinutes > 15;
+          const isHoldingForBooking = isBooked && (isUpcoming || (isOverdue && !isExpiredHold));
+          const hasAdvanceBooking = isBooked && upcomingMinutes > 45;
 
           return (
             <Card
@@ -1598,15 +1666,15 @@ export const PosTableFloorPage: React.FC = () => {
                   ? "!border-emerald-400/80 !bg-white ring-1 ring-emerald-500/15"
                   : isPaused
                     ? "!border-amber-400/80 !bg-white ring-1 ring-amber-400/20"
-                    : isBooked
-                      ? overdueMinutes >= 15
-                        ? "!border-red-400/80 !bg-white ring-1 ring-red-400/30"
-                        : isUpcoming
-                          ? "!border-amber-400 !bg-amber-50/20 ring-2 ring-amber-400 shadow-sm"
-                          : "!border-blue-400/80 !bg-white ring-1 ring-blue-400/20"
-                      : isMaintenance
-                        ? "!border-slate-200 !bg-slate-50 opacity-60"
-                        : "!border-slate-200 !bg-white hover:!border-emerald-300 hover:shadow-sm"
+                    : isExpiredHold
+                      ? "!border-red-400/80 !bg-white ring-1 ring-red-400/30"
+                      : isHoldingForBooking
+                        ? "!border-amber-400 !bg-amber-50/20 ring-2 ring-amber-400 shadow-sm"
+                        : hasAdvanceBooking
+                          ? "!border-blue-200/90 !bg-white hover:!border-emerald-300 hover:shadow-sm"
+                        : isMaintenance
+                          ? "!border-slate-200 !bg-slate-50 opacity-60"
+                          : "!border-slate-200 !bg-white hover:!border-emerald-300 hover:shadow-sm"
               }`}
             >
               <div
@@ -1615,15 +1683,15 @@ export const PosTableFloorPage: React.FC = () => {
                     ? "bg-emerald-500"
                     : isPaused
                       ? "bg-amber-400"
-                      : isBooked
-                        ? overdueMinutes >= 15
-                          ? "bg-red-500"
-                          : isUpcoming
-                            ? "bg-amber-500"
-                            : "bg-blue-500"
-                        : isMaintenance
-                          ? "bg-rose-400"
-                          : "bg-slate-200"
+                      : isExpiredHold
+                        ? "bg-red-500"
+                        : isHoldingForBooking
+                          ? "bg-amber-500"
+                          : hasAdvanceBooking
+                            ? "bg-blue-400"
+                          : isMaintenance
+                            ? "bg-rose-400"
+                            : "bg-slate-200"
                 }`}
               />
 
@@ -1707,16 +1775,31 @@ export const PosTableFloorPage: React.FC = () => {
                       TẠM DỪNG
                     </Tag>
                   )}
-                  {isBooked &&
-                    (overdueMinutes >= 15 ? (
+                  {hasAdvanceBooking ? (
+                    <div className="flex items-center gap-1">
                       <Tag
-                        color="error"
-                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
+                        color="default"
+                        className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-600 border border-slate-200"
                       >
-                        <AlertOutlined className="text-[10px]" />
-                        QUÁ HẠN {overdueMinutes}P
+                        BÀN TRỐNG
                       </Tag>
-                    ) : overdueMinutes > 0 ? (
+                      <Tag
+                        color="blue"
+                        className="!rounded-full !px-2 !py-0.5 !text-[9.5px] !font-bold !m-0 border border-blue-200 shadow-2xs"
+                      >
+                        ⏰ Hẹn {table.bookedInfo?.time ? table.bookedInfo.time.split(" ")[0] : ""}
+                      </Tag>
+                    </div>
+                  ) : isExpiredHold ? (
+                    <Tag
+                      color="error"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
+                    >
+                      <AlertOutlined className="text-[10px]" />
+                      QUÁ HẠN {overdueMinutes}P (HẾT GIỮ)
+                    </Tag>
+                  ) : isHoldingForBooking ? (
+                    overdueMinutes > 0 ? (
                       <Tag
                         color="warning"
                         className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
@@ -1727,12 +1810,20 @@ export const PosTableFloorPage: React.FC = () => {
                     ) : (
                       <Tag
                         color="blue"
-                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
                       >
                         <CalendarOutlined className="text-[10px]" />
-                        HẸN TRƯỚC
+                        GIỮ BÀN ĐÓN KHÁCH
                       </Tag>
-                    ))}
+                    )
+                  ) : isBooked ? (
+                    <Tag
+                      color="default"
+                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
+                    >
+                      ĐÃ ĐẶT
+                    </Tag>
+                  ) : null}
                   {isAvailable && (
                     <Tag
                       color="default"
@@ -1770,15 +1861,23 @@ export const PosTableFloorPage: React.FC = () => {
                         </span>
                         {minutes >= 180 && (
                           <Tag
-                            color="warning"
+                            color={minutes >= 1440 ? "error" : "warning"}
                             className="!rounded-md !px-1.5 !py-0 !text-[9px] !font-bold !m-0 font-mono"
                           >
-                            {minutes >= 240 ? "> 4h" : "> 3h"}
+                            {minutes >= 1440
+                              ? `> ${Math.floor(minutes / 1440)} ngày`
+                              : minutes >= 240
+                                ? "> 4h"
+                                : "> 3h"}
                           </Tag>
                         )}
                       </div>
                       <span className="text-[11px] text-slate-400 font-mono">
-                        Từ {table.currentSession?.sessionStart || "19:45"}
+                        Từ{" "}
+                        {formatSessionStartTime(
+                          table.currentSession?.startedAt,
+                          table.currentSession?.sessionStart,
+                        )}
                       </span>
                     </div>
 
@@ -1839,8 +1938,37 @@ export const PosTableFloorPage: React.FC = () => {
                         {totalTableBill.toLocaleString("vi-VN")}đ
                       </span>
                     </div>
+
+                    {/* Cảnh báo lịch hẹn sắp tới khi bàn đang có khách chơi */}
+                    {table.bookedInfo && (
+                      <div
+                        className={`mt-2 p-1.5 rounded-xl border text-[11px] flex items-center justify-between gap-1.5 ${
+                          upcomingMinutes >= 0 && upcomingMinutes <= 45
+                            ? "bg-amber-50/95 border-amber-300 text-amber-900 shadow-2xs"
+                            : "bg-blue-50/70 border-blue-200 text-blue-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <AlertOutlined
+                            className={
+                              upcomingMinutes >= 0 && upcomingMinutes <= 45
+                                ? "text-amber-600 animate-bounce text-xs shrink-0"
+                                : "text-blue-600 text-xs shrink-0"
+                            }
+                          />
+                          <span className="truncate">
+                            Hẹn: <strong>{table.bookedInfo.time?.split(" ")[0]}</strong> ({table.bookedInfo.customerName})
+                          </span>
+                        </div>
+                        {upcomingMinutes >= 0 && upcomingMinutes <= 45 ? (
+                          <span className="font-bold text-amber-800 whitespace-nowrap text-[10px] bg-amber-100/80 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+                            Còn {upcomingMinutes}p
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
-                ) : isBooked ? (
+                ) : isHoldingForBooking || isExpiredHold ? (
                   <div className="space-y-2 py-0.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -1850,50 +1978,108 @@ export const PosTableFloorPage: React.FC = () => {
                         </span>
                       </div>
                       <span className="text-[11px] font-mono font-medium text-slate-500 shrink-0">
-                        {table.bookedInfo?.phone || "09xxxxxxx"}
+                        {table.bookedInfo?.phone || "—"}
                       </span>
                     </div>
 
-                    <div className="p-2 rounded-lg bg-blue-50/80 border border-blue-200/70 text-[11px] space-y-1">
-                      <div className="flex justify-between items-center text-blue-900">
+                    <div
+                      className={`p-2 rounded-lg border text-[11px] space-y-1 ${
+                        isExpiredHold
+                          ? "bg-red-50/80 border-red-200/80"
+                          : "bg-blue-50/80 border-blue-200/70"
+                      }`}
+                    >
+                      <div className="flex justify-between items-center text-slate-700">
                         <span className="text-slate-600">Giờ hẹn:</span>
                         <span className="font-bold text-blue-800 font-mono">
                           {table.bookedInfo?.time
                             ? table.bookedInfo.time.replace(/\s*\(?hôm nay\)?\s*/gi, "").trim()
-                            : "20:30"}{" "}
-                          (Hôm nay)
+                            : "Chưa rõ"}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center text-blue-900">
+                      <div className="flex justify-between items-center text-slate-700">
                         <span className="text-slate-600">Giữ bàn tối đa:</span>
-                        <span className="font-medium text-blue-800 text-[10px]">15 phút</span>
+                        <span className="font-medium text-slate-800 text-[10px]">15 phút</span>
                       </div>
-                      {overdueMinutes > 0 ? (
-                        <div
-                          className={`flex justify-between items-center text-[10px] font-bold pt-1 border-t border-blue-200/60 ${overdueMinutes >= 15 ? "text-red-600" : "text-amber-700"}`}
-                        >
-                          <span>Tình trạng:</span>
-                          <span>
-                            {overdueMinutes >= 15
-                              ? `Quá hạn ${overdueMinutes} phút (Khách chưa đến)`
-                              : `Trễ hẹn ${overdueMinutes} phút`}
+                      {isExpiredHold ? (
+                        <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-red-200 text-red-600 bg-red-100/60 -mx-1 px-1.5 py-0.5 rounded">
+                          <span className="flex items-center gap-1">
+                            <AlertOutlined className="text-red-600" />
+                            Tình trạng:
                           </span>
+                          <span>Quá hạn {overdueMinutes} phút (Khách không đến)</span>
+                        </div>
+                      ) : overdueMinutes > 0 ? (
+                        <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-amber-200 text-amber-800 bg-amber-100/60 -mx-1 px-1.5 py-0.5 rounded">
+                          <span>Tình trạng:</span>
+                          <span>Trễ hẹn {overdueMinutes} phút (Chờ tối đa 15p)</span>
                         </div>
                       ) : isUpcoming ? (
                         <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-amber-200 text-amber-800 bg-amber-100/60 -mx-1 px-1.5 py-0.5 rounded">
                           <span className="flex items-center gap-1">
                             <AlertOutlined className="text-amber-600 animate-bounce" />
-                            Nhắc nhở:
+                            Khung giờ giữ bàn:
                           </span>
-                          <span>Sắp đến giờ hẹn (còn {upcomingMinutes}p)</span>
+                          <span>Đang giữ bàn chờ khách (còn {upcomingMinutes}p)</span>
                         </div>
                       ) : null}
                     </div>
                     <span className="text-[10px] text-slate-400 block text-center italic">
-                      {overdueMinutes >= 15
-                        ? "Đã quá hạn giữ bàn 15 phút. Có thể hủy để đón khách mới!"
+                      {isExpiredHold
+                        ? "Đã quá hạn giữ bàn. Bấm Hủy giữ bàn để giải phóng!"
                         : 'Khách đến? Bấm "Khách Nhận Bàn" bên dưới'}
                     </span>
+                  </div>
+                ) : hasAdvanceBooking ? (
+                  <div
+                    onClick={() => {
+                      setSelectedTable(table);
+                      setCustomerName("");
+                      setCustomerPhone("");
+                      setOpenModalMemberInfo(null);
+                      setIsMemberCustomer(false);
+                      setOpenModalVisible(true);
+                    }}
+                    className="py-1 space-y-2 flex-1 flex flex-col justify-between cursor-pointer group"
+                    title="Bàn đang trống • Chạm để mở bàn tính giờ cho khách chơi nhanh"
+                  >
+                    <div className="flex items-baseline justify-between p-2 rounded-xl bg-slate-50/90 border border-slate-100 group-hover:border-emerald-200 group-hover:bg-emerald-50/20 transition-all">
+                      <span className="text-xs font-semibold text-slate-500">Đơn giá giờ:</span>
+                      <span className="text-base font-black font-mono text-emerald-700">
+                        {table.pricePerHour.toLocaleString("vi-VN")}đ
+                        <span className="text-xs font-normal text-slate-400">/h</span>
+                      </span>
+                    </div>
+
+                    {/* Banner nhắc lịch hẹn trước */}
+                    <div className="p-2 rounded-xl bg-blue-50/80 border border-blue-200/70 text-[11px] text-blue-900 space-y-0.5">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span className="flex items-center gap-1 text-blue-800">
+                          <CalendarOutlined className="text-blue-600 text-xs" /> Khách hẹn:
+                        </span>
+                        <span className="font-bold truncate max-w-[120px]">
+                          {table.bookedInfo?.customerName || "Khách hẹn"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10.5px] text-slate-600">
+                        <span>Nhận bàn lúc:</span>
+                        <strong className="text-blue-800 font-mono">
+                          {table.bookedInfo?.time || ""}
+                        </strong>
+                      </div>
+                      <div className="text-[10px] text-emerald-700 font-semibold pt-0.5 border-t border-blue-100/70">
+                        ✓ Còn {Math.floor(upcomingMinutes / 60) > 0 ? `${Math.floor(upcomingMinutes / 60)}h` : ""}{upcomingMinutes % 60}p • Đón khách vãng lai chơi nhanh
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-0.5">
+                      <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+                        <CheckCircleOutlined className="text-emerald-600 text-xs" /> Bàn sẵn sàng đón khách
+                      </span>
+                      <span className="text-[10px] font-medium text-slate-400 group-hover:text-emerald-600 transition-colors">
+                        Bấm mở bàn ➔
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div
@@ -1930,7 +2116,7 @@ export const PosTableFloorPage: React.FC = () => {
               </div>
 
               <div className="px-3.5 py-2.5 bg-slate-50/80 border-t border-slate-100 shrink-0 mt-auto">
-                {isBooked ? (
+                {isHoldingForBooking ? (
                   <div className="flex items-center gap-1.5">
                     <Button
                       variant="primary"
@@ -1954,6 +2140,16 @@ export const PosTableFloorPage: React.FC = () => {
                     >
                       Khách Nhận Bàn
                     </Button>
+                    <Tooltip title="Quét mã QR đặt bàn của khách">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBookingQrScannerOpen(true)}
+                        icon={<QrcodeOutlined className="text-sm text-indigo-600" />}
+                        className="!rounded-xl !border-indigo-200 hover:!bg-indigo-50 !h-9 !w-9 !p-0 shrink-0"
+                        aria-label="Quét QR nhận bàn"
+                      />
+                    </Tooltip>
                     <Tooltip title="Hủy giữ bàn và chuyển về trạng thái Trống">
                       <Button
                         variant="outline"
@@ -1962,8 +2158,87 @@ export const PosTableFloorPage: React.FC = () => {
                         disabled={saving}
                         className="!rounded-xl !text-xs !h-9 !px-2.5 !border-red-200 !text-red-600 hover:!border-red-500 hover:!bg-red-50 font-medium"
                       >
-                        Hủy Giữ Bàn
+                        Hủy
                       </Button>
+                    </Tooltip>
+                  </div>
+                ) : isExpiredHold ? (
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCancelBooking(table)}
+                      disabled={saving}
+                      className="!flex-1 !rounded-xl !text-xs !h-9 !px-2.5 !border-red-300 !text-red-700 hover:!bg-red-50 font-bold"
+                    >
+                      Hủy / Giải Phóng Bàn
+                    </Button>
+                    <Tooltip title="Mở bàn tính giờ cho khách mới">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTable(table);
+                          setCustomerName("");
+                          setCustomerPhone("");
+                          setOpenModalMemberInfo(null);
+                          setIsMemberCustomer(false);
+                          setOpenModalVisible(true);
+                        }}
+                        leftIcon={<PlayCircleOutlined />}
+                        className="!rounded-xl !bg-emerald-600 hover:!bg-emerald-700 font-bold !text-xs !h-9 !px-3 text-white shrink-0"
+                      >
+                        Mở Bàn Mới
+                      </Button>
+                    </Tooltip>
+                  </div>
+                ) : hasAdvanceBooking ? (
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTable(table);
+                        setCustomerName("");
+                        setCustomerPhone("");
+                        setOpenModalMemberInfo(null);
+                        setIsMemberCustomer(false);
+                        setOpenModalVisible(true);
+                      }}
+                      leftIcon={<PlayCircleOutlined />}
+                      className="!flex-1 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9 shadow-2xs text-white"
+                    >
+                      Mở Bàn Tính Giờ
+                    </Button>
+                    <Tooltip title="Khách đặt trước đến sớm nhận bàn">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTable(table);
+                          if (table.bookedInfo) {
+                            setCustomerName(table.bookedInfo.customerName);
+                            setCustomerPhone(table.bookedInfo.phone);
+                            if (table.bookedInfo.phone) {
+                              void handlePhoneChangeInOpenModal(table.bookedInfo.phone);
+                            }
+                          }
+                          setOpenModalVisible(true);
+                        }}
+                        className="!rounded-xl !border-blue-300 !text-blue-700 hover:!bg-blue-50 font-bold !text-xs !h-9 !px-2.5 shrink-0"
+                      >
+                        Nhận Bàn
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Quét mã QR nhận bàn">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBookingQrScannerOpen(true)}
+                        icon={<QrcodeOutlined className="text-sm text-indigo-600" />}
+                        className="!rounded-xl !border-indigo-200 hover:!bg-indigo-50 !h-9 !w-9 !p-0 shrink-0"
+                        aria-label="Quét QR nhận bàn"
+                      />
                     </Tooltip>
                   </div>
                 ) : isAvailable ? (
