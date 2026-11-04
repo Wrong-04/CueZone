@@ -25,6 +25,7 @@ import inventoryRouter from "../modules/product/inventory.routes";
 import supplierRouter from "../modules/supplier/supplier.routes";
 import goodsReceiptRouter from "../modules/goods-receipt/goods-receipt.routes";
 import reportRouter from "../modules/report/revenue-report.routes";
+import invoiceRouter from "../modules/invoice/invoice.routes";
 
 import { BANK_POOL_RULES_DATA } from "../modules/rule/bankPoolRules.data";
 
@@ -117,4 +118,5 @@ protectedRouter.use("/inventory", inventoryRouter);
 protectedRouter.use("/suppliers", supplierRouter);
 protectedRouter.use("/goods-receipts", goodsReceiptRouter);
 protectedRouter.use("/reports", reportRouter);
+protectedRouter.use("/invoices", invoiceRouter);
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile

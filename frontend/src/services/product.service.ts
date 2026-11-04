@@ -38,6 +38,30 @@ export const productService = {
     return data.data.filter((product) => ["drink", "food", "snack"].includes(product.category));
   },
 
+  async getAll(): Promise<any[]> {
+    const { data } = await api.get<ApiResponse<any[]>>("/products");
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Không thể tải danh sách sản phẩm");
+    }
+    return data.data;
+  },
+
+  async update(id: string, payload: any): Promise<any> {
+    const { data } = await api.put<ApiResponse<any>>(`/products/${id}`, payload);
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Không thể cập nhật sản phẩm");
+    }
+    return data.data;
+  },
+
+  async create(payload: any): Promise<any> {
+    const { data } = await api.post<ApiResponse<any>>("/products", payload);
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Không thể tạo sản phẩm mới");
+    }
+    return data.data;
+  },
+
   async uploadProductImage(productId: string, file: File): Promise<ProductImageTarget> {
     const formData = new FormData();
     formData.append("image", file);
@@ -48,7 +72,7 @@ export const productService = {
       { headers: { "Content-Type": "multipart/form-data" } },
     );
     if (!data.success || !data.data) {
-      throw new Error(data.message || "Không thể tải ảnh lên Cloudinary");
+      throw new Error(data.message || "Không thể tải ảnh lên máy chủ");
     }
     return data.data;
   },
