@@ -30,6 +30,7 @@ import { defaultPricingTiers } from "../../utils/pricing";
 import type { PricingTier } from "../../types";
 import { getSocket } from "../../services/socket.service";
 import { productService, type ProductMenu } from "../../services/product.service";
+import { useAuth } from "../../contexts/AuthContext";
 import QRCode from "qrcode";
 
 const { Title, Paragraph } = Typography;
@@ -45,6 +46,7 @@ interface BookingTableItem {
 }
 
 const CustomerBooking = () => {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const preSelectedParam = searchParams.get("table") || "";
   const [now] = useState(() => Date.now());
@@ -54,8 +56,8 @@ const CustomerBooking = () => {
   const [loadingTables, setLoadingTables] = useState<boolean>(true);
   const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam);
   const [tableType, setTableType] = useState<"" | "pool" | "carom" | "snooker">("");
-  const [name, setName] = useState<string>("");
-  const [phone, setPhone] = useState<string>("");
+  const [name, setName] = useState<string>(user?.name || "");
+  const [phone, setPhone] = useState<string>(user?.phone || "");
 
   const dateOptions = useMemo(() => {
     const formatVn = (daysOffset: number) => {

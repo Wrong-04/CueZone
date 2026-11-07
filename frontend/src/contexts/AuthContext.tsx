@@ -13,6 +13,7 @@ import { authService } from "../services/auth.service";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  updateProfile: (input: { name: string; phone: string }) => Promise<User>;
   login: (email: string, password?: string) => Promise<User>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   sendVerificationCode: (
@@ -69,6 +70,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return result.user;
   }, []);
 
+  const updateProfile = useCallback(async (input: { name: string; phone: string }) => {
+    const profile = await authService.updateProfile(input);
+    setUser(profile);
+    return profile;
+  }, []);
+
   const register = useCallback(
     async (name: string, email: string, password: string, phone?: string) => {
       const result = await authService.register(name, email, password, phone);
@@ -104,13 +111,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       user,
       loading,
+      updateProfile,
       login,
       register,
       sendVerificationCode,
       verifyAndRegister,
       logout,
     }),
-    [user, loading, login, register, sendVerificationCode, verifyAndRegister, logout],
+    [user, loading, updateProfile, login, register, sendVerificationCode, verifyAndRegister, logout],
   );
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
