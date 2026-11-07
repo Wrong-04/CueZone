@@ -31,6 +31,29 @@ const normalizePhone = (value: string) => {
   return digits.startsWith("84") ? `0${digits.slice(2)}` : digits;
 };
 
+function phonePatterns(value: string) {
+  const localDigits = normalizePhone(value).replace(/\D/g, "");
+  if (!localDigits) return [];
+  const variants = [localDigits];
+  if (localDigits.startsWith("0")) variants.push(`84${localDigits.slice(1)}`);
+  return variants.map((digits) => {
+    const formattedDigits = digits.split("").join("[\\s().-]*");
+    return `^${digits.startsWith("84") ? "\\+?" : ""}${formattedDigits}$`;
+  });
+}
+
+export function sessionBelongsToCustomer(
+  current: { customerId?: unknown; customerPhone?: string },
+  customer: { _id: unknown; phone?: string },
+) {
+  if (current.customerId) return String(current.customerId) === String(customer._id);
+  return Boolean(
+    current.customerPhone &&
+      customer.phone &&
+      normalizePhone(current.customerPhone) === normalizePhone(customer.phone),
+  );
+}
+
 export function getCurrentTierPrice(
   table: { code?: string; area?: string; pricePerHour: number },
   pricingTiers: IPricingTier[] = [],
@@ -296,6 +319,7 @@ export class SessionService {
       let deposit = 0;
       let name = input.customerName?.trim() || "Khách vãng lai";
       let phone = input.customerPhone?.trim();
+      let customerId: mongoose.Types.ObjectId | undefined;
       let preOrderedItems: Array<{
         id: string;
         name: string;
@@ -333,13 +357,18 @@ export class SessionService {
       }
       let isMember = Boolean(input.isMember);
       if (phone) {
-        const clean = phone.replace(/[\s.-]/g, "");
-        const memberUser = await User.findOne({
-          phone: { $regex: clean, $options: "i" },
-          role: "customer",
-          isActive: true,
-        }).session(session);
+        const patterns = phonePatterns(phone);
+        const memberUser = patterns.length
+          ? await User.findOne({
+              phone: { $in: patterns.map((pattern) => new RegExp(pattern, "i")) },
+              role: UserRole.CUSTOMER,
+              isActive: true,
+              isLocked: false,
+            }).session(session)
+          : null;
         if (memberUser) {
+          customerId = memberUser._id;
+          phone = memberUser.phone;
           isMember = true;
           if (
             !input.customerName ||
@@ -367,6 +396,7 @@ export class SessionService {
         carriedCost: 0,
         customerName: name,
         customerPhone: phone,
+        customerId,
         isMember,
         orders: preOrderedItems,
         note: input.note,
@@ -790,8 +820,8 @@ export class SessionService {
       role: UserRole.CUSTOMER,
       isActive: true,
       isLocked: false,
-    }).select("phone");
-    if (!user?.phone) return [];
+    }).select("_id phone");
+    if (!user) return [];
     const [tables, wallet, pricingTiers] = await Promise.all([
       Table.find({
         status: { $in: [TableStatus.PLAYING, TableStatus.PAUSED] },
@@ -801,11 +831,7 @@ export class SessionService {
       PricingTier.find({ isActive: true }),
     ]);
     return tables
-      .filter(
-        (table) =>
-          table.currentSession?.customerPhone &&
-          normalizePhone(table.currentSession.customerPhone) === normalizePhone(user.phone!),
-      )
+      .filter((table) => table.currentSession && sessionBelongsToCustomer(table.currentSession, user))
       .map((table) => {
         const current = table.currentSession!;
         const pending = current.pendingCheckout;
@@ -872,13 +898,10 @@ export class SessionService {
       Wallet.findOne({ userId: customerId }).select("balance points"),
       PricingTier.find({ isActive: true }),
     ]);
-    if (!user?.phone || !table?.currentSession) {
+    if (!user || !table?.currentSession) {
       throw Object.assign(new Error("Không tìm thấy phiên bàn đang hoạt động"), { httpCode: 404 });
     }
-    if (
-      !table.currentSession.customerPhone ||
-      normalizePhone(table.currentSession.customerPhone) !== normalizePhone(user.phone)
-    ) {
+    if (!sessionBelongsToCustomer(table.currentSession, user)) {
       throw Object.assign(new Error("Phiên chơi không thuộc tài khoản này"), { httpCode: 403 });
     }
     if (
@@ -955,15 +978,12 @@ export class SessionService {
         Wallet.findOne({ userId: customerId }).select("points").session(session),
         PricingTier.find({ isActive: true }).session(session),
       ]);
-      if (!user?.phone || !table?.currentSession) {
+      if (!user || !table?.currentSession) {
         throw Object.assign(new Error("Không tìm thấy phiên bàn đang hoạt động"), {
           httpCode: 404,
         });
       }
-      if (
-        !table.currentSession.customerPhone ||
-        normalizePhone(table.currentSession.customerPhone) !== normalizePhone(user.phone)
-      ) {
+      if (!sessionBelongsToCustomer(table.currentSession, user)) {
         throw Object.assign(new Error("Phiên chơi không thuộc tài khoản này"), { httpCode: 403 });
       }
       if (
@@ -1223,9 +1243,8 @@ export class SessionService {
           .select("_id phone")
           .session(session);
         if (
-          !customer?.phone ||
-          !current.customerPhone ||
-          normalizePhone(customer.phone) !== normalizePhone(current.customerPhone)
+          !customer ||
+          !sessionBelongsToCustomer(current, customer)
         ) {
           throw Object.assign(new Error("Phiên chơi không thuộc tài khoản này"), { httpCode: 403 });
         }

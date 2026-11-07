@@ -4,7 +4,7 @@ import { NotificationType } from "../notification/notification.model";
 import { User, UserRole } from "../user/user.model";
 import { Product } from "../product/product.model";
 import { Table, TableStatus } from "../table/table.model";
-import { SessionService } from "../session/session.service";
+import { SessionService, sessionBelongsToCustomer } from "../session/session.service";
 import {
   CustomerOrder,
   CustomerOrderStatus,
@@ -15,11 +15,6 @@ const notifications = new NotificationService();
 
 const httpError = (message: string, httpCode = 400) =>
   Object.assign(new Error(message), { httpCode });
-
-const normalizePhone = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  return digits.startsWith("84") ? `0${digits.slice(2)}` : digits;
-};
 
 function assertOrderableSession(table: { status: string; currentSession?: any }) {
   const current = table.currentSession;
@@ -65,7 +60,7 @@ export class CustomerOrderService {
       isActive: true,
       isLocked: false,
     }).select("name phone");
-    if (!user?.phone) throw httpError("Tài khoản cần có số điện thoại để xác nhận bàn", 403);
+    if (!user) throw httpError("Tài khoản không hợp lệ", 403);
 
     const requestedItems = input.items.map((item) => {
       if (!item || typeof item !== "object") throw httpError("Danh sách món không hợp lệ");
@@ -106,7 +101,6 @@ export class CustomerOrderService {
       };
     });
 
-    const phone = normalizePhone(user.phone);
     const orderCode = `FNB-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${new Types.ObjectId().toString().slice(-6).toUpperCase()}`;
     const order = await mongoose.connection.transaction(async (session) => {
       const table = await Table.findOne({
@@ -116,8 +110,8 @@ export class CustomerOrderService {
       }).session(session);
       assertOrderableSession(table || { status: "available" });
       if (
-        !table?.currentSession?.customerPhone ||
-        normalizePhone(table.currentSession.customerPhone) !== phone
+        !table?.currentSession ||
+        !sessionBelongsToCustomer(table.currentSession, user)
       ) {
         throw httpError("Bàn đã thay đổi hoặc không thuộc phiên chơi của tài khoản này", 403);
       }

@@ -104,6 +104,8 @@ export interface TableSession {
 
   customerPhone?: string;
 
+  customerId?: mongoose.Types.ObjectId;
+
   isMember: boolean;
 
   orders: TableOrderItem[];
@@ -216,6 +218,8 @@ const tableSchema = new Schema<ITable>(
           customerName: { type: String, required: true },
 
           customerPhone: String,
+
+          customerId: { type: Schema.Types.ObjectId, ref: "User" },
 
           isMember: { type: Boolean, default: false },
 
