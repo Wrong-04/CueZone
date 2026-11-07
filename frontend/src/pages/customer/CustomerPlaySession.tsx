@@ -4,6 +4,7 @@ import {
   ClockCircleOutlined,
   CoffeeOutlined,
   CreditCardOutlined,
+  ShoppingOutlined,
   MinusOutlined,
   PlusOutlined,
   SyncOutlined,
@@ -13,6 +14,9 @@ import {
   Button,
   Card,
   Input,
+  Modal,
+  Pagination,
+  SegmentedPillList,
   Select,
   Space,
   Tag,
@@ -37,6 +41,9 @@ export default function CustomerPlaySession() {
   const [selectedTableId, setSelectedTableId] = useState("");
   const [menu, setMenu] = useState<ProductMenu[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuCategory, setMenuCategory] = useState("all");
+  const [menuPage, setMenuPage] = useState(1);
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucherCode, setAppliedVoucherCode] = useState("");
   const [preview, setPreview] = useState<CustomerCheckoutPreview | null>(null);
@@ -125,6 +132,25 @@ export default function CustomerPlaySession() {
         .map((item) => ({ item, quantity: cart[item._id] })),
     [cart, menu],
   );
+  const menuCategories = useMemo(
+    () =>
+      [...new Set(menu.map((item) => item.category.trim().toLocaleLowerCase("vi-VN")))].filter(
+        Boolean,
+      ),
+    [menu],
+  );
+  const filteredMenu = useMemo(
+    () =>
+      menuCategory === "all"
+        ? menu
+        : menu.filter(
+            (item) => item.category.trim().toLocaleLowerCase("vi-VN") === menuCategory,
+          ),
+    [menu, menuCategory],
+  );
+  const paginatedMenu = filteredMenu.slice((menuPage - 1) * 8, menuPage * 8);
+  const categoryLabel = (category: string) =>
+    ({ drink: "Đồ uống", food: "Món ăn", snack: "Ăn vặt" })[category] ?? category;
   const cartTotal = selectedProducts.reduce(
     (total, product) => total + product.item.salePrice * product.quantity,
     0,
@@ -168,6 +194,7 @@ export default function CustomerPlaySession() {
       });
       setCart({});
       setNote("");
+      setMenuOpen(false);
       message.success("Đã gửi món tới quầy. Món được tính vào hóa đơn sau khi nhân viên xác nhận.");
       await refresh();
     } catch (error) {
@@ -306,55 +333,35 @@ export default function CustomerPlaySession() {
                     </Text>
                   </Card>
 
-                  <Card title={<span><CoffeeOutlined className="mr-2" />Thực đơn F&B</span>}>
-                    {loadingMenu ? (
-                      <Text type="secondary">Đang tải thực đơn…</Text>
-                    ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {menu.map((item) => (
-                          <div key={item._id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
-                            <div className="min-w-0">
-                              <Text strong className="block truncate">{item.name}</Text>
-                              <Text type="secondary">{formatMoney(item.salePrice)}</Text>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              icon={<PlusOutlined />}
-                              disabled={item.isOutOfStock || selectedTable.checkoutState !== "open"}
-                              onClick={() => updateQuantity(item._id, 1)}
-                            >
-                              {cart[item._id] ? ` ${cart[item._id]}` : ""}
-                            </Button>
-                          </div>
-                        ))}
-                        {!menu.length && <Text type="secondary">Hiện chưa có món được bán.</Text>}
+                  <Card>
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <Text strong className="block"><CoffeeOutlined className="mr-2" />Gọi món F&B</Text>
+                        <Text type="secondary">
+                          {loadingMenu
+                            ? "Đang tải thực đơn…"
+                            : menu.length
+                              ? `${menu.length} món đang được phục vụ`
+                              : "Hiện chưa có món được bán."}
+                        </Text>
                       </div>
-                    )}
+                      <Button
+                        variant="primary"
+                        icon={<ShoppingOutlined />}
+                        disabled={loadingMenu || !menu.length || selectedTable.checkoutState !== "open"}
+                        onClick={() => setMenuOpen(true)}
+                      >
+                        Xem menu{selectedProducts.length ? ` (${selectedProducts.length})` : ""}
+                      </Button>
+                    </div>
                     {selectedProducts.length > 0 && (
-                      <div className="mt-5 border-t border-slate-200 pt-4">
-                        {selectedProducts.map(({ item, quantity }) => (
-                          <div key={item._id} className="flex items-center justify-between gap-3 py-1">
-                            <Text>{item.name}</Text>
-                            <Space>
-                              <Button size="sm" variant="outline" icon={<MinusOutlined />} onClick={() => updateQuantity(item._id, -1)} />
-                              <Text>{quantity}</Text>
-                              <Button size="sm" variant="outline" icon={<PlusOutlined />} onClick={() => updateQuantity(item._id, 1)} />
-                            </Space>
-                          </div>
-                        ))}
-                        <Input
-                          className="mt-3"
-                          placeholder="Ghi chú cho quầy (không bắt buộc)"
-                          value={note}
-                          onChange={(event) => setNote(event.target.value)}
-                        />
-                        <div className="mt-3 flex items-center justify-between">
-                          <Text strong>Tạm tính giỏ món mới: {formatMoney(cartTotal)}</Text>
-                          <Button loading={ordering} disabled={selectedTable.checkoutState !== "open"} onClick={() => void sendOrder()}>
-                            Gửi món
-                          </Button>
-                        </div>
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
+                        <Text type="secondary">
+                          Đã chọn {selectedProducts.length} món · {formatMoney(cartTotal)}
+                        </Text>
+                        <Button variant="outline" onClick={() => setMenuOpen(true)}>
+                          Xem giỏ và gửi món
+                        </Button>
                       </div>
                     )}
                   </Card>
@@ -452,6 +459,138 @@ export default function CustomerPlaySession() {
           )}
         </>
       )}
+      <Modal
+        title={<span><CoffeeOutlined className="mr-2" />Thực đơn F&B</span>}
+        open={menuOpen}
+        onCancel={() => setMenuOpen(false)}
+        footer={null}
+        width={900}
+      >
+        <div className="space-y-5">
+          <SegmentedPillList
+            activeKey={menuCategory}
+            onSelect={(category) => {
+              setMenuCategory(category);
+              setMenuPage(1);
+            }}
+            items={[
+              { key: "all", label: "Tất cả", badge: menu.length },
+              ...menuCategories.map((category) => ({
+                key: category,
+                label: categoryLabel(category),
+                badge: menu.filter(
+                  (item) => item.category.trim().toLocaleLowerCase("vi-VN") === category,
+                ).length,
+              })),
+            ]}
+          />
+          {loadingMenu ? (
+            <div className="py-12 text-center"><Text type="secondary">Đang tải thực đơn…</Text></div>
+          ) : !filteredMenu.length ? (
+            <div className="py-12 text-center"><Text type="secondary">Không có món trong danh mục này.</Text></div>
+          ) : (
+            <>
+              <div className="grid max-h-[50vh] gap-3 overflow-y-auto sm:grid-cols-2">
+                {paginatedMenu.map((item) => (
+                  <div key={item._id} className="flex min-h-24 items-center gap-3 rounded-xl border border-slate-200 p-3">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-brand">
+                        <CoffeeOutlined className="text-xl" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <Text strong className="block truncate">{item.name}</Text>
+                      <Text type="secondary" className="block truncate">
+                        {item.description || categoryLabel(item.category)}
+                      </Text>
+                      <Text strong className="text-brand">{formatMoney(item.salePrice)}</Text>
+                      {item.isOutOfStock && <Tag color="red" className="ml-2">Hết hàng</Tag>}
+                    </div>
+                    <Space>
+                      {(cart[item._id] ?? 0) > 0 && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            icon={<MinusOutlined />}
+                            aria-label={`Giảm ${item.name}`}
+                            onClick={() => updateQuantity(item._id, -1)}
+                          />
+                          <Text strong>{cart[item._id]}</Text>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        icon={<PlusOutlined />}
+                        aria-label={`Thêm ${item.name}`}
+                        disabled={item.isOutOfStock || !selectedTable || selectedTable.checkoutState !== "open"}
+                        onClick={() => updateQuantity(item._id, 1)}
+                      />
+                    </Space>
+                  </div>
+                ))}
+              </div>
+              <Pagination
+                current={menuPage}
+                pageSize={8}
+                total={filteredMenu.length}
+                unit="món"
+                onChange={(page) => setMenuPage(page)}
+                className="rounded-lg border border-slate-100"
+              />
+            </>
+          )}
+          {selectedProducts.length > 0 && (
+            <div className="space-y-3 border-t border-slate-200 pt-4">
+              <Text strong>Giỏ món mới</Text>
+              <div className="max-h-36 space-y-2 overflow-y-auto">
+                {selectedProducts.map(({ item, quantity }) => (
+                  <div key={item._id} className="flex items-center justify-between gap-3">
+                    <Text>{item.name}</Text>
+                    <Space>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        icon={<MinusOutlined />}
+                        aria-label={`Giảm ${item.name}`}
+                        onClick={() => updateQuantity(item._id, -1)}
+                      />
+                      <Text>{quantity}</Text>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        icon={<PlusOutlined />}
+                        aria-label={`Tăng ${item.name}`}
+                        disabled={item.isOutOfStock || !selectedTable || selectedTable.checkoutState !== "open"}
+                        onClick={() => updateQuantity(item._id, 1)}
+                      />
+                    </Space>
+                  </div>
+                ))}
+              </div>
+              <Input
+                placeholder="Ghi chú cho quầy (không bắt buộc)"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Text strong>Tạm tính: {formatMoney(cartTotal)}</Text>
+                <Button
+                  variant="primary"
+                  loading={ordering}
+                  disabled={!selectedTable || selectedTable.checkoutState !== "open"}
+                  onClick={() => void sendOrder()}
+                >
+                  Gửi món
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
