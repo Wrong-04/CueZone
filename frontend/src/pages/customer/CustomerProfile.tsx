@@ -21,7 +21,7 @@ import { MemberOverviewTab, PlayHistoryTab } from "./CustomerMembershipCenter";
 const { Title } = Typography;
 
 export const CustomerProfile: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -51,12 +51,20 @@ export const CustomerProfile: React.FC = () => {
   const [notifyWallet, setNotifyWallet] = useState<boolean>(true);
   const [notifyTournament, setNotifyTournament] = useState<boolean>(true);
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
+    if (!name.trim()) {
+      message.warning("Vui lòng nhập họ và tên");
+      return;
+    }
     setIsSavingProfile(true);
-    setTimeout(() => {
-      setIsSavingProfile(false);
+    try {
+      await updateProfile({ name: name.trim(), phone: phone.trim() });
       message.success("Đã cập nhật thông tin hồ sơ cá nhân thành công!");
-    }, 700);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Không thể cập nhật hồ sơ");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleRequestChangePassword = () => {

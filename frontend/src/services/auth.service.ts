@@ -63,6 +63,14 @@ export const authService = {
     return data.data!;
   },
 
+  async updateProfile(input: { name: string; phone: string }): Promise<User> {
+    const { data } = await api.patch<ApiResponse<User>>("/auth/profile", input);
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Không thể cập nhật hồ sơ");
+    }
+    return data.data;
+  },
+
   async forgotPassword(email: string): Promise<string> {
     const { data } = await api.post<ApiResponse>("/auth/forgot-password", { email });
     if (!data.success) throw new Error(data.message || "Yêu cầu gửi mã thất bại");

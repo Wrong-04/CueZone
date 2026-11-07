@@ -58,6 +58,23 @@ export const getProfile = async (req: Request, res: Response) => {
   }
 };
 
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.userId) {
+      res.status(401).json({ success: false, message: "Không có thông tin xác thực" });
+      return;
+    }
+    const profile = await authService.updateProfile(user.userId, req.body);
+    res.json({ success: true, message: "Cập nhật hồ sơ thành công", data: profile });
+  } catch (error: any) {
+    res.status(error.code === 11000 ? 409 : 400).json({
+      success: false,
+      message: error.code === 11000 ? "Số điện thoại đã được sử dụng" : error.message,
+    });
+  }
+};
+
 export const refreshToken = async (req: Request, res: Response) => {
   try {
     const tokens = await authService.refreshToken(req.body.refreshToken);

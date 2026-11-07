@@ -75,6 +75,23 @@ async function main() {
     const cashierToken = cashierLogin.body.data.accessToken;
     const otherCustomerToken = otherCustomerLogin.body.data.accessToken;
 
+    const updatedProfile = await request(
+      "/auth/profile",
+      "PATCH",
+      { name: "Portal customer updated", phone: "0901234570" },
+      customerToken,
+    );
+    assert.equal(updatedProfile.body.success, true, updatedProfile.body.message);
+    const savedProfile = await request("/auth/profile", "GET", undefined, customerToken);
+    assert.equal(savedProfile.body.data.name, "Portal customer updated");
+    assert.equal(savedProfile.body.data.phone, "0901234570");
+    await request(
+      "/auth/profile",
+      "PATCH",
+      { name: customer.name, phone: customer.phone },
+      customerToken,
+    );
+
     const product = await Product.create({
       name: "Portal test drink",
       sku: "PORTAL-CHECK-1",
