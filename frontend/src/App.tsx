@@ -95,6 +95,8 @@ const AppRoutes = () => {
 
   return (
     <Routes>
+      <Route path="/" element={<Navigate to="/customer" replace />} />
+
       {/* Public routes */}
       <Route
         path="/login"
@@ -383,11 +385,7 @@ const AppRoutes = () => {
         <Route index element={<CustomerHome />} />
         <Route
           path="booking"
-          element={
-            <ProtectedRoute roles={["customer"]}>
-              <CustomerBooking />
-            </ProtectedRoute>
-          }
+          element={<CustomerBooking />}
         />
         <Route path="fnb" element={<CustomerFnB />} />
         <Route
