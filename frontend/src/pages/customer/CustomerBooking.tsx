@@ -59,6 +59,11 @@ const CustomerBooking = () => {
   const [name, setName] = useState<string>(user?.name || "");
   const [phone, setPhone] = useState<string>(user?.phone || "");
 
+  useEffect(() => {
+    if (user?.name && !name.trim()) setName(user.name);
+    if (user?.phone && !phone.trim()) setPhone(user.phone);
+  }, [user?.name, user?.phone, name, phone]);
+
   const dateOptions = useMemo(() => {
     const formatVn = (daysOffset: number) => {
       const d = new Date(now + 7 * 3600000 + daysOffset * 86400000);
