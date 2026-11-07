@@ -104,10 +104,12 @@ async function main() {
     const opened = await request(
       `/tables/${tableId}/session/open`,
       "POST",
-      { customerName: customer.name, customerPhone: customer.phone },
+      { customerName: customer.name, customerPhone: "+84 90 123 4567" },
       cashierToken,
     );
     assert.equal(opened.body.success, true, opened.body.message);
+    assert.equal(String(opened.body.data.currentSession.customerId), String(customer._id));
+    assert.equal(opened.body.data.currentSession.customerPhone, customer.phone);
     const sessionId = opened.body.data.currentSession.sessionId;
 
     const activeTables = await request(
@@ -118,6 +120,16 @@ async function main() {
     );
     assert.equal(activeTables.body.data.length, 1);
     assert.equal(activeTables.body.data[0].tableId, tableId);
+    await User.updateOne({ _id: customer._id }, { $set: { phone: "0999999998" } });
+    const sessionAfterPhoneChange = await request(
+      "/customer/fnb-orders/active-tables",
+      "GET",
+      undefined,
+      customerToken,
+    );
+    assert.equal(sessionAfterPhoneChange.body.data.length, 1);
+    assert.equal(sessionAfterPhoneChange.body.data[0].tableId, tableId);
+    await User.updateOne({ _id: customer._id }, { $set: { phone: customer.phone } });
     assert.equal(
       (await request("/customer/fnb-orders/active-tables")).status,
       401,
