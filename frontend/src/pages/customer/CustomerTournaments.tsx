@@ -457,7 +457,7 @@ const CustomerTournaments = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/customer/tournaments/${tourney.id}/payment`)}
+                          onClick={() => openPayment(tourney)}
                           className="!text-xs !rounded-xl"
                         >
                           <CheckCircleOutlined /> Đã tham gia · Xem chi tiết
