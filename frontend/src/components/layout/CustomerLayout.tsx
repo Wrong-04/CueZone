@@ -15,7 +15,6 @@ import {
   UserOutlined,
   CalendarOutlined,
   HistoryOutlined,
-  CoffeeOutlined,
   PlayCircleOutlined,
   BookOutlined,
   ReadOutlined,
@@ -203,10 +202,9 @@ const CustomerLayout = () => {
   const memberNavLinks = [
     { to: "/customer", label: "Trang chủ", icon: <HomeOutlined /> },
     { to: "/customer/booking", label: "Đặt bàn", icon: <CalendarOutlined /> },
-    { to: "/customer/session", label: "Phiên chơi & thanh toán", icon: <PlayCircleOutlined /> },
-    { to: "/customer/fnb", label: "Gọi món F&B", icon: <CoffeeOutlined /> },
+    { to: "/customer/session", label: "Phiên chơi & Dịch vụ", icon: <PlayCircleOutlined /> },
     { to: "/customer/tournaments", label: "Giải đấu & ELO", icon: <TrophyOutlined /> },
-    { to: "/customer/history", label: "Lịch sử đặt chỗ", icon: <HistoryOutlined /> },
+    { to: "/customer/history", label: "Lịch sử & Hóa đơn", icon: <HistoryOutlined /> },
     { to: "/customer/news", label: "Tin tức", icon: <ReadOutlined /> },
   ];
 

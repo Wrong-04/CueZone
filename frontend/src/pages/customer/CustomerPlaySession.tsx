@@ -1,22 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   CoffeeOutlined,
   CreditCardOutlined,
+  RightOutlined,
   ShoppingOutlined,
-  MinusOutlined,
-  PlusOutlined,
   SyncOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
 import {
   Button,
   Card,
-  Input,
-  Modal,
-  Pagination,
-  SegmentedPillList,
   Select,
   Space,
   Tag,
@@ -40,21 +36,12 @@ export default function CustomerPlaySession() {
   const [tables, setTables] = useState<ActiveOrderTable[]>([]);
   const [selectedTableId, setSelectedTableId] = useState("");
   const [menu, setMenu] = useState<ProductMenu[]>([]);
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuCategory, setMenuCategory] = useState("all");
-  const [menuPage, setMenuPage] = useState(1);
-  const [voucherCode, setVoucherCode] = useState("");
-  const [appliedVoucherCode, setAppliedVoucherCode] = useState("");
   const [preview, setPreview] = useState<CustomerCheckoutPreview | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("member_balance");
-  const [note, setNote] = useState("");
   const [now, setNow] = useState(0);
   const [refreshedAt, setRefreshedAt] = useState(0);
   const [loadingMenu, setLoadingMenu] = useState(true);
-  const [ordering, setOrdering] = useState(false);
   const [paying, setPaying] = useState(false);
-  const [applyingVoucher, setApplyingVoucher] = useState(false);
   const selectedTable = tables.find((table) => table.tableId === selectedTableId);
 
   const refresh = useCallback(async () => {
@@ -64,34 +51,16 @@ export default function CustomerPlaySession() {
       setTables(activeTables);
       setNow(syncedAt);
       setRefreshedAt(syncedAt);
-      const selected =
-        activeTables.find((table) => table.tableId === selectedTableId) ?? activeTables[0];
       setSelectedTableId((current) =>
         activeTables.some((table) => table.tableId === current)
           ? current
           : (activeTables[0]?.tableId ?? ""),
       );
-      if (!selected || !appliedVoucherCode || selected.checkoutState !== "open") {
-        setPreview(null);
-      } else {
-        try {
-          setPreview(
-            await customerOrderService.previewCheckout(
-              selected.tableId,
-              selected.sessionId,
-              appliedVoucherCode,
-            ),
-          );
-        } catch (error) {
-          setAppliedVoucherCode("");
-          setPreview(null);
-          message.error(error instanceof Error ? error.message : "Không thể cập nhật voucher");
-        }
-      }
+      setPreview(null);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không thể cập nhật phiên chơi");
     }
-  }, [selectedTableId, appliedVoucherCode]);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -125,36 +94,6 @@ export default function CustomerPlaySession() {
     };
   }, []);
 
-  const selectedProducts = useMemo(
-    () =>
-      menu
-        .filter((item) => (cart[item._id] ?? 0) > 0)
-        .map((item) => ({ item, quantity: cart[item._id] })),
-    [cart, menu],
-  );
-  const menuCategories = useMemo(
-    () =>
-      [...new Set(menu.map((item) => item.category.trim().toLocaleLowerCase("vi-VN")))].filter(
-        Boolean,
-      ),
-    [menu],
-  );
-  const filteredMenu = useMemo(
-    () =>
-      menuCategory === "all"
-        ? menu
-        : menu.filter(
-            (item) => item.category.trim().toLocaleLowerCase("vi-VN") === menuCategory,
-          ),
-    [menu, menuCategory],
-  );
-  const paginatedMenu = filteredMenu.slice((menuPage - 1) * 8, menuPage * 8);
-  const categoryLabel = (category: string) =>
-    ({ drink: "Đồ uống", food: "Món ăn", snack: "Ăn vặt" })[category] ?? category;
-  const cartTotal = selectedProducts.reduce(
-    (total, product) => total + product.item.salePrice * product.quantity,
-    0,
-  );
   const baseQuote = selectedTable;
   const quote = preview ?? baseQuote;
   const elapsedSeconds = selectedTable
@@ -164,69 +103,14 @@ export default function CustomerPlaySession() {
           (!selectedTable.isPaused ? Math.floor((now - refreshedAt) / 1000) : 0),
       )
     : 0;
-  const sessionTime = [Math.floor(elapsedSeconds / 3600), Math.floor((elapsedSeconds % 3600) / 60), elapsedSeconds % 60]
+  const sessionTime = [
+    Math.floor(elapsedSeconds / 3600),
+    Math.floor((elapsedSeconds % 3600) / 60),
+    elapsedSeconds % 60,
+  ]
     .map((part) => String(part).padStart(2, "0"))
     .join(":");
   const formatMoney = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
-
-  const updateQuantity = (productId: string, delta: number) => {
-    setCart((current) => {
-      const quantity = Math.max(0, (current[productId] ?? 0) + delta);
-      const next = { ...current };
-      if (quantity === 0) delete next[productId];
-      else next[productId] = quantity;
-      return next;
-    });
-  };
-
-  const sendOrder = async () => {
-    if (!selectedTable || !selectedProducts.length) return;
-    setOrdering(true);
-    try {
-      await customerOrderService.create({
-        tableId: selectedTable.tableId,
-        sessionId: selectedTable.sessionId,
-        items: selectedProducts.map(({ item, quantity }) => ({
-          productId: item._id,
-          quantity,
-        })),
-        note,
-      });
-      setCart({});
-      setNote("");
-      setMenuOpen(false);
-      message.success("Đã gửi món tới quầy. Món được tính vào hóa đơn sau khi nhân viên xác nhận.");
-      await refresh();
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không thể gửi món");
-      await refresh();
-    } finally {
-      setOrdering(false);
-    }
-  };
-
-  const applyVoucher = async () => {
-    if (!selectedTable || !voucherCode.trim()) {
-      message.warning("Vui lòng nhập mã voucher");
-      return;
-    }
-    setApplyingVoucher(true);
-    try {
-      const code = voucherCode.trim().toUpperCase();
-      const result = await customerOrderService.previewCheckout(
-        selectedTable.tableId,
-        selectedTable.sessionId,
-        code,
-      );
-      setAppliedVoucherCode(code);
-      setPreview(result);
-      message.success(`Đã áp dụng voucher ${code}`);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "Voucher không hợp lệ");
-    } finally {
-      setApplyingVoucher(false);
-    }
-  };
 
   const submitCheckout = async () => {
     if (!selectedTable) return;
@@ -235,12 +119,9 @@ export default function CustomerPlaySession() {
       const result = await customerOrderService.requestCheckout(selectedTable.tableId, {
         sessionId: selectedTable.sessionId,
         paymentMethod,
-        ...(appliedVoucherCode ? { voucherCode: appliedVoucherCode } : {}),
       });
       if (result.status === "paid") {
         message.success("Thanh toán ví thành công. Cảm ơn bạn đã sử dụng dịch vụ!");
-        setAppliedVoucherCode("");
-        setVoucherCode("");
         setPreview(null);
       } else {
         message.success("Đã gửi yêu cầu. Bàn tạm dừng tính giờ trong khi chờ nhân viên xác nhận.");
@@ -259,7 +140,7 @@ export default function CustomerPlaySession() {
         <div>
           <Text className="text-sm font-semibold uppercase tracking-wide text-brand">Dịch vụ tại bàn</Text>
           <Title level={2} className="!mb-1 !mt-1">Phiên chơi của tôi</Title>
-          <Text type="secondary">Theo dõi thời gian, gọi món và thanh toán ngay trên điện thoại.</Text>
+          <Text type="secondary">Theo dõi thời gian, gọi đồ uống ẩm thực và thanh toán ngay trên điện thoại.</Text>
         </div>
         <Button
           variant="outline"
@@ -271,12 +152,45 @@ export default function CustomerPlaySession() {
       </div>
 
       {!user || user.role !== "customer" ? (
-        <Card><Text>Vui lòng đăng nhập tài khoản hội viên để xem phiên chơi.</Text></Card>
+        <Card className="max-w-xl mx-auto rounded-3xl p-8 text-center">
+          <Text>Vui lòng đăng nhập tài khoản hội viên để xem phiên chơi.</Text>
+        </Card>
       ) : !tables.length ? (
-        <Card className="py-8 text-center">
-          <ClockCircleOutlined className="text-4xl text-slate-400" />
-          <Title level={4}>Bạn chưa có phiên chơi đang hoạt động</Title>
-          <Text type="secondary">Thông tin bàn sẽ xuất hiện tại đây sau khi nhân viên mở bàn cho bạn.</Text>
+        <Card className="py-12 px-6 text-center max-w-xl mx-auto rounded-3xl border border-slate-200/90 shadow-sm space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
+            <ClockCircleOutlined />
+          </div>
+          <div>
+            <Title level={4} className="!mb-1.5 !text-lg !font-bold !text-slate-900">
+              Bạn chưa có phiên chơi đang hoạt động
+            </Title>
+            <Text className="!text-xs !text-slate-500 block max-w-md mx-auto leading-relaxed">
+              Khi đến CLB, bạn chỉ cần đọc số điện thoại{" "}
+              <strong className="text-emerald-700 font-mono font-bold">
+                {user.phone || "đăng ký hội viên"}
+              </strong>{" "}
+              để nhân viên mở bàn. Hệ thống sẽ tự động đồng bộ thời gian chơi, giá tiền và cho phép gọi món tại đây!
+            </Text>
+          </div>
+          <div className="pt-2 flex justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<SyncOutlined />}
+              onClick={() => void refresh()}
+              className="!rounded-xl !text-xs font-semibold"
+            >
+              Kiểm Tra Lại Bàn
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              to="/customer/booking"
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white !rounded-xl !text-xs font-bold"
+            >
+              Đặt Bàn Trước
+            </Button>
+          </div>
         </Card>
       ) : (
         <>
@@ -333,37 +247,36 @@ export default function CustomerPlaySession() {
                     </Text>
                   </Card>
 
-                  <Card>
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <Text strong className="block"><CoffeeOutlined className="mr-2" />Gọi món F&B</Text>
-                        <Text type="secondary">
-                          {loadingMenu
-                            ? "Đang tải thực đơn…"
-                            : menu.length
-                              ? `${menu.length} món đang được phục vụ`
-                              : "Hiện chưa có món được bán."}
+                  {/* Card F&B và Phụ kiện - Điều hướng mượt sang menu đầy đủ */}
+                  <Card className="!border-emerald-200/90 !bg-gradient-to-br !from-emerald-50/50 !via-white !to-slate-50 !rounded-2xl shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <Tag color="green" className="!font-bold !text-xs !rounded-md uppercase">
+                            <CoffeeOutlined className="mr-1" /> Dịch vụ F&B & Phụ kiện
+                          </Tag>
+                          {!loadingMenu && (
+                            <span className="text-xs text-emerald-800 font-semibold bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                              {menu.length} món sẵn sàng phục vụ
+                            </span>
+                          )}
+                        </div>
+                        <Title level={4} className="!text-base !font-bold !text-slate-900 !mb-0 !mt-1">
+                          Gọi Đồ Uống & Ẩm Thực Tận Bàn
+                        </Title>
+                        <Text type="secondary" className="!text-xs block text-slate-500 max-w-lg">
+                          Menu đa dạng đồ uống mát lạnh, cà phê, thức ăn nhẹ và phụ kiện bida. Gọi món trực tiếp không cần rời bàn.
                         </Text>
                       </div>
-                      <Button
-                        variant="primary"
-                        icon={<ShoppingOutlined />}
-                        disabled={loadingMenu || !menu.length || selectedTable.checkoutState !== "open"}
-                        onClick={() => setMenuOpen(true)}
+                      <Link
+                        to={`/customer/fnb?tableId=${selectedTable.tableId}`}
+                        className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm h-11 px-6 rounded-xl transition shadow-sm hover:shadow shrink-0"
                       >
-                        Xem menu{selectedProducts.length ? ` (${selectedProducts.length})` : ""}
-                      </Button>
+                        <ShoppingOutlined className="text-base" />
+                        <span>Mở Menu Gọi Món</span>
+                        <RightOutlined className="text-xs ml-0.5" />
+                      </Link>
                     </div>
-                    {selectedProducts.length > 0 && (
-                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
-                        <Text type="secondary">
-                          Đã chọn {selectedProducts.length} món · {formatMoney(cartTotal)}
-                        </Text>
-                        <Button variant="outline" onClick={() => setMenuOpen(true)}>
-                          Xem giỏ và gửi món
-                        </Button>
-                      </div>
-                    )}
                   </Card>
 
                   <Card title="Món đã được xác nhận vào phiên">
@@ -388,7 +301,7 @@ export default function CustomerPlaySession() {
                   className="h-fit lg:sticky lg:top-5"
                 >
                   {quote && (
-                    <div className="space-y-3">
+                    <div className="space-y-3.5">
                       <SummaryRow label="Tiền bàn" value={formatMoney(quote.playingCost)} />
                       <SummaryRow label="F&B" value={formatMoney(quote.fnbTotal)} />
                       <SummaryRow label="Tạm tính" value={formatMoney(quote.subtotal)} />
@@ -397,45 +310,50 @@ export default function CustomerPlaySession() {
                         value={`−${formatMoney(quote.membershipDiscountAmount)}`}
                         positive
                       />
-                      {quote.voucherDiscountAmount > 0 && (
-                        <SummaryRow label={`Voucher ${("voucherCode" in quote ? quote.voucherCode : undefined) ?? appliedVoucherCode}`} value={`−${formatMoney(quote.voucherDiscountAmount)}`} positive />
-                      )}
                       {quote.deposit > 0 && <SummaryRow label="Tiền cọc" value={`−${formatMoney(quote.deposit)}`} positive />}
+                      
                       <div className="border-t border-slate-200 pt-3">
                         <SummaryRow label="Cần thanh toán" value={formatMoney(quote.totalDue)} strong />
                       </div>
-                      <div className="rounded-lg bg-slate-50 p-3 text-sm">
+
+                      {/* Thông báo tự động áp dụng ưu đãi hội viên chuẩn Sabo */}
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200/90 text-emerald-900 text-xs">
+                        <CheckCircleOutlined className="text-emerald-600 shrink-0 text-sm mt-0.5" />
+                        <span>
+                          Tự động áp dụng đặc quyền <strong>Hạng {quote.tier.name}</strong>: Giảm{" "}
+                          <strong>{quote.tier.tableDiscountPercent}%</strong> tiền bàn &{" "}
+                          <strong>{quote.tier.fnbDiscountPercent}%</strong> F&B.
+                        </span>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3 text-sm">
                         <div className="flex justify-between">
                           <Text type="secondary">Ưu đãi bàn / F&B</Text>
                           <Text>{quote.tier.tableDiscountPercent}% / {quote.tier.fnbDiscountPercent}%</Text>
                         </div>
                         <div className="mt-1 flex justify-between">
-                          <Text type="secondary">Số dư ví</Text>
-                          <Text strong>{formatMoney(quote.walletBalance)}</Text>
+                          <Text type="secondary">Số dư ví hiện tại</Text>
+                          <Text strong className="text-emerald-700">{formatMoney(quote.walletBalance)}</Text>
                         </div>
                       </div>
-                      <Space.Compact className="w-full">
-                        <Input
-                          placeholder="Mã voucher"
-                          value={voucherCode}
-                          onChange={(event) => setVoucherCode(event.target.value.toUpperCase())}
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                          Phương thức thanh toán:
+                        </label>
+                        <Select<PaymentMethod>
+                          value={paymentMethod}
+                          onChange={setPaymentMethod}
+                          className="w-full !h-10"
                           disabled={selectedTable.checkoutState !== "open"}
+                          options={[
+                            { value: "member_balance", label: "Ví trả trước hội viên (Trừ tiền tự động)" },
+                            { value: "cash", label: "Tiền mặt — chờ nhân viên" },
+                            { value: "transfer", label: "Chuyển khoản VietQR — chờ đối soát" },
+                          ]}
                         />
-                        <Button loading={applyingVoucher} onClick={() => void applyVoucher()} disabled={selectedTable.checkoutState !== "open"}>
-                          Áp dụng
-                        </Button>
-                      </Space.Compact>
-                      <Select<PaymentMethod>
-                        value={paymentMethod}
-                        onChange={setPaymentMethod}
-                        className="w-full"
-                        disabled={selectedTable.checkoutState !== "open"}
-                        options={[
-                          { value: "member_balance", label: "Ví trả trước hội viên" },
-                          { value: "cash", label: "Tiền mặt — chờ nhân viên" },
-                          { value: "transfer", label: "Chuyển khoản — chờ đối soát" },
-                        ]}
-                      />
+                      </div>
+
                       <Button
                         block
                         size="lg"
@@ -443,11 +361,12 @@ export default function CustomerPlaySession() {
                         disabled={selectedTable.checkoutState !== "open"}
                         icon={paymentMethod === "member_balance" ? <WalletOutlined /> : <CheckCircleOutlined />}
                         onClick={() => void submitCheckout()}
+                        className="!h-11 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold"
                       >
-                        {paymentMethod === "member_balance" ? "Thanh toán bằng ví" : "Gửi yêu cầu thanh toán"}
+                        {paymentMethod === "member_balance" ? "Thanh toán bằng ví hội viên" : "Gửi yêu cầu thanh toán"}
                       </Button>
                       {paymentMethod !== "member_balance" && (
-                        <Text type="secondary" className="block text-xs">
+                        <Text type="secondary" className="block text-xs text-center">
                           Hóa đơn chỉ hoàn tất sau khi nhân viên nhận tiền hoặc xác nhận chuyển khoản.
                         </Text>
                       )}
@@ -459,138 +378,6 @@ export default function CustomerPlaySession() {
           )}
         </>
       )}
-      <Modal
-        title={<span><CoffeeOutlined className="mr-2" />Thực đơn F&B</span>}
-        open={menuOpen}
-        onCancel={() => setMenuOpen(false)}
-        footer={null}
-        width={900}
-      >
-        <div className="space-y-5">
-          <SegmentedPillList
-            activeKey={menuCategory}
-            onSelect={(category) => {
-              setMenuCategory(category);
-              setMenuPage(1);
-            }}
-            items={[
-              { key: "all", label: "Tất cả", badge: menu.length },
-              ...menuCategories.map((category) => ({
-                key: category,
-                label: categoryLabel(category),
-                badge: menu.filter(
-                  (item) => item.category.trim().toLocaleLowerCase("vi-VN") === category,
-                ).length,
-              })),
-            ]}
-          />
-          {loadingMenu ? (
-            <div className="py-12 text-center"><Text type="secondary">Đang tải thực đơn…</Text></div>
-          ) : !filteredMenu.length ? (
-            <div className="py-12 text-center"><Text type="secondary">Không có món trong danh mục này.</Text></div>
-          ) : (
-            <>
-              <div className="grid max-h-[50vh] gap-3 overflow-y-auto sm:grid-cols-2">
-                {paginatedMenu.map((item) => (
-                  <div key={item._id} className="flex min-h-24 items-center gap-3 rounded-xl border border-slate-200 p-3">
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
-                    ) : (
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-brand">
-                        <CoffeeOutlined className="text-xl" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <Text strong className="block truncate">{item.name}</Text>
-                      <Text type="secondary" className="block truncate">
-                        {item.description || categoryLabel(item.category)}
-                      </Text>
-                      <Text strong className="text-brand">{formatMoney(item.salePrice)}</Text>
-                      {item.isOutOfStock && <Tag color="red" className="ml-2">Hết hàng</Tag>}
-                    </div>
-                    <Space>
-                      {(cart[item._id] ?? 0) > 0 && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            icon={<MinusOutlined />}
-                            aria-label={`Giảm ${item.name}`}
-                            onClick={() => updateQuantity(item._id, -1)}
-                          />
-                          <Text strong>{cart[item._id]}</Text>
-                        </>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        icon={<PlusOutlined />}
-                        aria-label={`Thêm ${item.name}`}
-                        disabled={item.isOutOfStock || !selectedTable || selectedTable.checkoutState !== "open"}
-                        onClick={() => updateQuantity(item._id, 1)}
-                      />
-                    </Space>
-                  </div>
-                ))}
-              </div>
-              <Pagination
-                current={menuPage}
-                pageSize={8}
-                total={filteredMenu.length}
-                unit="món"
-                onChange={(page) => setMenuPage(page)}
-                className="rounded-lg border border-slate-100"
-              />
-            </>
-          )}
-          {selectedProducts.length > 0 && (
-            <div className="space-y-3 border-t border-slate-200 pt-4">
-              <Text strong>Giỏ món mới</Text>
-              <div className="max-h-36 space-y-2 overflow-y-auto">
-                {selectedProducts.map(({ item, quantity }) => (
-                  <div key={item._id} className="flex items-center justify-between gap-3">
-                    <Text>{item.name}</Text>
-                    <Space>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        icon={<MinusOutlined />}
-                        aria-label={`Giảm ${item.name}`}
-                        onClick={() => updateQuantity(item._id, -1)}
-                      />
-                      <Text>{quantity}</Text>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        icon={<PlusOutlined />}
-                        aria-label={`Tăng ${item.name}`}
-                        disabled={item.isOutOfStock || !selectedTable || selectedTable.checkoutState !== "open"}
-                        onClick={() => updateQuantity(item._id, 1)}
-                      />
-                    </Space>
-                  </div>
-                ))}
-              </div>
-              <Input
-                placeholder="Ghi chú cho quầy (không bắt buộc)"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Text strong>Tạm tính: {formatMoney(cartTotal)}</Text>
-                <Button
-                  variant="primary"
-                  loading={ordering}
-                  disabled={!selectedTable || selectedTable.checkoutState !== "open"}
-                  onClick={() => void sendOrder()}
-                >
-                  Gửi món
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }

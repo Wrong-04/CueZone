@@ -12,6 +12,8 @@ import walletRouter from "../modules/wallet/wallet.routes";
 import voucherRouter from "../modules/voucher/voucher.routes";
 import customerOrderRouter from "../modules/customer-order/customer-order.routes";
 import memberCenterRouter from "../modules/member/member-center.routes";
+import waitlistRouter from "../modules/waitlist/waitlist.routes";
+import { WaitlistService } from "../modules/waitlist/waitlist.service";
 import { TournamentService } from "../modules/tournament/tournament.service";
 import { TournamentPaymentService } from "../modules/tournament/tournament-payment.service";
 import { getPublicTables } from "../modules/table/table.controller";
@@ -34,6 +36,7 @@ import * as pricingController from "../modules/pricing/pricing.controller";
 const bookingService = new BookingService();
 const walletService = new WalletService();
 const tournamentService = new TournamentService();
+const waitlistService = new WaitlistService();
 
 // Public routes (no auth middleware)
 export const publicRouter = Router();
@@ -107,6 +110,19 @@ publicRouter.post(
   },
 );
 
+publicRouter.post("/public/waitlist", async (req, res, next) => {
+  try {
+    const entry = await waitlistService.create(req.body);
+    res.status(201).json({
+      success: true,
+      message: "Đăng ký danh sách chờ thành công",
+      data: entry,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Protected routes (auth middleware applied in app.ts)
 export const protectedRouter = Router();
 protectedRouter.use("/users", userRouter);
@@ -128,4 +144,5 @@ protectedRouter.use("/suppliers", supplierRouter);
 protectedRouter.use("/goods-receipts", goodsReceiptRouter);
 protectedRouter.use("/reports", reportRouter);
 protectedRouter.use("/invoices", invoiceRouter);
+protectedRouter.use("/waitlist", waitlistRouter);
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile

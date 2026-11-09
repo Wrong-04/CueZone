@@ -18,6 +18,7 @@ export * from "./Image";
 export * from "./Input";
 export * from "./message";
 export * from "./Modal";
+export * from "./notification";
 export * from "./Pagination";
 export * from "./Popover";
 export * from "./Radio";
