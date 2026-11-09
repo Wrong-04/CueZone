@@ -5,7 +5,6 @@ import {
   MailOutlined,
   PhoneOutlined,
   LockOutlined,
-  SafetyCertificateOutlined,
   SaveOutlined,
   CheckCircleOutlined,
   BellOutlined,
@@ -14,8 +13,9 @@ import {
   HistoryOutlined,
   LogoutOutlined,
 } from "@ant-design/icons";
-import { Button, Tag, Input, Typography, message, Space, Modal, Tabs } from "../../shared/ui";
+import { Button, Tag, Input, Typography, message, Space, Tabs } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
+import { authService } from "../../services/auth.service";
 import { MemberOverviewTab, PlayHistoryTab } from "./CustomerMembershipCenter";
 
 const { Title } = Typography;
@@ -44,8 +44,6 @@ export const CustomerProfile: React.FC = () => {
   const [newPassword, setNewPassword] = useState<string>("");
   const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
   const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
-  const [otpStep, setOtpStep] = useState<boolean>(false);
-  const [otpCode, setOtpCode] = useState<string>("");
 
   const [notifyBooking, setNotifyBooking] = useState<boolean>(true);
   const [notifyWallet, setNotifyWallet] = useState<boolean>(true);
@@ -67,7 +65,7 @@ export const CustomerProfile: React.FC = () => {
     }
   };
 
-  const handleRequestChangePassword = () => {
+  const handleRequestChangePassword = async () => {
     if (!currentPassword) {
       message.warning("Vui lòng nhập mật khẩu hiện tại");
       return;
@@ -76,30 +74,31 @@ export const CustomerProfile: React.FC = () => {
       message.warning("Mật khẩu mới phải có ít nhất 8 ký tự");
       return;
     }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      message.warning("Mật khẩu mới phải chứa cả chữ cái và số");
+      return;
+    }
     if (newPassword !== confirmNewPassword) {
       message.warning("Mật khẩu xác nhận không khớp");
       return;
     }
-
-    setOtpStep(true);
-    message.info(`Đã gửi mã xác thực OTP 4 chữ số đến email: ${email}`);
-  };
-
-  const handleConfirmOtpChangePassword = () => {
-    if (otpCode.length < 4) {
-      message.warning("Vui lòng nhập đủ 4 chữ số mã OTP");
+    if (currentPassword === newPassword) {
+      message.warning("Mật khẩu mới không được trùng với mật khẩu hiện tại");
       return;
     }
+
     setIsChangingPassword(true);
-    setTimeout(() => {
-      setIsChangingPassword(false);
-      setOtpStep(false);
+    try {
+      const resMsg = await authService.changePassword(currentPassword, newPassword);
+      message.success(resMsg || "Đổi mật khẩu thành công!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
-      setOtpCode("");
-      message.success("Đổi mật khẩu thành công! Hãy ghi nhớ mật khẩu mới của bạn.");
-    }, 800);
+    } catch (err: any) {
+      message.error(err.message || "Đổi mật khẩu thất bại, vui lòng kiểm tra lại thông tin");
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   return (
@@ -291,19 +290,14 @@ export const CustomerProfile: React.FC = () => {
                     />
                   </div>
 
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
-                    <SafetyCertificateOutlined className="text-emerald-600 mr-1.5" />
-                    Để bảo vệ tài khoản, sau khi nhấn tiếp tục hệ thống sẽ gửi mã OTP 4 số về email
-                    của bạn để xác thực.
-                  </div>
-
-                  <div className="pt-1">
+                  <div className="pt-2">
                     <Button
                       variant="primary"
+                      loading={isChangingPassword}
                       onClick={handleRequestChangePassword}
                       className="!h-10 !px-5 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
                     >
-                      Xác Nhận & Nhận Mã OTP
+                      Cập Nhật Mật Khẩu
                     </Button>
                   </div>
                 </div>
@@ -396,58 +390,6 @@ export const CustomerProfile: React.FC = () => {
         />
       </div>
 
-      <Modal
-        open={otpStep}
-        onCancel={() => setOtpStep(false)}
-        footer={[
-          <Button
-            key="cancel"
-            variant="outline"
-            onClick={() => setOtpStep(false)}
-            className="!text-xs !rounded-xl"
-          >
-            Hủy Bỏ
-          </Button>,
-          <Button
-            key="confirm"
-            variant="primary"
-            loading={isChangingPassword}
-            onClick={handleConfirmOtpChangePassword}
-            className="!text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
-          >
-            Xác Thực & Đổi Mật Khẩu
-          </Button>,
-        ]}
-        title={
-          <Space align="center" size={8}>
-            <SafetyCertificateOutlined className="text-emerald-600 text-lg" />
-            <span className="text-slate-900 font-bold">Xác Thực OTP Đổi Mật Khẩu</span>
-          </Space>
-        }
-      >
-        <div className="space-y-4 py-2 text-xs text-slate-700">
-          <p>
-            Vui lòng nhập mã OTP 4 chữ số được gửi tới hộp thư: <strong>{email}</strong>
-          </p>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Mã xác thực (OTP):
-            </label>
-            <Input
-              maxLength={4}
-              placeholder="Nhập 4 số OTP"
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value)}
-              className="!h-11 !text-center !text-lg !font-bold !tracking-widest !rounded-xl"
-            />
-          </div>
-
-          <p className="text-slate-400 text-[11px]">
-            Không nhận được mã? Bạn có thể gửi lại mã sau 60 giây.
-          </p>
-        </div>
-      </Modal>
     </div>
   );
 };

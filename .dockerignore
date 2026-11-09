@@ -1,0 +1,8 @@
+# .dockerignore
+dist
+.env
+.env.local
+.git
+.pi
+*.log
+.DS_Store

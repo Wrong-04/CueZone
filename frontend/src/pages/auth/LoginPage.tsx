@@ -161,16 +161,12 @@ const LoginPage: React.FC = () => {
                 label={
                   <div className="flex w-full items-center justify-between">
                     <Text className="!text-xs !font-semibold !text-slate-700">Mật khẩu</Text>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForgotEmail(identifier);
-                        setShowForgotModal(true);
-                      }}
+                    <Link
+                      to="/forgot-password"
                       className="!text-xs !font-medium !text-emerald-600 hover:!text-emerald-700 hover:underline cursor-pointer"
                     >
                       Quên mật khẩu?
-                    </button>
+                    </Link>
                   </div>
                 }
                 className="!mb-3"

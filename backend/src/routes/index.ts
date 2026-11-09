@@ -13,6 +13,7 @@ import voucherRouter from "../modules/voucher/voucher.routes";
 import customerOrderRouter from "../modules/customer-order/customer-order.routes";
 import memberCenterRouter from "../modules/member/member-center.routes";
 import { TournamentService } from "../modules/tournament/tournament.service";
+import { TournamentPaymentService } from "../modules/tournament/tournament-payment.service";
 import { getPublicTables } from "../modules/table/table.controller";
 import { BookingService } from "../modules/booking/booking.service";
 import { optionalAuthMiddleware, requireRole } from "../middlewares/auth.middleware";
@@ -36,6 +37,12 @@ const tournamentService = new TournamentService();
 
 // Public routes (no auth middleware)
 export const publicRouter = Router();
+publicRouter.post("/public/sepay/webhook", async (req, res, next) => {
+  try {
+    await new TournamentPaymentService().webhook(req.get("Authorization"), req.body);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
 publicRouter.use("/auth", authRouter);
 publicRouter.use("/products", productRouter);
 publicRouter.get("/public/tables", getPublicTables);

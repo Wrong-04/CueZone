@@ -6,6 +6,25 @@ const fromAddress = process.env.EMAIL_FROM || '"CueZone Billiards" <cuezonewdp@g
 
 let transporter: nodemailer.Transporter | null = null;
 let baseEmailTemplate: string | null = null;
+let passwordResetEmailTemplate: string | null = null;
+
+function getPasswordResetTemplate(): string {
+  if (!passwordResetEmailTemplate) {
+    const candidates = [
+      path.resolve(__dirname, "../../templates/password-reset.template.html"),
+      path.resolve(process.cwd(), "src/templates/password-reset.template.html"),
+      path.resolve(process.cwd(), "templates/password-reset.template.html"),
+      path.resolve(__dirname, "../../../src/templates/password-reset.template.html"),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        passwordResetEmailTemplate = fs.readFileSync(p, "utf-8");
+        break;
+      }
+    }
+  }
+  return passwordResetEmailTemplate || "";
+}
 
 function getBaseTemplate(): string {
   if (!baseEmailTemplate) {
@@ -137,7 +156,35 @@ export async function sendPasswordResetEmail(
   code: string,
   name?: string,
 ): Promise<void> {
-  const bodyContent = `
+  const customTemplate = getPasswordResetTemplate();
+  const now = new Date();
+  const timeString =
+    new Intl.DateTimeFormat("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(now) + " (GMT+7)";
+  const ref = `CZ-RST-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+  let html: string;
+  if (customTemplate) {
+    html = customTemplate
+      .replace(/{{TITLE}}/g, "CueZone - Đặt lại mật khẩu tài khoản")
+      .replace(/{{PREHEADER}}/g, `Mã OTP đặt lại mật khẩu CueZone là ${code}. Hiệu lực 10 phút.`)
+      .replace(/{{GREETING}}/g, name ? `Xin chào ${name},` : "Xin chào bạn,")
+      .replace(
+        /{{MESSAGE}}/g,
+        "Hệ thống CueZone nhận được yêu cầu cấp lại mật khẩu cho tài khoản liên kết với địa chỉ email này. Sử dụng mã OTP sau để hoàn tất quá trình đổi mật khẩu mới:",
+      )
+      .replace(/{{CODE}}/g, code)
+      .replace(/{{REFERENCE_ID}}/g, ref)
+      .replace(/{{GENERATED_TIME}}/g, timeString);
+  } else {
+    const bodyContent = `
     <!-- OTP Display Box -->
     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0 24px 0; background-color: #f8fafc; border: 1.5px dashed #f87171; border-radius: 14px; text-align: center;">
       <tr>
@@ -165,15 +212,16 @@ export async function sendPasswordResetEmail(
     </table>
   `;
 
-  const html = renderEmail({
-    title: "CueZone - Khôi phục mật khẩu tài khoản",
-    badgeText: "BẢO MẬT & ĐẶT LẠI MẬT KHẨU",
-    preheader: `Mã OTP đặt lại mật khẩu CueZone là ${code}. Hiệu lực 10 phút.`,
-    greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
-    message:
-      "Hệ thống CueZone nhận được yêu cầu cấp lại mật khẩu cho tài khoản liên kết với địa chỉ email này. Sử dụng mã OTP sau để hoàn tất quá trình đổi mật khẩu mới:",
-    bodyContent,
-  });
+    html = renderEmail({
+      title: "CueZone - Khôi phục mật khẩu tài khoản",
+      badgeText: "BẢO MẬT & ĐẶT LẠI MẬT KHẨU",
+      preheader: `Mã OTP đặt lại mật khẩu CueZone là ${code}. Hiệu lực 10 phút.`,
+      greeting: name ? `Xin chào ${name},` : "Xin chào bạn,",
+      message:
+        "Hệ thống CueZone nhận được yêu cầu cấp lại mật khẩu cho tài khoản liên kết với địa chỉ email này. Sử dụng mã OTP sau để hoàn tất quá trình đổi mật khẩu mới:",
+      bodyContent,
+    });
+  }
 
   await getTransporter().sendMail({
     from: fromAddress,

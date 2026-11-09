@@ -1,11 +1,98 @@
 import { Router, Request, Response, NextFunction } from "express";
+import multer from "multer";
 import { TournamentService } from "./tournament.service";
 import { requirePosStaff } from "../../middlewares/pos.middleware";
-import { TournamentStatus } from "./tournament.model";
+import { TournamentStatus, Tournament } from "./tournament.model";
 import { User, UserRole } from "../user/user.model";
+import { uploadReceiptImage } from "../../config/cloudinary.config";
+import { TournamentPaymentService } from "./tournament-payment.service";
+import { sepayConfig } from "./sepay";
 
 const router = Router();
 const tournamentService = new TournamentService();
+
+const receiptUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
+      callback(new Error("Chỉ chấp nhận ảnh chụp biên lai định dạng JPG, PNG hoặc WEBP"));
+      return;
+    }
+    callback(null, true);
+  },
+}).single("receipt");
+
+const payments = new TournamentPaymentService();
+router.get("/bank-info", (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { key, ...bank } = sepayConfig();
+    res.json({ success: true, data: bank });
+  } catch (error) { next(error); }
+});
+router.get("/:id/payment", async (req, res, next) => {
+  try { res.json({ success: true, data: await payments.status(req.params.id, (req as any).user.userId) }); }
+  catch (error) { next(error); }
+});
+
+router.post("/upload-receipt", (req: Request, res: Response, next: NextFunction) => {
+  receiptUpload(req, res, async (err) => {
+    if (err) {
+      const isTooLarge = err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE";
+      return res.status(isTooLarge ? 413 : 400).json({
+        success: false,
+        message: isTooLarge ? "Ảnh biên lai không được vượt quá 5 MB" : err.message,
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Vui lòng chọn ảnh biên lai chuyển khoản" });
+    }
+
+    try {
+      const result = await uploadReceiptImage(req.file.buffer);
+      res.json({
+        success: true,
+        message: "Tải ảnh biên lai thành công",
+        data: {
+          url: result.secure_url || result.url,
+          publicId: result.public_id,
+        },
+      });
+    } catch (uploadErr: any) {
+      res.status(502).json({
+        success: false,
+        message: uploadErr?.message || "Không thể tải ảnh biên lai lên máy chủ lưu trữ",
+      });
+    }
+  });
+});
+
+router.get("/:id/my-status", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Yêu cầu đăng nhập" });
+    }
+    const tournament = await Tournament.findById(req.params.id);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy giải đấu" });
+    }
+    const player = tournament.players.find((p: any) => String(p.user) === String(userId));
+    res.json({
+      success: true,
+      data: {
+        isRegistered: Boolean(player),
+        registrationStatus: player?.registrationStatus || null,
+        feePaid: Boolean(player?.feePaid),
+        paymentMethod: player?.paymentMethod || null,
+        paymentReceiptUrl: player?.paymentReceiptUrl || null,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 async function requireTournamentOperator(req: Request, res: Response, next: NextFunction) {
   try {
@@ -23,6 +110,19 @@ async function requireTournamentOperator(req: Request, res: Response, next: Next
     next(error);
   }
 }
+
+router.get("/:id/payments", requireTournamentOperator, async (req, res, next) => {
+  try { res.json({ success: true, data: await payments.snapshot(req.params.id) }); }
+  catch (error) { next(error); }
+});
+router.post("/:id/payments/acknowledge", requireTournamentOperator, async (req, res, next) => {
+  try { res.json({ success: true, data: await payments.acknowledge(req.params.id, req.body.revision, req.body.reconciled, (req as any).user.userId) }); }
+  catch (error) { next(error); }
+});
+router.post("/:id/payments/finalize", requireTournamentOperator, async (req, res, next) => {
+  try { res.json({ success: true, data: await payments.finalize(req.params.id, req.body.revision, req.body.reconciled) }); }
+  catch (error) { next(error); }
+});
 
 router.get(
   "/pending-fees",
@@ -58,7 +158,33 @@ router.patch(
   },
 );
 
-router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/my-history", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Yêu cầu đăng nhập để xem lịch sử giải đấu" });
+    }
+    const history = await tournamentService.getMyTournamentHistory(userId);
+    res.json({
+      success: true,
+      message: "Lấy lịch sử tham gia giải đấu thành công",
+      data: history,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/leaderboard", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await tournamentService.getLeaderboard(Number(req.query.limit) || 50);
+    res.json({ success: true, message: "Lấy bảng xếp hạng thành công", data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/", requireTournamentOperator, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await tournamentService.getTournaments(req.query);
     res.json({
@@ -71,7 +197,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/:id", requireTournamentOperator, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const tournament = await tournamentService.getTournamentById(req.params.id);
     res.json({

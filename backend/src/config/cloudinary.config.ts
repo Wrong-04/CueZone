@@ -21,6 +21,38 @@ const getCloudinaryClient = () => {
   return cloudinary;
 };
 
+export const uploadReceiptImage = (buffer: Buffer): Promise<UploadApiResponse> => {
+  const client = getCloudinaryClient();
+
+  return new Promise((resolve, reject) => {
+    const stream = client.uploader.upload_stream(
+      {
+        folder: "cuezone/tournament-receipts",
+        resource_type: "image",
+        allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        transformation: [
+          { width: 1600, height: 1600, crop: "limit" },
+          { quality: "auto:good", fetch_format: "auto" },
+        ],
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!result) {
+          reject(new Error("Cloudinary không trả về kết quả tải ảnh biên lai"));
+          return;
+        }
+
+        resolve(result);
+      },
+    );
+
+    stream.end(buffer);
+  });
+};
+
 export const uploadProductImage = (buffer: Buffer): Promise<UploadApiResponse> => {
   const client = getCloudinaryClient();
 

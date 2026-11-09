@@ -15,6 +15,8 @@ export interface User {
   role: UserRole;
   phone?: string;
   avatar?: string;
+  elo?: number;
+  rank?: string;
   isActive: boolean;
   isLocked: boolean;
   branch?: string;

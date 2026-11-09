@@ -78,8 +78,8 @@ export function validateTournamentData(
     errors.push("Ngày kết thúc thi đấu phải sau hoặc bằng ngày bắt đầu");
   }
 
-  if (regDeadline && startDate && regDeadline > startDate) {
-    errors.push("Hạn đăng ký phải trước hoặc bằng ngày bắt đầu thi đấu");
+  if (regDeadline && startDate && regDeadline >= startDate) {
+    errors.push("Hạn đăng ký bắt buộc phải diễn ra trước ngày khai mạc giải đấu");
   }
 
   if (dto.maxPlayers !== undefined) {
@@ -92,8 +92,9 @@ export function validateTournamentData(
   }
 
   if (dto.registrationFee !== undefined) {
-    if (Number(dto.registrationFee) < 0) {
-      errors.push("Lệ phí tham gia giải đấu không được âm");
+    const feeNum = Number(dto.registrationFee);
+    if (isNaN(feeNum) || feeNum < 0 || !Number.isFinite(feeNum)) {
+      errors.push("Lệ phí tham gia giải đấu phải là số dương hợp lệ hoặc bằng 0");
     }
   }
 

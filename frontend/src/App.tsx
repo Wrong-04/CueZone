@@ -8,6 +8,7 @@ import CustomerLayout from "./components/layout/CustomerLayout";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import WalletTopupsPage from "./pages/admin/WalletTopupsPage";
@@ -29,6 +30,7 @@ import StockCheckPage from "./pages/admin/StockCheckPage";
 import CustomerHome from "./pages/customer/CustomerHome";
 import CustomerBooking from "./pages/customer/CustomerBooking";
 import CustomerTournaments from "./pages/customer/CustomerTournaments";
+import CustomerPaymentPage from "./pages/customer/CustomerPaymentPage";
 import CustomerRules from "./pages/customer/CustomerRules";
 import CustomerNews from "./pages/customer/CustomerNews";
 import CustomerFnB from "./pages/customer/CustomerFnB";
@@ -107,6 +109,13 @@ const AppRoutes = () => {
         path="/register"
         element={
           user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <RegisterPage />
+        }
+      />
+
+      <Route
+        path="/forgot-password"
+        element={
+          user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <ForgotPasswordPage />
         }
       />
 
@@ -397,6 +406,14 @@ const AppRoutes = () => {
           }
         />
         <Route path="tournaments" element={<CustomerTournaments />} />
+        <Route
+          path="tournaments/:id/payment"
+          element={
+            <ProtectedRoute roles={["customer"]}>
+              <CustomerPaymentPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="history"
           element={

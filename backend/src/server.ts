@@ -11,12 +11,19 @@ import { Wallet } from "./modules/wallet/wallet.model";
 import { WalletPayment } from "./modules/wallet/wallet-payment.model";
 import { Voucher, VoucherUsage } from "./modules/voucher/voucher.model";
 import { CustomerOrder } from "./modules/customer-order/customer-order.model";
+import { PasswordResetOtp } from "./modules/auth/passwordResetOtp.model";
 import { corsOptions } from "./config/cors.config";
+import { TournamentPaymentIntent, TournamentPaymentReceipt } from "./modules/tournament/tournament-payment.model";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
 
-const httpServer = createServer(appInstance.app);
+export const httpServer = createServer((req, res) => {
+  void ready.then(() => appInstance.app(req, res)).catch(() => {
+    res.writeHead(503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, message: "Máy chủ chưa sẵn sàng" }));
+  });
+});
 
 export const io = new Server(httpServer, {
   cors: corsOptions,
@@ -32,8 +39,9 @@ io.on("connection", (socket) => {
   });
 });
 
-async function start() {
+async function initialize() {
   await connectDatabase();
+  await Promise.all([TournamentPaymentIntent.init(), TournamentPaymentReceipt.init()]);
   try {
     await Promise.all([
       Booking.init(),
@@ -45,6 +53,7 @@ async function start() {
       Voucher.init(),
       VoucherUsage.init(),
       CustomerOrder.init(),
+      PasswordResetOtp.init(),
     ]);
     console.log("✅ Database indexes verified");
   } catch (err: any) {
@@ -53,14 +62,20 @@ async function start() {
       err?.message || err,
     );
   }
-
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 API Server is running on http://localhost:${PORT}`);
-    console.log(`📡 Socket.io is ready`);
-  });
 }
 
-start().catch((err) => {
-  console.error("Không thể khởi động API Server:", err);
-  process.exit(1);
-});
+const ready = initialize();
+
+if (!process.env.VERCEL) {
+  void ready.then(() => {
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 API Server is running on http://localhost:${PORT}`);
+      console.log(`📡 Socket.io is ready`);
+    });
+  }).catch((err) => {
+    console.error("Không thể khởi động API Server:", err);
+    process.exit(1);
+  });
+} else {
+  void ready.catch(() => console.error("Không thể khởi tạo API Server"));
+}

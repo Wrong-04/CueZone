@@ -8,17 +8,19 @@ import mongoose from "mongoose";
 import { User, UserRole } from "../user/user.model";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
-import { WalletService } from "../wallet/wallet.service";
+import { TournamentPaymentService } from "./tournament-payment.service";
+import { TournamentPaymentIntent } from "./tournament-payment.model";
+import { confirmedPlayer, paymentError } from "./sepay";
 
 const notifications = new NotificationService();
-const walletService = new WalletService();
+
 
 export class TournamentService {
   async getPublicTournaments(query: { page?: number; limit?: number }) {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 50));
     const filter = { status: { $ne: TournamentStatus.DRAFT } };
-    const [items, total] = await Promise.all([
+    const [rawItems, total] = await Promise.all([
       Tournament.find(filter)
         .sort({ startDate: 1 })
         .skip((page - 1) * limit)
@@ -26,88 +28,109 @@ export class TournamentService {
         .lean(),
       Tournament.countDocuments(filter),
     ]);
+    const items = rawItems.map((t: any) => ({
+      ...t,
+      players: (t.players || []).filter((p: any) => confirmedPlayer(p, t.registrationFee)).map((p: any) => ({ user: p.user, name: p.name, avatar: p.avatar, registrationStatus: "confirmed", registeredAt: p.registeredAt })),
+      registeredCount: (t.players || []).filter((p: any) => confirmedPlayer(p, t.registrationFee)).length,
+    }));
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async registerPlayer(id: string, userId: string, paymentMethod: "wallet" | "counter") {
-    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(userId)) {
-      throw Object.assign(new Error("Mã giải đấu hoặc tài khoản không hợp lệ"), { httpCode: 400 });
-    }
-    if (paymentMethod !== "wallet" && paymentMethod !== "counter") {
-      throw Object.assign(new Error("Phương thức thanh toán không hợp lệ"), { httpCode: 400 });
+  /** Tra cứu lịch sử các giải đấu của cơ thủ cá nhân (SCRUM-916) */
+  async getMyTournamentHistory(userId: string) {
+    if (!mongoose.isValidObjectId(userId)) {
+      throw Object.assign(new Error("Mã tài khoản không hợp lệ"), { httpCode: 400 });
     }
 
-    const result = await mongoose.connection.transaction(async (session) => {
-      const user = await User.findOne({
-        _id: userId,
-        role: UserRole.CUSTOMER,
-        isActive: true,
-        isLocked: false,
-      }).session(session);
-      if (!user)
-        throw Object.assign(new Error("Chỉ hội viên đang hoạt động mới được ghi danh"), {
-          httpCode: 403,
-        });
-      const tournament = await Tournament.findById(id).session(session);
-      if (!tournament) throw Object.assign(new Error("Không tìm thấy giải đấu"), { httpCode: 404 });
-      if (tournament.status !== TournamentStatus.REGISTRATION_OPEN) {
-        throw Object.assign(new Error("Giải đấu hiện không mở ghi danh"), { httpCode: 400 });
-      }
-      if (tournament.registrationDeadline.getTime() < Date.now()) {
-        throw Object.assign(new Error("Đã hết hạn ghi danh giải đấu"), { httpCode: 400 });
-      }
-      if (
-        tournament.players.some(
-          (player: { user: mongoose.Types.ObjectId }) => String(player.user) === userId,
-        )
-      ) {
-        throw Object.assign(new Error("Bạn đã ghi danh giải đấu này"), { httpCode: 409 });
-      }
-      if (tournament.players.length >= tournament.maxPlayers) {
-        throw Object.assign(new Error("Giải đấu đã đủ số lượng cơ thủ"), { httpCode: 409 });
-      }
+    const tournaments = await Tournament.find({
+      "players.user": new mongoose.Types.ObjectId(userId),
+    })
+      .sort({ startDate: -1 })
+      .lean();
 
-      const feePaid = tournament.registrationFee <= 0 || paymentMethod === "wallet";
-      if (paymentMethod === "wallet" && tournament.registrationFee > 0) {
-        await walletService.chargeForTournament(
-          userId,
-          tournament.registrationFee,
-          tournament.name,
-          session,
-        );
-      }
-      tournament.players.push({
-        user: user._id,
-        name: user.name,
-        avatar: user.avatar,
-        phone: user.phone,
-        feePaid,
-        registeredAt: new Date(),
-      });
-      await tournament.save({ session });
-      return { tournament, user, feePaid };
+    return tournaments.map((t: any) => {
+      const playerRecord = t.players?.find(
+        (p: any) => String(p.user) === String(userId),
+      );
+
+      const finalRank = playerRecord?.result?.finalRank;
+      const prizeAmount = playerRecord?.result?.prizeAmount;
+
+      let medal: "gold" | "silver" | "bronze" | "participant" = "participant";
+      if (finalRank === 1) medal = "gold";
+      else if (finalRank === 2) medal = "silver";
+      else if (finalRank === 3) medal = "bronze";
+
+      const registeredCount = (t.players || []).filter((p: any) => confirmedPlayer(p, t.registrationFee)).length;
+      const remainingSlots = Math.max(0, (t.maxPlayers || 16) - registeredCount);
+
+      return {
+        tournamentId: String(t._id),
+        tournamentName: t.name,
+        status: t.status,
+        format: t.format,
+        raceToScore: t.raceToScore,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        registrationDeadline: t.registrationDeadline,
+        registrationFee: t.registrationFee || 0,
+        prizePool: t.prizePool,
+        maxPlayers: t.maxPlayers,
+        registeredCount,
+        remainingSlots,
+        feePaid: Boolean(playerRecord?.feePaid),
+        registeredAt: playerRecord?.registeredAt,
+        finalRank,
+        prizeAmount,
+        medal,
+      };
     });
+  }
 
-    const feeText = result.feePaid
-      ? `Lệ phí ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ đã được ghi nhận.`
-      : `Ghi danh đã được tiếp nhận. Vui lòng thanh toán ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ tại quầy trước hạn.`;
-    await Promise.all([
-      notifications
-        .createForUser(userId, {
-          title: "Ghi danh giải đấu thành công",
-          content: `Bạn đã ghi danh giải ${result.tournament.name}. ${feeText}`,
-          type: NotificationType.TOURNAMENT,
-        })
-        .catch(() => undefined),
-      notifications
-        .create({
-          title: "Có cơ thủ ghi danh giải đấu",
-          content: `${result.user.name} đã ghi danh giải ${result.tournament.name}.`,
-          type: NotificationType.TOURNAMENT,
-        })
-        .catch(() => undefined),
-    ]);
-    return result.tournament;
+  /** Bảng xếp hạng theo ELO; chỉ gồm hội viên đã ghi danh ít nhất một giải. */
+  async getLeaderboard(limit = 50) {
+    const tournaments = await Tournament.find({ "players.0": { $exists: true } })
+      .select("players.user players.result")
+      .lean();
+    const stats = new Map<string, { joined: number; won: number }>();
+    for (const tournament of tournaments) {
+      for (const player of tournament.players as Array<{
+        user: mongoose.Types.ObjectId;
+        result?: { finalRank?: number };
+      }>) {
+        const key = String(player.user);
+        const entry = stats.get(key) || { joined: 0, won: 0 };
+        entry.joined += 1;
+        if (player.result?.finalRank === 1) entry.won += 1;
+        stats.set(key, entry);
+      }
+    }
+
+    const users = await User.find({
+      _id: { $in: [...stats.keys()] },
+      role: UserRole.CUSTOMER,
+      isActive: true,
+      isLocked: false,
+    })
+      .sort({ elo: -1, createdAt: 1 })
+      .limit(Math.min(100, Math.max(1, limit)))
+      .select("name avatar elo rank")
+      .lean();
+
+    return users.map((user, index) => ({
+      id: String(user._id),
+      rankIndex: index + 1,
+      name: user.name,
+      avatar: user.avatar,
+      elo: user.elo ?? 1000,
+      rank: user.rank ?? "K",
+      tournamentsJoined: stats.get(String(user._id))?.joined ?? 0,
+      tournamentsWon: stats.get(String(user._id))?.won ?? 0,
+    }));
+  }
+
+  async registerPlayer(id: string, userId: string, paymentMethod: unknown) {
+    return new TournamentPaymentService().create(id, userId, paymentMethod);
   }
 
   async getPendingFees() {
@@ -130,34 +153,8 @@ export class TournamentService {
     );
   }
 
-  async confirmPlayerFee(id: string, userId: string, reviewerId: string) {
-    if (![id, userId, reviewerId].every((value) => mongoose.isValidObjectId(value))) {
-      throw Object.assign(new Error("Mã giải đấu hoặc tài khoản không hợp lệ"), { httpCode: 400 });
-    }
-    const result = await mongoose.connection.transaction(async (session) => {
-      const tournament = await Tournament.findById(id).session(session);
-      if (!tournament) throw Object.assign(new Error("Không tìm thấy giải đấu"), { httpCode: 404 });
-      const player = tournament.players.find(
-        (entry: { user: mongoose.Types.ObjectId }) => String(entry.user) === userId,
-      );
-      if (!player)
-        throw Object.assign(new Error("Cơ thủ chưa ghi danh giải này"), { httpCode: 404 });
-      if (player.feePaid) return { tournament, player, changed: false };
-      player.feePaid = true;
-      await tournament.save({ session });
-      return { tournament, player, changed: true };
-    });
-
-    if (result.changed) {
-      await notifications
-        .createForUser(userId, {
-          title: "Đã xác nhận lệ phí giải đấu",
-          content: `Nhân viên đã ghi nhận khoản thanh toán ${result.tournament.registrationFee.toLocaleString("vi-VN")}đ cho giải ${result.tournament.name}.`,
-          type: NotificationType.TOURNAMENT,
-        })
-        .catch(() => undefined);
-    }
-    return result.tournament;
+  async confirmPlayerFee(_id: string, _userId: string, _reviewerId: string) {
+    throw paymentError("Không xác nhận lệ phí thủ công; dùng đối soát và chốt SePay theo thời gian ngân hàng", 409);
   }
 
   async createTournament(dto: CreateTournamentDTO, userId?: string): Promise<ITournament> {
@@ -268,6 +265,9 @@ export class TournamentService {
       );
     }
 
+    if (((dto.registrationFee !== undefined && Number(dto.registrationFee) !== tournament.registrationFee) || (dto.registrationDeadline !== undefined && new Date(dto.registrationDeadline).getTime() !== tournament.registrationDeadline.getTime()) || (dto.maxPlayers !== undefined && Number(dto.maxPlayers) !== tournament.maxPlayers)) && await TournamentPaymentIntent.exists({ tournament: id })) {
+      throw paymentError("Không thể đổi lệ phí, hạn đăng ký hoặc quy mô sau khi đã tạo mã chuyển khoản", 409);
+    }
     if (dto.name !== undefined) tournament.name = dto.name.trim();
     if (dto.description !== undefined) tournament.description = dto.description.trim();
     if (dto.startDate !== undefined) tournament.startDate = new Date(dto.startDate);
@@ -298,8 +298,8 @@ export class TournamentService {
     if (tournament.endDate < tournament.startDate) {
       throw new Error("Ngày kết thúc thi đấu phải sau hoặc bằng ngày bắt đầu");
     }
-    if (tournament.registrationDeadline > tournament.startDate) {
-      throw new Error("Hạn đăng ký phải trước hoặc bằng ngày bắt đầu thi đấu");
+    if (tournament.registrationDeadline >= tournament.startDate) {
+      throw new Error("Hạn đăng ký bắt buộc phải diễn ra trước ngày khai mạc giải đấu");
     }
 
     await tournament.save();
@@ -318,6 +318,10 @@ export class TournamentService {
 
     const currentStatus = tournament.status;
 
+    if (nextStatus === TournamentStatus.DRAFT && currentStatus !== TournamentStatus.DRAFT) {
+      throw new Error("Không thể chuyển ngược giải đấu đã công bố về trạng thái Bản nháp (DRAFT)");
+    }
+
     if (nextStatus === TournamentStatus.REGISTRATION_OPEN) {
       if (currentStatus !== TournamentStatus.DRAFT) {
         throw new Error(
@@ -331,6 +335,9 @@ export class TournamentService {
       }
     }
 
+    if (tournament.registrationFee > 0 && [TournamentStatus.BRACKET_GENERATED, TournamentStatus.IN_PROGRESS, TournamentStatus.COMPLETED].includes(nextStatus) && await TournamentPaymentIntent.exists({ tournament: id })) {
+      if (!tournament.paymentFinalizedAt || tournament.paymentReconciliationRequired) throw paymentError("Cần đối soát và chốt danh sách thanh toán trước khi vận hành giải", 409);
+    }
     tournament.status = nextStatus;
     await tournament.save();
     if (currentStatus !== nextStatus && tournament.players.length > 0) {

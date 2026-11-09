@@ -34,6 +34,7 @@ import ConfirmModal from "../ui/ConfirmModal";
 import { notificationService, type Notification } from "../../services/notification.service";
 
 const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
   import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
 interface MenuItemConfig {
@@ -213,7 +214,7 @@ const AdminLayout = () => {
     }, 30000);
 
     const socket: Socket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
     });
 
     socket.on("notification:new", () => {
@@ -523,7 +524,11 @@ const AdminLayout = () => {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-6">
+          <main
+            className={`flex-1 overflow-y-auto ${
+              location.pathname === "/tournaments" ? "p-0" : "p-6"
+            }`}
+          >
             <div key={location.pathname} className="animate-slide-up">
               <Outlet />
             </div>

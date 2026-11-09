@@ -9,6 +9,7 @@ export * from "./ChoiceInput";
 export * from "./DataTable";
 export * from "./DatePicker";
 export * from "./Dialog";
+export * from "./Drawer";
 export * from "./Dropdown";
 export * from "./FloatingInput";
 export * from "./Form";

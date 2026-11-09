@@ -12,6 +12,7 @@ node_modules/
 .env
 .env.local
 .env.production
+.vercel/
 
 # ==========================================
 # Build Output
@@ -60,3 +61,5 @@ desktop.ini
 # OpenSpec & Local Prompts
 .pi/
 openspec/
+.env.*
+!.env.example

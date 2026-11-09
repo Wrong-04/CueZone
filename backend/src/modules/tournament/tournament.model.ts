@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { applyErdDefaults } from "../../config/erd-fields";
+import { confirmedPlayer } from "./sepay";
 
 export enum TournamentStatus {
   DRAFT = "draft",
@@ -34,6 +35,11 @@ export interface ITournamentPlayer {
   seed?: number;
 
   feePaid: boolean;
+
+  paymentMethod?: "wallet" | "counter" | "bank_transfer";
+
+  paymentReceiptUrl?: string;
+  paymentReference?: string;
 
   registeredAt: Date;
 }
@@ -98,6 +104,11 @@ export interface ITournament extends Document {
   createdBy?: mongoose.Types.ObjectId;
 
   players: ITournamentPlayer[];
+  paymentRevision?: number;
+  paymentFinalizedAt?: Date;
+  paymentReconciliationRequired?: boolean;
+  paymentAcknowledgedAt?: Date;
+  paymentAcknowledgedBy?: mongoose.Types.ObjectId;
 
   createdAt: Date;
 
@@ -142,6 +153,15 @@ const TournamentPlayerSchema = new Schema<ITournamentPlayer>(
     seed: { type: Number },
 
     feePaid: { type: Boolean, default: false },
+
+    paymentMethod: {
+      type: String,
+      enum: ["wallet", "counter", "bank_transfer"],
+      default: "counter",
+    },
+
+    paymentReceiptUrl: { type: String },
+    paymentReference: { type: String },
 
     registeredAt: { type: Date, default: Date.now },
   },
@@ -250,6 +270,11 @@ const TournamentSchema = new Schema<ITournament>(
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
 
     players: [TournamentPlayerSchema],
+    paymentRevision: { type: Number, default: 0 },
+    paymentFinalizedAt: Date,
+    paymentAcknowledgedAt: Date,
+    paymentAcknowledgedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    paymentReconciliationRequired: { type: Boolean, default: false },
   },
   { timestamps: true, collection: "tournaments", optimisticConcurrency: true },
 );
@@ -267,7 +292,7 @@ TournamentSchema.pre("validate", function () {
   }
   const unique = (items: unknown[]) => new Set(items.map(String)).size === items.length;
   if (
-    this.players.length > this.maxPlayers ||
+    this.players.filter(p => confirmedPlayer(p, this.registrationFee)).length > this.maxPlayers ||
     !unique(this.players.map((p) => p.user)) ||
     !unique(this.players.map((p) => p._id))
   ) {
@@ -285,8 +310,8 @@ TournamentSchema.pre("validate", function () {
   }
   if (this.minPlayers && this.minPlayers > this.maxPlayers)
     this.invalidate("minPlayers", "Số cơ thủ tối thiểu vượt quy mô");
-  if (this.endDate < this.startDate || this.registrationDeadline > this.startDate)
-    this.invalidate("startDate", "Lịch giải đấu không hợp lệ");
+  if (this.endDate < this.startDate || this.registrationDeadline >= this.startDate)
+    this.invalidate("startDate", "Lịch giải đấu không hợp lệ: hạn đăng ký phải trước ngày khai mạc và ngày kết thúc phải sau hoặc bằng ngày bắt đầu");
 });
 TournamentSchema.index({ status: 1, startDate: 1 });
 TournamentSchema.index({ "players.user": 1, startDate: -1 });

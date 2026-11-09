@@ -26,6 +26,7 @@ import {
 } from "@ant-design/icons";
 
 const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
   import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
 const CustomerLayout = () => {
@@ -104,7 +105,7 @@ const CustomerLayout = () => {
     if (!userId) return;
 
     const initialFetch = window.setTimeout(() => void fetchNotifications(), 0);
-    const socket: Socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+    const socket: Socket = io(SOCKET_URL, { transports: ["websocket"] });
     socket.on("notification:new", () => void fetchNotifications());
     const interval = window.setInterval(() => void fetchNotifications(), 30000);
 
@@ -214,8 +215,8 @@ const CustomerLayout = () => {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       {/* Top micro bar for Club info */}
-      <div className="bg-slate-900 text-slate-300 text-xs py-1.5 px-4 hidden sm:block border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="bg-slate-900 text-slate-300 text-xs py-1.5 px-4 sm:px-6 lg:px-8 hidden sm:block border-b border-slate-800">
+        <div className="w-full flex items-center justify-between">
           <div className="flex items-center gap-5">
             <span className="flex items-center gap-1.5">
               <EnvironmentOutlined className="text-emerald-400" />
@@ -239,7 +240,7 @@ const CustomerLayout = () => {
 
       {/* Main Header */}
       <header className="bg-white/95 border-b border-slate-200 sticky top-0 z-50 backdrop-blur-md shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-3 lg:gap-4">
             {/* Logo */}
             <Link to="/customer" className="flex items-center gap-2.5 shrink-0 group">
@@ -538,13 +539,13 @@ const CustomerLayout = () => {
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1">
         <Outlet />
       </main>
 
       {/* Premium Footer */}
       <footer className="bg-slate-900 text-slate-300 border-t border-slate-800 pt-12 pb-8 text-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-800">
             <div className="space-y-3 md:col-span-1">
               <div className="flex items-center gap-2.5">

@@ -72,19 +72,29 @@ export const authService = {
   },
 
   async forgotPassword(email: string): Promise<string> {
-    const { data } = await api.post<ApiResponse>("/auth/forgot-password", { email });
-    if (!data.success) throw new Error(data.message || "Yêu cầu gửi mã thất bại");
-    return data.message || "Mã OTP đã được gửi đến email của bạn";
+    try {
+      const { data } = await api.post<ApiResponse>("/auth/forgot-password", { email });
+      if (!data.success) throw new Error(data.message || "Yêu cầu gửi mã thất bại");
+      return data.message || "Mã OTP đã được gửi đến email của bạn";
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Yêu cầu gửi mã thất bại";
+      throw new Error(msg);
+    }
   },
 
   async resetPassword(email: string, code: string, newPassword: string): Promise<string> {
-    const { data } = await api.post<ApiResponse>("/auth/reset-password", {
-      email,
-      code,
-      newPassword,
-    });
-    if (!data.success) throw new Error(data.message || "Đặt lại mật khẩu thất bại");
-    return data.message || "Đặt lại mật khẩu thành công";
+    try {
+      const { data } = await api.post<ApiResponse>("/auth/reset-password", {
+        email,
+        code,
+        newPassword,
+      });
+      if (!data.success) throw new Error(data.message || "Đặt lại mật khẩu thất bại");
+      return data.message || "Đặt lại mật khẩu thành công";
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Đặt lại mật khẩu thất bại";
+      throw new Error(msg);
+    }
   },
 
   async changePassword(currentPassword: string, newPassword: string): Promise<string> {

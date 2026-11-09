@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "express",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter backend build",
+  "functions": {
+    "package.json": {
+      "maxDuration": 300,
+      "includeFiles": "src/templates/**"
+    }
+  }
+}

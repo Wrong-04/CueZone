@@ -10,7 +10,7 @@ let socketInstance: Socket | null = null;
 export const getSocket = (): Socket => {
   if (!socketInstance) {
     socketInstance = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
