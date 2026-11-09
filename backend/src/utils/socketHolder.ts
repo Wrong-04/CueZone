@@ -62,3 +62,11 @@ export const emitTableTimerStarted = (payload: {
 }) => {
   io?.emit("table:timer_started", payload);
 };
+
+export const emitCustomerOrderNew = (order: any) => {
+  io?.emit("customer-order:new", order);
+};
+
+export const emitCustomerOrderStatusChanged = (order: any) => {
+  io?.emit("customer-order:status_changed", order);
+};

@@ -29,6 +29,7 @@ import {
   type ActiveOrderTable,
   type CustomerOrder,
 } from "../../services/customer-order.service";
+import { getSocket } from "../../services/socket.service";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -154,6 +155,29 @@ export const CustomerFnB: React.FC = () => {
     return () => {
       active = false;
       window.clearTimeout(timer);
+    };
+  }, [recentOrder]);
+
+  // Realtime Socket lắng nghe cập nhật trạng thái đơn món từ quầy (SCRUM-937)
+  useEffect(() => {
+    const socket = getSocket();
+    const handleStatusChanged = (updatedOrder: CustomerOrder) => {
+      if (recentOrder && updatedOrder._id === recentOrder._id) {
+        setRecentOrder(updatedOrder);
+        if (updatedOrder.status === "preparing") {
+          message.success("Quầy đã tiếp nhận và đang pha chế đơn món của bạn!");
+        } else if (updatedOrder.status === "ready") {
+          message.info("Món của bạn đã sẵn sàng và đang được mang ra bàn!");
+        } else if (updatedOrder.status === "rejected") {
+          message.error(
+            `Đơn món không được tiếp nhận: ${updatedOrder.rejectedReason || "Vui lòng liên hệ nhân viên phục vụ"}`,
+          );
+        }
+      }
+    };
+    socket.on("customer-order:status_changed", handleStatusChanged);
+    return () => {
+      socket.off("customer-order:status_changed", handleStatusChanged);
     };
   }, [recentOrder]);
 
