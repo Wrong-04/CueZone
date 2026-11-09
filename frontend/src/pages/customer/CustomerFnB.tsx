@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   CoffeeOutlined,
@@ -9,6 +10,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   ThunderboltOutlined,
+  ArrowLeftOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -36,13 +38,18 @@ const { Title, Text, Paragraph } = Typography;
 const normalizeCategory = (category?: string) => category?.trim().toLocaleLowerCase("vi-VN") ?? "";
 
 const getCategoryLabel = (category: string) => {
+  const norm = normalizeCategory(category);
   const labels: Record<string, string> = {
     drink: "Đồ uống",
     food: "Món ăn",
     snack: "Ăn vặt",
+    accessory: "Phụ kiện bida",
+    coffee: "Cà phê",
   };
 
-  return labels[normalizeCategory(category)] ?? category;
+  if (labels[norm]) return labels[norm];
+  if (/^[0-9a-fA-F]{24}$/.test(norm)) return "Món khác";
+  return category;
 };
 
 const getFallbackImage = (item: Product) => {
@@ -55,6 +62,7 @@ const getFallbackImage = (item: Product) => {
   if (category === "drink" && /cà phê|coffee/.test(name)) {
     return "/fnb/fnb-salt-coffee.jpg";
   }
+  if (category === "accessory") return "/fnb/fnb-salt-coffee.jpg";
   if (category === "drink") return "/fnb/fnb-peach-tea.jpg";
   if (category === "food") return "/fnb/fnb-beef-noodles.jpg";
   if (category === "snack") return "/fnb/fnb-beef-jerky.jpg";
@@ -69,6 +77,9 @@ interface CartItem {
 
 export const CustomerFnB: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const queryTableId = searchParams.get("tableId");
+
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTables, setActiveTables] = useState<ActiveOrderTable[]>([]);
@@ -114,9 +125,13 @@ export const CustomerFnB: React.FC = () => {
         const tables = await customerOrderService.getActiveTables();
         if (!active) return;
         setActiveTables(tables);
-        setSelectedTableId((current) =>
-          tables.some((table) => table.tableId === current) ? current : (tables[0]?.tableId ?? ""),
-        );
+        if (queryTableId && tables.some((table) => table.tableId === queryTableId)) {
+          setSelectedTableId(queryTableId);
+        } else {
+          setSelectedTableId((current) =>
+            tables.some((table) => table.tableId === current) ? current : (tables[0]?.tableId ?? ""),
+          );
+        }
       } catch (error) {
         if (active) {
           setActiveTables([]);
@@ -185,6 +200,23 @@ export const CustomerFnB: React.FC = () => {
     selectedCategory === "all"
       ? menuItems
       : menuItems.filter((item) => normalizeCategory(item.category) === selectedCategory);
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    menuItems.forEach((item) => {
+      const norm = normalizeCategory(item.category);
+      if (norm && !/^[0-9a-fA-F]{24}$/.test(norm)) {
+        set.add(norm);
+      }
+    });
+    return [
+      { key: "all", label: "Tất Cả Món" },
+      ...Array.from(set).map((cat) => ({
+        key: cat,
+        label: getCategoryLabel(cat),
+      })),
+    ];
+  }, [menuItems]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -281,7 +313,31 @@ export const CustomerFnB: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {selectedTable && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-white border border-emerald-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+              <ThunderboltOutlined />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                Phiên bàn đang hoạt động
+              </div>
+              <div className="text-sm font-black text-slate-800">
+                {selectedTable.tableCode} · {selectedTable.tableName}
+              </div>
+            </div>
+          </div>
+          <Link
+            to="/customer/session"
+            className="inline-flex items-center gap-2 text-xs font-bold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-300 px-4 py-2 rounded-xl transition shadow-xs"
+          >
+            <ArrowLeftOutlined /> Quay lại phiên chơi & thanh toán
+          </Link>
+        </div>
+      )}
+
       <div className="rounded-3xl bg-gradient-to-r from-emerald-900 via-slate-900 to-slate-950 text-white p-8 sm:p-10 border border-emerald-900/50 shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-full opacity-10 bg-radial-gradient pointer-events-none" />
         <div className="max-w-2xl space-y-3 relative z-10">
@@ -303,12 +359,7 @@ export const CustomerFnB: React.FC = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
         <div className="flex items-center gap-2 flex-wrap">
-          {[
-            { key: "all", label: "Tất Cả Món" },
-            { key: "drink", label: "Đồ Uống" },
-            { key: "food", label: "Món Ăn" },
-            { key: "snack", label: "Ăn Vặt" },
-          ].map((cat) => (
+          {categoryOptions.map((cat) => (
             <Button
               key={cat.key}
               variant={selectedCategory === cat.key ? "primary" : "outline"}
@@ -473,13 +524,13 @@ export const CustomerFnB: React.FC = () => {
                   }))}
                 />
                 {user && !activeTables.length && (
-                  <p className="mt-1 text-[11px] text-amber-700">
-                    Không tìm thấy phiên bàn có số điện thoại trùng với tài khoản của bạn.
+                  <p className="mt-1 text-[11px] text-amber-700 leading-relaxed">
+                    Chưa có bàn chơi liên kết với số điện thoại <strong className="font-mono">{user.phone}</strong>. Vui lòng nhắc thu ngân mở bàn bằng số điện thoại này để gọi món tại bàn nhé!
                   </p>
                 )}
                 {!user && (
                   <p className="mt-1 text-[11px] text-slate-500">
-                    Đăng nhập và liên kết đúng số điện thoại đã đăng ký tại bàn để gọi món.
+                    Đăng nhập tài khoản hội viên để tự động kết nối bàn đang chơi và gọi món.
                   </p>
                 )}
               </div>
@@ -627,12 +678,20 @@ export const CustomerFnB: React.FC = () => {
         onCancel={() => setShowOrderSuccessModal(false)}
         footer={[
           <Button
-            key="close"
-            variant="primary"
+            key="continue"
+            variant="outline"
             onClick={() => setShowOrderSuccessModal(false)}
+            className="!text-xs !rounded-xl"
+          >
+            Tiếp Tục Chọn Món
+          </Button>,
+          <Button
+            key="session"
+            variant="primary"
+            to="/customer/session"
             className="!text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
           >
-            Đã Hiểu & Đóng
+            Xem Phiên Chơi & Tạm Tính →
           </Button>,
         ]}
         title={

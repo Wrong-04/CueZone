@@ -41,6 +41,8 @@ import {
   InfoCircleOutlined,
   BulbOutlined,
   ShoppingOutlined,
+  UnorderedListOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -59,6 +61,7 @@ import {
 } from "../../shared/ui";
 import { getSocket } from "../../services/socket.service";
 import { productService } from "../../services/product.service";
+import { waitlistService } from "../../services/waitlist.service";
 
 export interface FnbStockItem {
   id: string;
@@ -331,75 +334,45 @@ export const PosTableFloorPage: React.FC = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const WAITLIST_STORAGE_KEY = "cuezone_pos_waitlist";
-  const getInitialWaitlist = (): Array<{
+  const [waitlistModalVisible, setWaitlistModalVisible] = useState<boolean>(false);
+  const [waitlist, setWaitlist] = useState<Array<{
     id: string;
+    _id?: string;
     customerName: string;
     phone: string;
     guests: number;
     preferredType: string;
     joinedTime: string;
     note?: string;
-  }> => {
+  }>>([]);
+  const fetchWaitlist = useCallback(async () => {
     try {
-      const raw = localStorage.getItem(WAITLIST_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [
-      {
-        id: "wl-1",
-        customerName: "Lê Minh Trí",
-        phone: "0903.112.233",
-        guests: 2,
-        preferredType: "Bàn Bida Lỗ (Pool)",
-        joinedTime: "21:40",
-        note: "Chờ bàn gần cửa sổ",
-      },
-      {
-        id: "wl-2",
-        customerName: "Nguyễn Hải Đăng",
-        phone: "0988.555.777",
-        guests: 4,
-        preferredType: "Bàn Bida Carom (Phăng)",
-        joinedTime: "22:05",
-        note: "Yêu cầu bàn khu yên tĩnh",
-      },
-    ];
-  };
-
-  const saveWaitlistToStorage = (
-    list: Array<{
-      id: string;
-      customerName: string;
-      phone: string;
-      guests: number;
-      preferredType: string;
-      joinedTime: string;
-      note?: string;
-    }>,
-  ) => {
-    try {
-      localStorage.setItem(WAITLIST_STORAGE_KEY, JSON.stringify(list));
-    } catch {}
-  };
-
-  const [waitlistModalVisible, setWaitlistModalVisible] = useState<boolean>(false);
+      const list = await waitlistService.getAll();
+      setWaitlist(
+        list.map((w) => ({
+          ...w,
+          id: String(w._id || w.id),
+        })),
+      );
+    } catch (e) {
+      console.error("Lỗi tải danh sách chờ:", e);
+    }
+  }, []);
 
   useEffect(() => {
-    const handleWaitlistSync = () => {
-      setWaitlist(getInitialWaitlist());
+    fetchWaitlist();
+    const socket = getSocket();
+    const handleSync = () => {
+      fetchWaitlist();
     };
-    window.addEventListener("storage", handleWaitlistSync);
-    window.addEventListener("waitlist:updated", handleWaitlistSync);
+    socket.on("waitlist:updated", handleSync);
+    window.addEventListener("waitlist:updated", handleSync);
     return () => {
-      window.removeEventListener("storage", handleWaitlistSync);
-      window.removeEventListener("waitlist:updated", handleWaitlistSync);
+      socket.off("waitlist:updated", handleSync);
+      window.removeEventListener("waitlist:updated", handleSync);
     };
-  }, []);
-  const [waitlist, setWaitlist] = useState(getInitialWaitlist);
+  }, [fetchWaitlist]);
+
   const [selectedWaitlistTable, setSelectedWaitlistTable] = useState<Record<string, string>>({});
   const [pendingWaitlistEntryId, setPendingWaitlistEntryId] = useState<string | null>(null);
 
@@ -409,29 +382,27 @@ export const PosTableFloorPage: React.FC = () => {
   const [newWaitType, setNewWaitType] = useState("Bàn Bida Lỗ (Pool)");
   const [newWaitNote, setNewWaitNote] = useState("");
 
-  const handleAddWaitlist = () => {
+  const handleAddWaitlist = async () => {
     if (!newWaitName.trim() || !newWaitPhone.trim()) {
       message.warning("Vui lòng nhập tên và số điện thoại khách chờ");
       return;
     }
-    const newEntry = {
-      id: `wl-${Date.now()}`,
-      customerName: newWaitName.trim(),
-      phone: newWaitPhone.trim(),
-      guests: newWaitGuests,
-      preferredType: newWaitType,
-      joinedTime: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
-      note: newWaitNote.trim(),
-    };
-    setWaitlist((prev) => {
-      const next = [...prev, newEntry];
-      saveWaitlistToStorage(next);
-      return next;
-    });
-    setNewWaitName("");
-    setNewWaitPhone("");
-    setNewWaitNote("");
-    message.success("Đã thêm khách vào danh sách chờ bàn");
+    try {
+      await waitlistService.create({
+        customerName: newWaitName.trim(),
+        phone: newWaitPhone.trim(),
+        guests: newWaitGuests,
+        preferredType: newWaitType,
+        note: newWaitNote.trim(),
+      });
+      setNewWaitName("");
+      setNewWaitPhone("");
+      setNewWaitNote("");
+      message.success("Đã thêm khách vào danh sách chờ bàn");
+      fetchWaitlist();
+    } catch (err: any) {
+      message.error(err.response?.data?.message || err.message || "Không thể thêm khách chờ");
+    }
   };
 
   const handleAssignWaitlist = (
@@ -480,13 +451,14 @@ export const PosTableFloorPage: React.FC = () => {
     );
   };
 
-  const handleRemoveWaitlist = (id: string) => {
-    setWaitlist((prev) => {
-      const next = prev.filter((w) => w.id !== id);
-      saveWaitlistToStorage(next);
-      return next;
-    });
-    message.info("Đã xóa khách khỏi danh sách chờ");
+  const handleRemoveWaitlist = async (id: string) => {
+    try {
+      await waitlistService.remove(id);
+      message.info("Đã xóa khách khỏi danh sách chờ");
+      fetchWaitlist();
+    } catch {
+      message.error("Không thể xóa khỏi danh sách chờ");
+    }
   };
 
   const handleCancelBooking = (table: PosTable) => {
@@ -921,11 +893,10 @@ export const PosTableFloorPage: React.FC = () => {
     if (!saved) return;
 
     if (pendingWaitlistEntryId) {
-      setWaitlist((prev) => {
-        const next = prev.filter((w) => w.id !== pendingWaitlistEntryId);
-        saveWaitlistToStorage(next);
-        return next;
-      });
+      waitlistService
+        .updateStatus(pendingWaitlistEntryId, "seated", selectedTable.id)
+        .then(() => fetchWaitlist())
+        .catch(() => {});
       setPendingWaitlistEntryId(null);
     }
 
@@ -1612,7 +1583,7 @@ export const PosTableFloorPage: React.FC = () => {
       {!loading && !loadError && filteredTables.length === 0 && (
         <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300 shadow-2xs space-y-3">
           <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center text-xl">
-            🔍
+            <SearchOutlined />
           </div>
           <div className="space-y-1">
             <h4 className="font-bold text-slate-800 text-sm mb-0">
@@ -1649,7 +1620,7 @@ export const PosTableFloorPage: React.FC = () => {
               }}
               className="!rounded-xl !text-xs !bg-amber-600 hover:!bg-amber-700 !border-none font-bold"
             >
-              📋 Thêm vào danh sách chờ
+              <UnorderedListOutlined className="mr-1" /> Thêm vào danh sách chờ
             </Button>
           </div>
         </div>
@@ -1659,7 +1630,7 @@ export const PosTableFloorPage: React.FC = () => {
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-lg shrink-0">
-              ⚠️
+              <WarningOutlined />
             </div>
             <div>
               <h5 className="font-bold text-slate-800 text-sm mb-0.5">
@@ -1687,7 +1658,7 @@ export const PosTableFloorPage: React.FC = () => {
               setWaitlistModalVisible(true);
             }}
           >
-            📋 Thêm Khách Vào DS Chờ
+            <UnorderedListOutlined className="mr-1" /> Thêm Khách Vào DS Chờ
           </Button>
         </div>
       )}
@@ -3889,11 +3860,14 @@ export const PosTableFloorPage: React.FC = () => {
                 </div>
 
                 {depositAmount > 0 && (
-                  <p className="text-[11px] text-slate-500 italic">
-                    💡 Tiền cọc {depositAmount.toLocaleString("vi-VN")}đ đã được khấu trừ trực tiếp.{" "}
-                    {finalAmount === 0 && depositAmount > subtotal - totalDiscount
-                      ? `Thừa ${(depositAmount - (subtotal - totalDiscount)).toLocaleString("vi-VN")}đ hoàn lại cho khách.`
-                      : ""}
+                  <p className="text-[11px] text-slate-500 italic flex items-center gap-1">
+                    <InfoCircleOutlined className="text-emerald-600 shrink-0" />
+                    <span>
+                      Tiền cọc {depositAmount.toLocaleString("vi-VN")}đ đã được khấu trừ trực tiếp.{" "}
+                      {finalAmount === 0 && depositAmount > subtotal - totalDiscount
+                        ? `Thừa ${(depositAmount - (subtotal - totalDiscount)).toLocaleString("vi-VN")}đ hoàn lại cho khách.`
+                        : ""}
+                    </span>
                   </p>
                 )}
 
@@ -4552,8 +4526,9 @@ export const PosTableFloorPage: React.FC = () => {
               <span className="font-bold text-xs text-slate-800">
                 Khách đang chờ (Thứ tự ưu tiên theo thời gian đến)
               </span>
-              <span className="text-[11px] text-slate-500">
-                💡 Thu ngân có thể chọn bàn trống muốn xếp hoặc bấm &quot;Xếp Bàn&quot; để xếp nhanh
+              <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                <InfoCircleOutlined className="text-emerald-600 shrink-0" />
+                <span>Thu ngân có thể chọn bàn trống muốn xếp hoặc bấm &quot;Xếp Bàn&quot; để xếp nhanh</span>
               </span>
             </div>
 

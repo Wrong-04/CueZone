@@ -181,8 +181,14 @@ export class WalletService {
 
   async createVnpayTopup(userId: string, amount: unknown, ipAddress?: string) {
     if (!mongoose.isValidObjectId(userId)) throw httpError("Tài khoản không hợp lệ", 401);
-    if (!Number.isSafeInteger(amount) || !VNPAY_PRESET_AMOUNTS.includes(Number(amount))) {
-      throw httpError("Chỉ hỗ trợ nạp 100.000đ, 200.000đ hoặc 500.000đ");
+    const numericAmount = Number(amount);
+    if (
+      !Number.isSafeInteger(numericAmount) ||
+      numericAmount < 50_000 ||
+      numericAmount > 10_000_000 ||
+      numericAmount % 10_000 !== 0
+    ) {
+      throw httpError("Số tiền nạp tối thiểu từ 50.000đ (bội số của 10.000đ, tối đa 10.000.000đ)");
     }
     if (!ipAddress) throw httpError("Không xác định được địa chỉ IP thanh toán");
     const config = getVnpayConfig();

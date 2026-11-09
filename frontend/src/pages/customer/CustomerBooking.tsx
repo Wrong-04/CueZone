@@ -5,19 +5,19 @@ import {
   UserOutlined,
   PhoneOutlined,
   CheckCircleOutlined,
-  SafetyCertificateOutlined,
   EnvironmentOutlined,
   ClockCircleOutlined,
   DollarOutlined,
-  SyncOutlined,
   MinusOutlined,
   PlusOutlined,
   ShoppingOutlined,
+  RightOutlined,
+  InfoCircleOutlined,
+  SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import {
   Button,
   Card,
-  Tag,
   Input,
   Select,
   Typography,
@@ -25,13 +25,10 @@ import {
   Modal,
   Space,
 } from "../../shared/ui";
-import { bookingService, posService } from "../../services/pos.service";
-import { defaultPricingTiers } from "../../utils/pricing";
-import type { PricingTier } from "../../types";
+import { bookingService } from "../../services/pos.service";
 import { getSocket } from "../../services/socket.service";
 import { productService, type ProductMenu } from "../../services/product.service";
 import { useAuth } from "../../contexts/AuthContext";
-import QRCode from "qrcode";
 
 const { Title, Paragraph } = Typography;
 
@@ -45,13 +42,19 @@ interface BookingTableItem {
   priceFormatted: string;
 }
 
-const CustomerBooking = () => {
+const TABLE_CATEGORIES = [
+  { key: "", label: "Tất Cả Loại Bàn" },
+  { key: "pool", label: "Bida Lỗ (Pool)" },
+  { key: "carom", label: "Bida Carom (Phăng)" },
+  { key: "snooker", label: "Bida Snooker" },
+];
+
+export const CustomerBooking = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const preSelectedParam = searchParams.get("table") || "";
   const [now] = useState(() => Date.now());
 
-  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>(defaultPricingTiers);
   const [tablesList, setTablesList] = useState<BookingTableItem[]>([]);
   const [loadingTables, setLoadingTables] = useState<boolean>(true);
   const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam);
@@ -76,28 +79,35 @@ const CustomerBooking = () => {
           : daysOffset === 1
             ? `Ngày mai (${dd}/${mm})`
             : `Ngày kia (${dd}/${mm})`;
-      return { value: iso, label };
+      return { value: iso, label, rawDate: `${dd}/${mm}` };
     };
     return [formatVn(0), formatVn(1), formatVn(2)];
   }, [now]);
 
-  const [date, setDate] = useState<string>(() => {
-    const currentH = new Date().getHours();
-    // Nếu hiện tại đã quá 22:30 đêm thì mặc định chọn Ngày mai
-    const daysOffset = currentH >= 22 ? 1 : 0;
-    const d = new Date(now + 7 * 3600000 + daysOffset * 86400000);
-    return d.toISOString().slice(0, 10);
-  });
+  const todayIso = useMemo(() => new Date(now + 7 * 3600000).toISOString().slice(0, 10), [now]);
+
+  // Tìm khung giờ gần nhất với thời điểm hiện tại (Slot tiếp theo cách 0-30 phút)
+  const closestSlotValue = useMemo(() => {
+    const d = new Date();
+    const curH = d.getHours();
+    const curM = d.getMinutes();
+    if (curM < 25) {
+      return `${String(curH).padStart(2, "0")}:30`;
+    }
+    const nextH = (curH + 1) % 24;
+    return `${String(nextH).padStart(2, "0")}:00`;
+  }, []);
+
+  const [date, setDate] = useState<string>(todayIso);
+  const [time, setTime] = useState<string>(closestSlotValue);
+
+  const isToday = date === todayIso;
+
   const timeOptions = useMemo(() => {
     const slots: { value: string; label: string; disabled?: boolean }[] = [];
-    const todayIso = new Date(now + 7 * 3600000).toISOString().slice(0, 10);
-    const isToday = date === todayIso;
     const currentH = new Date().getHours();
     const currentM = new Date().getMinutes();
 
-    const dayOfWeek = new Date(date).getDay();
-
-    // Hỗ trợ đặt bàn 24/7 theo đúng Cấu hình Khung giờ & Bảng giá từ hệ thống
     for (let h = 0; h < 24; h++) {
       for (const m of [0, 30]) {
         const hh = String(h).padStart(2, "0");
@@ -106,55 +116,17 @@ const CustomerBooking = () => {
         let label = val;
 
         const isPast = isToday && (h < currentH || (h === currentH && currentM >= m));
-
-        // Khớp chính xác với cấu hình bảng giá trong Database
-        const timeMins = h * 60 + m;
-        const matchedTier = pricingTiers.find((tier) => {
-          if (tier.daysOfWeek && tier.daysOfWeek.length > 0 && !tier.daysOfWeek.includes(dayOfWeek)) {
-            return false;
-          }
-          const [sH, sM] = tier.startTime.split(":").map(Number);
-          const [eH, eM] = tier.endTime === "24:00" ? [24, 0] : tier.endTime.split(":").map(Number);
-          const startMins = sH * 60 + sM;
-          const endMins = eH * 60 + eM;
-          return timeMins >= startMins && timeMins < endMins;
-        });
-
-        if (matchedTier) {
-          const pricePool = matchedTier.prices?.standard ? `${Math.round(matchedTier.prices.standard / 1000)}k` : "";
-          if (matchedTier.name.includes("Đêm Khuya") || matchedTier.startTime === "00:00") {
-            label += ` (🌙 Đêm Khuya • ${pricePool}/h)`;
-          } else if (matchedTier.name.includes("Cao Điểm") || matchedTier.dayType === "peak") {
-            label += ` (🔥 Cao Điểm • ${pricePool}/h)`;
-          } else if (matchedTier.name.includes("Cuối Tuần") || matchedTier.dayType === "weekend") {
-            label += ` (🎉 Cuối Tuần • ${pricePool}/h)`;
-          } else {
-            label += ` (☀️ Tiêu Chuẩn • ${pricePool}/h)`;
-          }
-        } else {
-          if (h >= 0 && h <= 5) label += " (🌙 Cú đêm)";
+        if (isPast) {
+          label += " (Đã qua)";
         }
-
-        if (isPast) label += " — Đã qua";
 
         slots.push({ value: val, label, disabled: isPast });
       }
     }
     return slots;
-  }, [date, now, pricingTiers]);
+  }, [isToday]);
 
-  const isTodayAllSlotsPassed = useMemo(() => {
-    return timeOptions.length > 0 && timeOptions.every((slot) => slot.disabled);
-  }, [timeOptions]);
-
-  const [time, setTime] = useState<string>(() => {
-    const currentH = new Date().getHours();
-    if (currentH >= 22) return "10:00";
-    const nextH = Math.min(23, Math.max(9, currentH + 1));
-    return `${String(nextH).padStart(2, "0")}:00`;
-  });
-
-  // Tự động nhảy sang khung giờ hợp lệ tiếp theo nếu giờ hiện tại đã qua
+  // Tự động ghim khung giờ hợp lệ nếu giờ đang chọn bị quá hạn
   useEffect(() => {
     const validSlot = timeOptions.find((slot) => !slot.disabled);
     const currentSlotObj = timeOptions.find((slot) => slot.value === time);
@@ -162,6 +134,7 @@ const CustomerBooking = () => {
       setTime(validSlot.value);
     }
   }, [timeOptions, time]);
+
   const [duration, setDuration] = useState<number>(2);
   const [note, setNote] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -169,26 +142,14 @@ const CustomerBooking = () => {
   const [availabilityVersion, setAvailabilityVersion] = useState<number>(0);
   const [menuItems, setMenuItems] = useState<ProductMenu[]>([]);
   const [selectedFnb, setSelectedFnb] = useState<Record<string, number>>({});
-  const [bookingQr, setBookingQr] = useState<{ dataUrl: string; booking: any } | null>(null);
-  const [loadingQr, setLoadingQr] = useState(false);
-
-  useEffect(() => {
-    posService
-      .getPricingTiers()
-      .then((tiers) => {
-        if (Array.isArray(tiers) && tiers.length > 0) {
-          setPricingTiers(tiers);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
 
   useEffect(() => {
     productService
       .getFnbMenu()
       .then(setMenuItems)
       .catch((error) =>
-        message.error(error instanceof Error ? error.message : "Không thể tải thực đơn F&B"),
+        message.error(error instanceof Error ? error.message : "Không thể tải thực đơn đồ uống"),
       );
   }, []);
 
@@ -222,13 +183,12 @@ const CustomerBooking = () => {
             type: table.type,
             typeName:
               table.type === "carom"
-                ? "Bàn Bida Carom (Phăng)"
+                ? "Bàn Carom"
                 : table.type === "snooker"
-                  ? "Bàn Bida Snooker"
-                  : "Bàn Bida Lỗ (Pool)",
+                  ? "Bàn Snooker"
+                  : "Bàn Lỗ (Pool)",
             price: table.pricePerHour,
             priceFormatted: `${table.pricePerHour.toLocaleString("vi-VN")}đ/h`,
-            status: "available",
           }));
           setTablesList(mapped);
           const preselected = mapped.find(
@@ -287,7 +247,7 @@ const CustomerBooking = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      message.warning("Vui lòng nhập họ và tên của bạn!");
+      message.warning("Vui lòng nhập tên người đặt bàn!");
       return;
     }
     if (!phone.trim()) {
@@ -318,22 +278,15 @@ const CustomerBooking = () => {
         note: note.trim() || undefined,
         preOrderItems,
       });
-      setLoadingQr(true);
-      const dataUrl = await QRCode.toDataURL(booking.qrToken, {
-        width: 280,
-        margin: 2,
-        errorCorrectionLevel: "M",
-      });
-      setBookingQr({ dataUrl, booking });
+      setConfirmedBooking(booking);
       setShowSuccessModal(true);
       setAvailabilityVersion((version) => version + 1);
-      message.success("Đặt bàn đã được xác nhận tự động.");
+      message.success("Đặt bàn thành công! Quán đã sẵn sàng đón tiếp bạn.");
     } catch (err: any) {
       const errMsg =
         err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
       message.error(errMsg);
     } finally {
-      setLoadingQr(false);
       setLoading(false);
     }
   };
@@ -341,186 +294,137 @@ const CustomerBooking = () => {
   const selectedDateLabel = dateOptions.find((d) => d.value === date)?.label || date;
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-10 shadow-xs space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-          <CalendarOutlined className="text-emerald-600" />
-          ĐẶT CHỖ TRỰC TUYẾN KHÔNG CẦN CỌC
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+      {/* Header Banner Thanh Lịch */}
+      <div className="rounded-3xl bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-950 text-white p-6 sm:p-8 border border-emerald-900/60 shadow-lg relative overflow-hidden">
+        <div className="max-w-2xl space-y-2 relative z-10">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold uppercase tracking-wide">
+            <CalendarOutlined /> Đặt Bàn Bida Trực Tuyến
+          </div>
+          <Title level={1} className="!text-2xl sm:!text-3xl !font-black !text-white !mb-1 tracking-tight">
+            Chọn Bàn & Khung Giờ Đến Chơi
+          </Title>
+          <Paragraph className="!text-xs sm:!text-sm !text-slate-300 leading-relaxed !mb-0">
+            Giữ bàn miễn phí 15 phút. Tiền bàn tự động tính theo số phút chơi thực tế khi bạn nhận bàn tại CLB.
+          </Paragraph>
         </div>
-        <Title level={1} className="!text-3xl sm:!text-4xl !font-black !text-slate-900 !mb-0">
-          Đặt Bàn Bida Chuẩn Thi Đấu
-        </Title>
-        <Paragraph className="!text-sm !text-slate-600 !leading-relaxed !max-w-2xl !mb-0">
-          Chọn bàn và khung giờ còn trống. Lịch được xác nhận tự động; nhân viên sẽ nhận thông báo
-          để chuẩn bị bàn.
-        </Paragraph>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <div className="lg:col-span-7 space-y-6">
+      {/* Bố Cục 2 Cột Chuẩn Mực */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* CỘT TRÁI (7 cột): Danh Sách Bàn Bida & Bộ Lọc Loại Bàn */}
+        <div className="lg:col-span-7 space-y-4">
           <Card className="!rounded-3xl !border-slate-200 !bg-white p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+              <div className="min-w-0">
+                <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0.5 whitespace-nowrap">
                   1. Chọn Bàn Bida
                 </Title>
-                {loadingTables && tablesList.length > 0 && (
-                  <SyncOutlined spin className="text-emerald-600 text-xs" />
-                )}
+                <div className="text-xs text-slate-500 whitespace-nowrap">
+                  Khung giờ đang xem: <strong className="text-slate-800">{time}</strong> · {selectedDateLabel}
+                </div>
               </div>
-              <Tag color={loadingTables && tablesList.length === 0 ? "default" : "green"} className="!text-xs !font-bold">
-                {loadingTables && tablesList.length === 0
-                  ? "ĐANG TẢI..."
-                  : `${tablesList.length} BÀN SẴN SÀNG`}
-              </Tag>
+
+              {/* Bộ lọc loại bàn dạng Dropdown chọn nhanh gọn, không rớt dòng */}
+              <div className="w-full sm:w-48 shrink-0">
+                <Select
+                  value={tableType}
+                  onChange={(val) => setTableType(val as typeof tableType)}
+                  className="w-full !h-9 text-xs"
+                  options={TABLE_CATEGORIES.map((cat) => ({ value: cat.key, label: cat.label }))}
+                />
+              </div>
             </div>
 
+            {/* Trạng thái danh sách bàn */}
             {loadingTables && tablesList.length === 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-pulse">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-pulse py-4">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div
                     key={i}
-                    className="p-3.5 rounded-2xl border border-slate-200/60 bg-slate-50/70 flex flex-col justify-between h-28 space-y-2"
-                  >
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <div className="h-4 w-12 bg-slate-200 rounded-md" />
-                        <div className="h-4 w-20 bg-slate-200 rounded-md" />
-                      </div>
-                      <div className="h-3 w-28 bg-slate-200 rounded-md mt-1" />
-                    </div>
-                    <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center">
-                      <div className="h-4 w-16 bg-slate-200 rounded-md" />
-                      <div className="h-3 w-12 bg-slate-200 rounded-md" />
-                    </div>
-                  </div>
+                    className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 h-28"
+                  />
                 ))}
               </div>
             ) : tablesList.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                {isTodayAllSlotsPassed ? (
-                  <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-2xl text-amber-800 text-xs text-center space-y-2 max-w-md mx-auto shadow-2xs">
-                    <div className="font-bold flex items-center justify-center gap-1.5 text-amber-900">
-                      <ClockCircleOutlined className="text-amber-600" />
-                      Các khung giờ đặt bàn hôm nay đã kết thúc
-                    </div>
-                    <p className="text-slate-600 mb-0 leading-relaxed">
-                      Hiện tại đã qua giờ nhận đặt bàn của hôm nay ({dateOptions[0]?.label}). Quý khách vui lòng chọn{" "}
-                      <span
-                        className="font-bold text-emerald-700 underline cursor-pointer hover:text-emerald-800"
-                        onClick={() => setDate(dateOptions[1]?.value)}
-                      >
-                        {dateOptions[1]?.label}
-                      </span>{" "}
-                      để xem các bàn còn trống và đặt trước!
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    Không có bàn trống cho khung giờ đã chọn. Vui lòng đổi loại bàn hoặc thời gian khác.
-                  </div>
-                )}
+              <div className="py-12 text-center text-xs text-slate-500 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto text-xl">
+                  <ClockCircleOutlined />
+                </div>
+                <div className="font-bold text-slate-800 text-sm">
+                  Không còn bàn trống cho khung giờ {time} ({selectedDateLabel})
+                </div>
+                <p className="text-slate-500 max-w-sm mx-auto">
+                  Quý khách vui lòng đổi sang khung giờ khác hoặc ngày mai ở form bên phải để xem các bàn còn trống.
+                </p>
               </div>
             ) : (
-              <div
-                className={`grid grid-cols-2 sm:grid-cols-3 gap-3 transition-opacity duration-200 ${
-                  loadingTables ? "opacity-60 pointer-events-none" : "opacity-100"
-                }`}
-              >
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {tablesList.map((t) => {
                   const isSelected = t.id === selectedTableId || t.code === selectedTableId;
-
                   return (
                     <div
                       key={t.id}
                       onClick={() => setSelectedTableId(t.id)}
-                      className={`p-3 rounded-2xl border cursor-pointer transition-all duration-200 flex flex-col justify-between ${
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                         isSelected
-                          ? "bg-emerald-50/80 border-emerald-600 ring-2 ring-emerald-500/20 shadow-xs"
-                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          ? "bg-emerald-50/90 border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs"
+                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80"
                       }`}
                     >
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
-                              {t.code}
-                            </span>
-                            <span
-                              className={`font-black text-sm whitespace-nowrap truncate ${isSelected ? "text-emerald-800" : "text-slate-800"}`}
-                            >
-                              {t.name}
-                            </span>
-                          </div>
+                          <span className="font-mono text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {t.code}
+                          </span>
                           {isSelected && (
-                            <CheckCircleOutlined className="text-emerald-600 shrink-0 ml-1 text-sm" />
+                            <CheckCircleOutlined className="text-emerald-600 text-sm" />
                           )}
                         </div>
-                        <span className="text-[10px] text-slate-500 font-semibold uppercase block mb-1 truncate">
+                        <span className={`font-black text-sm block ${isSelected ? "text-emerald-900" : "text-slate-900"}`}>
+                          {t.name}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase mt-0.5">
                           {t.typeName}
                         </span>
                       </div>
 
-                      <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                         <span className="font-bold text-emerald-700">{t.priceFormatted}</span>
-                        <span className="text-[10px] text-emerald-600 font-semibold whitespace-nowrap">
-                          Trống giờ này
-                        </span>
+                        <span className="text-[10px] text-emerald-600 font-semibold">Bàn trống</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-          </Card>
 
-          <div className="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex items-start gap-3">
-            <SafetyCertificateOutlined className="text-lg text-emerald-700 flex-shrink-0 mt-0.5" />
-            <div className="space-y-1 text-xs text-slate-700 leading-relaxed">
-              <strong className="text-emerald-900 block font-bold">
-                Cam kết chất lượng từ CueZone:
-              </strong>
-              <p>
-                Mọi bàn đặt trước đều được nhân viên làm sạch mặt vải Simonis, chải bụi, đánh bóng
-                bộ bi Aramith và chuẩn bị sẵn khay cơ trước giờ hẹn 10 phút.
-              </p>
+            {/* Cam kết chất lượng bàn */}
+            <div className="mt-4 pt-4 border-t border-slate-100 text-[11px] text-slate-500 flex items-start gap-2 leading-relaxed">
+              <SafetyCertificateOutlined className="text-emerald-600 text-sm mt-0.5 shrink-0" />
+              <span>
+                <strong>Cam kết dịch vụ CueZone:</strong> Bàn đặt trước luôn được chải sạch mặt vải nỉ Simonis, lau bóng bộ bi Aramith và xếp sẵn khay cơ trước giờ hẹn 10 phút.
+              </span>
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div className="lg:col-span-5 space-y-6">
-          <Card className="!rounded-3xl !border-slate-200 !bg-white p-6 shadow-sm space-y-5">
-            <Title
-              level={3}
-              className="!text-base !font-bold !text-slate-900 !mb-0 pb-3 border-b border-slate-100"
-            >
-              2. Thông Tin Khung Giờ & Liên Hệ
+        {/* CỘT PHẢI (5 cột): Thông Tin Khung Giờ & Liên Hệ */}
+        <div className="lg:col-span-5 space-y-5">
+          <Card className="!rounded-3xl !border-slate-200 !bg-white p-6 shadow-xs space-y-4">
+            <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0 pb-3 border-b border-slate-100">
+              2. Thông Tin Khung Giờ & Nhận Bàn
             </Title>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Loại bàn</label>
-                <Select
-                  value={tableType}
-                  onChange={(value) => setTableType(value as typeof tableType)}
-                  className="w-full !h-10"
-                  options={[
-                    { value: "", label: "Tất cả loại bàn" },
-                    { value: "pool", label: "Bàn lỗ (Pool)" },
-                    { value: "carom", label: "Bàn Carom" },
-                    { value: "snooker", label: "Bàn Snooker" },
-                  ]}
-                />
-              </div>
-              <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Họ và tên cơ thủ *
+                  Họ và tên *
                 </label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Ví dụ: Đặng Tuấn Anh"
+                  placeholder="Ví dụ: Trần Quốc Đạt"
                   prefix={<UserOutlined className="text-slate-400 mr-1.5" />}
                   className="!h-10 !rounded-xl !text-xs"
                 />
@@ -528,121 +432,115 @@ const CustomerBooking = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Số điện thoại nhận tin giữ bàn *
+                  Số điện thoại nhận bàn *
                 </label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="0912 345 678"
+                  placeholder="Ví dụ: 0988 123 456"
                   prefix={<PhoneOutlined className="text-slate-400 mr-1.5" />}
-                  className="!h-10 !rounded-xl !text-xs"
+                  className="!h-10 !rounded-xl !text-xs font-mono"
                 />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Đọc số điện thoại này tại quầy lễ tân để nhận bàn nhanh
+                </span>
               </div>
 
+              {/* Grid 2 cột: Ngày chơi & Giờ bắt đầu (Tự động ghim giờ gần nhất theo quy tắc) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Ngày chơi</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Ngày chơi:
+                  </label>
                   <Select
                     value={date}
-                    onChange={(val) => setDate(val)}
-                    className="w-full !h-10"
+                    onChange={(val) => {
+                      setDate(val);
+                      if (val === todayIso) {
+                        setTime(closestSlotValue);
+                      }
+                    }}
+                    className="w-full !h-10 font-medium"
                     options={dateOptions}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Giờ bắt đầu</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Giờ bắt đầu:
+                  </label>
                   <Select
                     value={time}
                     onChange={(val) => setTime(val)}
-                    className="w-full !h-10"
+                    className="w-full !h-10 font-bold"
                     options={timeOptions}
                   />
                 </div>
               </div>
 
-              {/* Phím tắt đặt chơi đêm / rạng sáng */}
-              <div className="flex items-center justify-between bg-indigo-50/70 border border-indigo-100 rounded-xl px-2.5 py-1.5 text-[11px]">
-                <span className="text-slate-600 font-medium flex items-center gap-1">
-                  <span>🌙</span> Quán mở 24/7 xuyên đêm
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDate(dateOptions[1]?.value);
-                    setTime("00:00");
-                  }}
-                  className="font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                >
-                  Đặt đêm nay (00:00 - 05:00) ➔
-                </button>
-              </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Dự kiến số giờ chơi
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Thời gian dự kiến chơi:
                 </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1, 2, 3, 4].map((h) => (
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[1, 2, 3, 4, 5].map((h) => (
                     <button
                       key={h}
                       type="button"
                       onClick={() => setDuration(h)}
-                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                      className={`h-9 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                         duration === h
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                          ? "bg-slate-900 border-slate-900 text-white shadow-2xs"
                           : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      {h} Giờ
+                      {h >= 5 ? "5h+" : `${h}h`}
                     </button>
                   ))}
                 </div>
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Chỉ dùng để tạm tính chi phí. Bạn có thể chơi thêm thoải mái.
+                </span>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Ghi chú đặc biệt (Tùy chọn)
+                  Ghi chú (Tùy chọn)
                 </label>
                 <Input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Yêu cầu gậy cơ riêng, đá chanh, bật điều hòa..."
+                  placeholder="Yêu cầu gậy cơ riêng, đá chanh..."
                   className="!h-10 !rounded-xl !text-xs"
                 />
               </div>
 
+              {/* Đặt trước nước uống & đồ ăn (Tùy chọn) */}
               <div className="rounded-2xl border border-slate-200 p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700">
-                    <ShoppingOutlined className="mr-1.5 text-emerald-600" />
-                    Đặt trước món F&B (tùy chọn)
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <ShoppingOutlined className="text-emerald-600" />
+                    Đặt trước đồ uống (Tùy chọn)
                   </label>
                   <span className="text-[11px] text-slate-500">
                     {preOrderItems.reduce((sum, item) => sum + item.quantity, 0)} món
                   </span>
                 </div>
-                {menuItems.length === 0 ? (
-                  <p className="text-xs text-slate-500">Hiện chưa có món F&B để đặt trước.</p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
-                    {menuItems.map((item) => {
+                {menuItems.length > 0 && (
+                  <div className="max-h-36 overflow-y-auto divide-y divide-slate-100">
+                    {menuItems.slice(0, 6).map((item) => {
                       const quantity = selectedFnb[item._id] || 0;
                       return (
-                        <div
-                          key={item._id}
-                          className="flex items-center justify-between gap-2 py-2"
-                        >
+                        <div key={item._id} className="flex items-center justify-between gap-2 py-1.5">
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-slate-800">
+                            <span className="truncate text-xs font-medium text-slate-800 block">
                               {item.name}
-                            </p>
-                            <p className="text-[11px] text-slate-500">
+                            </span>
+                            <span className="text-[10px] text-slate-500">
                               {item.salePrice.toLocaleString("vi-VN")}đ
-                              {item.isOutOfStock ? " • Hết hàng" : ""}
-                            </p>
+                            </span>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <Button
                               htmlType="button"
                               variant="outline"
@@ -650,17 +548,17 @@ const CustomerBooking = () => {
                               icon={<MinusOutlined />}
                               disabled={quantity === 0}
                               onClick={() => updateFnbQuantity(item._id, -1)}
-                              aria-label={`Giảm ${item.name}`}
+                              className="!h-7 !w-7 !p-0 !rounded-lg"
                             />
-                            <span className="w-4 text-center text-xs font-bold">{quantity}</span>
+                            <span className="text-xs font-bold w-4 text-center">{quantity}</span>
                             <Button
                               htmlType="button"
                               variant="outline"
                               size="sm"
                               icon={<PlusOutlined />}
-                              disabled={item.isOutOfStock || quantity >= 50}
+                              disabled={item.isOutOfStock}
                               onClick={() => updateFnbQuantity(item._id, 1)}
-                              aria-label={`Tăng ${item.name}`}
+                              className="!h-7 !w-7 !p-0 !rounded-lg"
                             />
                           </div>
                         </div>
@@ -669,37 +567,40 @@ const CustomerBooking = () => {
                   </div>
                 )}
                 {preOrderItems.length > 0 && (
-                  <div className="border-t border-slate-100 pt-2 text-right text-xs font-bold text-emerald-700">
-                    Món F&B tạm tính: {preOrderTotal.toLocaleString("vi-VN")}đ
+                  <div className="border-t border-slate-100 pt-1.5 text-right text-xs font-bold text-emerald-700">
+                    Tiền nước uống tạm tính: {preOrderTotal.toLocaleString("vi-VN")}đ
                   </div>
                 )}
               </div>
 
+              {/* Tóm tắt chi phí */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-slate-600">
                   <span>Bàn đã chọn:</span>
-                  <strong className="text-slate-900">
-                    {selectedTable
-                      ? `${selectedTable.name} (${selectedTable.typeName})`
-                      : "Đang tải dữ liệu bàn..."}
+                  <strong className="text-slate-900 font-bold">
+                    {selectedTable ? `${selectedTable.name} (${selectedTable.typeName})` : "---"}
                   </strong>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
-                  <span>Đơn giá giờ:</span>
-                  <span>{selectedTable?.priceFormatted || "---"}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-600">
-                  <span>Thời lượng:</span>
-                  <span>
-                    {duration} tiếng ({time} - {selectedDateLabel})
+                  <span>Thời gian đến:</span>
+                  <span className="font-semibold text-slate-800">
+                    {time} ({selectedDateLabel}) • {duration} tiếng
                   </span>
                 </div>
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between font-bold text-sm">
                   <span className="text-slate-900">Chi phí tạm tính:</span>
                   <span className="text-emerald-700 text-base">
-                    {totalCost.toLocaleString("vi-VN")} đ
+                    {(totalCost + preOrderTotal).toLocaleString("vi-VN")} đ
                   </span>
                 </div>
+              </div>
+
+              {/* Lời nhắc chính sách giữ bàn */}
+              <div className="p-3 bg-emerald-50 border border-emerald-200/90 rounded-2xl text-[11px] text-emerald-900 leading-relaxed flex items-start gap-1.5">
+                <InfoCircleOutlined className="text-emerald-700 text-xs mt-0.5 shrink-0" />
+                <span>
+                  <strong>Chính sách giữ bàn:</strong> Quán giữ bàn tối đa <strong>15 phút</strong> sau giờ hẹn ({time}). Bạn chỉ cần đọc số điện thoại khi đến quầy để mở bàn ngay.
+                </span>
               </div>
 
               <Button
@@ -707,15 +608,17 @@ const CustomerBooking = () => {
                 htmlType="submit"
                 size="large"
                 loading={loading}
-                className="w-full !h-12 !text-sm !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white shadow-lg shadow-emerald-600/25 !rounded-xl"
+                className="w-full !h-12 !text-sm !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white shadow-md shadow-emerald-600/20 !rounded-xl cursor-pointer"
               >
-                Xác Nhận Giữ Bàn Ngay
+                Xác Nhận Đặt Bàn Ngay
+                <RightOutlined className="text-xs ml-1" />
               </Button>
             </form>
           </Card>
         </div>
       </div>
 
+      {/* Modal Xác Nhận Thành Công */}
       <Modal
         open={showSuccessModal}
         onCancel={() => setShowSuccessModal(false)}
@@ -732,29 +635,30 @@ const CustomerBooking = () => {
         title={
           <Space align="center" size={8}>
             <CheckCircleOutlined className="text-emerald-600 text-lg" />
-            <span className="text-slate-900 font-bold">Mã QR Đặt Bàn</span>
+            <span className="text-slate-900 font-bold">Đặt Bàn Thành Công!</span>
           </Space>
         }
       >
         <div className="space-y-4 py-2 text-xs text-slate-700">
-          <p className="text-sm">
-            Đặt bàn của <strong>{bookingQr?.booking.customerName || name}</strong> đã được xác nhận.
-            Đưa mã này cho nhân viên khi đến quán để xác nhận bàn và món đặt trước.
-          </p>
-          <div className="flex justify-center">
-            {bookingQr?.dataUrl ? (
-              <img src={bookingQr.dataUrl} alt="Mã QR xác nhận đặt bàn" className="h-56 w-56" />
-            ) : loadingQr ? (
-              <SyncOutlined spin className="py-12 text-3xl text-emerald-600" />
-            ) : null}
+          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/90 text-emerald-900 space-y-1.5">
+            <div className="text-sm font-bold flex items-center gap-2">
+              <CheckCircleOutlined className="text-emerald-600" />
+              <span>Yêu cầu giữ bàn đã được xác nhận!</span>
+            </div>
+            <p className="text-xs text-emerald-800 leading-relaxed mb-0">
+              Khi đến quán, quý khách chỉ cần đọc số điện thoại{" "}
+              <strong className="font-mono text-emerald-950 font-bold">{phone}</strong>{" "}
+              cho nhân viên lễ tân/quầy thu ngân để mở bàn ngay mà không cần xuất trình mã QR.
+            </p>
           </div>
-          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
             <div className="flex items-center gap-2">
               <EnvironmentOutlined className="text-emerald-600" />
               <span>
                 <strong>Bàn:</strong>{" "}
-                {bookingQr?.booking.tableCode
-                  ? `${bookingQr.booking.tableCode} • ${bookingQr.booking.tableName}`
+                {confirmedBooking?.tableCode
+                  ? `${confirmedBooking.tableCode} • ${confirmedBooking.tableName}`
                   : selectedTable
                     ? `${selectedTable.code} • ${selectedTable.name} (${selectedTable.typeName})`
                     : ""}
@@ -763,45 +667,34 @@ const CustomerBooking = () => {
             <div className="flex items-center gap-2">
               <ClockCircleOutlined className="text-emerald-600" />
               <span>
-                <strong>Thời gian:</strong> {bookingQr?.booking.time || time} (
-                {bookingQr?.booking.date || selectedDateLabel}) - Thời lượng dự kiến:{" "}
-                {bookingQr?.booking.duration || duration} giờ
+                <strong>Thời gian hẹn:</strong> {confirmedBooking?.time || time} (
+                {confirmedBooking?.date || selectedDateLabel}) • Dự kiến {confirmedBooking?.duration || duration} giờ
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-white border border-amber-300/80 text-[11px] text-amber-900 flex items-start gap-1.5">
+              <InfoCircleOutlined className="text-amber-600 text-xs mt-0.5 shrink-0" />
+              <span>
+                <strong>Lưu ý:</strong> Bàn được giữ tối đa <strong>15 phút</strong> sau giờ hẹn. Tiền bàn tính theo số phút thực tế từ lúc nhân viên mở bàn.
               </span>
             </div>
             <div className="flex items-center gap-2">
               <PhoneOutlined className="text-emerald-600" />
               <span>
-                <strong>SĐT xác nhận:</strong> {phone}
+                <strong>SĐT nhận bàn:</strong> {phone}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <DollarOutlined className="text-emerald-600" />
               <span>
-                <strong>Chi phí bàn:</strong>{" "}
-                {(bookingQr?.booking.estimatedCost || totalCost).toLocaleString("vi-VN")} VNĐ
+                <strong>Chi phí bàn tạm tính:</strong>{" "}
+                {(confirmedBooking?.estimatedCost || totalCost).toLocaleString("vi-VN")} VNĐ
               </span>
             </div>
-            {bookingQr?.booking.preOrderItems?.length > 0 && (
-              <div className="border-t border-emerald-200 pt-2">
-                <strong>Món F&B đặt trước:</strong>
-                <ul className="mt-1 list-disc pl-5">
-                  {bookingQr?.booking?.preOrderItems?.map((item: any) => (
-                    <li key={String(item.productId)}>
-                      {item.name} × {item.quantity} —{" "}
-                      {(item.unitPrice * item.quantity).toLocaleString("vi-VN")}đ
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-1 font-bold">
-                  Tổng món: {preOrderTotal.toLocaleString("vi-VN")}đ (thanh toán tại quầy)
-                </p>
-              </div>
-            )}
           </div>
           <p className="text-slate-500">
-            Lịch đặt đã được xác nhận. Bạn có thể hủy trước giờ chơi ít nhất 2 tiếng tại{" "}
+            Lịch đặt đã được lưu vào hệ thống. Bạn có thể theo dõi hoặc hủy trước giờ chơi ít nhất 2 tiếng tại{" "}
             <Link to="/customer/history" className="font-semibold text-emerald-700">
-              Lịch sử đặt chỗ
+              Lịch sử & Hóa đơn
             </Link>
             .
           </p>

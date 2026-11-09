@@ -23,6 +23,7 @@ import {
 import { Button, Card, Tag, Typography, Modal, Input, Select, message } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
 import { posService } from "../../services/pos.service";
+import { waitlistService } from "../../services/waitlist.service";
 import { getSocket } from "../../services/socket.service";
 
 const { Title, Text, Paragraph } = Typography;
@@ -112,37 +113,31 @@ const CustomerHome = () => {
     }
   }, [user]);
 
-  const handleSubmitWaitlist = () => {
+  const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState<boolean>(false);
+
+  const handleSubmitWaitlist = async () => {
     if (!wlName.trim() || !wlPhone.trim()) {
       message.warning("Vui lòng điền họ tên và số điện thoại liên hệ");
       return;
     }
-    const newEntry = {
-      id: `wl-${Date.now()}`,
-      customerName: wlName.trim(),
-      phone: wlPhone.trim(),
-      guests: wlGuests,
-      preferredType: wlType,
-      joinedTime: new Date().toLocaleTimeString("vi-VN", {
-        timeZone: "Asia/Ho_Chi_Minh",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      note: wlNote.trim() || "Đăng ký từ Web Portal",
-    };
-
+    setIsSubmittingWaitlist(true);
     try {
-      const raw = localStorage.getItem("cuezone_pos_waitlist");
-      const list = raw ? JSON.parse(raw) : [];
-      const updated = [newEntry, ...(Array.isArray(list) ? list : [])];
-      localStorage.setItem("cuezone_pos_waitlist", JSON.stringify(updated));
-      window.dispatchEvent(new Event("storage"));
-      window.dispatchEvent(new CustomEvent("waitlist:updated"));
-    } catch {}
-
-    message.success("Đăng ký thành công! Quản lý CLB sẽ ưu tiên gọi cho bạn ngay khi có bàn trống.");
-    setWaitlistModalVisible(false);
-    setWlNote("");
+      await waitlistService.createPublic({
+        customerName: wlName.trim(),
+        phone: wlPhone.trim(),
+        guests: wlGuests,
+        preferredType: wlType,
+        note: wlNote.trim() || "Đăng ký từ Web Portal",
+      });
+      message.success("Đăng ký thành công! Quản lý CLB sẽ ưu tiên gọi cho bạn ngay khi có bàn trống.");
+      setWaitlistModalVisible(false);
+      setWlNote("");
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || "Không thể đăng ký hàng chờ";
+      message.error(errMsg);
+    } finally {
+      setIsSubmittingWaitlist(false);
+    }
   };
 
   const fetchTables = useCallback(async () => {
@@ -522,13 +517,20 @@ const CustomerHome = () => {
                         : "60.000đ/h"}
                     </span>
                     {isAvail ? (
-                      <Link
-                        to={`/customer/booking?table=${table.id}`}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-2xs whitespace-nowrap shrink-0"
-                      >
-                        <span>Đặt ngay</span>
-                        <span>→</span>
-                      </Link>
+                      <div className="flex flex-col items-end">
+                        {table.bookedTime && (
+                          <span className="text-[10px] text-amber-700 font-semibold block whitespace-nowrap mb-0.5">
+                            {formatBookedTime(table.bookedTime)}
+                          </span>
+                        )}
+                        <Link
+                          to={`/customer/booking?table=${table.id}`}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-2xs whitespace-nowrap shrink-0"
+                        >
+                          <span>Đặt ngay</span>
+                          <span>→</span>
+                        </Link>
+                      </div>
                     ) : isPlaying ? (
                       <div
                         className={`text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap ${table.isPaused ? "text-amber-700" : "text-slate-600"}`}
@@ -954,6 +956,8 @@ const CustomerHome = () => {
             <Button
               variant="primary"
               size="sm"
+              loading={isSubmittingWaitlist}
+              disabled={isSubmittingWaitlist}
               onClick={handleSubmitWaitlist}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4 text-white"
             >

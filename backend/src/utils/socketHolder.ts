@@ -70,3 +70,8 @@ export const emitCustomerOrderNew = (order: any) => {
 export const emitCustomerOrderStatusChanged = (order: any) => {
   io?.emit("customer-order:status_changed", order);
 };
+
+export const emitWaitlistUpdated = (entry?: any) => {
+  io?.emit("waitlist:updated", entry);
+};
+

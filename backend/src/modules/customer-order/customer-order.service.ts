@@ -86,7 +86,7 @@ export class CustomerOrderService {
     }
     const products = await Product.find({
       _id: { $in: productIds },
-      category: { $in: ["drink", "food", "snack"] },
+      category: { $ne: "ingredient" },
       isForSale: true,
       isActive: true,
     }).select("_id name category salePrice stock");
