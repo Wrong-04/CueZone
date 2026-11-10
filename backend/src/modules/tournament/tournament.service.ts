@@ -20,10 +20,18 @@ export class TournamentService {
   async getPublicTournaments(query: { page?: number; limit?: number }) {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 50));
-    const filter = { status: { $ne: TournamentStatus.DRAFT } };
+    const now = new Date();
+    const filter = {
+      status: { $nin: [TournamentStatus.DRAFT, TournamentStatus.COMPLETED] },
+      endDate: { $gt: now },
+      $or: [
+        { status: { $ne: TournamentStatus.REGISTRATION_OPEN } },
+        { registrationDeadline: { $gt: now } },
+      ],
+    };
     const [rawItems, total] = await Promise.all([
       Tournament.find(filter)
-        .sort({ startDate: 1 })
+        .sort({ startDate: 1, _id: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
@@ -283,7 +291,7 @@ export class TournamentService {
   async createTournament(dto: CreateTournamentDTO, userId?: string): Promise<ITournament> {
     const validation = validateTournamentData(dto, false);
     if (!validation.isValid) {
-      throw new Error(validation.errors.join("; "));
+      throw paymentError(validation.errors.join("; "), 400);
     }
 
     let assignedTables: string[] = [];
@@ -373,9 +381,14 @@ export class TournamentService {
       throw new Error("Không tìm thấy giải đấu");
     }
 
-    const validation = validateTournamentData(dto, true);
+    const validation = validateTournamentData({
+      ...dto,
+      firstPrize: dto.firstPrize === undefined ? tournament.firstPrize : dto.firstPrize,
+      secondPrize: dto.secondPrize === undefined ? tournament.secondPrize : dto.secondPrize,
+      thirdPrize: dto.thirdPrize === undefined ? tournament.thirdPrize : dto.thirdPrize,
+    }, true);
     if (!validation.isValid) {
-      throw new Error(validation.errors.join("; "));
+      throw paymentError(validation.errors.join("; "), 400);
     }
 
     if (
