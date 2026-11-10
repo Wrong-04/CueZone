@@ -318,10 +318,6 @@ const CustomerTournaments = () => {
                 key: "upcoming",
                 label: `Giải Khác (${tournaments.filter((t) => t.status === "upcoming").length})`,
               },
-              {
-                key: "finished",
-                label: `Đã Kết Thúc (${tournaments.filter((t) => t.status === "finished").length})`,
-              },
             ].map((sub) => (
               <button
                 key={sub.key}
