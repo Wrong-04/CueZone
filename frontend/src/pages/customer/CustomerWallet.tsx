@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowDownOutlined,
@@ -27,6 +27,10 @@ export const CustomerWallet: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const paymentReference = searchParams.get("vnp_TxnRef");
+  const vnpayReturnParameters = useMemo(
+    () => Object.fromEntries(searchParams.entries()),
+    [searchParams],
+  );
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -66,8 +70,12 @@ export const CustomerWallet: React.FC = () => {
     setCheckingGatewayStatus(true);
     setGatewayError("");
     try {
+      if (vnpayReturnParameters.vnp_SecureHash) {
+        await walletService.confirmVnpayReturn(vnpayReturnParameters);
+      }
       const status = await walletService.getVnpayTopupStatus(paymentReference);
       setGatewayStatus(status);
+      setGatewayError("");
       if (status.status !== "pending") await loadWallet();
       return status.status === "pending";
     } catch (error) {
@@ -78,20 +86,27 @@ export const CustomerWallet: React.FC = () => {
     } finally {
       setCheckingGatewayStatus(false);
     }
-  }, [loadWallet, paymentReference]);
+  }, [loadWallet, paymentReference, vnpayReturnParameters]);
 
   useEffect(() => {
     if (!paymentReference) return;
     let active = true;
     let attempts = 0;
+    let shouldConfirmReturn = Boolean(vnpayReturnParameters.vnp_SecureHash);
     const poll = async () => {
       if (!active || attempts >= 20) return;
       attempts += 1;
       let isPending = false;
       try {
+        if (shouldConfirmReturn) {
+          shouldConfirmReturn = false;
+          await walletService.confirmVnpayReturn(vnpayReturnParameters);
+          if (!active) return;
+        }
         const status = await walletService.getVnpayTopupStatus(paymentReference);
         if (!active) return;
         setGatewayStatus(status);
+        setGatewayError("");
         isPending = status.status === "pending";
         if (!isPending) await loadWallet();
       } catch (error) {
@@ -108,7 +123,7 @@ export const CustomerWallet: React.FC = () => {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [loadWallet, paymentReference]);
+  }, [loadWallet, paymentReference, vnpayReturnParameters]);
 
   const handleRequestTopup = async () => {
     const finalAmount = isCustomAmount
