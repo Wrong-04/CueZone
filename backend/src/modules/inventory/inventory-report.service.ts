@@ -100,7 +100,7 @@ export class InventoryReportService {
       { $match: productMatch },
       {
         $lookup: {
-          from: "inventorytransactions",
+          from: "inventory_transactions",
           let: { prodId: "$_id" },
           pipeline: [
             {
