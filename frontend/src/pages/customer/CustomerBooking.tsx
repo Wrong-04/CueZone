@@ -8,8 +8,6 @@ import {
   EnvironmentOutlined,
   ClockCircleOutlined,
   DollarOutlined,
-  MinusOutlined,
-  PlusOutlined,
   ShoppingOutlined,
   RightOutlined,
   InfoCircleOutlined,
@@ -30,6 +28,7 @@ import { getSocket } from "../../services/socket.service";
 import { productService, type ProductMenu } from "../../services/product.service";
 import { useAuth } from "../../contexts/AuthContext";
 import { isVietnameseMobilePhone } from "../../utils/phone";
+import { CustomerFnbMenuModal } from "../../components/customer/CustomerFnbMenuModal";
 
 const { Title, Paragraph } = Typography;
 
@@ -142,16 +141,27 @@ export const CustomerBooking = () => {
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [availabilityVersion, setAvailabilityVersion] = useState<number>(0);
   const [menuItems, setMenuItems] = useState<ProductMenu[]>([]);
+  const [loadingMenu, setLoadingMenu] = useState(true);
+  const [showFnbMenuModal, setShowFnbMenuModal] = useState(false);
   const [selectedFnb, setSelectedFnb] = useState<Record<string, number>>({});
   const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
 
   useEffect(() => {
+    let active = true;
     productService
       .getFnbMenu()
-      .then(setMenuItems)
+      .then((items) => {
+        if (active) setMenuItems(items);
+      })
       .catch((error) =>
         message.error(error instanceof Error ? error.message : "Không thể tải thực đơn đồ uống"),
-      );
+      )
+      .finally(() => {
+        if (active) setLoadingMenu(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -300,6 +310,7 @@ export const CustomerBooking = () => {
           const currentMenu = await productService.getFnbMenu();
           const currentProductIds = new Set(currentMenu.map((item) => item._id));
           setMenuItems(currentMenu);
+          setLoadingMenu(false);
           setSelectedFnb((selected) =>
             Object.fromEntries(
               Object.entries(selected).filter(
@@ -559,49 +570,19 @@ export const CustomerBooking = () => {
                     {preOrderItems.reduce((sum, item) => sum + item.quantity, 0)} món
                   </span>
                 </div>
-                {menuItems.length > 0 && (
-                  <div className="max-h-36 overflow-y-auto divide-y divide-slate-100">
-                    {menuItems.slice(0, 6).map((item) => {
-                      const quantity = selectedFnb[item._id] || 0;
-                      return (
-                        <div key={item._id} className="flex items-center justify-between gap-2 py-1.5">
-                          <div className="min-w-0">
-                            <span className="truncate text-xs font-medium text-slate-800 block">
-                              {item.name}
-                            </span>
-                            <span className="text-[10px] text-slate-500">
-                              {item.salePrice.toLocaleString("vi-VN")}đ
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <Button
-                              htmlType="button"
-                              variant="outline"
-                              size="sm"
-                              icon={<MinusOutlined />}
-                              disabled={quantity === 0}
-                              onClick={() => updateFnbQuantity(item._id, -1)}
-                              className="!h-7 !w-7 !p-0 !rounded-lg"
-                            />
-                            <span className="text-xs font-bold w-4 text-center">{quantity}</span>
-                            <Button
-                              htmlType="button"
-                              variant="outline"
-                              size="sm"
-                              icon={<PlusOutlined />}
-                              disabled={item.isOutOfStock}
-                              onClick={() => updateFnbQuantity(item._id, 1)}
-                              className="!h-7 !w-7 !p-0 !rounded-lg"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                <Button
+                  htmlType="button"
+                  variant="outline"
+                  leftIcon={<ShoppingOutlined />}
+                  onClick={() => setShowFnbMenuModal(true)}
+                  disabled={loadingMenu || menuItems.length === 0}
+                  className="!w-full !rounded-xl !border-emerald-300 !text-emerald-800 hover:!bg-emerald-50"
+                >
+                  {loadingMenu ? "Đang tải thực đơn..." : "Chọn món đặt trước"}
+                </Button>
                 {preOrderItems.length > 0 && (
-                  <div className="border-t border-slate-100 pt-1.5 text-right text-xs font-bold text-emerald-700">
-                    Tiền món tạm tính: {preOrderTotal.toLocaleString("vi-VN")}đ
+                  <div className="border-t border-slate-100 pt-2 text-right text-xs font-bold text-emerald-700">
+                    Tạm tính: {preOrderTotal.toLocaleString("vi-VN")}đ
                   </div>
                 )}
               </div>
@@ -650,6 +631,17 @@ export const CustomerBooking = () => {
           </Card>
         </div>
       </div>
+
+      <CustomerFnbMenuModal
+        open={showFnbMenuModal}
+        onClose={() => setShowFnbMenuModal(false)}
+        items={menuItems}
+        loading={loadingMenu}
+        selectedQuantities={selectedFnb}
+        onQuantityChange={updateFnbQuantity}
+        onConfirm={() => setShowFnbMenuModal(false)}
+        confirmLabel="Lưu lựa chọn"
+      />
 
       {/* Modal Xác Nhận Thành Công */}
       <Modal

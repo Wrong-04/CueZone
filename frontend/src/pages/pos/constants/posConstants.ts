@@ -1,19 +1,4 @@
-export const FNB_CATEGORY_LABELS: Record<string, string> = {
-  drink: "Đồ uống",
-  coffee: "Cà phê",
-  tea: "Trà & Nước ngọt",
-  beer: "Bia & Đồ có cồn",
-  food: "Đồ ăn chính",
-  snack: "Đồ ăn vặt",
-  accessory: "Bao tay & Tiện ích",
-  equipment: "Bao tay & Tiện ích",
-};
-
-export const getFnbCategoryLabel = (category?: string): string => {
-  if (!category) return "Khác";
-  const cat = category.toLowerCase().trim();
-  return FNB_CATEGORY_LABELS[cat] || category;
-};
+export { FNB_CATEGORY_LABELS, getFnbCategoryLabel } from "../../../utils/fnb";
 
 export const AREA_LABELS: Record<string, string> = {
   standard: "Khu Phổ Thông",

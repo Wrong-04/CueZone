@@ -10,7 +10,6 @@ import {
   CoffeeOutlined,
   InfoCircleOutlined,
   QrcodeOutlined,
-  ExclamationCircleOutlined,
   PrinterOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Modal, Space, Tag } from "../../../shared/ui";
@@ -108,7 +107,6 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
         const totalDiscount = memberDiscountAmount + voucherDiscountAmount;
         const depositAmount = selectedTable.currentSession.deposit || 0;
         const finalAmount = Math.max(0, subtotal - totalDiscount - depositAmount);
-        const earnedPoints = Math.floor(finalAmount / 10000);
 
         return (
           <div className="py-2 space-y-3.5 text-xs">
@@ -187,23 +185,20 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                         <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-emerald-200 shadow-2xs text-[11px] font-semibold text-emerald-900">
                           Điểm tích lũy:
                           <strong className="font-mono text-emerald-700 font-black text-xs">
-                            {(loyaltyCustomer.walletPoints ?? 0).toLocaleString("vi-VN")}
+                            {(loyaltyCustomer.membershipPoints ?? 0).toLocaleString("vi-VN")}
                           </strong>
                           <span>điểm</span>
-                        </span>
-                        <span className="font-bold text-emerald-700 font-mono text-[10.5px]">
-                          (+{earnedPoints.toLocaleString("vi-VN")} điểm đơn này)
                         </span>
                       </div>
                     </div>
 
-                    {/* Customer Available Vouchers in Wallet */}
+                    {/* Customer available membership vouchers */}
                     {loyaltyCustomer.availableVouchers && loyaltyCustomer.availableVouchers.length > 0 && (
                       <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-50/70 to-teal-50/60 border border-emerald-200/90 space-y-1.5">
                         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
                           <span className="flex items-center gap-1.5">
                             <GiftOutlined className="text-emerald-600" />
-                            Voucher trong ví của khách ({loyaltyCustomer.availableVouchers.length}):
+                            Voucher hội viên ({loyaltyCustomer.availableVouchers.length}):
                           </span>
                           <span className="text-[10px] text-slate-500 font-normal">
                             Bấm để áp dụng nhanh
@@ -471,7 +466,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                 <label className="block text-xs font-bold text-slate-800 mb-2">
                   Phương thức thanh toán:
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <Button
                     variant={paymentMethod === "cash" ? "primary" : "outline"}
                     size="sm"
@@ -514,30 +509,6 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                     <span className="text-[11px] font-bold">Tiền Mặt + QR</span>
                   </Button>
 
-                  <Button
-                    variant={paymentMethod === "member_balance" ? "primary" : "outline"}
-                    size="sm"
-                    onClick={() => setPaymentMethod("member_balance")}
-                    leftIcon={<UserOutlined />}
-                    className={`!h-12 !flex-col !gap-0.5 !rounded-xl ${
-                      paymentMethod === "member_balance"
-                        ? "!bg-emerald-600 !border-emerald-600 text-white shadow-xs"
-                        : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
-                    }`}
-                  >
-                    <span className="text-[11px] font-bold">Ví Hội Viên</span>
-                    {loyaltyCustomer && loyaltyCustomer.walletBalance !== undefined && (
-                      <span
-                        className={`text-[9px] font-mono ${
-                          paymentMethod === "member_balance"
-                            ? "text-emerald-100 font-semibold"
-                            : "text-emerald-700 font-bold"
-                        }`}
-                      >
-                        {(loyaltyCustomer.walletBalance / 1000).toLocaleString("vi-VN")}k
-                      </span>
-                    )}
-                  </Button>
                 </div>
               </div>
 
@@ -754,65 +725,6 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                 </div>
               )}
 
-              {/* Thanh toán Ví Hội Viên */}
-              {paymentMethod === "member_balance" && (
-                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200 space-y-2.5 text-xs">
-                  {loyaltyCustomer ? (
-                    <>
-                      <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
-                        <span className="font-semibold text-slate-700">Hội viên:</span>
-                        <strong className="text-slate-900 font-bold">{loyaltyCustomer.name} ({loyaltyCustomer.phone})</strong>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-700">Số dư ví hiện tại:</span>
-                        <strong className="font-mono text-emerald-800 text-sm font-bold">
-                          {(loyaltyCustomer.walletBalance ?? 0).toLocaleString("vi-VN")}đ
-                        </strong>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-700">Số tiền thanh toán:</span>
-                        <strong className="font-mono text-slate-900 font-bold">
-                          {finalAmount.toLocaleString("vi-VN")}đ
-                        </strong>
-                      </div>
-                      <div className="flex items-center justify-between pt-1 border-t border-emerald-100">
-                        <span className="font-semibold text-slate-700">Số dư sau thanh toán:</span>
-                        <strong
-                          className={`font-mono font-black text-sm ${
-                            (loyaltyCustomer.walletBalance ?? 0) >= finalAmount
-                              ? "text-emerald-700"
-                              : "text-rose-600"
-                          }`}
-                        >
-                          {((loyaltyCustomer.walletBalance ?? 0) - finalAmount).toLocaleString("vi-VN")}đ
-                        </strong>
-                      </div>
-
-                      {(loyaltyCustomer.walletBalance ?? 0) < finalAmount ? (
-                        <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] flex items-center gap-1.5 font-medium">
-                          <ExclamationCircleOutlined className="text-rose-600 shrink-0" />
-                          <span>
-                            Số dư ví không đủ để thanh toán. Vui lòng nạp thêm vào ví hoặc chọn phương thức khác.
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="p-2 rounded-lg bg-emerald-100/70 text-emerald-900 text-[11px] flex items-center gap-1.5 font-medium">
-                          <CheckCircleOutlined className="text-emerald-600 shrink-0" />
-                          <span>
-                            Ví đủ số dư. Thanh toán thành công sẽ cộng thêm{" "}
-                            <strong>+{earnedPoints} điểm</strong> tích lũy.
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
-                      <ExclamationCircleOutlined className="text-amber-600 text-base shrink-0" />
-                      <span>Bàn này chưa liên kết Hội viên. Vui lòng nhập SĐT hội viên ở phần trên để thanh toán bằng ví.</span>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

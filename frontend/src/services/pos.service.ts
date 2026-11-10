@@ -164,8 +164,7 @@ export const posService = {
         rank: string;
         elo: number;
         isMember: boolean;
-        walletBalance?: number;
-        walletPoints?: number;
+        membershipPoints?: number;
         availableVouchers?: Array<{
           code: string;
           description?: string;

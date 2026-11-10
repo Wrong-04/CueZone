@@ -16,7 +16,6 @@ export interface MemberLookupInfo {
   name: string;
   phone: string;
   rank?: string;
-  walletBalance?: number;
 }
 
 interface PosOpenTableModalProps {
@@ -174,14 +173,6 @@ export const PosOpenTableModal: React.FC<PosOpenTableModalProps> = ({
                 </div>
               </div>
             </div>
-            {openModalMemberInfo.walletBalance !== undefined && (
-              <div className="text-right shrink-0">
-                <div className="text-[10px] text-slate-500">Số dư ví:</div>
-                <div className="text-xs font-bold font-mono text-emerald-800">
-                  {openModalMemberInfo.walletBalance.toLocaleString("vi-VN")}đ
-                </div>
-              </div>
-            )}
           </div>
         ) : isSearchingOpenMember ? (
           <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500 flex items-center justify-center gap-2">

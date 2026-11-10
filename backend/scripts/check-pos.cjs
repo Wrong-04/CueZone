@@ -126,6 +126,14 @@ async function main() {
       email: "customer@check.invalid",
       password: "CheckPassword123",
     });
+    const rejectedWalletCheckout = await request(
+      `/customer/fnb-orders/${new mongoose.Types.ObjectId()}/checkout`,
+      "POST",
+      { sessionId: "wallet-checkout-disabled", paymentMethod: "member_balance" },
+      customer.accessToken,
+    );
+    assert.equal(rejectedWalletCheckout.httpStatus, 400);
+    assert.equal(rejectedWalletCheckout.success, false);
     await User.updateOne({ _id: customer.user._id }, { $set: { phone: "0912345678" } });
     const formattedPhoneLogin = await ok("/auth/login", "POST", {
       email: "+84 912 345 678",
@@ -524,6 +532,7 @@ async function main() {
       { status: "approved", tableId: table._id },
       token,
     );
+    await Table.updateOne({ _id: table._id }, { $set: { currentSession: null } });
     const opened = await ok(
       `/tables/${table._id}/session`,
       "POST",
@@ -536,7 +545,16 @@ async function main() {
     const sessionId = opened.currentSession.sessionId;
     assert.equal(opened.currentSession.deposit, 100);
     assert.equal((await Booking.findById(booking._id)).status, "checked_in");
-    assert.equal((await request(`/tables/${table._id}/session`, "POST", {}, token)).success, false);
+    const duplicateSession = await request(`/tables/${table._id}/session`, "POST", {}, token);
+    assert.equal(duplicateSession.success, false);
+    assert.equal(duplicateSession.httpStatus, 409);
+    const invalidSessionInput = await request(
+      `/tables/${table._id}/session`,
+      "POST",
+      { customerName: 123 },
+      token,
+    );
+    assert.equal(invalidSessionInput.httpStatus, 400);
     assert.equal(
       (await request(`/tables/${table._id}/status`, "PUT", { status: "available" }, token)).success,
       false,
@@ -658,7 +676,8 @@ async function main() {
       undefined,
       token,
     );
-    assert.equal(walletLookup.walletBalance, 0);
+    assert.equal(walletLookup.walletBalance, undefined);
+    assert.equal(walletLookup.membershipPoints, 5);
     const memberLogin = await ok("/auth/login", "POST", {
       email: "wallet-member@check.invalid",
       password: "CheckPassword123",

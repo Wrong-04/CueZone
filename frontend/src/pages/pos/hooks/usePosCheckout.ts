@@ -8,8 +8,7 @@ export interface LoyaltyCustomerInfo {
   name: string;
   phone: string;
   rank?: string;
-  walletBalance?: number;
-  walletPoints?: number;
+  membershipPoints?: number;
   availableVouchers?: Array<{
     code: string;
     description?: string;
@@ -33,7 +32,7 @@ export function usePosCheckout({
   calculatePlayingDetails,
 }: UsePosCheckoutProps) {
   const [checkoutModalVisible, setCheckoutModalVisible] = useState<boolean>(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "vnpay" | "card" | "wallet">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "vnpay" | "card" | "split">("cash");
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [showTimeSlots, setShowTimeSlots] = useState<boolean>(false);
   const [checkoutPhone, setCheckoutPhone] = useState<string>("");
@@ -65,8 +64,7 @@ export function usePosCheckout({
           name: res.data.name,
           phone: res.data.phone,
           rank: res.data.rank,
-          walletBalance: res.data.walletBalance,
-          walletPoints: res.data.walletPoints,
+          membershipPoints: res.data.membershipPoints,
           availableVouchers: res.data.availableVouchers || [],
         });
         const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;
@@ -74,7 +72,7 @@ export function usePosCheckout({
         const voucherCount = res.data.availableVouchers?.length || 0;
         message.success(
           `Đã tìm thấy hội viên ${res.data.name} (Hạng ${res.data.rank || "Standard"})! Tự động áp dụng giảm ${rankDiscount}% tiền giờ${
-            voucherCount > 0 ? ` (và ${voucherCount} voucher trong ví)` : ""
+            voucherCount > 0 ? ` (và ${voucherCount} voucher hội viên)` : ""
           }.`,
         );
       } else {
@@ -106,8 +104,7 @@ export function usePosCheckout({
         name: table.currentSession.customerName || "Hội viên CLB",
         phone: sessionPhone,
         rank: "VIP",
-        walletBalance: 0,
-        walletPoints: 0,
+        membershipPoints: 0,
       });
       setDiscountPercent(10);
 
@@ -118,8 +115,7 @@ export function usePosCheckout({
               name: res.data.name,
               phone: res.data.phone,
               rank: res.data.rank,
-              walletBalance: res.data.walletBalance,
-              walletPoints: res.data.walletPoints,
+              membershipPoints: res.data.membershipPoints,
               availableVouchers: res.data.availableVouchers || [],
             });
             const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;

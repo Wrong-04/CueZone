@@ -123,8 +123,6 @@ export interface CheckoutReceipt {
     | "vnpay"
     | "transfer"
     | "card"
-    | "member_balance"
-    | "wallet"
     | "split"
     | "cash_qr"
     | string;

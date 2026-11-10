@@ -58,15 +58,7 @@ export class TableService {
       isLocked: false,
     }).select("name phone rank elo");
     if (!user) return null;
-    let wallet = await Wallet.findOne({ userId: user._id });
-    if (!wallet) {
-      wallet = await Wallet.create({
-        userId: user._id,
-        balance: 0,
-        points: 0,
-        transactions: [],
-      });
-    }
+    const wallet = await Wallet.findOne({ userId: user._id }).select("points");
 
     const now = new Date();
     let availableVouchers = await Voucher.find({
@@ -140,8 +132,7 @@ export class TableService {
       phone: user.phone,
       rank: user.rank || "Standard",
       elo: user.elo || 1000,
-      walletBalance: wallet?.balance ?? 0,
-      walletPoints: wallet?.points ?? 0,
+      membershipPoints: wallet?.points ?? 0,
       isMember: true,
       availableVouchers: availableVouchers.map((v) => ({
         code: v.code,

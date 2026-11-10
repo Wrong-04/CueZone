@@ -1,5 +1,6 @@
 import api from "./api";
 import type { ApiResponse } from "../types";
+import type { CheckoutReceipt } from "../types/pos";
 
 export type CustomerOrderStatus = "pending" | "preparing" | "ready" | "served" | "rejected";
 
@@ -139,7 +140,7 @@ export const customerOrderService = {
   },
   async requestCheckout(
     tableId: string,
-    input: { sessionId: string; paymentMethod: "cash" | "transfer" | "member_balance"; voucherCode?: string },
+    input: { sessionId: string; paymentMethod: "cash" | "transfer"; voucherCode?: string },
   ): Promise<{ status: "paid" | "pending_payment"; receipt?: Record<string, unknown> }> {
     const { data } = await api.post<
       ApiResponse<{ status: "paid" | "pending_payment"; receipt?: Record<string, unknown> }>
@@ -174,8 +175,10 @@ export const staffOrderService = {
     tableId: string,
     sessionId: string,
     approved: boolean,
-  ): Promise<{ status: "paid" | "rejected" }> {
-    const { data } = await api.patch<ApiResponse<{ status: "paid" | "rejected" }>>(
+  ): Promise<{ status: "paid"; receipt: CheckoutReceipt } | { status: "rejected" }> {
+    const { data } = await api.patch<
+      ApiResponse<{ status: "paid"; receipt: CheckoutReceipt } | { status: "rejected" }>
+    >(
       `/customer/fnb-orders/payment-requests/${encodeURIComponent(tableId)}`,
       { sessionId, approved },
     );
