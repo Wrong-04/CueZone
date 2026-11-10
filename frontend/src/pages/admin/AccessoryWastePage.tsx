@@ -351,7 +351,7 @@ export const AccessoryWastePage: React.FC = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={560}
       >
         <Form form={form} layout="vertical" onFinish={handleCreateSubmit} className="mt-4">
@@ -363,10 +363,10 @@ export const AccessoryWastePage: React.FC = () => {
             <Select
               placeholder="-- Chọn phụ kiện bida cần xuất hủy --"
               onChange={handleProductSelect}
-              showSearch
-              filterOption={(input, option) =>
-                String(option?.label ?? "").toLowerCase().includes(input.toLowerCase())
-              }
+              showSearch={{
+                filterOption: (input, option) =>
+                  String(option?.label ?? "").toLowerCase().includes(input.toLowerCase()),
+              }}
               options={accessories.map((a) => ({
                 label: `${a.name} (SKU: ${a.sku}) - Tồn: ${a.stock ?? 0} ${a.unit || "cái"}`,
                 value: a._id || a.id,

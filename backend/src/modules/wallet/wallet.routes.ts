@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { User, UserRole } from "../user/user.model";
 import { WalletService } from "./wallet.service";
+import { requirePermission } from "../../middlewares/auth.middleware";
 
 const router = Router();
 const walletService = new WalletService();
@@ -22,22 +23,7 @@ async function requireWalletUser(req: Request, res: Response, next: NextFunction
   }
 }
 
-async function requireWalletOperator(req: Request, res: Response, next: NextFunction) {
-  try {
-    const user = await User.findById((req as any).user?.userId);
-    if (!user || !user.isActive || user.isLocked) {
-      return res.status(401).json({ success: false, message: "Phiên đăng nhập không còn hợp lệ" });
-    }
-    if (![UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER].includes(user.role)) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Bạn không có quyền đối soát giao dịch ví" });
-    }
-    next();
-  } catch (error) {
-    next(error);
-  }
-}
+const requireWalletOperator = requirePermission("wallet", "operate");
 
 router.get("/", requireWalletUser, async (req: Request, res: Response, next: NextFunction) => {
   try {

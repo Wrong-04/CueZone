@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import type { RequestHandler } from "express";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
+import { requirePermission } from "../../middlewares/auth.middleware";
 import * as productController from "./product.controller";
 
 const publicRouter = Router();
@@ -39,7 +39,7 @@ const parseProductImage: RequestHandler = (req, res, next) => {
 };
 
 export const productManagementRouter = Router();
-productManagementRouter.use(requirePosStaff);
+productManagementRouter.use(requirePermission("products", "manage"));
 productManagementRouter.get("/", productController.getAll);
 productManagementRouter.get("/:id", productController.getById);
 productManagementRouter.post("/:id/image", parseProductImage, productController.uploadImage);

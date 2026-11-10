@@ -4,7 +4,7 @@ import { ConfigProvider, theme } from "antd";
 import { Lock, Mail, ArrowRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authService } from "../../services/auth.service";
-import { UserRole } from "../../types";
+import { getHomePath } from "../../utils/permissions";
 import {
   Button,
   Checkbox,
@@ -19,24 +19,6 @@ import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
 
 const { Title, Text } = Typography;
 
-const getRoleNavigationPath = (role?: string): string => {
-  switch (role) {
-    case UserRole.CUSTOMER:
-      return "/customer";
-    case UserRole.STAFF:
-      return "/pos";
-    case UserRole.ADMIN:
-      return "/dashboard";
-    case UserRole.CASHIER:
-      return "/wallet-topups";
-    case UserRole.WAREHOUSE:
-      return "/stock-catalog";
-    case UserRole.REFEREE:
-      return "/tournaments";
-    default:
-      return "/customer";
-  }
-};
 
 const LoginPage: React.FC = () => {
   const [identifier, setIdentifier] = useState<string>("");
@@ -70,7 +52,7 @@ const LoginPage: React.FC = () => {
     try {
       const loggedInUser = await login(trimmed, password);
       message.success("Đăng nhập CueZone thành công!");
-      navigate(getRoleNavigationPath(loggedInUser?.role));
+      navigate(getHomePath(loggedInUser));
     } catch (err: any) {
       message.error(err?.message || "Đăng nhập thất bại, vui lòng kiểm tra lại thông tin!");
     } finally {

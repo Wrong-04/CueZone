@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission } from "../../utils/permissions";
 import {
   InboxOutlined,
   AppstoreOutlined,
@@ -128,7 +129,7 @@ const resolveProductImage = (name: string, category: string, currentUrl?: string
 export const FnBInventoryPage: React.FC = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const canManageInventory = user?.role === "admin" || user?.role === "warehouse";
+  const canManageInventory = hasPermission(user, "inventory.manage");
   // ── 1. STATE & LIVE DATABASE INTEGRATION ──────────────────────────────────
   const [stockList, setStockList] = useState<FnbStockItem[]>(INITIAL_FNB_STOCK);
   const [loading, setLoading] = useState<boolean>(false);

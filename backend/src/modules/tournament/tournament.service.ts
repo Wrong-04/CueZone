@@ -11,6 +11,7 @@ import { NotificationType } from "../notification/notification.model";
 import { TournamentPaymentService } from "./tournament-payment.service";
 import { TournamentPaymentIntent } from "./tournament-payment.model";
 import { confirmedPlayer, paymentError } from "./sepay";
+import { emitTournamentPaymentUpdated } from "../../utils/socketHolder";
 
 const notifications = new NotificationService();
 
@@ -131,6 +132,128 @@ export class TournamentService {
 
   async registerPlayer(id: string, userId: string, paymentMethod: unknown) {
     return new TournamentPaymentService().create(id, userId, paymentMethod);
+  }
+
+  /**
+   * Ghi danh trực tiếp tại quầy bởi Nhân viên / Thu ngân / Admin (SCRUM-924)
+   * Thu tiền mặt hoặc chuyển khoản tại quầy, ghi nhận trực tiếp cơ thủ vào danh sách thi đấu
+   */
+  async registerPlayerAtCounter(
+    tournamentId: string,
+    customerId: string,
+    paymentMethod: "cash" | "bank_transfer",
+    staffId: string,
+    note?: string,
+  ) {
+    if (!mongoose.isValidObjectId(tournamentId) || !mongoose.isValidObjectId(customerId)) {
+      throw paymentError("Mã giải đấu hoặc tài khoản khách hàng không hợp lệ", 400);
+    }
+    if (!["cash", "bank_transfer"].includes(paymentMethod)) {
+      throw paymentError("Phương thức thanh toán tại quầy chỉ chấp nhận tiền mặt hoặc chuyển khoản", 400);
+    }
+
+    let savedTournament: any;
+    let registeredCustomer: any;
+
+    await mongoose.connection.transaction(async (session) => {
+      const customer = await User.findOne({
+        _id: customerId,
+        role: UserRole.CUSTOMER,
+        isActive: true,
+        isLocked: false,
+      }).session(session);
+
+      if (!customer) {
+        throw paymentError("Không tìm thấy hội viên hoặc tài khoản đang bị khóa", 404);
+      }
+
+      const tournament = await Tournament.findById(tournamentId).session(session);
+      if (!tournament) {
+        throw paymentError("Không tìm thấy giải đấu", 404);
+      }
+
+      if (
+        tournament.status !== TournamentStatus.REGISTRATION_OPEN ||
+        tournament.registrationDeadline.getTime() <= Date.now() ||
+        tournament.paymentFinalizedAt
+      ) {
+        throw paymentError("Giải đấu hiện không mở ghi danh hoặc đã hết hạn đăng ký", 409);
+      }
+
+      const isAlreadyRegistered = (tournament.players || []).some(
+        (p: any) => String(p.user) === customerId && confirmedPlayer(p, tournament.registrationFee),
+      );
+      if (isAlreadyRegistered) {
+        throw paymentError(`Cơ thủ ${customer.name} đã được xác nhận tham gia giải đấu này`, 409);
+      }
+
+      const confirmedCount = (tournament.players || []).filter((p: any) =>
+        confirmedPlayer(p, tournament.registrationFee),
+      ).length;
+      if (confirmedCount >= tournament.maxPlayers) {
+        throw paymentError("Giải đấu đã đủ số lượng cơ thủ tối đa", 409);
+      }
+
+      const oldPlayerIdx = (tournament.players || []).findIndex(
+        (p: any) => String(p.user) === customerId,
+      );
+
+      const newPlayerData: any = {
+        user: customer._id,
+        name: customer.name,
+        avatar: customer.avatar,
+        phone: customer.phone,
+        feePaid: true,
+        paymentMethod: paymentMethod === "cash" ? "cash" : "counter",
+        registrationStatus: "confirmed",
+        registeredAt: new Date(),
+      };
+
+      if (oldPlayerIdx >= 0) {
+        Object.assign(tournament.players[oldPlayerIdx], newPlayerData);
+      } else {
+        tournament.players.push(newPlayerData);
+      }
+
+      await TournamentPaymentIntent.updateOne(
+        { tournament: tournamentId, user: customerId },
+        { $set: { status: "confirmed" } },
+        { session },
+      );
+
+      tournament.paymentRevision = (tournament.paymentRevision || 0) + 1;
+      await tournament.save({ session });
+
+      savedTournament = tournament;
+      registeredCustomer = customer;
+    });
+
+    notifications
+      .createForUser(customerId, {
+        title: "Xác nhận đăng ký giải đấu tại quầy",
+        content: `Bạn đã được nhân viên ghi danh tham gia giải "${savedTournament.name}". Lệ phí: ${
+          savedTournament.registrationFee > 0
+            ? `${savedTournament.registrationFee.toLocaleString("vi-VN")}đ (${paymentMethod === "cash" ? "Tiền mặt" : "Chuyển khoản tại quầy"})`
+            : "Miễn phí"
+        }.`,
+        type: NotificationType.TOURNAMENT,
+      })
+      .catch(() => undefined);
+
+    emitTournamentPaymentUpdated({
+      tournamentId: String(savedTournament._id),
+      userId: customerId,
+      status: "confirmed",
+    });
+
+    return {
+      tournament: savedTournament,
+      customer: {
+        id: registeredCustomer._id,
+        name: registeredCustomer.name,
+        phone: registeredCustomer.phone,
+      },
+    };
   }
 
   async getPendingFees() {

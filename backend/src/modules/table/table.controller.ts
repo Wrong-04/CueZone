@@ -95,13 +95,14 @@ export const getPublicTables = async (req: Request, res: Response) => {
 
 export const lookupCustomer = async (req: Request, res: Response) => {
   try {
-    const phone = req.query.phone as string;
-    if (!phone || phone.trim().length < 8) {
-      return res.status(400).json({ success: false, message: "Vui lòng nhập số điện thoại hợp lệ (tối thiểu 8 số)" });
+    const query = (req.query.phone || req.query.query || req.query.search || "") as string;
+    const trimmed = query.trim();
+    if (!trimmed || (trimmed.replace(/\D/g, "").length < 8 && trimmed.length < 2)) {
+      return res.status(400).json({ success: false, message: "Vui lòng nhập số điện thoại (tối thiểu 8 số) hoặc tên hội viên" });
     }
-    const customer = await tableService.lookupCustomer(phone.trim());
+    const customer = await tableService.lookupCustomer(trimmed);
     if (!customer) {
-      return res.json({ success: false, message: "Không tìm thấy hội viên với số điện thoại này" });
+      return res.json({ success: false, message: "Không tìm thấy hội viên phù hợp" });
     }
     return res.json({ success: true, data: customer });
   } catch (error: any) {

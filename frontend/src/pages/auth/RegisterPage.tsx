@@ -238,7 +238,7 @@ const RegisterPage: React.FC = () => {
                   <div className="mb-4">
                     <Alert
                       type="error"
-                      message={error}
+                      title={error}
                       showIcon
                       className="!bg-rose-50 !border-rose-200 !text-rose-700 !text-xs !rounded-xl"
                     />
@@ -366,7 +366,7 @@ const RegisterPage: React.FC = () => {
                   <div className="mb-4">
                     <Alert
                       type="error"
-                      message={error}
+                      title={error}
                       showIcon
                       className="!bg-rose-50 !border-rose-200 !text-rose-700 !text-xs !rounded-xl"
                     />

@@ -137,7 +137,7 @@ export default function CustomerPaymentPage() {
         </Button>
       </div>
 
-      {error && <Alert type="error" message={error} />}
+      {error && <Alert type="error" title={error} />}
 
       {loading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-500 space-y-2 shadow-2xs">

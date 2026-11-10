@@ -51,7 +51,7 @@ desktop.ini
 # ==========================================
 *.tsbuildinfo
 .agents
-.claude
+.claude/
 /docs/
 
 # Local task notes
@@ -63,3 +63,7 @@ desktop.ini
 openspec/
 .env.*
 !.env.example
+
+# Local Agent Scripts
+/scripts/
+AGENT_SETUP.md

@@ -1,27 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { requirePermission } from "./auth.middleware";
 
-export function requireProductManager(req: Request, res: Response, next: NextFunction) {
-  const user = (
-    req as Request & {
-      user?: {
-        role?: string;
-      };
-    }
-  ).user;
-
-  if (!user) {
-    return res.status(401).json({
-      success: false,
-      message: "Bạn chưa đăng nhập.",
-    });
-  }
-
-  if (user.role !== "admin" && user.role !== "warehouse") {
-    return res.status(403).json({
-      success: false,
-      message: "Bạn không có quyền quản lý hàng hóa.",
-    });
-  }
-
-  next();
-}
+// Quản lý hàng hóa/kho: nhập xuất, kiểm kê, hao hụt, danh mục (ma trận RBAC: inventory.manage).
+export const requireProductManager = requirePermission("inventory", "manage");

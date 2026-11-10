@@ -271,6 +271,19 @@ export const tournamentService = {
     return data.data;
   },
 
+  async registerPlayerAtCounter(
+    tournamentId: string,
+    counterData: { customerId: string; paymentMethod: "cash" | "bank_transfer"; note?: string },
+  ): Promise<{ tournament: TournamentItem; customer: { id: string; name: string; phone?: string } }> {
+    const { data } = await api.post<
+      ApiResponse<{ tournament: TournamentItem; customer: { id: string; name: string; phone?: string } }>
+    >(`/tournaments/${tournamentId}/players/counter`, counterData);
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Không thể ghi danh cơ thủ tại quầy");
+    }
+    return data.data;
+  },
+
   async finalizePayments(id: string, revision: number): Promise<TournamentPaymentSnapshot> {
     const { data } = await api.post<ApiResponse<TournamentPaymentSnapshot>>(`/tournaments/${id}/payments/finalize`, { revision, reconciled: true }).catch(error => { throw new Error(error.response?.data?.message || "Không thể chốt. Vui lòng tải và đối soát lại."); });
     if (!data.success || !data.data) throw new Error(data.message || "Không thể chốt danh sách");

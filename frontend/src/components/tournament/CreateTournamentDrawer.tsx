@@ -40,7 +40,7 @@ export const CreateTournamentDrawer: React.FC<CreateTournamentDrawerProps> = ({
     <Drawer
       open={open}
       onClose={onClose}
-      width={560}
+      size={560}
       title={
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200 shadow-xs">

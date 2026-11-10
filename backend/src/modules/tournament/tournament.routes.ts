@@ -1,9 +1,8 @@
 import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { TournamentService } from "./tournament.service";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
+import { requirePermission } from "../../middlewares/auth.middleware";
 import { TournamentStatus, Tournament } from "./tournament.model";
-import { User, UserRole } from "../user/user.model";
 import { uploadReceiptImage } from "../../config/cloudinary.config";
 import { TournamentPaymentService } from "./tournament-payment.service";
 import { sepayConfig } from "./sepay";
@@ -94,22 +93,7 @@ router.get("/:id/my-status", async (req: Request, res: Response, next: NextFunct
   }
 });
 
-async function requireTournamentOperator(req: Request, res: Response, next: NextFunction) {
-  try {
-    const user = await User.findById((req as any).user?.userId);
-    if (!user || !user.isActive || user.isLocked) {
-      return res.status(401).json({ success: false, message: "Phiên đăng nhập không còn hợp lệ" });
-    }
-    if (![UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER].includes(user.role)) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Bạn không có quyền đối soát lệ phí giải đấu" });
-    }
-    next();
-  } catch (error) {
-    next(error);
-  }
-}
+const requireTournamentOperator = requirePermission("tournaments", "manage");
 
 router.get("/:id/payments", requireTournamentOperator, async (req, res, next) => {
   try { res.json({ success: true, data: await payments.snapshot(req.params.id) }); }
@@ -225,7 +209,37 @@ router.post("/:id/register", async (req: Request, res: Response, next: NextFunct
   }
 });
 
-router.post("/", requirePosStaff, async (req: Request, res: Response, next: NextFunction) => {
+router.post(
+  "/:id/players/counter",
+  requireTournamentOperator,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { customerId, paymentMethod, note } = req.body;
+      const staffId = (req as any).user?.userId;
+      if (!customerId) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Vui lòng chọn hội viên đăng ký" });
+      }
+      const result = await tournamentService.registerPlayerAtCounter(
+        req.params.id,
+        customerId,
+        paymentMethod || "cash",
+        staffId,
+        note,
+      );
+      res.status(201).json({
+        success: true,
+        message: "Ghi danh cơ thủ tại quầy thành công",
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.post("/", requireTournamentOperator, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = (req as any).user?.userId;
     const tournament = await tournamentService.createTournament(req.body, userId);
@@ -239,7 +253,7 @@ router.post("/", requirePosStaff, async (req: Request, res: Response, next: Next
   }
 });
 
-router.put("/:id", requirePosStaff, async (req: Request, res: Response, next: NextFunction) => {
+router.put("/:id", requireTournamentOperator, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const tournament = await tournamentService.updateTournament(req.params.id, req.body);
     res.json({
@@ -254,7 +268,7 @@ router.put("/:id", requirePosStaff, async (req: Request, res: Response, next: Ne
 
 router.patch(
   "/:id/status",
-  requirePosStaff,
+  requireTournamentOperator,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { status } = req.body;
@@ -281,7 +295,7 @@ router.patch(
   },
 );
 
-router.delete("/:id", requirePosStaff, async (req: Request, res: Response, next: NextFunction) => {
+router.delete("/:id", requireTournamentOperator, async (req: Request, res: Response, next: NextFunction) => {
   try {
     await tournamentService.deleteTournament(req.params.id);
     res.json({

@@ -40,6 +40,8 @@ import CustomerWallet from "./pages/customer/CustomerWallet";
 import CustomerProfile from "./pages/customer/CustomerProfile";
 
 import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
+import NoAccessPage from "./pages/admin/NoAccessPage";
+import { getHomePath, hasPermission, STAFF_ROLES, type PermissionKey } from "./utils/permissions";
 
 import {
   TablesPage,
@@ -58,9 +60,10 @@ type UserRole = "admin" | "staff" | "cashier" | "warehouse" | "referee" | "custo
 interface ProtectedRouteProps {
   children: React.ReactNode;
   roles?: UserRole[];
+  permission?: PermissionKey;
 }
 
-const ProtectedRoute = ({ children, roles }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, roles, permission }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -79,18 +82,13 @@ const ProtectedRoute = ({ children, roles }: ProtectedRouteProps) => {
     return <Navigate to="/" replace />;
   }
 
+  if (permission && !hasPermission(user, permission)) {
+    return <Navigate to={getHomePath(user)} replace />;
+  }
+
   return <>{children}</>;
 };
 
-const getDefaultRedirectPath = (role?: string): string => {
-  if (role === "customer") return "/customer";
-  if (role === "admin") return "/dashboard";
-  if (role === "cashier") return "/wallet-topups";
-  if (role === "warehouse") return "/stock-catalog";
-  if (role === "referee") return "/tournaments";
-
-  return "/pos";
-};
 
 const AppRoutes = () => {
   const { user } = useAuth();
@@ -102,27 +100,27 @@ const AppRoutes = () => {
       {/* Public routes */}
       <Route
         path="/login"
-        element={user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <LoginPage />}
+        element={user ? <Navigate to={getHomePath(user)} replace /> : <LoginPage />}
       />
 
       <Route
         path="/register"
         element={
-          user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <RegisterPage />
+          user ? <Navigate to={getHomePath(user)} replace /> : <RegisterPage />
         }
       />
 
       <Route
         path="/forgot-password"
         element={
-          user ? <Navigate to={getDefaultRedirectPath(user.role)} replace /> : <ForgotPasswordPage />
+          user ? <Navigate to={getHomePath(user)} replace /> : <ForgotPasswordPage />
         }
       />
 
       {/* Management / POS / Staff routes */}
       <Route
         element={
-          <ProtectedRoute roles={["admin", "staff"]}>
+          <ProtectedRoute roles={STAFF_ROLES as UserRole[]}>
             <AdminLayout />
           </ProtectedRoute>
         }
@@ -139,7 +137,7 @@ const AppRoutes = () => {
         <Route
           path="/pos"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute permission="pos.read">
               <PosTableFloorPage />
             </ProtectedRoute>
           }
@@ -148,7 +146,7 @@ const AppRoutes = () => {
         <Route
           path="/tables"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="tables.manage">
               <TablesPage />
             </ProtectedRoute>
           }
@@ -157,7 +155,7 @@ const AppRoutes = () => {
         <Route
           path="/booking"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute permission="bookings.manage">
               <BookingPage />
             </ProtectedRoute>
           }
@@ -166,7 +164,7 @@ const AppRoutes = () => {
         <Route
           path="/tournaments"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute permission="tournaments.manage">
               <TournamentsPage />
             </ProtectedRoute>
           }
@@ -175,7 +173,7 @@ const AppRoutes = () => {
         <Route
           path="/fnb"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute permission="products.manage">
               <FnBPage />
             </ProtectedRoute>
           }
@@ -185,7 +183,7 @@ const AppRoutes = () => {
         <Route
           path="/inventory"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute permission="inventory.read">
               <InventoryPage />
             </ProtectedRoute>
           }
@@ -195,7 +193,7 @@ const AppRoutes = () => {
         <Route
           path="/stock-catalog"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute permission="inventory.read">
               <StockCatalogPage />
             </ProtectedRoute>
           }
@@ -205,7 +203,7 @@ const AppRoutes = () => {
         <Route
           path="/catalog-management"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="inventory.manage">
               <CatalogManagementPage />
             </ProtectedRoute>
           }
@@ -214,7 +212,7 @@ const AppRoutes = () => {
         <Route
           path="/vouchers"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="vouchers.manage">
               <VoucherManagementPage />
             </ProtectedRoute>
           }
@@ -223,7 +221,7 @@ const AppRoutes = () => {
         <Route
           path="/fnb-orders"
           element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+            <ProtectedRoute permission="fnb_orders.manage">
               <FnbOrderQueuePage />
             </ProtectedRoute>
           }
@@ -233,7 +231,7 @@ const AppRoutes = () => {
         <Route
           path="/suppliers"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="suppliers.manage">
               <SupplierManagementPage />
             </ProtectedRoute>
           }
@@ -243,7 +241,7 @@ const AppRoutes = () => {
         <Route
           path="/goods-receipts"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute permission="inventory.manage">
               <GoodsReceiptPage />
             </ProtectedRoute>
           }
@@ -253,7 +251,7 @@ const AppRoutes = () => {
         <Route
           path="/accessory-waste"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute permission="inventory.manage">
               <AccessoryWastePage />
             </ProtectedRoute>
           }
@@ -263,7 +261,7 @@ const AppRoutes = () => {
         <Route
           path="/inventory-report"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute permission="inventory.read">
               <InventoryReportPage />
             </ProtectedRoute>
           }
@@ -271,7 +269,7 @@ const AppRoutes = () => {
         <Route
           path="/inventory/report"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute permission="inventory.read">
               <InventoryReportPage />
             </ProtectedRoute>
           }
@@ -281,7 +279,7 @@ const AppRoutes = () => {
         <Route
           path="/stock-checks"
           element={
-            <ProtectedRoute roles={["admin", "warehouse"]}>
+            <ProtectedRoute permission="inventory.manage">
               <StockCheckPage />
             </ProtectedRoute>
           }
@@ -290,7 +288,7 @@ const AppRoutes = () => {
         <Route
           path="/invoices"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute permission="invoices.read">
               <InvoicesPage />
             </ProtectedRoute>
           }
@@ -299,7 +297,7 @@ const AppRoutes = () => {
         <Route
           path="/wallet-topups"
           element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+            <ProtectedRoute permission="wallet.operate">
               <WalletTopupsPage />
             </ProtectedRoute>
           }
@@ -308,7 +306,7 @@ const AppRoutes = () => {
         <Route
           path="/tournament-fees"
           element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
+            <ProtectedRoute permission="tournaments.manage">
               <TournamentFeesPage />
             </ProtectedRoute>
           }
@@ -317,7 +315,7 @@ const AppRoutes = () => {
         <Route
           path="/reports"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="reports.read">
               <RevenueReportPage />
             </ProtectedRoute>
           }
@@ -325,7 +323,7 @@ const AppRoutes = () => {
         <Route
           path="/reports/revenue"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="reports.read">
               <RevenueReportPage />
             </ProtectedRoute>
           }
@@ -333,7 +331,7 @@ const AppRoutes = () => {
         <Route
           path="/table-performance"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="reports.read">
               <TablePerformanceReportPage />
             </ProtectedRoute>
           }
@@ -341,7 +339,7 @@ const AppRoutes = () => {
         <Route
           path="/reports/table-performance"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="reports.read">
               <TablePerformanceReportPage />
             </ProtectedRoute>
           }
@@ -364,6 +362,8 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/no-access" element={<NoAccessPage />} />
 
         <Route
           path="/settings"
@@ -443,7 +443,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Default redirect */}
-      <Route path="*" element={<Navigate to={getDefaultRedirectPath(user?.role)} replace />} />
+      <Route path="*" element={<Navigate to={getHomePath(user)} replace />} />
     </Routes>
   );
 };

@@ -3,7 +3,12 @@ import jwt from "jsonwebtoken";
 import { appConfig } from "../config/app.config";
 import { TokenPayload } from "../modules/auth/auth.service";
 import { User, UserRole } from "../modules/user/user.model";
-import { Role } from "../modules/role/role.model";
+import {
+  getEffectivePermissions,
+  hasPermission,
+  isValidPermission,
+  type PermissionModule,
+} from "../modules/role/permission.catalog";
 
 export const authMiddleware = async (
   req: Request,
@@ -96,48 +101,26 @@ export const requireRole = (...allowedRoles: UserRole[]) => {
   };
 };
 
-export const requirePermission = (moduleName: string, actionName: string) => {
+// Kiểm tra quyền theo ma trận RBAC (modules/role/permission.catalog.ts). Đọc lại user từ DB mỗi
+// request để khóa/vô hiệu hóa/đổi vai trò có hiệu lực ngay.
+export const requirePermission = (moduleName: PermissionModule, actionName: string) => {
+  if (!isValidPermission(moduleName, actionName)) {
+    throw new Error(`Quyền chưa khai báo trong catalog: ${moduleName}.${actionName}`);
+  }
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const userId = (req as any).user?.userId;
-    if (!userId) {
-      res.status(401).json({ success: false, message: "Không có token xác thực" });
-      return;
-    }
-
     try {
-      const user = await User.findById(userId);
+      const user = await User.findById((req as any).user?.userId);
       if (!user || !user.isActive || user.isLocked) {
-        res.status(403).json({ success: false, message: "Tài khoản không hợp lệ hoặc đã bị khóa" });
+        res.status(401).json({ success: false, message: "Phiên đăng nhập không còn hợp lệ" });
         return;
       }
-
-      if (user.role === UserRole.ADMIN) {
-        (req as any).currentUser = user;
-        next();
-        return;
-      }
-
-      const roleDoc = await Role.findOne({ name: user.role.toLowerCase() });
-      if (!roleDoc) {
+      const perms = await getEffectivePermissions(user.role);
+      if (!hasPermission(perms, moduleName, actionName)) {
         res
           .status(403)
-          .json({ success: false, message: "Không tìm thấy cấu hình quyền cho vai trò này" });
+          .json({ success: false, message: "Bạn không có quyền thực hiện thao tác này" });
         return;
       }
-
-      const hasPerm = roleDoc.permissions.some(
-        (p) =>
-          p.module === moduleName && (p.actions.includes(actionName) || p.actions.includes("*")),
-      );
-
-      if (!hasPerm) {
-        res.status(403).json({
-          success: false,
-          message: `Bạn không có quyền ${actionName} trên module ${moduleName}`,
-        });
-        return;
-      }
-
       (req as any).currentUser = user;
       next();
     } catch (error) {

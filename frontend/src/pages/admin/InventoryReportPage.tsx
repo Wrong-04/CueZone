@@ -312,11 +312,10 @@ export const InventoryReportPage: React.FC = () => {
       {error && (
         <Alert
           type="error"
-          message="Lỗi tải dữ liệu"
+          title="Lỗi tải dữ liệu"
           description={error}
           showIcon
-          closable
-          onClose={() => setError(null)}
+          closable={{ onClose: () => setError(null) }}
           className="rounded-xl"
         />
       )}

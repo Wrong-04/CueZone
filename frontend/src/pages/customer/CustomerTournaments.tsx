@@ -12,9 +12,11 @@ import {
   FireOutlined,
   ArrowRightOutlined,
   ReloadOutlined,
+  QrcodeOutlined,
 } from "@ant-design/icons";
 import { Button, Card, Tag, Space, Typography, Modal } from "../../shared/ui";
 import { TournamentPaymentModal } from "../../components/tournament/TournamentPaymentModal";
+import { TournamentEPassModal, type TournamentEPassData } from "../../components/tournament/TournamentEPassModal";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   tournamentService,
@@ -126,6 +128,7 @@ const CustomerTournaments = () => {
   const [historyError, setHistoryError] = useState("");
 
   const [registeringTourney, setRegisteringTourney] = useState<TournamentItem | null>(null);
+  const [viewingEPass, setViewingEPass] = useState<TournamentEPassData | null>(null);
   const openPayment = (tournament: TournamentItem) => {
     if (!user) { navigate("/login"); return; }
     setRegisteringTourney(tournament);
@@ -656,6 +659,32 @@ const CustomerTournaments = () => {
                                 : "Miễn phí"}
                             </span>
                           </div>
+
+                          {item.feePaid && (
+                            <div className="pt-2 border-t border-slate-200/60 flex justify-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setViewingEPass({
+                                    tournamentId: item.tournamentId,
+                                    tournamentName: item.tournamentName,
+                                    format: item.format,
+                                    raceToScore: item.raceToScore,
+                                    startDate: item.startDate,
+                                    athleteName: user?.name || "Cơ thủ CueZone",
+                                    athletePhone: user?.phone || "---",
+                                    athleteCode: `CZ-${item.tournamentId.slice(-4).toUpperCase()}-${(user?.phone || user?._id || "").replace(/\D/g, "").slice(-4) || "VĐV"}`,
+                                    feeAmount: item.registrationFee,
+                                  })
+                                }
+                                leftIcon={<QrcodeOutlined className="text-emerald-700" />}
+                                className="!text-[11px] !py-1 !px-2.5 !rounded-xl !border-emerald-200 text-emerald-800 hover:!bg-emerald-50 w-full justify-center"
+                              >
+                                Xem Thẻ Thi Đấu (E-Pass)
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -695,6 +724,14 @@ const CustomerTournaments = () => {
           }}
           onClose={() => setRegisteringTourney(null)}
           onSuccess={() => void loadTournaments()}
+        />
+      )}
+
+      {viewingEPass && (
+        <TournamentEPassModal
+          open={Boolean(viewingEPass)}
+          onClose={() => setViewingEPass(null)}
+          data={viewingEPass}
         />
       )}
 

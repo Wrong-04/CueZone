@@ -1,8 +1,10 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { RevenueReportService } from "./revenue-report.service";
 import { TablePerformanceService } from "./table-performance.service";
+import { requirePermission } from "../../middlewares/auth.middleware";
 
 const router = Router();
+router.use(requirePermission("reports", "read"));
 const revenueService = new RevenueReportService();
 const tablePerfService = new TablePerformanceService();
 

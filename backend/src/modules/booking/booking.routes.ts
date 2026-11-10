@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { BookingService } from "./booking.service";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
-import { requireRole } from "../../middlewares/auth.middleware";
+import { requirePermission, requireRole } from "../../middlewares/auth.middleware";
 import { UserRole } from "../user/user.model";
 
 const router = Router();
@@ -40,7 +39,7 @@ router.post("/:id/qr", requireRole(UserRole.CUSTOMER), async (req, res, next) =>
     next(error);
   }
 });
-router.use(requirePosStaff);
+router.use(requirePermission("bookings", "manage"));
 router.post("/qr/resolve", async (req, res, next) => {
   try {
     res.json({ success: true, data: await service.resolveQrToken(req.body?.qrToken) });

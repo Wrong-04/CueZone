@@ -28,7 +28,6 @@ type CompoundedInput = ForwardRefExoticComponent<InputProps & RefAttributes<Inpu
   TextArea: typeof AntInput.TextArea;
   Password: typeof AntInput.Password;
   Search: typeof AntInput.Search;
-  Group: typeof AntInput.Group;
   OTP: typeof AntInput.OTP;
 };
 
@@ -42,6 +41,5 @@ export const Input: CompoundedInput = Object.assign(InternalInput as CompoundedI
   TextArea: AntInput.TextArea,
   Password: AntInput.Password,
   Search: AntInput.Search,
-  Group: AntInput.Group,
   OTP: AntInput.OTP,
 });

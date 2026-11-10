@@ -504,7 +504,7 @@ export const StockCheckPage: React.FC = () => {
         open={createModalVisible}
         onCancel={() => setCreateModalVisible(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={540}
       >
         <Form form={createForm} layout="vertical" onFinish={handleCreateSubmit} className="mt-4">
@@ -573,7 +573,7 @@ export const StockCheckPage: React.FC = () => {
         onCancel={() => setDetailModalVisible(false)}
         footer={null}
         width={1100}
-        destroyOnClose
+        destroyOnHidden
       >
         {activeSession && (
           <div className="space-y-4 mt-3">

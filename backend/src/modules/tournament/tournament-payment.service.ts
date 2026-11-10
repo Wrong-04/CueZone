@@ -4,6 +4,7 @@ import { Tournament, TournamentStatus } from "./tournament.model";
 import { TournamentPaymentIntent as Intent, TournamentPaymentReceipt as Receipt } from "./tournament-payment.model";
 import { User, UserRole } from "../user/user.model";
 import { comparePayments, confirmedPlayer, paymentError, refundContact, sepayConfig, sepayReceipt, verifySepayAuthorization } from "./sepay";
+import { emitTournamentPaymentUpdated } from "../../utils/socketHolder";
 
 export class TournamentPaymentService {
   private validId(id: string) {
@@ -66,6 +67,7 @@ export class TournamentPaymentService {
     const parsed = sepayReceipt(body);
     if (!parsed.incoming) return;
     const { incoming, ...receipt } = parsed;
+    let updatedIntent: any = null;
     try {
       await mongoose.connection.transaction(async session => {
         const previous = await Receipt.findOne({ providerId: receipt.providerId }).session(session);
@@ -78,8 +80,17 @@ export class TournamentPaymentService {
         if (intent) {
           await Intent.updateOne({ _id: intent._id }, { $set: { status: "paid_pending" } }, { session });
           await Tournament.updateOne({ _id: intent.tournament }, { $inc: { paymentRevision: 1, __v: 1 }, $set: { paymentReconciliationRequired: true } }, { session });
+          updatedIntent = intent;
         }
       });
+      if (updatedIntent) {
+        emitTournamentPaymentUpdated({
+          tournamentId: String(updatedIntent.tournament),
+          userId: String(updatedIntent.user),
+          status: "paid_pending",
+          reference: updatedIntent.reference,
+        });
+      }
     } catch (error: any) {
       if (error.code !== 11000) throw error;
       const previous = await Receipt.findOne({ providerId: receipt.providerId });

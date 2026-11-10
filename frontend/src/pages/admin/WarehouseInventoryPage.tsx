@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import dayjs, { Dayjs } from "dayjs";
 import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission } from "../../utils/permissions";
 import {
   InboxOutlined,
   SearchOutlined,
@@ -521,7 +522,7 @@ export const WarehouseInventoryPage: React.FC = () => {
   // ── 0. AUTH / ROLE ────────────────────────────────────────────────────────
   const { user } = useAuth();
   // Chỉ admin và warehouse được tạo/xuất/hủy phiếu; staff chỉ xem
-  const isAdmin = user?.role === "admin" || user?.role === "warehouse";
+  const isAdmin = hasPermission(user, "inventory.manage");
 
   // ── 1. STATE ──────────────────────────────────────────────────────────────
   const [stockList, setStockList] = useState<WarehouseItem[]>(() => {

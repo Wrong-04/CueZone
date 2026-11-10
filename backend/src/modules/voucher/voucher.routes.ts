@@ -1,12 +1,10 @@
 import { Router } from "express";
-import { requireRole } from "../../middlewares/auth.middleware";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
-import { UserRole } from "../user/user.model";
+import { requirePermission } from "../../middlewares/auth.middleware";
 import { VoucherService } from "./voucher.service";
 
 const router = Router();
 const service = new VoucherService();
-const requireVoucherAdmin = requireRole(UserRole.ADMIN);
+const requireVoucherAdmin = requirePermission("vouchers", "manage");
 
 router.get("/", requireVoucherAdmin, async (_req, res, next) => {
   try {
@@ -16,7 +14,7 @@ router.get("/", requireVoucherAdmin, async (_req, res, next) => {
   }
 });
 
-router.post("/validate", requirePosStaff, async (req, res, next) => {
+router.post("/validate", requirePermission("pos", "operate"), async (req, res, next) => {
   try {
     const data = await service.validate(req.body?.code, req.body?.subtotal);
     res.json({ success: true, message: "Voucher hợp lệ", data });

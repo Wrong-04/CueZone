@@ -30,6 +30,7 @@ import {
 } from "@ant-design/icons";
 
 import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission, type PermissionKey } from "../../utils/permissions";
 import ConfirmModal from "../ui/ConfirmModal";
 import { notificationService, type Notification } from "../../services/notification.service";
 
@@ -42,6 +43,7 @@ interface MenuItemConfig {
   label: string;
   icon: ReactNode;
   roles?: string[];
+  permission?: PermissionKey;
 }
 
 const menuItems: MenuItemConfig[] = [
@@ -49,7 +51,7 @@ const menuItems: MenuItemConfig[] = [
     path: "/pos",
     label: "POS Sơ Đồ Bàn",
     icon: <ThunderboltOutlined />,
-    roles: ["admin", "staff"],
+    permission: "pos.read",
   },
   {
     path: "/dashboard",
@@ -61,89 +63,89 @@ const menuItems: MenuItemConfig[] = [
     path: "/tables",
     label: "Quản lý Bàn",
     icon: <AppstoreOutlined />,
-    roles: ["admin"],
+    permission: "tables.manage",
   },
   {
     path: "/booking",
     label: "Duyệt Đặt Bàn",
     icon: <CalendarOutlined />,
-    roles: ["admin", "staff"],
+    permission: "bookings.manage",
   },
   {
     path: "/fnb",
     label: "Thực đơn F&B",
     icon: <CoffeeOutlined />,
-    roles: ["admin", "staff"],
+    permission: "products.manage",
   },
   {
     path: "/tournaments",
     label: "Giải đấu & Trọng tài",
     icon: <TrophyOutlined />,
-    roles: ["admin", "staff"],
+    permission: "tournaments.manage",
   },
 
   {
     path: "/inventory",
     label: "Kho hàng",
     icon: <InboxOutlined />,
-    roles: ["admin", "staff"],
+    permission: "inventory.read",
   },
 
   {
     path: "/catalog-management",
     label: "Danh mục sản phẩm",
     icon: <TagsOutlined />,
-    roles: ["admin"],
+    permission: "inventory.manage",
   },
   {
     path: "/vouchers",
     label: "Mã giảm giá",
     icon: <GiftOutlined />,
-    roles: ["admin"],
+    permission: "vouchers.manage",
   },
   {
     path: "/fnb-orders",
     label: "Order F&B tại bàn",
     icon: <ShoppingOutlined />,
-    roles: ["admin", "staff"],
+    permission: "fnb_orders.manage",
   },
 
   {
     path: "/suppliers",
     label: "Nhà cung cấp",
     icon: <ShopOutlined />,
-    roles: ["admin"],
+    permission: "suppliers.manage",
   },
 
   {
     path: "/invoices",
     label: "Hóa đơn",
     icon: <FileTextOutlined />,
-    roles: ["admin", "staff"],
+    permission: "invoices.read",
   },
   {
     path: "/wallet-topups",
     label: "Đối soát nạp ví",
     icon: <WalletOutlined />,
-    roles: ["admin", "staff"],
+    permission: "wallet.operate",
   },
   {
     path: "/tournament-fees",
     label: "Đối soát lệ phí giải",
     icon: <TrophyOutlined />,
-    roles: ["admin", "staff"],
+    permission: "tournaments.manage",
   },
   {
     path: "/reports",
     label: "Báo cáo doanh thu",
     icon: <LineChartOutlined />,
-    roles: ["admin"],
+    permission: "reports.read",
   },
   {
     path: "/table-performance",
     label: "Hiệu suất bàn",
     icon: <DashboardOutlined />,
-    roles: ["admin"],
+    permission: "reports.read",
   },
   {
     path: "/employees",
@@ -167,7 +169,10 @@ const menuItems: MenuItemConfig[] = [
 
 const roleLabels: Record<string, string> = {
   admin: "Chủ Quán (Admin)",
-  staff: "Nhân Viên Vận Hành & Thu Ngân",
+  staff: "Nhân Viên Vận Hành",
+  cashier: "Thu Ngân",
+  warehouse: "Thủ Kho",
+  referee: "Trọng Tài",
   customer: "Hội Viên CLB",
 };
 
@@ -337,7 +342,11 @@ const AdminLayout = () => {
           {/* Navigation */}
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
             {menuItems
-              .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role)))
+              .filter(
+                (item) =>
+                  (!item.roles || (user?.role && item.roles.includes(user.role))) &&
+                  (!item.permission || hasPermission(user, item.permission)),
+              )
               .map((item) => {
                 const isActive =
                   location.pathname === item.path ||

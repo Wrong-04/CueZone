@@ -57,15 +57,76 @@ export class UserService {
     return userObj as Omit<IUser, "password">;
   }
 
-  async update(id: string, dto: UpdateUserDTO): Promise<IUser> {
-    const user = await User.findByIdAndUpdate(id, dto, { new: true });
-    if (!user) throw new Error("Không tìm thấy người dùng");
-    return user;
+  async update(id: string, dto: UpdateUserDTO, actorId?: string): Promise<IUser> {
+    // Chỉ cho phép các field trong UpdateUserDTO; tránh ghi đè password/email qua req.body.
+    const allowed = ["name", "phone", "role", "isActive", "isLocked", "branch", "position"] as const;
+    const patch: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if ((dto as Record<string, unknown>)[key] !== undefined) {
+        patch[key] = (dto as Record<string, unknown>)[key];
+      }
+    }
+    // Phone rỗng = xóa SĐT (null), vì unique index chỉ áp dụng cho kiểu string.
+    if (typeof patch.phone === "string") patch.phone = patch.phone.trim() || null;
+    for (const key of ["isActive", "isLocked"] as const) {
+      if (patch[key] !== undefined && typeof patch[key] !== "boolean") {
+        throw new Error(`Giá trị ${key} không hợp lệ`);
+      }
+    }
+    if (patch.role !== undefined && !Object.values(UserRole).includes(patch.role as UserRole)) {
+      throw new Error("Vai trò không hợp lệ");
+    }
+
+    const current = await User.findById(id);
+    if (!current) throw new Error("Không tìm thấy người dùng");
+    const isSelf = actorId !== undefined && actorId === id;
+    if (isSelf && (patch.isLocked === true || patch.isActive === false)) {
+      throw new Error("Không thể tự khóa hoặc vô hiệu hóa tài khoản của chính mình");
+    }
+    if (isSelf && patch.role !== undefined && patch.role !== current.role) {
+      throw new Error("Không thể tự thay đổi vai trò của chính mình");
+    }
+    if (
+      (patch.role !== undefined && patch.role !== UserRole.ADMIN) ||
+      patch.isLocked === true ||
+      patch.isActive === false
+    ) {
+      await this.assertNotLastAdmin(current);
+    }
+
+    try {
+      const user = await User.findByIdAndUpdate(id, patch, { new: true, runValidators: true });
+      if (!user) throw new Error("Không tìm thấy người dùng");
+      return user;
+    } catch (err: any) {
+      if (err?.code === 11000) throw new Error("Số điện thoại đã được sử dụng");
+      throw err;
+    }
   }
 
-  async toggleLock(id: string): Promise<IUser> {
+  // Phải còn ít nhất một admin đang hoạt động sau thao tác hạ quyền/khóa target.
+  // ponytail: check-then-write không atomic; hai admin cuối thao tác đồng thời vẫn có thể lọt.
+  // Nếu cần tuyệt đối, chuyển sang transaction với điều kiện đếm trong cùng session.
+  private async assertNotLastAdmin(target: IUser): Promise<void> {
+    if (target.role !== UserRole.ADMIN || !target.isActive || target.isLocked) return;
+    const otherActiveAdmins = await User.countDocuments({
+      _id: { $ne: target._id },
+      role: UserRole.ADMIN,
+      isActive: true,
+      isLocked: false,
+    });
+    if (otherActiveAdmins < 1) {
+      throw new Error("Hệ thống phải còn ít nhất một tài khoản Admin đang hoạt động");
+    }
+  }
+
+  async toggleLock(id: string, actorId?: string): Promise<IUser> {
     const user = await User.findById(id);
     if (!user) throw new Error("Không tìm thấy người dùng");
+    if (!user.isLocked) {
+      if (actorId === id) throw new Error("Không thể tự khóa tài khoản của chính mình");
+      await this.assertNotLastAdmin(user);
+    }
     user.isLocked = !user.isLocked;
     await user.save();
     notificationService
@@ -78,9 +139,13 @@ export class UserService {
     return user;
   }
 
-  async toggleActive(id: string): Promise<IUser> {
+  async toggleActive(id: string, actorId?: string): Promise<IUser> {
     const user = await User.findById(id);
     if (!user) throw new Error("Không tìm thấy người dùng");
+    if (user.isActive) {
+      if (actorId === id) throw new Error("Không thể tự vô hiệu hóa tài khoản của chính mình");
+      await this.assertNotLastAdmin(user);
+    }
     user.isActive = !user.isActive;
     await user.save();
     notificationService

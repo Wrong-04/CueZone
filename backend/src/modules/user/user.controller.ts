@@ -41,7 +41,7 @@ export const create = async (req: Request, res: Response) => {
 
 export const update = async (req: Request, res: Response) => {
   try {
-    const user = await userService.update(req.params.id, req.body);
+    const user = await userService.update(req.params.id, req.body, (req as any).user?.userId);
     return res.json({ success: true, message: "Cập nhật thành công", data: user });
   } catch (error: any) {
     return res.json({ success: false, message: error.message });
@@ -50,7 +50,7 @@ export const update = async (req: Request, res: Response) => {
 
 export const toggleLock = async (req: Request, res: Response) => {
   try {
-    const user = await userService.toggleLock(req.params.id);
+    const user = await userService.toggleLock(req.params.id, (req as any).user?.userId);
     return res.json({
       success: true,
       message: user.isLocked ? "Đã khóa tài khoản" : "Đã mở khóa tài khoản",
@@ -63,7 +63,7 @@ export const toggleLock = async (req: Request, res: Response) => {
 
 export const toggleActive = async (req: Request, res: Response) => {
   try {
-    const user = await userService.toggleActive(req.params.id);
+    const user = await userService.toggleActive(req.params.id, (req as any).user?.userId);
     return res.json({
       success: true,
       message: user.isActive ? "Đã kích hoạt" : "Đã vô hiệu hóa",

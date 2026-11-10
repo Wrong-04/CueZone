@@ -10,12 +10,23 @@ import { emitTableStatusChanged } from "../../utils/socketHolder";
 const notificationService = new NotificationService();
 
 export class TableService {
-  async lookupCustomer(phone: string) {
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 8) return null;
-    const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+  async lookupCustomer(query: string) {
+    const trimmed = (query || "").trim();
+    if (!trimmed) return null;
+    const digits = trimmed.replace(/\D/g, "");
+    const conditions: any[] = [];
+    if (digits.length >= 8) {
+      const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+      conditions.push({ phone: { $regex: phonePattern } });
+    }
+    if (trimmed.length >= 2) {
+      const safeName = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      conditions.push({ name: { $regex: safeName, $options: "i" } });
+    }
+    if (conditions.length === 0) return null;
+
     const user = await User.findOne({
-      phone: { $regex: phonePattern },
+      $or: conditions,
       role: UserRole.CUSTOMER,
       isActive: true,
       isLocked: false,

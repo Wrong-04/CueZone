@@ -36,7 +36,7 @@ export interface ITournamentPlayer {
 
   feePaid: boolean;
 
-  paymentMethod?: "wallet" | "counter" | "bank_transfer";
+  paymentMethod?: "wallet" | "counter" | "bank_transfer" | "cash";
 
   paymentReceiptUrl?: string;
   paymentReference?: string;
@@ -156,7 +156,7 @@ const TournamentPlayerSchema = new Schema<ITournamentPlayer>(
 
     paymentMethod: {
       type: String,
-      enum: ["wallet", "counter", "bank_transfer"],
+      enum: ["wallet", "counter", "bank_transfer", "cash"],
       default: "counter",
     },
 

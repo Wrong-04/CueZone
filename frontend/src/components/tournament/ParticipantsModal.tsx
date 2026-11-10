@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { tournamentService } from "../../services/tournament.service";
-import { UserOutlined } from "@ant-design/icons";
+import { UserOutlined, UserAddOutlined } from "@ant-design/icons";
 import { Modal, Button, Tag } from "../../shared/ui";
 import type { TournamentItem } from "../../services/tournament.service";
 import { TournamentPaymentReconciliation } from "./TournamentPaymentReconciliation";
+import { CounterRegistrationModal } from "./CounterRegistrationModal";
 
 interface ParticipantsModalProps {
   open: boolean;
@@ -17,7 +18,9 @@ export const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
   onClose,
 }) => {
   const [updated, setUpdated] = useState<TournamentItem | null>(null);
-  const players = (updated?._id === tournament?._id ? updated : tournament)?.players || [];
+  const [openCounterReg, setOpenCounterReg] = useState(false);
+  const currentTourney = updated?._id === tournament?._id ? updated : tournament;
+  const players = currentTourney?.players || [];
   const refresh = async () => {
     if (tournament) setUpdated(await tournamentService.getTournamentById(tournament._id));
   };
@@ -80,12 +83,30 @@ export const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
         </div>
 
         {tournament && <TournamentPaymentReconciliation key={tournament._id} id={tournament._id} onFinalized={refresh} />}
-        <div className="flex items-center justify-end pt-3 border-t border-slate-100">
+        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOpenCounterReg(true)}
+            leftIcon={<UserAddOutlined />}
+            className="!rounded-xl border-emerald-600 !text-emerald-700 hover:!bg-emerald-50"
+          >
+            Ghi danh tại quầy
+          </Button>
           <Button variant="outline" size="sm" onClick={onClose} className="!rounded-xl">
             Đóng
           </Button>
         </div>
       </div>
+
+      <CounterRegistrationModal
+        open={openCounterReg}
+        tournament={currentTourney}
+        onClose={() => setOpenCounterReg(false)}
+        onSuccess={async () => {
+          await refresh();
+        }}
+      />
     </Modal>
   );
 };

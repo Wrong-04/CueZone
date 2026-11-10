@@ -17,6 +17,8 @@ export interface IRole extends Document {
 
   isDefault: boolean;
 
+  rbacVersion?: number;
+
   createdAt: Date;
 
   updatedAt: Date;
@@ -39,6 +41,8 @@ const roleSchema = new Schema<IRole>(
     permissions: [permissionSchema],
 
     isDefault: { type: Boolean, default: false },
+
+    rbacVersion: { type: Number },
   },
   { timestamps: true },
 );

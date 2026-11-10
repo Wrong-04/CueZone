@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { User, IUser, UserRole } from "../user/user.model";
-import { Role, IPermission } from "../role/role.model";
+import { IPermission } from "../role/role.model";
+import { getEffectivePermissions } from "../role/permission.catalog";
 import {
   RegisterDTO,
   LoginDTO,
@@ -52,12 +53,7 @@ export class AuthService {
   private sendingLocks = new Set<string>();
 
   private async getRolePermissions(roleName: string): Promise<IPermission[]> {
-    try {
-      const roleDoc = await Role.findOne({ name: roleName.toLowerCase() });
-      return roleDoc?.permissions || [];
-    } catch {
-      return [];
-    }
+    return getEffectivePermissions(roleName.toLowerCase());
   }
 
   private validateRegistrationInput(dto: RegisterDTO): {

@@ -62,3 +62,15 @@ export const emitTableTimerStarted = (payload: {
 }) => {
   io?.emit("table:timer_started", payload);
 };
+
+export const emitTournamentPaymentUpdated = (payload: {
+  tournamentId: string;
+  userId?: string;
+  status?: string;
+  reference?: string;
+}) => {
+  io?.emit("tournament:payment_updated", payload);
+  if (payload.tournamentId) {
+    io?.emit(`tournament:${payload.tournamentId}:payment`, payload);
+  }
+};

@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "../../middlewares/auth.middleware";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
+import { requirePermission, requireRole } from "../../middlewares/auth.middleware";
 import { UserRole } from "../user/user.model";
 import { CustomerOrderService } from "./customer-order.service";
 import { SessionService } from "../session/session.service";
@@ -8,6 +7,7 @@ import { SessionService } from "../session/session.service";
 const router = Router();
 const service = new CustomerOrderService();
 const sessionService = new SessionService();
+const fnbOrdersManage = requirePermission("fnb_orders", "manage");
 
 router.get("/active-tables", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   try {
@@ -29,7 +29,7 @@ router.post("/", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   }
 });
 
-router.get("/queue", requirePosStaff, async (_req, res, next) => {
+router.get("/queue", fnbOrdersManage, async (_req, res, next) => {
   try {
     res.json({ success: true, data: await service.getQueue() });
   } catch (error) {
@@ -37,7 +37,7 @@ router.get("/queue", requirePosStaff, async (_req, res, next) => {
   }
 });
 
-router.get("/payment-requests", requirePosStaff, async (_req, res, next) => {
+router.get("/payment-requests", fnbOrdersManage, async (_req, res, next) => {
   try {
     res.json({ success: true, data: await sessionService.getCustomerPaymentRequests() });
   } catch (error) {
@@ -45,7 +45,7 @@ router.get("/payment-requests", requirePosStaff, async (_req, res, next) => {
   }
 });
 
-router.patch("/payment-requests/:tableId", requirePosStaff, async (req, res, next) => {
+router.patch("/payment-requests/:tableId", fnbOrdersManage, async (req, res, next) => {
   try {
     if (typeof req.body?.approved !== "boolean") {
       res.status(400).json({ success: false, message: "Trạng thái xử lý thanh toán không hợp lệ" });
@@ -97,7 +97,7 @@ router.post("/:tableId/checkout", requireRole(UserRole.CUSTOMER), async (req, re
   }
 });
 
-router.patch("/:id/status", requirePosStaff, async (req, res, next) => {
+router.patch("/:id/status", fnbOrdersManage, async (req, res, next) => {
   try {
     const order = await service.updateStatus(
       req.params.id,

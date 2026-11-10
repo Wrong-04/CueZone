@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { orderDeductionService } from "./order-deduction.service";
 import { requireInventoryRead } from "../../middlewares/inventory-read.middleware";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
+import { requirePermission } from "../../middlewares/auth.middleware";
 import { orderEvents } from "../../utils/orderEvents";
 
 const router = Router();
@@ -12,7 +12,7 @@ function getUserId(req: Request) {
 }
 
 // POST /api/v1/inventory/order-deductions/confirm - Trừ tồn kho theo đơn bán hàng (Idempotent theo orderId)
-router.post("/confirm", requirePosStaff, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/confirm", requirePermission("pos", "operate"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = getUserId(req);
     const payload = {
@@ -52,7 +52,7 @@ router.post("/confirm", requirePosStaff, async (req: Request, res: Response, nex
 });
 
 // POST /api/v1/inventory/order-deductions/event - Trigger qua Event Hook (SCRUM-980)
-router.post("/event", requirePosStaff, async (req: Request, res: Response) => {
+router.post("/event", requirePermission("pos", "operate"), async (req: Request, res: Response) => {
   const userId = getUserId(req);
   const payload = {
     ...req.body,

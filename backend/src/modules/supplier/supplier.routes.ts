@@ -1,34 +1,11 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, Request, Response } from "express";
 
 import Supplier from "./supplier.model";
+import { requirePermission } from "../../middlewares/auth.middleware";
 
 const router = Router();
 
-function requireSupplierManager(req: Request, res: Response, next: NextFunction) {
-  const user = (
-    req as Request & {
-      user?: {
-        role?: string;
-      };
-    }
-  ).user;
-
-  if (!user) {
-    return res.status(401).json({
-      success: false,
-      message: "Bạn chưa đăng nhập.",
-    });
-  }
-
-  if (user.role !== "admin" && user.role !== "warehouse") {
-    return res.status(403).json({
-      success: false,
-      message: "Bạn không có quyền quản lý nhà cung cấp.",
-    });
-  }
-
-  next();
-}
+const requireSupplierManager = requirePermission("suppliers", "manage");
 
 router.use(requireSupplierManager);
 

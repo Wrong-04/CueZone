@@ -12,6 +12,7 @@ import {
 
 import { Pagination } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission } from "../../utils/permissions";
 
 import {
   fetchInventory,
@@ -83,7 +84,7 @@ function StockStatusBadge({ status }: { status: StockStatus }) {
 export default function StockCatalogPage() {
   const { user } = useAuth();
 
-  const isStaff = user?.role === "staff";
+  const isStaff = !hasPermission(user, "inventory.manage");
 
   const [draft, setDraft] = useState("");
 

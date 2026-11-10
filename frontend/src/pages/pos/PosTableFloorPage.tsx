@@ -2448,7 +2448,7 @@ export const PosTableFloorPage: React.FC = () => {
         onCancel={() => setTransferModalVisible(false)}
         footer={null}
         width={640}
-        destroyOnClose
+        destroyOnHidden
         title={
           <div className="flex items-center justify-between pr-4">
             <Space align="center" size={8}>

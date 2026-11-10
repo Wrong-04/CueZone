@@ -1,56 +1,42 @@
-# CueZone — Agent Guidelines
+# CueZone — Agent Guidelines (Claude & Pi)
 
-Standards and instructions for AI agents working on CueZone (Billiards Club Management System).
+- Communication, UI display strings, notifications, comments, and commit messages: **Vietnamese**.
+  Code identifiers and file names: **English**.
+- No mock data, fake tokens, or confidential information in production code.
+  Prioritize replacing legacy `src/mock/` pages with real backend APIs when relevant.
+- Fix root causes with minimal diffs; reuse existing code before introducing new abstractions or dependencies.
+  Mark deliberate constrained trade-offs with `// ponytail:` comments stating the limitation and upgrade path.
 
----
+## Operational Permissions
 
-## 1. Non-negotiables
+- **MongoDB / Mongoose**: Free to read. Data writes, index creation, migrations/seeds, and tests that create DB fixtures require explicit permission for the target DB/scope before execution.
+- **Environment variables (`.env`)**: Reading `.env` and key files is permitted; editing requires explicit approval. Never log secret values or commit them to Git.
+- **Git**: Normal `add`, `commit`, and `push` commands are permitted after running required checks and review; only stage files belonging to the task scope (do not bundle existing uncommitted user changes).
+  Destructive operations (`reset`, `checkout`, `restore`, `clean`, `rebase`, `commit --amend`, `push --force`, `push -f`, `push --delete`, `+ref`, `:ref`) and PR/release/deploy operations require explicit approval.
+- **Docker**: No separate guard applied during local development; this does not grant permission to delete data.
 
-- **No Mock or Fake Data**: Never commit mock data or fake tokens to production code. Priority is to replace legacy `src/mock/` pages with real backend APIs.
-- **Frontend UI & State**:
-  - Always import UI components from `shared/ui` via relative paths (e.g. `../shared/ui`). Never import directly from `antd`, and do not use an alias like `@shared/ui` (not configured).
-  - Use icons from `@ant-design/icons` instead of raw emojis.
-  - Use Tailwind tokens backed by CSS variables (`brand*`, `status-*`, `bg-*`, `text-*` in `tailwind.config.js` and `index.css`).
-  - `localStorage` stores **only** tokens (`accessToken`, `refreshToken`). User profile is always rehydrated from `/auth/profile`.
-- **Backend & Database**:
-  - Every API response must use the standard envelope: `{ success: boolean, message?: string, data?: any }`.
-  - Positional routing: Any route attached to `protectedRouter` is automatically guarded by JWT middleware. Do not reach for decorators.
-  - POS Session: `currentSession` is an embedded subdocument on `Table` (no separate collection). Duration and cost are always derived on the fly via `playingDetails()` in `session.service.ts` — **never store computed totals**.
-  - Transactions & Concurrency: All table and session state transitions (open, pause, transfer, merge, checkout, booking holds) must run inside `mongoose.connection.transaction()`. Always include `sessionId`/`status` in queries to prevent lost updates; unique index on `Invoice.sessionId` guarantees idempotent checkouts.
-- **Language & Conventions**:
-  - User-facing strings, UI messages, commit messages, and comments: **Vietnamese**.
-  - Code identifiers (variable, function, type, and file names): **English**.
-  - Minimal diffs: Address the root cause directly. Mark deliberate trade-offs with `// ponytail:` comments stating the ceiling and upgrade path.
-- **Handoff & Review Workflow**:
-  - After completing any task, launch a subagent using the `code-reviewer` skill to review diffs and verify quality before handoff.
+## Scoped Rules (Read Before Modifying)
 
----
+- `frontend/**`: Read `.claude/rules/frontend.md`.
+- `backend/**`: Read `.claude/rules/backend.md`.
+- Modifying both scopes: Read both. These are the shared canonical sources;
+  Claude loads via `paths`, while Pi must read the corresponding files explicitly (Pi does not automatically interpret `.claude/rules`).
+- Implementation, bug fixing, or change handover: Read skill
+  `.claude/skills/cuezone-delivery/SKILL.md` and follow its procedure.
 
-## 2. Commands
+## Mandatory Verification
 
-pnpm workspace (`frontend`, `backend`):
+- Run `pnpm build` before handover; for frontend changes, also run `pnpm --filter frontend lint`.
+- Modifying Auth/POS/Session/Booking: Run `pnpm --filter backend check:pos`.
+  Requires MongoDB replica set / Atlas for testing; do not run against production data.
+- After every task, dispatch a subagent with the `code-reviewer` skill to review diffs before handover.
+  The subagent must re-run automated checks (build, lint, corresponding integration tests) on the actual source code and verify no remaining issues.
+  If tooling/skills are missing or the test environment is unavailable, report a blocker; do not claim checks have passed.
+- Pre-commit/stop hooks only verify diff formatting and build; they do not prove linting, integration testing, or code review.
 
-```bash
-pnpm install                      # Install dependencies across workspaces
-pnpm dev                          # Run backend (:5000) & frontend (:5556) concurrently
-pnpm build                        # Production build for both workspaces (required before handoff)
-pnpm --filter frontend lint       # Run frontend linter (oxlint)
-pnpm --filter backend check:pos   # Integration test suite (Auth/POS/Booking, requires MongoDB replica set / Atlas)
-```
+## Configuration & Maintenance
 
-> **Testing note**: `backend/scripts/check-pos.cjs` is the primary integration test suite. Run it whenever modifying Auth, POS, Session, or Booking logic.
-
----
-
-## 3. Architecture Quick Reference
-
-### Backend (`/backend`)
-- **Entry points**: `src/app.ts` (Express setup), `src/server.ts` (HTTP server + Socket.io; awaits `*.init()` to ensure unique indexes exist before listening).
-- **Authentication & Roles**: Positional middleware through `publicRouter` (`/auth`, `/products`, public endpoints) and `protectedRouter`. `requirePosStaff` re-checks user status from MongoDB on each request and permits only `admin`, `staff`, and `cashier`. Full role definitions live in `UserRole` (`modules/user/user.model.ts`).
-- **Module Structure**: `src/modules/<domain>/{model,service,routes}.ts`. Prefer inline route handlers in `routes.ts` forwarding errors to `next(err)`.
-- **Realtime**: Socket.io singleton in `utils/socketHolder.ts`, broadcasts `notification:new` events.
-
-### Frontend (`/frontend`)
-- **Stack**: Vite, React 19, react-router v6, Tailwind CSS, Ant Design wrapped in `frontend/src/shared/ui`.
-- **Routing**: Centralized in `src/App.tsx`: `/login`, `/register`, `/admin` (guarded by `AdminLayout` and `ProtectedRoute`), `/customer` (customer-facing view).
-- **API Client**: `services/api.ts` (Axios instance with automatic token injection and single 401 refresh retry). Reference service pattern: `services/pos.service.ts`.
+- Claude: `CLAUDE.md`, `.claude/settings.json`; Pi: `.pi/settings.json`, `.pi/extensions/`.
+- Reloading, audit commands, and hook boundaries: Read `AGENT_SETUP.md` when modifying agent configuration.
+- Stack skills: `.agents/skills/cuezone-{react,antd,vite,node,mongodb}/`; load only relevant skills.
+- Do not modify personal configurations, tokens, MCPs, or global permissions to resolve project-level errors.

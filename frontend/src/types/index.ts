@@ -21,8 +21,15 @@ export interface User {
   isLocked: boolean;
   branch?: string;
   position?: string;
+  // Quyền hiệu lực theo ma trận RBAC, trả về từ /auth/profile và /auth/login.
+  permissions?: RolePermission[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RolePermission {
+  module: string;
+  actions: string[];
 }
 
 export interface AuthResponse {

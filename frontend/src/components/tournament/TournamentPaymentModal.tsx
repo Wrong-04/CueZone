@@ -18,6 +18,8 @@ import {
   tournamentService,
   type TournamentPayment,
 } from "../../services/tournament.service";
+import { getSocket } from "../../services/socket.service";
+import { TournamentEPassModal } from "./TournamentEPassModal";
 
 interface TournamentRegistrationModalProps {
   tournament: {
@@ -44,6 +46,7 @@ export function TournamentPaymentModal({
   const [error, setError] = useState("");
   const [deadlinePassed, setDeadlinePassed] = useState(false);
   const [view, setView] = useState<"confirm" | "payment">("confirm");
+  const [openPassModal, setOpenPassModal] = useState(false);
 
   const isFree = tournament.feeAmount === 0;
 
@@ -84,6 +87,61 @@ export function TournamentPaymentModal({
     const timer = window.setInterval(update, 1000);
     return () => window.clearInterval(timer);
   }, [payment?.deadline]);
+
+  useEffect(() => {
+    if (view !== "payment" || !payment || !["awaiting_payment", "paid_pending"].includes(payment.state)) {
+      return;
+    }
+
+    let isMounted = true;
+    const socket = getSocket();
+    const tourneyChannel = `tournament:${tournament.id}:payment`;
+
+    const handleSocketUpdate = (payload: any) => {
+      if (!isMounted) return;
+      if (payload && (payload.userId === user?._id || !payload.userId)) {
+        tournamentService
+          .getPayment(tournament.id)
+          .then((latest) => {
+            if (!isMounted) return;
+            setPayment(latest);
+            if (latest.state === "confirmed") {
+              message.success("Thanh toán thành công! Bạn đã được xác nhận vào giải đấu!");
+              if (onSuccess) onSuccess();
+            }
+          })
+          .catch(() => undefined);
+      }
+    };
+
+    socket.on(tourneyChannel, handleSocketUpdate);
+    socket.on("tournament:payment_updated", handleSocketUpdate);
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      tournamentService
+        .getPayment(tournament.id)
+        .then((latest) => {
+          if (!isMounted) return;
+          if (latest && latest.state !== payment.state) {
+            setPayment(latest);
+            if (latest.state === "confirmed") {
+              window.clearInterval(interval);
+              message.success("Thanh toán thành công! Bạn đã được xác nhận vào giải đấu!");
+              if (onSuccess) onSuccess();
+            }
+          }
+        })
+        .catch(() => undefined);
+    }, 15000);
+
+    return () => {
+      isMounted = false;
+      socket.off(tourneyChannel, handleSocketUpdate);
+      socket.off("tournament:payment_updated", handleSocketUpdate);
+      window.clearInterval(interval);
+    };
+  }, [tournament.id, payment?.state, view, onSuccess, user?._id]);
 
   async function handleConfirmRegistration() {
     if (submitting) return;
@@ -184,12 +242,12 @@ export function TournamentPaymentModal({
             </div>
           </div>
 
-          {error && <Alert type="error" message={error} />}
+          {error && <Alert type="error" title={error} />}
 
           {payment && payment.state !== "not_started" && (
             <Alert
               type="info"
-              message="Bạn đã có thông tin thanh toán cho giải đấu này. Bấm nút bên dưới để xem trực tiếp mã chuyển khoản."
+              title="Bạn đã có thông tin thanh toán cho giải đấu này. Bấm nút bên dưới để xem trực tiếp mã chuyển khoản."
             />
           )}
 
@@ -300,7 +358,7 @@ export function TournamentPaymentModal({
             </div>
           </div>
 
-          {error && <Alert type="error" message={error} />}
+          {error && <Alert type="error" title={error} />}
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
             <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
@@ -426,29 +484,62 @@ export function TournamentPaymentModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={refreshing}
-              onClick={onClose}
-              className="!rounded-xl"
-            >
-              Đóng
-            </Button>
+          <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+            <div>
+              {isConfirmed && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setOpenPassModal(true)}
+                  leftIcon={<QrcodeOutlined />}
+                  className="!rounded-xl !bg-emerald-700 hover:!bg-emerald-800 text-white font-bold"
+                >
+                  Xem thẻ VĐV thi đấu
+                </Button>
+              )}
+            </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              loading={refreshing}
-              onClick={() => void handleRefresh()}
-              leftIcon={<ReloadOutlined />}
-              className="!rounded-xl"
-            >
-              Cập nhật trạng thái
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={refreshing}
+                onClick={onClose}
+                className="!rounded-xl"
+              >
+                Đóng
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                loading={refreshing}
+                onClick={() => void handleRefresh()}
+                leftIcon={<ReloadOutlined />}
+                className="!rounded-xl"
+              >
+                Cập nhật trạng thái
+              </Button>
+            </div>
           </div>
         </div>
+      )}
+
+      {openPassModal && (
+        <TournamentEPassModal
+          open={openPassModal}
+          onClose={() => setOpenPassModal(false)}
+          data={{
+            tournamentId: tournament.id,
+            tournamentName: tournament.title,
+            format: tournament.format,
+            startDate: tournament.date || new Date().toISOString(),
+            athleteName: user?.name || "Cơ thủ CueZone",
+            athletePhone: user?.phone || "---",
+            athleteCode: `CZ-${tournament.id.slice(-4).toUpperCase()}-${(user?.phone || user?._id || "").replace(/\D/g, "").slice(-4) || "VĐV"}`,
+            feeAmount: feeAmount,
+          }}
+        />
       )}
     </Modal>
   );

@@ -1,11 +1,11 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import { SessionService } from "./session.service";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
+import { requirePermission } from "../../middlewares/auth.middleware";
 
 const router = Router({ mergeParams: true });
 const service = new SessionService();
-router.use(requirePosStaff);
+router.use(requirePermission("pos", "operate"));
 router.use((req, res, next) => {
   if (!mongoose.isValidObjectId((req.params as { id: string }).id)) {
     res.status(400).json({ success: false, message: "Mã bàn không hợp lệ" });

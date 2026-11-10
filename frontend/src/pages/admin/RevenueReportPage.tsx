@@ -334,7 +334,7 @@ export const RevenueReportPage: React.FC = () => {
       {error && (
         <Alert
           type="error"
-          message="Lỗi tải dữ liệu doanh thu"
+          title="Lỗi tải dữ liệu doanh thu"
           description={
             <div className="flex items-center justify-between mt-1">
               <span>{error}</span>

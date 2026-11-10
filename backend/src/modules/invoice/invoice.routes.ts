@@ -2,10 +2,10 @@ import { Router, Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { Invoice } from "./invoice.model";
 import { Table, TableStatus } from "../table/table.model";
-import { requirePosStaff } from "../../middlewares/pos.middleware";
+import { requirePermission } from "../../middlewares/auth.middleware";
 
 const router = Router();
-router.use(requirePosStaff);
+const invoicesRead = requirePermission("invoices", "read");
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -60,7 +60,7 @@ function formatDurationNice(rawDuration: string | undefined, durationMinutes?: n
 }
 
 // ── GET /api/v1/invoices ──────────────────────────────────────────────────────
-router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const search = normalizeString(req.query.search);
     const status = normalizeString(req.query.status);
@@ -237,7 +237,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 });
 
 // ── GET /api/v1/invoices/:id ──────────────────────────────────────────────────
-router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/:id", invoicesRead, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -264,7 +264,7 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
 });
 
 // ── POST /api/v1/invoices/quick (Tạo hóa đơn lẻ bán mang về / vãng lai) ────────
-router.post("/quick", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/quick", requirePermission("pos", "operate"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = req.body || {};
     const customerName = normalizeString(body.customerName) || "Khách Vãng Lai";

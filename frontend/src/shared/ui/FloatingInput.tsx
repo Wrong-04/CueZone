@@ -401,7 +401,11 @@ export const FloatingInput: FC<FloatingInputProps> = ({
         );
       }
 
-      case "select":
+      case "select": {
+        const search = selectProps?.showSearch ?? showSearch;
+        const selectMode = selectProps?.mode ?? mode;
+        const searchEnabled =
+          search !== false && (search || selectMode === "multiple" || selectMode === "tags");
         return (
           <Select
             id={inputId}
@@ -412,23 +416,29 @@ export const FloatingInput: FC<FloatingInputProps> = ({
             disabled={disabled}
             allowClear={clearProp}
             options={options}
-            showSearch={showSearch}
-            optionFilterProp="label"
-            filterOption={(input, option) =>
-              String(option?.label ?? "")
-                .toLowerCase()
-                .includes(input.toLowerCase())
-            }
             mode={mode}
             suffixIcon={suffix}
             variant="borderless"
             {...selectProps}
+            showSearch={
+              searchEnabled
+                ? {
+                    optionFilterProp: "label",
+                    filterOption: (input, option) =>
+                      String(option?.label ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase()),
+                    ...(typeof search === "object" ? search : {}),
+                  }
+                : search
+            }
             className={clsx(
               "!bg-transparent !p-0 !border-none !shadow-none w-full",
               selectProps?.className,
             )}
           />
         );
+      }
 
       case "tree-select":
         return (
