@@ -8,7 +8,7 @@ import {
   ReloadOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
-import { Button, Card, Modal, Space, Tag, Typography, message } from "../../shared/ui";
+import { Button, Card, Input, Modal, Space, Tag, Typography, message } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   walletService,
@@ -18,7 +18,7 @@ import {
 } from "../../services/wallet.service";
 
 const { Title, Text } = Typography;
-const presetAmounts = [100000, 200000, 500000] as const;
+const presetAmounts = [50000, 100000, 200000, 500000, 1000000, 2000000] as const;
 const formatMoney = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
 const formatDate = (value: string) => new Date(value).toLocaleString("vi-VN");
 
@@ -35,7 +35,9 @@ export const CustomerWallet: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [showTopupModal, setShowTopupModal] = useState(false);
-  const [topupAmount, setTopupAmount] = useState(200000);
+  const [topupAmount, setTopupAmount] = useState<number>(200000);
+  const [isCustomAmount, setIsCustomAmount] = useState<boolean>(false);
+  const [customAmountText, setCustomAmountText] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [gatewayStatus, setGatewayStatus] = useState<VnpayTopupStatus | null>(null);
   const [gatewayError, setGatewayError] = useState("");
@@ -124,15 +126,22 @@ export const CustomerWallet: React.FC = () => {
   }, [loadWallet, paymentReference, vnpayReturnParameters]);
 
   const handleRequestTopup = async () => {
-    if (!presetAmounts.includes(topupAmount as (typeof presetAmounts)[number])) {
-      message.error("Vui lòng chọn mệnh giá 100.000đ, 200.000đ hoặc 500.000đ");
+    const finalAmount = isCustomAmount
+      ? Number(customAmountText.replace(/\D/g, ""))
+      : topupAmount;
+
+    if (!finalAmount || finalAmount < 50000 || finalAmount > 10000000) {
+      message.error("Vui lòng chọn hoặc nhập số tiền nạp từ 50.000đ đến 10.000.000đ");
       return;
     }
+    if (finalAmount % 10000 !== 0) {
+      message.error("Số tiền nạp phải là bội số của 10.000đ");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const payment = await walletService.createVnpayTopup(
-        topupAmount as (typeof presetAmounts)[number],
-      );
+      const payment = await walletService.createVnpayTopup(finalAmount);
       window.location.assign(payment.paymentUrl);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không thể tạo giao dịch VNPay");
@@ -380,12 +389,48 @@ export const CustomerWallet: React.FC = () => {
               <button
                 key={amount}
                 type="button"
-                onClick={() => setTopupAmount(amount)}
-                className={`rounded-lg border px-3 py-2 text-sm font-semibold ${topupAmount === amount ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-700"}`}
+                onClick={() => {
+                  setTopupAmount(amount);
+                  setIsCustomAmount(false);
+                }}
+                className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition cursor-pointer ${
+                  !isCustomAmount && topupAmount === amount
+                    ? "border-emerald-600 bg-emerald-50 text-emerald-800 shadow-2xs"
+                    : "border-slate-200 text-slate-700 hover:border-slate-300"
+                }`}
               >
                 {formatMoney(amount)}
               </button>
             ))}
+          </div>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setIsCustomAmount(!isCustomAmount)}
+              className="text-xs text-emerald-700 font-semibold hover:underline block mb-2 cursor-pointer"
+            >
+              {isCustomAmount ? "← Chọn mệnh giá có sẵn" : "+ Hoặc nhập số tiền tùy chọn khác"}
+            </button>
+            {isCustomAmount && (
+              <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <label className="text-xs font-semibold text-slate-700 block">
+                  Số tiền muốn nạp (VNĐ):
+                </label>
+                <Input
+                  type="number"
+                  min={50000}
+                  step={10000}
+                  value={customAmountText}
+                  onChange={(e) => setCustomAmountText(e.target.value)}
+                  placeholder="VD: 300000 (tối thiểu 50.000đ)"
+                  className="!rounded-lg"
+                />
+                <span className="text-[11px] text-slate-500 block">
+                  Nhập số tiền là bội số của 10.000đ (ví dụ: 150.000, 300.000, 1.500.000đ).
+                </span>
+              </div>
+            )}
           </div>
           <div className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
             Giao dịch thanh toán sẽ hết hạn sau 15 phút nếu chưa hoàn tất.

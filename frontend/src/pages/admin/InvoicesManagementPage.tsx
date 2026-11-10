@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
+import type { Dayjs } from "dayjs";
 import { invoiceService } from "../../services/invoice.service";
+import WalletTopupsPage from "./WalletTopupsPage";
+import TournamentFeesPage from "./TournamentFeesPage";
 import {
   FileTextOutlined,
   PrinterOutlined,
@@ -15,6 +19,8 @@ import {
   ThunderboltOutlined,
   CopyOutlined,
   DownloadOutlined,
+  CalendarOutlined,
+  SortAscendingOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -26,10 +32,12 @@ import {
   Input,
   Select,
   SegmentedPillList,
+  DatePicker,
   type TableColumnsType,
 } from "../../shared/ui";
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -68,6 +76,7 @@ export interface ClubInvoice {
   status: "paid" | "pending" | "cancelled";
   statusText: string;
   date: string;
+  createdAt?: string;
   items: InvoiceItemOrder[];
   note?: string;
 }
@@ -77,6 +86,19 @@ export interface ClubInvoice {
 const INITIAL_INVOICES: ClubInvoice[] = [];;
 
 export const InvoicesManagementPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get("tab") || "invoices";
+
+  const handleTabChange = (key: string) => {
+    setSearchParams(key === "invoices" ? {} : { tab: key });
+  };
+
+  const financePills = [
+    { key: "invoices", label: "Hóa Đơn Tiền Bàn & Thu Ngân" },
+    { key: "wallet", label: "Đối Soát Nạp Ví Hội Viên" },
+    { key: "tournament", label: "Lệ Phí Giải Đấu Tại Quầy" },
+  ];
+
   // ── 1. STATE & LIVE API INTEGRATION ──────────────────────────────────────
   const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>(INITIAL_INVOICES);
   const [loading, setLoading] = useState<boolean>(false);
@@ -95,6 +117,76 @@ export const InvoicesManagementPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tableTypeFilter, setTableTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Date Filter & Sorting States
+  type DateFilterPreset = "all" | "today" | "yesterday" | "7days" | "this_month" | "custom";
+  type SortByOption = "newest" | "oldest" | "amount_desc" | "amount_asc" | "duration_desc";
+
+  const [datePreset, setDatePreset] = useState<DateFilterPreset>("all");
+  const [customRange, setCustomRange] = useState<[string, string] | null>(null);
+  const [customDayjsRange, setCustomDayjsRange] = useState<[Dayjs, Dayjs] | null>(null);
+  const [sortBy, setSortBy] = useState<SortByOption>("newest");
+
+  // Helper kiểm tra ngày theo preset
+  const isWithinDatePreset = (
+    createdAtStr?: string,
+    dateStr?: string,
+    preset?: DateFilterPreset,
+    range?: [string, string] | null,
+  ): boolean => {
+    if (!preset || preset === "all") return true;
+
+    let date: Date | null = null;
+    if (createdAtStr) {
+      const d = new Date(createdAtStr);
+      if (!isNaN(d.getTime())) date = d;
+    }
+    if (!date && dateStr) {
+      const parts = dateStr.split(",")[0]?.split(" ")[0]?.split("/");
+      if (parts && parts.length === 3) {
+        const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        if (!isNaN(d.getTime())) date = d;
+      }
+    }
+    if (!date) return true;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    if (preset === "today") {
+      return date >= startOfToday && date <= endOfToday;
+    }
+    if (preset === "yesterday") {
+      const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      const endOfYesterday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 1,
+        23,
+        59,
+        59,
+        999,
+      );
+      return date >= startOfYesterday && date <= endOfYesterday;
+    }
+    if (preset === "7days") {
+      const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      return date >= startOf7Days && date <= endOfToday;
+    }
+    if (preset === "this_month") {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return date >= startOfMonth && date <= endOfToday;
+    }
+    if (preset === "custom" && range && range[0] && range[1]) {
+      const start = new Date(range[0]);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(range[1]);
+      end.setHours(23, 59, 59, 999);
+      return date >= start && date <= end;
+    }
+    return true;
+  };
 
   // Invoice Detail Modal & Print Preview
   const [selectedInvoice, setSelectedInvoice] = useState<ClubInvoice | null>(null);
@@ -117,9 +209,7 @@ export const InvoicesManagementPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await invoiceService.getInvoices({
-        search: searchQuery,
-        status: statusFilter,
-        paymentMethod: ["cash", "vietqr", "wallet"].includes(statusFilter) ? statusFilter : undefined,
+        search: searchQuery.trim() || undefined,
       });
       if (data && Array.isArray(data.items)) {
         setInvoicesList(data.items);
@@ -142,7 +232,7 @@ export const InvoicesManagementPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -152,8 +242,122 @@ export const InvoicesManagementPage: React.FC = () => {
   }, [fetchInvoices]);
 
   // ── 2. ACTIONS ────────────────────────────────────────────────────────────
+  // Lệnh in hóa đơn nhiệt khổ 80mm chuẩn máy in POS quầy thu ngân
   const handlePrintBill = () => {
-    message.success("Đang gửi lệnh in phiếu hóa đơn ra máy in nhiệt tại quầy...");
+    if (!selectedInvoice) return;
+    const printWindow = window.open("", "_blank", "width=420,height=650");
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Hóa đơn ${selectedInvoice.code} - CueZone</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 2mm;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace, -apple-system, BlinkMacSystemFont, sans-serif;
+              width: 74mm;
+              margin: 0 auto;
+              padding: 4px;
+              color: #000;
+              font-size: 11px;
+              line-height: 1.35;
+            }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .bold { font-weight: bold; }
+            .title { font-size: 14px; font-weight: 900; letter-spacing: 0.5px; }
+            .dashed { border-top: 1px dashed #555; margin: 6px 0; }
+            .double-dashed { border-top: 2px dashed #000; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; margin: 2px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 4px 0; font-size: 10.5px; }
+            th { border-bottom: 1px dashed #666; padding: 3px 0; text-align: left; }
+            td { padding: 3px 0; }
+            .total-row { font-size: 13px; font-weight: 900; margin-top: 4px; }
+            .footer { font-size: 9.5px; color: #444; margin-top: 8px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="text-center">
+            <div class="title">CUEZONE BILLIARDS CLUB</div>
+            <div>246 Nguyễn Trãi, P.3, Q.5, TP.HCM</div>
+            <div>Hotline: 0909 888 999</div>
+          </div>
+          <div class="double-dashed"></div>
+          <div class="text-center bold" style="font-size: 13px;">PHIẾU THANH TOÁN</div>
+          <div class="text-center" style="font-size: 10px;">(In nhiệt chuẩn khổ 80mm)</div>
+          <div class="dashed"></div>
+          <div class="row"><span>Mã HĐ:</span><span class="bold">${selectedInvoice.code}</span></div>
+          <div class="row"><span>Bàn:</span><span class="bold">${selectedInvoice.tableName}</span></div>
+          <div class="row"><span>Khách hàng:</span><span>${selectedInvoice.customerName}</span></div>
+          <div class="row"><span>Thu ngân:</span><span>${selectedInvoice.cashierName}</span></div>
+          <div class="row"><span>Thời gian:</span><span>${selectedInvoice.timeIn} - ${selectedInvoice.timeOut}</span></div>
+          <div class="row"><span>Thời lượng:</span><span class="bold">${selectedInvoice.durationText}</span></div>
+          <div class="row"><span>Ngày lập:</span><span>${selectedInvoice.date}</span></div>
+          <div class="dashed"></div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 45%;">Tên món / DV</th>
+                <th style="width: 15%; text-align: center;">SL</th>
+                <th style="width: 40%; text-align: right;">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${selectedInvoice.items
+                .map(
+                  (item) => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td style="text-align: center;">${item.quantity}</td>
+                  <td style="text-align: right;">${item.subtotal.toLocaleString("vi-VN")}đ</td>
+                </tr>
+              `,
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div class="dashed"></div>
+          <div class="row"><span>Tiền giờ bàn:</span><span>${selectedInvoice.tableFee.toLocaleString("vi-VN")}đ</span></div>
+          <div class="row"><span>Tiền F&B đồ uống:</span><span>${selectedInvoice.fnbFee.toLocaleString("vi-VN")}đ</span></div>
+          <div class="row"><span>Tạm tính:</span><span>${selectedInvoice.subtotal.toLocaleString("vi-VN")}đ</span></div>
+          ${
+            selectedInvoice.discountAmount > 0
+              ? `<div class="row bold"><span>Giảm giá (${selectedInvoice.discountPercent}%):</span><span>-${selectedInvoice.discountAmount.toLocaleString("vi-VN")}đ</span></div>`
+              : ""
+          }
+          <div class="double-dashed"></div>
+          <div class="row total-row">
+            <span>TỔNG CỘNG:</span>
+            <span>${selectedInvoice.finalTotal.toLocaleString("vi-VN")}đ</span>
+          </div>
+          <div class="row" style="font-size: 10px; margin-top: 4px;">
+            <span>Thanh toán:</span>
+            <span class="bold">${selectedInvoice.paymentMethodText}</span>
+          </div>
+          <div class="double-dashed"></div>
+          <div class="footer">
+            <div>*** CẢM ƠN QUÝ KHÁCH ***</div>
+            <div>Wifi: CueZone_VIP (Pass: 88888888)</div>
+            <div>Hẹn gặp lại quý khách lần sau!</div>
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   const handleQuickCheckout = async () => {
@@ -203,7 +407,7 @@ export const InvoicesManagementPage: React.FC = () => {
   };
 
   const handleExportExcel = () => {
-    if (filteredInvoices.length === 0) {
+    if (sortedInvoices.length === 0) {
       message.warning("Không có hóa đơn nào để xuất!");
       return;
     }
@@ -224,7 +428,7 @@ export const InvoicesManagementPage: React.FC = () => {
       "Trạng Thái",
       "Ngày Tạo",
     ];
-    const rows = filteredInvoices.map((inv) => [
+    const rows = sortedInvoices.map((inv) => [
       `"${inv.code}"`,
       `"${inv.tableName}"`,
       `"${inv.customerName}"`,
@@ -250,7 +454,7 @@ export const InvoicesManagementPage: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    message.success(`Đã xuất báo cáo ${filteredInvoices.length} hóa đơn thành công!`);
+    message.success(`Đã xuất báo cáo ${sortedInvoices.length} hóa đơn thành công!`);
   };
 
   const handleResetToDefaults = () => {
@@ -259,14 +463,43 @@ export const InvoicesManagementPage: React.FC = () => {
   };
 
   // ── 3. FILTER & METRICS (Sabo Billiard Standard) ──────────────────────────
+  const invoicesFilteredByDate = useMemo(() => {
+    return invoicesList.filter((inv) =>
+      isWithinDatePreset(inv.createdAt, inv.date, datePreset, customRange),
+    );
+  }, [invoicesList, datePreset, customRange]);
+
   const filteredInvoices = useMemo(() => {
-    return invoicesList.filter((inv) => {
+    return invoicesFilteredByDate.filter((inv) => {
       let matchStatus = true;
-      if (statusFilter === "paid") matchStatus = inv.status === "paid";
-      else if (statusFilter === "cancelled") matchStatus = inv.status === "cancelled";
-      else if (statusFilter === "cash") matchStatus = inv.paymentMethod === "cash";
-      else if (statusFilter === "vietqr") matchStatus = ["vietqr", "card"].includes(inv.paymentMethod);
-      else if (statusFilter === "wallet") matchStatus = ["cuezone_pay", "wallet", "member_balance"].includes(inv.paymentMethod);
+      const invMethod = (inv.paymentMethod || "").toLowerCase();
+      if (statusFilter === "paid") {
+        matchStatus = inv.status === "paid";
+      } else if (statusFilter === "cancelled") {
+        matchStatus = inv.status === "cancelled";
+      } else if (statusFilter === "cash") {
+        matchStatus =
+          invMethod === "cash" ||
+          invMethod === "tiền mặt" ||
+          invMethod === "tien_mat" ||
+          invMethod === "tien mat";
+      } else if (statusFilter === "vietqr") {
+        matchStatus =
+          invMethod === "vietqr" ||
+          invMethod === "vnpay" ||
+          invMethod === "card" ||
+          invMethod === "bank" ||
+          invMethod === "transfer" ||
+          invMethod.includes("chuyển khoản") ||
+          invMethod.includes("ngân hàng");
+      } else if (statusFilter === "wallet") {
+        matchStatus =
+          invMethod === "cuezone_pay" ||
+          invMethod === "wallet" ||
+          invMethod === "member_balance" ||
+          invMethod.includes("ví") ||
+          invMethod.includes("hội viên");
+      }
 
       const matchTableType =
         tableTypeFilter === "all" ||
@@ -285,17 +518,58 @@ export const InvoicesManagementPage: React.FC = () => {
 
       return matchStatus && matchTableType && matchQuery;
     });
-  }, [invoicesList, statusFilter, tableTypeFilter, searchQuery]);
+  }, [invoicesFilteredByDate, statusFilter, tableTypeFilter, searchQuery]);
+
+  const sortedInvoices = useMemo(() => {
+    const list = [...filteredInvoices];
+    if (sortBy === "amount_desc") {
+      return list.sort((a, b) => b.finalTotal - a.finalTotal);
+    }
+    if (sortBy === "amount_asc") {
+      return list.sort((a, b) => a.finalTotal - b.finalTotal);
+    }
+    if (sortBy === "duration_desc") {
+      return list.sort((a, b) => b.durationMinutes - a.durationMinutes);
+    }
+    if (sortBy === "oldest") {
+      return list.sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeA - timeB;
+      });
+    }
+    // newest (mặc định: mới nhất trước)
+    return list.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [filteredInvoices, sortBy]);
 
   const metrics = useMemo(() => {
-    const totalCount = invoicesList.length;
-    const paidList = invoicesList.filter((i) => i.status === "paid");
+    const isFilteredDate = datePreset !== "all" || customRange !== null;
+    const paidList = invoicesFilteredByDate.filter((i) => i.status === "paid");
+    const totalCount = invoicesFilteredByDate.length;
     const totalRevenue = paidList.reduce((acc, cur) => acc + cur.finalTotal, 0);
     const totalTableFee = paidList.reduce((acc, cur) => acc + cur.tableFee, 0);
     const totalFnbFee = paidList.reduce((acc, cur) => acc + cur.fnbFee, 0);
     const cashRevenue = paidList.filter((i) => i.paymentMethod === "cash").reduce((acc, cur) => acc + cur.finalTotal, 0);
     const bankRevenue = paidList.filter((i) => ["vietqr", "card"].includes(i.paymentMethod)).reduce((acc, cur) => acc + cur.finalTotal, 0);
     const walletRevenue = paidList.filter((i) => ["cuezone_pay", "wallet", "member_balance"].includes(i.paymentMethod)).reduce((acc, cur) => acc + cur.finalTotal, 0);
+
+    if (isFilteredDate) {
+      return {
+        totalCount,
+        paidCount: paidList.length,
+        totalRevenue,
+        totalTableFee,
+        totalFnbFee,
+        cashRevenue,
+        bankRevenue,
+        walletRevenue,
+        pendingCount: 0,
+      };
+    }
 
     return {
       totalCount: liveMetrics.totalCount || totalCount,
@@ -308,35 +582,68 @@ export const InvoicesManagementPage: React.FC = () => {
       walletRevenue: liveMetrics.walletRevenue || walletRevenue,
       pendingCount: 0,
     };
-  }, [invoicesList, liveMetrics]);
+  }, [invoicesFilteredByDate, liveMetrics, datePreset, customRange]);
 
   // Pill filter items (Chỉ hiển thị hóa đơn kế toán, không hiển thị bàn đang chơi)
   const statusPills = [
-    { key: "all", label: "Tất cả hóa đơn", badge: invoicesList.length },
+    {
+      key: "all",
+      label: "Tất cả",
+      badge: invoicesFilteredByDate.length,
+      dotClassName: "bg-slate-400",
+    },
     {
       key: "paid",
       label: "Đã thanh toán",
-      badge: invoicesList.filter((i) => i.status === "paid").length,
+      badge: invoicesFilteredByDate.filter((i) => i.status === "paid").length,
+      dotClassName: "bg-emerald-500",
     },
     {
       key: "cash",
       label: "Tiền mặt",
-      badge: invoicesList.filter((i) => i.paymentMethod === "cash").length,
+      badge: invoicesFilteredByDate.filter((i) => {
+        const m = (i.paymentMethod || "").toLowerCase();
+        return m === "cash" || m === "tiền mặt" || m === "tien_mat" || m === "tien mat";
+      }).length,
+      dotClassName: "bg-amber-500",
     },
     {
       key: "vietqr",
       label: "VietQR / Ngân hàng",
-      badge: invoicesList.filter((i) => ["vietqr", "card"].includes(i.paymentMethod)).length,
+      badge: invoicesFilteredByDate.filter((i) => {
+        const m = (i.paymentMethod || "").toLowerCase();
+        return (
+          m === "vietqr" ||
+          m === "vnpay" ||
+          m === "card" ||
+          m === "bank" ||
+          m === "transfer" ||
+          m.includes("chuyển khoản") ||
+          m.includes("ngân hàng")
+        );
+      }).length,
+      dotClassName: "bg-blue-500",
     },
     {
       key: "wallet",
       label: "Ví hội viên",
-      badge: invoicesList.filter((i) => ["cuezone_pay", "wallet", "member_balance"].includes(i.paymentMethod)).length,
+      badge: invoicesFilteredByDate.filter((i) => {
+        const m = (i.paymentMethod || "").toLowerCase();
+        return (
+          m === "cuezone_pay" ||
+          m === "wallet" ||
+          m === "member_balance" ||
+          m.includes("ví") ||
+          m.includes("hội viên")
+        );
+      }).length,
+      dotClassName: "bg-purple-500",
     },
     {
       key: "cancelled",
       label: "Đã hủy",
-      badge: invoicesList.filter((i) => i.status === "cancelled").length,
+      badge: invoicesFilteredByDate.filter((i) => i.status === "cancelled").length,
+      dotClassName: "bg-rose-500",
     },
   ];
 
@@ -346,6 +653,11 @@ export const InvoicesManagementPage: React.FC = () => {
       title: "Mã Hóa Đơn",
       key: "code",
       width: 155,
+      sorter: (a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeA - timeB;
+      },
       render: (_: unknown, record: ClubInvoice) => (
         <div className="flex items-center gap-1.5">
           <span className="font-mono font-bold text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
@@ -398,6 +710,7 @@ export const InvoicesManagementPage: React.FC = () => {
       title: "Thời Gian Chơi",
       key: "time",
       width: 160,
+      sorter: (a, b) => a.durationMinutes - b.durationMinutes,
       render: (_: unknown, record: ClubInvoice) => (
         <div className="text-xs">
           <span className="font-bold text-slate-800 block">{record.durationText}</span>
@@ -426,6 +739,7 @@ export const InvoicesManagementPage: React.FC = () => {
       title: "Tổng Thanh Toán",
       key: "finalTotal",
       width: 160,
+      sorter: (a, b) => a.finalTotal - b.finalTotal,
       render: (_: unknown, record: ClubInvoice) => (
         <div>
           <span className="font-black text-emerald-800 text-base font-mono block">
@@ -483,8 +797,23 @@ export const InvoicesManagementPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── COMMAND HEADER & SUMMARY METRICS ──────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+      {/* ── UNIFIED FINANCIAL TABS SWITCHER (Gom Hóa Đơn, Nạp Ví, Lệ Phí) ── */}
+      <div className="bg-white p-3.5 rounded-3xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <SegmentedPillList
+          items={financePills}
+          activeKey={currentTab}
+          onSelect={handleTabChange}
+        />
+      </div>
+
+      {currentTab === "wallet" ? (
+        <WalletTopupsPage />
+      ) : currentTab === "tournament" ? (
+        <TournamentFeesPage />
+      ) : (
+        <>
+          {/* ── COMMAND HEADER & SUMMARY METRICS ──────────────────────────────── */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
@@ -621,45 +950,158 @@ export const InvoicesManagementPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── FILTER TOOLBAR ────────────────────────────────────────────────── */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-        {/* Status Pills */}
-        <div className="overflow-x-auto pb-1">
-          <SegmentedPillList
-            items={statusPills}
-            activeKey={statusFilter}
-            onSelect={(key) => setStatusFilter(key)}
-          />
-        </div>
-
-        {/* Second Row: Payment Method, Search */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-              <FilterOutlined /> Khu vực bàn:
-            </span>
-            <Select
-              value={tableTypeFilter}
-              onChange={(val) => setTableTypeFilter(val)}
-              className="!w-48 !rounded-xl !text-xs"
-              options={[
-                { value: "all", label: "Tất cả loại bàn" },
-                { value: "pool", label: "Bàn Phổ Thông / Pool" },
-                { value: "vip", label: "Bàn VIP" },
-                { value: "match", label: "Bàn Thi Đấu" },
-              ]}
+      {/* ── FILTER TOOLBAR (Bố cục thông minh 2 hàng chuẩn SaaS) ────────── */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3.5">
+        {/* Hàng 1: Tabs Trạng thái & Hình thức thanh toán (Trái) + Ô tìm kiếm (Phải) */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="overflow-x-auto pb-1 max-w-full">
+            <SegmentedPillList
+              items={statusPills}
+              activeKey={statusFilter}
+              onSelect={(key) => setStatusFilter(key)}
             />
           </div>
 
-          <div className="w-full sm:w-72">
+          <div className="w-full lg:w-72 shrink-0">
             <Input
               placeholder="Tìm mã HD, khách hàng, số bàn..."
               prefix={<SearchOutlined className="text-slate-400" />}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               allowClear
-              className="!rounded-xl !h-10 text-xs"
+              className="!rounded-2xl !h-10 text-xs !border-slate-200 hover:!border-emerald-500 focus:!border-emerald-500"
             />
+          </div>
+        </div>
+
+        {/* Hàng 2: Bộ lọc chuyên sâu gọn trong 1 dải nền tinh tế */}
+        <div className="bg-slate-50/90 p-3 rounded-2xl border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          {/* Cụm trái: Bộ lọc Thời gian */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1 mr-1">
+              <CalendarOutlined className="text-emerald-600 text-sm" /> Thời gian:
+            </span>
+            {(
+              [
+                { key: "all", label: "Tất cả" },
+                { key: "today", label: "Hôm nay" },
+                { key: "yesterday", label: "Hôm qua" },
+                { key: "7days", label: "7 ngày qua" },
+                { key: "this_month", label: "Tháng này" },
+                { key: "custom", label: "Tùy chọn ngày" },
+              ] as { key: DateFilterPreset; label: string }[]
+            ).map((item) => {
+              const isActive = datePreset === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setDatePreset(item.key);
+                    if (item.key !== "custom") {
+                      setCustomRange(null);
+                      setCustomDayjsRange(null);
+                    }
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-xl transition-all cursor-pointer select-none ${
+                    isActive
+                      ? "bg-emerald-600 text-white font-bold shadow-xs"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/90 font-medium"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+
+            {datePreset === "custom" && (
+              <div className="inline-block ml-1">
+                <RangePicker
+                  value={customDayjsRange}
+                  onChange={(dates) => {
+                    if (dates && dates[0] && dates[1]) {
+                      setCustomDayjsRange([dates[0], dates[1]]);
+                      setCustomRange([
+                        dates[0].format("YYYY-MM-DD"),
+                        dates[1].format("YYYY-MM-DD"),
+                      ]);
+                    } else {
+                      setCustomDayjsRange(null);
+                      setCustomRange(null);
+                    }
+                  }}
+                  format="DD/MM/YYYY"
+                  placeholder={["Từ ngày", "Đến ngày"]}
+                  className="!rounded-xl !h-8 text-xs !bg-white"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Cụm phải: Khu vực bàn, Sắp xếp & Đặt lại */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                <FilterOutlined /> Khu vực:
+              </span>
+              <Select
+                value={tableTypeFilter}
+                onChange={(val) => setTableTypeFilter(val)}
+                className="!w-36 !rounded-xl !text-xs !bg-white"
+                options={[
+                  { value: "all", label: "Tất cả loại bàn" },
+                  { value: "pool", label: "Bàn Phổ Thông" },
+                  { value: "vip", label: "Bàn VIP" },
+                  { value: "match", label: "Bàn Thi Đấu" },
+                ]}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                <SortAscendingOutlined /> Sắp xếp:
+              </span>
+              <Select
+                value={sortBy}
+                onChange={(val) => setSortBy(val as SortByOption)}
+                className="!w-44 !rounded-xl !text-xs !bg-white"
+                options={[
+                  { value: "newest", label: "Mới nhất trước" },
+                  { value: "oldest", label: "Cũ nhất trước" },
+                  { value: "amount_desc", label: "Tiền cao nhất (Giảm)" },
+                  { value: "amount_asc", label: "Tiền thấp nhất (Tăng)" },
+                  { value: "duration_desc", label: "Thời gian chơi dài nhất" },
+                ]}
+              />
+            </div>
+
+            {(statusFilter !== "all" ||
+              datePreset !== "all" ||
+              tableTypeFilter !== "all" ||
+              searchQuery.trim() !== "") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setDatePreset("all");
+                  setCustomRange(null);
+                  setCustomDayjsRange(null);
+                  setTableTypeFilter("all");
+                  setSearchQuery("");
+                  setSortBy("newest");
+                }}
+                leftIcon={<ReloadOutlined />}
+                className="!rounded-xl !text-xs !h-8 !text-slate-600 !border-slate-200 hover:!bg-white"
+                title="Xóa tất cả bộ lọc về mặc định"
+              >
+                Đặt lại
+              </Button>
+            )}
+
+            <Tag color="cyan" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0">
+              {sortedInvoices.length} Hóa đơn
+            </Tag>
           </div>
         </div>
       </div>
@@ -669,7 +1111,7 @@ export const InvoicesManagementPage: React.FC = () => {
         <Table<ClubInvoice>
           loading={loading}
           columns={columns}
-          dataSource={filteredInvoices}
+          dataSource={sortedInvoices}
           rowKey="id"
           pagination={{
             pageSize: 10,
@@ -1059,6 +1501,8 @@ export const InvoicesManagementPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+        </>
+      )}
     </div>
   );
 };

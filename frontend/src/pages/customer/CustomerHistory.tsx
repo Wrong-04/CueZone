@@ -4,12 +4,13 @@ import {
   ClockCircleOutlined,
   DollarOutlined,
   ExclamationCircleOutlined,
-  QrcodeOutlined,
+  CheckCircleOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 import { Button, Card, Tag, Typography, Modal, Input, message, Space } from "../../shared/ui";
 import { bookingService } from "../../services/pos.service";
 import type { BookingRequest } from "../../types/pos";
-import QRCode from "qrcode";
+import { PlayHistoryTab } from "./CustomerMembershipCenter";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -75,14 +76,13 @@ const mapBooking = (booking: BookingRequest): BookingItem => {
 
 const CustomerHistory = () => {
   const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [activeTab, setActiveTab] = useState<"bookings" | "sessions">("bookings");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [cancellingBooking, setCancellingBooking] = useState<BookingItem | null>(null);
   const [viewingBooking, setViewingBooking] = useState<BookingItem | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
-  const [bookingQr, setBookingQr] = useState<{ code: string; image: string } | null>(null);
-  const [loadingQr, setLoadingQr] = useState(false);
 
   const refreshBookings = async () => {
     const records = await bookingService.getMine();
@@ -123,40 +123,56 @@ const CustomerHistory = () => {
     }
   };
 
-  const handleShowQr = async (booking: BookingItem) => {
-    setLoadingQr(true);
-    try {
-      const { qrToken } = await bookingService.issueQr(booking.id);
-      const image = await QRCode.toDataURL(qrToken, {
-        width: 280,
-        margin: 2,
-        errorCorrectionLevel: "M",
-      });
-      setBookingQr({ code: booking.code, image });
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "Không thể tạo mã QR đặt bàn");
-    } finally {
-      setLoadingQr(false);
-    }
-  };
-
   return (
     <div className="space-y-8">
-      <div className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-10 shadow-xs space-y-3">
-        <Tag color="green" className="!text-xs !font-bold !px-3 !py-1 !rounded-md uppercase">
-          <CalendarOutlined className="mr-1.5" /> LỊCH SỬ ĐẶT CHỖ
-        </Tag>
+      <div className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-10 shadow-xs space-y-4">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase">
+          <HistoryOutlined className="text-emerald-600" />
+          LỊCH SỬ HOẠT ĐỘNG & CUỘC CHƠI
+        </div>
         <Title
           level={1}
           className="!text-2xl sm:!text-4xl !font-black !text-slate-900 !mb-1 tracking-tight"
         >
-          Lịch Đặt Bàn Của Tôi
+          Lịch Sử Hoạt Động Của Tôi
         </Title>
         <Paragraph className="!text-xs sm:!text-sm !text-slate-500 max-w-3xl leading-relaxed !mb-0">
-          Theo dõi lịch đặt bàn đã xác nhận và hủy lịch trước giờ chơi ít nhất 2 tiếng.
+          Tra cứu nhanh danh sách đặt bàn hẹn trước và toàn bộ lịch sử các buổi chơi, hóa đơn tiền giờ & dịch vụ F&B tại CLB.
         </Paragraph>
+
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => setActiveTab("bookings")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "bookings"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <CalendarOutlined />
+            <span>Lịch Đặt Bàn Trước ({bookings.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("sessions")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
+              activeTab === "sessions"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <HistoryOutlined />
+            <span>Hóa Đơn & Cuộc Chơi Đã Chơi</span>
+          </button>
+        </div>
       </div>
 
+      {activeTab === "sessions" ? (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs">
+          <PlayHistoryTab />
+        </div>
+      ) : (
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0">
@@ -241,18 +257,6 @@ const CustomerHistory = () => {
                     >
                       Chi Tiết
                     </Button>
-                    {booking.status === "approved" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        loading={loadingQr}
-                        onClick={() => void handleShowQr(booking)}
-                        icon={<QrcodeOutlined />}
-                        className="!text-xs !rounded-xl"
-                      >
-                        Mã QR
-                      </Button>
-                    )}
                     {booking.canCancel && (
                       <Button
                         variant="danger"
@@ -270,40 +274,7 @@ const CustomerHistory = () => {
           </div>
         )}
       </div>
-
-      <Modal
-        open={!!bookingQr}
-        onCancel={() => setBookingQr(null)}
-        footer={[
-          <Button
-            key="close-qr"
-            variant="outline"
-            onClick={() => setBookingQr(null)}
-            className="!text-xs !rounded-xl"
-          >
-            Đóng
-          </Button>,
-        ]}
-        title={
-          <Space align="center" size={8}>
-            <QrcodeOutlined className="text-emerald-600" />
-            <span className="text-slate-900 font-bold">Mã QR đặt bàn {bookingQr?.code}</span>
-          </Space>
-        }
-      >
-        {bookingQr && (
-          <div className="space-y-3 py-2 text-center">
-            <img
-              src={bookingQr.image}
-              alt="Mã QR xác nhận đặt bàn"
-              className="mx-auto h-56 w-56"
-            />
-            <p className="text-xs text-slate-600">
-              Đưa mã này cho nhân viên để xác nhận bàn và các món F&B đặt trước.
-            </p>
-          </div>
-        )}
-      </Modal>
+      )}
 
       <Modal
         open={!!viewingBooking}
@@ -327,6 +298,14 @@ const CustomerHistory = () => {
       >
         {viewingBooking && (
           <div className="space-y-4 py-2 text-xs text-slate-700">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/90 text-emerald-900 text-xs flex items-start gap-2.5">
+              <CheckCircleOutlined className="mt-0.5 shrink-0 text-emerald-600 text-sm" />
+              <span>
+                Khi đến CLB, quý khách chỉ cần đọc <strong>Số điện thoại</strong> hoặc mã đặt bàn{" "}
+                <strong className="font-mono text-emerald-700 font-bold">{viewingBooking.code}</strong> cho nhân viên để nhận bàn và bắt đầu chơi.
+              </span>
+            </div>
+
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-500">Mã đặt bàn:</span>
@@ -346,7 +325,11 @@ const CustomerHistory = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Thời lượng dự kiến:</span>
-                <span className="font-semibold text-slate-900">{viewingBooking.duration} giờ</span>
+                <span className="font-semibold text-slate-900">{viewingBooking.duration} giờ (Tùy ý chơi tiếp)</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Chính sách giữ bàn:</span>
+                <span className="font-semibold text-amber-700">15 phút sau giờ hẹn</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Trạng thái:</span>

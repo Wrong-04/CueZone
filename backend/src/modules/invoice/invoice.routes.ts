@@ -70,11 +70,8 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 
     // 1. Fetch real invoices from MongoDB
     const query: any = {};
-    if (paymentMethod && paymentMethod !== "all") {
-      query.$or = [
-        { "payment.method": paymentMethod },
-        { "receipt.paymentMethod": paymentMethod },
-      ];
+    if (status === "cancelled") {
+      query.status = "cancelled";
     }
 
     const rawInvoices = await Invoice.find(query)
@@ -109,10 +106,31 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       const discountAmount = receipt.discountAmount || (inv.discount ? Math.round(subtotal * (inv.discount / 100)) : 0);
       const finalTotal = receipt.finalAmount ?? inv.totalAmount ?? (subtotal - discountAmount);
 
-      const pMethod = receipt.paymentMethod || inv.payment?.method || "cash";
+      const rawPaymentMethod = String(receipt.paymentMethod || receipt.paymentDetails?.method || inv.payment?.method || "cash").toLowerCase();
+      let pMethod = "cash";
+      if (
+        rawPaymentMethod.includes("vietqr") ||
+        rawPaymentMethod.includes("vnpay") ||
+        rawPaymentMethod.includes("qr") ||
+        rawPaymentMethod.includes("bank") ||
+        rawPaymentMethod.includes("card") ||
+        rawPaymentMethod.includes("transfer")
+      ) {
+        pMethod = "vietqr";
+      } else if (
+        rawPaymentMethod.includes("wallet") ||
+        rawPaymentMethod.includes("cuezone_pay") ||
+        rawPaymentMethod.includes("member_balance") ||
+        rawPaymentMethod.includes("ví")
+      ) {
+        pMethod = "wallet";
+      } else {
+        pMethod = "cash";
+      }
+
       const methodMap: Record<string, string> = {
         cash: "Tiền Mặt",
-        vietqr: "VietQR Ngân Hàng",
+        vietqr: "VietQR / Ngân Hàng",
         card: "Thẻ Ngân Hàng",
         cuezone_pay: "Ví CueZone Pay",
         wallet: "Ví Hội Viên",
@@ -168,6 +186,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
         status: inv.status === "cancelled" ? "cancelled" : "paid",
         statusText: inv.status === "cancelled" ? "Đã Hủy" : "Đã Thanh Toán",
         date: dateStr,
+        createdAt: inv.createdAt,
         items,
         note: inv.payment?.note || receipt.note || "",
       };
@@ -189,9 +208,26 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
       );
     }
 
-    // Filter by status tab
+    // Filter by status tab or payment method
     if (status && status !== "all") {
-      allCombined = allCombined.filter((inv) => inv.status === status);
+      if (status === "paid" || status === "cancelled") {
+        allCombined = allCombined.filter((inv) => inv.status === status);
+      } else if (status === "cash") {
+        allCombined = allCombined.filter((inv) => inv.paymentMethod === "cash");
+      } else if (status === "vietqr") {
+        allCombined = allCombined.filter((inv) => ["vietqr", "card"].includes(inv.paymentMethod));
+      } else if (status === "wallet") {
+        allCombined = allCombined.filter((inv) => ["cuezone_pay", "wallet", "member_balance"].includes(inv.paymentMethod));
+      }
+    }
+    if (paymentMethod && paymentMethod !== "all") {
+      if (paymentMethod === "cash") {
+        allCombined = allCombined.filter((inv) => inv.paymentMethod === "cash");
+      } else if (paymentMethod === "vietqr") {
+        allCombined = allCombined.filter((inv) => ["vietqr", "card"].includes(inv.paymentMethod));
+      } else if (paymentMethod === "wallet") {
+        allCombined = allCombined.filter((inv) => ["cuezone_pay", "wallet", "member_balance"].includes(inv.paymentMethod));
+      }
     }
 
     // Calculate aggregated metrics from real invoices (Sabo Billiard standard)

@@ -11,20 +11,13 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
-import WalletTopupsPage from "./pages/admin/WalletTopupsPage";
-import TournamentFeesPage from "./pages/admin/TournamentFeesPage";
-
-// Three new management pages
-import CatalogManagementPage from "./pages/admin/CatalogManagementPage";
 import VoucherManagementPage from "./pages/admin/VoucherManagementPage";
 import FnbOrderQueuePage from "./pages/admin/FnbOrderQueuePage";
 import StockCatalogPage from "./pages/admin/StockCatalogPage";
-import SupplierManagementPage from "./pages/admin/SupplierManagementPage";
 import GoodsReceiptPage from "./pages/admin/GoodsReceiptPage";
 import InventoryReportPage from "./pages/admin/InventoryReportPage";
 import RevenueReportPage from "./pages/admin/RevenueReportPage";
 import AccessoryWastePage from "./pages/admin/AccessoryWastePage";
-import TablePerformanceReportPage from "./pages/admin/TablePerformanceReportPage";
 import StockCheckPage from "./pages/admin/StockCheckPage";
 
 import CustomerHome from "./pages/customer/CustomerHome";
@@ -43,7 +36,6 @@ import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
 
 import {
   TablesPage,
-  BookingPage,
   TournamentsPage,
   FnBPage,
   InventoryPage,
@@ -156,17 +148,13 @@ const AppRoutes = () => {
 
         <Route
           path="/booking"
-          element={
-            <ProtectedRoute roles={["admin", "staff"]}>
-              <BookingPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/pos?drawer=booking" replace />}
         />
 
         <Route
           path="/tournaments"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute roles={["admin", "staff", "referee"]}>
               <TournamentsPage />
             </ProtectedRoute>
           }
@@ -185,7 +173,7 @@ const AppRoutes = () => {
         <Route
           path="/inventory"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute roles={["admin", "staff", "warehouse"]}>
               <InventoryPage />
             </ProtectedRoute>
           }
@@ -201,14 +189,10 @@ const AppRoutes = () => {
           }
         />
 
-        {/* 2. Product and category management */}
+        {/* 2. Product and category management - integrated into /inventory?tab=catalog */}
         <Route
           path="/catalog-management"
-          element={
-            <ProtectedRoute roles={["admin"]}>
-              <CatalogManagementPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/inventory?tab=catalog" replace />}
         />
 
         <Route
@@ -229,14 +213,10 @@ const AppRoutes = () => {
           }
         />
 
-        {/* 3. Supplier management */}
+        {/* 3. Supplier management - integrated into /inventory?tab=suppliers */}
         <Route
           path="/suppliers"
-          element={
-            <ProtectedRoute roles={["admin"]}>
-              <SupplierManagementPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/inventory?tab=suppliers" replace />}
         />
 
         {/* 4. Goods receipt */}
@@ -290,28 +270,21 @@ const AppRoutes = () => {
         <Route
           path="/invoices"
           element={
-            <ProtectedRoute roles={["admin", "staff"]}>
+            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
               <InvoicesPage />
             </ProtectedRoute>
           }
         />
 
+        {/* Reconciliation tabs integrated into /invoices */}
         <Route
           path="/wallet-topups"
-          element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
-              <WalletTopupsPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/invoices?tab=wallet" replace />}
         />
 
         <Route
           path="/tournament-fees"
-          element={
-            <ProtectedRoute roles={["admin", "staff", "cashier"]}>
-              <TournamentFeesPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/invoices?tab=tournament" replace />}
         />
 
         <Route
@@ -324,27 +297,15 @@ const AppRoutes = () => {
         />
         <Route
           path="/reports/revenue"
-          element={
-            <ProtectedRoute roles={["admin"]}>
-              <RevenueReportPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/reports?tab=revenue" replace />}
         />
         <Route
           path="/table-performance"
-          element={
-            <ProtectedRoute roles={["admin"]}>
-              <TablePerformanceReportPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/reports?tab=performance" replace />}
         />
         <Route
           path="/reports/table-performance"
-          element={
-            <ProtectedRoute roles={["admin"]}>
-              <TablePerformanceReportPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/reports?tab=performance" replace />}
         />
 
         <Route
@@ -379,7 +340,7 @@ const AppRoutes = () => {
       <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
       <Route path="/admin/pos" element={<Navigate to="/pos" replace />} />
       <Route path="/admin/tables" element={<Navigate to="/tables" replace />} />
-      <Route path="/admin/booking" element={<Navigate to="/booking" replace />} />
+      <Route path="/admin/booking" element={<Navigate to="/pos?drawer=booking" replace />} />
       <Route path="/admin/tournaments" element={<Navigate to="/tournaments" replace />} />
       <Route path="/admin/fnb" element={<Navigate to="/fnb" replace />} />
       <Route path="/admin/inventory" element={<Navigate to="/inventory" replace />} />

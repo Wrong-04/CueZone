@@ -249,7 +249,7 @@ const CustomerTournaments = () => {
                         Giải Đã Tham Gia
                       </span>
                       <span className="text-sm font-mono font-black text-white">
-                        {myHistory.length} Giải {wonTournamentsCount > 0 ? `• ${wonTournamentsCount} 🏆` : ""}
+                        {myHistory.length} Giải {wonTournamentsCount > 0 ? ` • ${wonTournamentsCount} Vô địch` : ""}
                       </span>
                     </div>
                   </div>

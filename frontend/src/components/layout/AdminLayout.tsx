@@ -1,17 +1,15 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
 import {
   DashboardOutlined,
   AppstoreOutlined,
-  CalendarOutlined,
   TrophyOutlined,
   CoffeeOutlined,
   InboxOutlined,
   FileTextOutlined,
   LineChartOutlined,
   TeamOutlined,
-  ReadOutlined,
   SettingOutlined,
   UserOutlined,
   DollarOutlined,
@@ -23,145 +21,139 @@ import {
   RightOutlined,
   ThunderboltOutlined,
   LogoutOutlined,
-  TagsOutlined,
   GiftOutlined,
-  ShoppingOutlined,
-  ShopOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
 } from "@ant-design/icons";
 
 import { useAuth } from "../../contexts/AuthContext";
 import ConfirmModal from "../ui/ConfirmModal";
 import { notificationService, type Notification } from "../../services/notification.service";
+import { Tooltip } from "../../shared/ui";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   import.meta.env.VITE_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:5000";
 
-interface MenuItemConfig {
+export interface MenuItemConfig {
   path: string;
   label: string;
   icon: ReactNode;
   roles?: string[];
+  badge?: string;
+  isSpecial?: boolean;
 }
 
-const menuItems: MenuItemConfig[] = [
-  {
-    path: "/pos",
-    label: "POS Sơ Đồ Bàn",
-    icon: <ThunderboltOutlined />,
-    roles: ["admin", "staff"],
-  },
-  {
-    path: "/dashboard",
-    label: "Tổng quan",
-    icon: <DashboardOutlined />,
-    roles: ["admin"],
-  },
-  {
-    path: "/tables",
-    label: "Quản lý Bàn",
-    icon: <AppstoreOutlined />,
-    roles: ["admin"],
-  },
-  {
-    path: "/booking",
-    label: "Duyệt Đặt Bàn",
-    icon: <CalendarOutlined />,
-    roles: ["admin", "staff"],
-  },
-  {
-    path: "/fnb",
-    label: "Thực đơn F&B",
-    icon: <CoffeeOutlined />,
-    roles: ["admin", "staff"],
-  },
-  {
-    path: "/tournaments",
-    label: "Giải đấu & Trọng tài",
-    icon: <TrophyOutlined />,
-    roles: ["admin", "staff"],
-  },
+export interface MenuGroupConfig {
+  id: string;
+  title: string;
+  roles?: string[];
+  items: MenuItemConfig[];
+}
 
+const menuGroups: MenuGroupConfig[] = [
   {
-    path: "/inventory",
-    label: "Kho hàng",
-    icon: <InboxOutlined />,
-    roles: ["admin", "staff"],
+    id: "operations",
+    title: "Vận Hành Quầy",
+    roles: ["admin", "staff", "cashier"],
+    items: [
+      {
+        path: "/pos",
+        label: "Sơ Đồ Bàn (POS)",
+        icon: <ThunderboltOutlined />,
+        roles: ["admin", "staff"],
+        badge: "Chính",
+        isSpecial: true,
+      },
+      {
+        path: "/dashboard",
+        label: "Tổng Quan CLB",
+        icon: <DashboardOutlined />,
+        roles: ["admin"],
+      },
+    ],
   },
-
   {
-    path: "/catalog-management",
-    label: "Danh mục sản phẩm",
-    icon: <TagsOutlined />,
+    id: "fnb-inventory",
+    title: "Hàng Hóa & Kho",
+    roles: ["admin", "staff", "warehouse"],
+    items: [
+      {
+        path: "/fnb",
+        label: "Thực Đơn & Dịch Vụ",
+        icon: <CoffeeOutlined />,
+        roles: ["admin", "staff"],
+      },
+      {
+        path: "/inventory",
+        label: "Kho Hàng & Vật Tư",
+        icon: <InboxOutlined />,
+        roles: ["admin", "staff", "warehouse"],
+      },
+    ],
+  },
+  {
+    id: "tournament-promos",
+    title: "Giải Đấu & Ưu Đãi",
+    roles: ["admin", "staff", "referee"],
+    items: [
+      {
+        path: "/tournaments",
+        label: "Giải Đấu & Trọng Tài",
+        icon: <TrophyOutlined />,
+        roles: ["admin", "staff", "referee"],
+      },
+      {
+        path: "/vouchers",
+        label: "Khuyến Mãi & Voucher",
+        icon: <GiftOutlined />,
+        roles: ["admin"],
+      },
+    ],
+  },
+  {
+    id: "finance",
+    title: "Tài Chính & Hóa Đơn",
+    roles: ["admin", "staff", "cashier"],
+    items: [
+      {
+        path: "/invoices",
+        label: "Hóa Đơn & Sổ Quỹ",
+        icon: <FileTextOutlined />,
+        roles: ["admin", "staff", "cashier"],
+      },
+    ],
+  },
+  {
+    id: "system",
+    title: "Quản Trị & Hệ Thống",
     roles: ["admin"],
-  },
-  {
-    path: "/vouchers",
-    label: "Mã giảm giá",
-    icon: <GiftOutlined />,
-    roles: ["admin"],
-  },
-  {
-    path: "/fnb-orders",
-    label: "Order F&B tại bàn",
-    icon: <ShoppingOutlined />,
-    roles: ["admin", "staff"],
-  },
-
-  {
-    path: "/suppliers",
-    label: "Nhà cung cấp",
-    icon: <ShopOutlined />,
-    roles: ["admin"],
-  },
-
-  {
-    path: "/invoices",
-    label: "Hóa đơn",
-    icon: <FileTextOutlined />,
-    roles: ["admin", "staff"],
-  },
-  {
-    path: "/wallet-topups",
-    label: "Đối soát nạp ví",
-    icon: <WalletOutlined />,
-    roles: ["admin", "staff"],
-  },
-  {
-    path: "/tournament-fees",
-    label: "Đối soát lệ phí giải",
-    icon: <TrophyOutlined />,
-    roles: ["admin", "staff"],
-  },
-  {
-    path: "/reports",
-    label: "Báo cáo doanh thu",
-    icon: <LineChartOutlined />,
-    roles: ["admin"],
-  },
-  {
-    path: "/table-performance",
-    label: "Hiệu suất bàn",
-    icon: <DashboardOutlined />,
-    roles: ["admin"],
-  },
-  {
-    path: "/employees",
-    label: "Nhân sự",
-    icon: <TeamOutlined />,
-    roles: ["admin"],
-  },
-  {
-    path: "/news",
-    label: "Tin tức",
-    icon: <ReadOutlined />,
-    roles: ["admin"],
-  },
-  {
-    path: "/settings",
-    label: "Cài đặt",
-    icon: <SettingOutlined />,
-    roles: ["admin"],
+    items: [
+      {
+        path: "/reports",
+        label: "Báo Cáo & Thống Kê",
+        icon: <LineChartOutlined />,
+        roles: ["admin"],
+      },
+      {
+        path: "/tables",
+        label: "Quản Lý Bàn & Bảng Giá",
+        icon: <AppstoreOutlined />,
+        roles: ["admin"],
+      },
+      {
+        path: "/employees",
+        label: "Nhân Sự CLB",
+        icon: <TeamOutlined />,
+        roles: ["admin"],
+      },
+      {
+        path: "/settings",
+        label: "Cài Đặt Hệ Thống",
+        icon: <SettingOutlined />,
+        roles: ["admin"],
+      },
+    ],
   },
 ];
 
@@ -285,6 +277,44 @@ const AdminLayout = () => {
     return `${days} ngày trước`;
   };
 
+  const isPathActive = (path: string) => {
+    if (location.pathname === path) return true;
+    if (path === "/pos" && location.pathname === "/admin/pos") return true;
+    if (path === "/dashboard" && location.pathname === "/admin") return true;
+    if (
+      path === "/invoices" &&
+      (location.pathname === "/wallet-topups" || location.pathname === "/tournament-fees")
+    )
+      return true;
+    if (path === "/reports" && location.pathname === "/table-performance") return true;
+    if (
+      path === "/inventory" &&
+      (location.pathname === "/catalog-management" || location.pathname === "/suppliers")
+    )
+      return true;
+    return false;
+  };
+
+  const visibleGroups = useMemo<MenuGroupConfig[]>(() => {
+    const list: MenuGroupConfig[] = [];
+    menuGroups.forEach((group) => {
+      const groupHasRole = !group.roles || (user?.role && group.roles.includes(user.role));
+      if (!groupHasRole) return;
+
+      const visibleItems = group.items.filter(
+        (item) => !item.roles || (user?.role && item.roles.includes(user.role)),
+      );
+
+      if (visibleItems.length > 0) {
+        list.push({
+          ...group,
+          items: visibleItems,
+        });
+      }
+    });
+    return list;
+  }, [user?.role]);
+
   const handleLogout = () => {
     setShowLogoutConfirm(true);
   };
@@ -314,17 +344,23 @@ const AdminLayout = () => {
               />
 
               {sidebarOpen && (
-                <span className="text-lg font-bold tracking-tight">
-                  CUE<span className="text-emerald-400">ZONE</span>
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-lg font-bold tracking-tight leading-none">
+                    CUE<span className="text-emerald-400">ZONE</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">
+                    Billiards Club POS
+                  </span>
+                </div>
               )}
             </div>
 
             <button
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-gray-400 hover:text-white transition hidden lg:block p-1"
+              className="text-gray-400 hover:text-white transition hidden lg:block p-1 rounded-md hover:bg-navy-700"
               aria-label={sidebarOpen ? "Thu gọn sidebar" : "Mở rộng sidebar"}
+              title={sidebarOpen ? "Thu gọn menu" : "Mở rộng menu"}
             >
               {sidebarOpen ? (
                 <LeftOutlined className="text-xs" />
@@ -334,37 +370,106 @@ const AdminLayout = () => {
             </button>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-            {menuItems
-              .filter((item) => !item.roles || (user?.role && item.roles.includes(user.role)))
-              .map((item) => {
-                const isActive =
-                  location.pathname === item.path ||
-                  (item.path === "/pos" && location.pathname === "/admin/pos") ||
-                  (item.path === "/dashboard" && location.pathname === "/admin");
+          {/* Navigation - 5 Business Groups, Direct 1-Click Items */}
+          <nav className="flex-1 py-3 px-2 space-y-3.5 overflow-y-auto">
+            {visibleGroups.map((group, groupIdx) => (
+              <div key={group.id} className="space-y-1">
+                {/* Group Heading */}
+                {sidebarOpen ? (
+                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase select-none">
+                    {group.title}
+                  </div>
+                ) : (
+                  groupIdx > 0 && <div className="my-2 border-t border-navy-700/60" />
+                )}
 
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    title={!sidebarOpen ? item.label : undefined}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${
-                      isActive
-                        ? "bg-primary-500 text-white shadow-xs font-semibold"
-                        : "text-gray-300 hover:bg-navy-700 hover:text-white"
-                    }`}
-                  >
-                    <span className="text-lg flex-shrink-0">{item.icon}</span>
+                {/* Group Items */}
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const isActive = isPathActive(item.path);
 
-                    {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                  </Link>
-                );
-              })}
+                    // SPECIAL POS BUTTON HIGHLIGHT
+                    if (item.isSpecial) {
+                      const buttonContent = (
+                        <Link
+                          to={item.path}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all shadow-md ${
+                            isActive
+                              ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold ring-2 ring-emerald-400 shadow-emerald-900/50"
+                              : "bg-navy-700/90 hover:bg-emerald-700/70 text-emerald-200 border border-emerald-500/30"
+                          } ${!sidebarOpen ? "justify-center" : ""}`}
+                        >
+                          <span className="text-lg text-emerald-300 flex-shrink-0 animate-pulse">
+                            {item.icon}
+                          </span>
+
+                          {sidebarOpen && (
+                            <div className="flex-1 flex items-center justify-between min-w-0">
+                              <span className="text-sm font-bold text-white tracking-wide truncate">
+                                {item.label}
+                              </span>
+                              {item.badge && (
+                                <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-amber-400 text-slate-900 shadow-xs">
+                                  {item.badge}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </Link>
+                      );
+
+                      return (
+                        <div key={item.path} className="mb-2">
+                          {!sidebarOpen ? (
+                            <Tooltip title={`${item.label} (${item.badge || "Chính"})`} placement="right">
+                              {buttonContent}
+                            </Tooltip>
+                          ) : (
+                            buttonContent
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // REGULAR DIRECT ITEM
+                    const regularContent = (
+                      <Link
+                        to={item.path}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${
+                          isActive
+                            ? "bg-emerald-600 text-white font-bold shadow-xs"
+                            : "text-gray-300 hover:bg-navy-700/60 hover:text-white"
+                        } ${!sidebarOpen ? "justify-center" : ""}`}
+                      >
+                        <span className="text-base flex-shrink-0 text-slate-300">{item.icon}</span>
+
+                        {sidebarOpen && (
+                          <span className="text-xs font-medium tracking-wide truncate">
+                            {item.label}
+                          </span>
+                        )}
+                      </Link>
+                    );
+
+                    return (
+                      <div key={item.path}>
+                        {!sidebarOpen ? (
+                          <Tooltip title={item.label} placement="right">
+                            {regularContent}
+                          </Tooltip>
+                        ) : (
+                          regularContent
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
 
           {/* Sidebar Footer: Logout */}
-          <div className="border-t border-navy-700 p-3">
+          <div className="border-t border-navy-700 p-2.5">
             <button
               type="button"
               onClick={handleLogout}
@@ -383,17 +488,29 @@ const AdminLayout = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top bar */}
           <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden text-gray-500 hover:text-gray-700"
+                className="lg:hidden text-gray-500 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100"
                 aria-label="Mở hoặc thu gọn menu"
               >
                 <MenuOutlined className="text-base" />
               </button>
 
-              <span className="text-sm text-gray-500">
+              {/* Quick POS Zen Mode button */}
+              <Tooltip title={sidebarOpen ? "Thu gọn menu (POS Zen Mode)" : "Mở rộng menu"}>
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition font-medium"
+                >
+                  {sidebarOpen ? <FullscreenOutlined /> : <FullscreenExitOutlined />}
+                  <span>{sidebarOpen ? "Chế độ rộng" : "Hiện menu"}</span>
+                </button>
+              </Tooltip>
+
+              <span className="text-xs text-gray-500 font-mono">
                 {new Date().toLocaleTimeString("vi-VN", {
                   hour: "2-digit",
                   minute: "2-digit",

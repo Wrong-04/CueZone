@@ -63,7 +63,7 @@ export const walletService = {
     return data.data;
   },
 
-  async createVnpayTopup(amount: 100000 | 200000 | 500000): Promise<VnpayTopup> {
+  async createVnpayTopup(amount: number): Promise<VnpayTopup> {
     const { data } = await api.post<ApiResponse<VnpayTopup>>("/wallet/topups/vnpay", { amount });
     if (!data.success || !data.data)
       throw new Error(data.message || "Không thể tạo giao dịch VNPay");
