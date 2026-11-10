@@ -27,7 +27,10 @@ import { bookingService } from "../../services/pos.service";
 import { getSocket } from "../../services/socket.service";
 import { productService, type ProductMenu } from "../../services/product.service";
 import { useAuth } from "../../contexts/AuthContext";
-import { isVietnameseMobilePhone } from "../../utils/phone";
+import {
+  isVietnameseMobilePhone,
+  normalizeVietnameseMobilePhone,
+} from "../../utils/phone";
 import { CustomerFnbMenuModal } from "../../components/customer/CustomerFnbMenuModal";
 
 const { Title, Paragraph } = Typography;
@@ -265,6 +268,11 @@ export const CustomerBooking = () => {
       message.warning("Vui lòng nhập số điện thoại để giữ bàn!");
       return;
     }
+    const normalizedPhone = normalizeVietnameseMobilePhone(phone);
+    if (!isVietnameseMobilePhone(phone) || !normalizedPhone) {
+      message.warning("Vui lòng nhập số di động Việt Nam hợp lệ (ví dụ: 0912345678).");
+      return;
+    }
     if (!selectedTable) {
       message.warning("Vui lòng chọn một bàn bida!");
       return;
@@ -280,7 +288,7 @@ export const CustomerBooking = () => {
       setLoading(true);
       const booking = await bookingService.createPublic({
         customerName: name.trim(),
-        phone: phone.trim(),
+        phone: normalizedPhone,
         tableId: selectedTable.id,
         date,
         time,
