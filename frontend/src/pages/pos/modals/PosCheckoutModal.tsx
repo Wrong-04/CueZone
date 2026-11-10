@@ -164,6 +164,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
         const totalDiscount = Math.min(subtotal, memberDiscountAmount + voucherDiscountAmount);
         const depositAmount = selectedTable.currentSession.deposit || 0;
         const finalAmount = Math.max(0, subtotal - totalDiscount - depositAmount);
+        const pointsWillEarn = loyaltyCustomer ? Math.floor(finalAmount / 10000) : 0;
 
         return (
           <div className="py-2 space-y-3.5 text-xs">
@@ -319,14 +320,23 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto flex-wrap">
                         <span className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-emerald-200 shadow-2xs text-[11px] font-semibold text-emerald-900">
-                          Điểm tích lũy:
+                          Điểm hiện có:
                           <strong className="font-mono text-emerald-700 font-black text-xs">
                             {(loyaltyCustomer.membershipPoints ?? 0).toLocaleString("vi-VN")}
                           </strong>
                           <span>điểm</span>
                         </span>
+                        {pointsWillEarn > 0 && (
+                          <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-lg shadow-2xs text-[11px] font-bold">
+                            Tích đơn này:
+                            <strong className="font-mono text-amber-700 font-black text-xs">
+                              +{pointsWillEarn.toLocaleString("vi-VN")}
+                            </strong>
+                            <span>điểm</span>
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -614,7 +624,14 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                   </div>
                 )}
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-bold text-slate-900">
-                  <span>TỔNG CỘNG THANH TOÁN:</span>
+                  <div>
+                    <span>TỔNG CỘNG THANH TOÁN:</span>
+                    {loyaltyCustomer && pointsWillEarn > 0 && (
+                      <span className="block text-[11px] font-semibold text-emerald-700 font-sans mt-0.5">
+                        ⭐ Tích lũy cho hội viên: <strong>+{pointsWillEarn.toLocaleString("vi-VN")} điểm</strong>
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xl font-black text-emerald-700 font-mono">
                     {finalAmount.toLocaleString("vi-VN")}đ
                   </span>
