@@ -217,7 +217,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             </div>
             {(paidSummary.pointsAwarded ?? paidSummary.earnedPoints ?? 0) > 0 && (
               <div className="flex justify-between text-emerald-700 font-semibold">
-                <span>Điểm thưởng ví hội viên:</span>
+                <span>Điểm tích lũy hội viên:</span>
                 <span>+{(paidSummary.pointsAwarded ?? paidSummary.earnedPoints ?? 0)}</span>
               </div>
             )}

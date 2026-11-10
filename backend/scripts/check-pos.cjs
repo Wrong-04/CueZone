@@ -91,6 +91,115 @@ async function main() {
       email: "customer@check.invalid",
       password: "CheckPassword123",
     });
+    const rejectedWalletCheckout = await request(
+      `/customer/fnb-orders/${new mongoose.Types.ObjectId()}/checkout`,
+      "POST",
+      { sessionId: "wallet-checkout-disabled", paymentMethod: "member_balance" },
+      customer.accessToken,
+    );
+    assert.equal(rejectedWalletCheckout.httpStatus, 400);
+    assert.equal(rejectedWalletCheckout.success, false);
+    await User.updateOne({ _id: customer.user._id }, { $set: { phone: "0912345678" } });
+    const formattedPhoneLogin = await ok("/auth/login", "POST", {
+      email: "+84 912 345 678",
+      password: "CheckPassword123",
+    });
+    assert.equal(formattedPhoneLogin.user.phone, "0912345678");
+    const duplicatePhoneRegistration = await request("/auth/register/request", "POST", {
+      name: "Duplicate phone",
+      email: "duplicate-phone@check.invalid",
+      phone: "0912-345-678",
+      password: "CheckPassword123",
+    });
+    assert.equal(duplicatePhoneRegistration.httpStatus, 400);
+    assert.equal(duplicatePhoneRegistration.message, "Số điện thoại đã được sử dụng");
+    const previousVnpayConfig = {
+      tmnCode: process.env.VNPAY_TMN_CODE,
+      hashSecret: process.env.VNPAY_HASH_SECRET,
+      returnUrl: process.env.VNPAY_RETURN_URL,
+    };
+    process.env.VNPAY_TMN_CODE = "TEST0001";
+    process.env.VNPAY_HASH_SECRET = "test-vnpay-hash-secret";
+    process.env.VNPAY_RETURN_URL = "http://localhost:5556/customer/wallet";
+    try {
+      const walletService = new WalletService();
+      const amount = 2_000_000;
+      const topup = await walletService.createVnpayTopup(
+        customer.user._id,
+        amount,
+        "127.0.0.1",
+      );
+      assert.match(topup.paymentUrl, /vnp_Amount=200000000/);
+      const balanceBeforeVnpay = (await Wallet.findOne({ userId: customer.user._id }))?.balance ?? 0;
+      const callbackDate = new Date(Date.now() + 7 * 60 * 60 * 1000)
+        .toISOString()
+        .replace(/[-:TZ.]/g, "")
+        .slice(0, 14);
+      const callbackParameters = {
+        vnp_Amount: String(amount * 100),
+        vnp_BankCode: "NCB",
+        vnp_CardType: "ATM",
+        vnp_CurrCode: "VND",
+        vnp_OrderInfo: `Nap vi CueZone ${topup.referenceCode}`,
+        vnp_PayDate: callbackDate,
+        vnp_ResponseCode: "00",
+        vnp_TmnCode: "TEST0001",
+        vnp_TransactionNo: "TEST-TRANSACTION-1",
+        vnp_TransactionStatus: "00",
+        vnp_TxnRef: topup.referenceCode,
+      };
+      callbackParameters.vnp_SecureHash = createHmac("sha512", "test-vnpay-hash-secret")
+        .update(vnpaySignData(callbackParameters))
+        .digest("hex");
+      const callbackResult = await ok(
+        "/wallet/topups/vnpay/return",
+        "POST",
+        callbackParameters,
+        customer.accessToken,
+      );
+      assert.equal(callbackResult.status, "success");
+      assert.equal(
+        (await Wallet.findOne({ userId: customer.user._id })).balance,
+        balanceBeforeVnpay + amount,
+        "A verified VNPay return should automatically credit the wallet",
+      );
+      await ok(
+        "/wallet/topups/vnpay/return",
+        "POST",
+        callbackParameters,
+        customer.accessToken,
+      );
+      assert.equal(
+        (await Wallet.findOne({ userId: customer.user._id })).balance,
+        balanceBeforeVnpay + amount,
+        "Replaying a verified VNPay return must not credit the wallet twice",
+      );
+      const tamperedTopup = await walletService.createVnpayTopup(
+        customer.user._id,
+        100_000,
+        "127.0.0.1",
+      );
+      const tamperedResult = await request(
+        "/wallet/topups/vnpay/return",
+        "POST",
+        { ...callbackParameters, vnp_TxnRef: tamperedTopup.referenceCode },
+        customer.accessToken,
+      );
+      assert.equal(tamperedResult.httpStatus, 400);
+      assert.match(tamperedResult.message, /Chữ ký phản hồi VNPay không hợp lệ/);
+      assert.equal(
+        (await Wallet.findOne({ userId: customer.user._id })).balance,
+        balanceBeforeVnpay + amount,
+        "An invalid VNPay signature must never credit the wallet",
+      );
+    } finally {
+      if (previousVnpayConfig.tmnCode === undefined) delete process.env.VNPAY_TMN_CODE;
+      else process.env.VNPAY_TMN_CODE = previousVnpayConfig.tmnCode;
+      if (previousVnpayConfig.hashSecret === undefined) delete process.env.VNPAY_HASH_SECRET;
+      else process.env.VNPAY_HASH_SECRET = previousVnpayConfig.hashSecret;
+      if (previousVnpayConfig.returnUrl === undefined) delete process.env.VNPAY_RETURN_URL;
+      else process.env.VNPAY_RETURN_URL = previousVnpayConfig.returnUrl;
+    }
     assert.equal(
       (await request("/bookings", "GET", undefined, customer.accessToken)).success,
       false,
@@ -283,6 +392,7 @@ async function main() {
       { status: "approved", tableId: table._id },
       token,
     );
+    await Table.updateOne({ _id: table._id }, { $set: { currentSession: null } });
     const opened = await ok(
       `/tables/${table._id}/session`,
       "POST",
@@ -295,7 +405,16 @@ async function main() {
     const sessionId = opened.currentSession.sessionId;
     assert.equal(opened.currentSession.deposit, 100);
     assert.equal((await Booking.findById(booking._id)).status, "checked_in");
-    assert.equal((await request(`/tables/${table._id}/session`, "POST", {}, token)).success, false);
+    const duplicateSession = await request(`/tables/${table._id}/session`, "POST", {}, token);
+    assert.equal(duplicateSession.success, false);
+    assert.equal(duplicateSession.httpStatus, 409);
+    const invalidSessionInput = await request(
+      `/tables/${table._id}/session`,
+      "POST",
+      { customerName: 123 },
+      token,
+    );
+    assert.equal(invalidSessionInput.httpStatus, 400);
     assert.equal(
       (await request(`/tables/${table._id}/status`, "PUT", { status: "available" }, token)).success,
       false,
@@ -417,7 +536,8 @@ async function main() {
       undefined,
       token,
     );
-    assert.equal(walletLookup.walletBalance, 0);
+    assert.equal(walletLookup.walletBalance, undefined);
+    assert.equal(walletLookup.membershipPoints, 5);
     const memberLogin = await ok("/auth/login", "POST", {
       email: "wallet-member@check.invalid",
       password: "CheckPassword123",

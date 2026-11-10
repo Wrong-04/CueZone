@@ -11,6 +11,7 @@ import {
   ClockCircleOutlined,
   ThunderboltOutlined,
   ArrowLeftOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -32,42 +33,18 @@ import {
   type CustomerOrder,
 } from "../../services/customer-order.service";
 import { getSocket } from "../../services/socket.service";
+import {
+  getCustomerFnbCategoryLabel,
+  getFnbImageUrl,
+  isFnbItemOutOfStock,
+  resolveFnbCategory,
+} from "../../utils/fnb";
+import { CustomerFnbCategoryPills } from "../../components/customer/CustomerFnbCategoryPills";
 
 const { Title, Text, Paragraph } = Typography;
 
-const normalizeCategory = (category?: string) => category?.trim().toLocaleLowerCase("vi-VN") ?? "";
-
-const getCategoryLabel = (category: string) => {
-  const norm = normalizeCategory(category);
-  const labels: Record<string, string> = {
-    drink: "Đồ uống",
-    food: "Món ăn",
-    snack: "Ăn vặt",
-    accessory: "Phụ kiện bida",
-    coffee: "Cà phê",
-  };
-
-  if (labels[norm]) return labels[norm];
-  if (/^[0-9a-fA-F]{24}$/.test(norm)) return "Món khác";
-  return category;
-};
-
 const getFallbackImage = (item: Product) => {
-  const category = normalizeCategory(item.category);
-  const name = item.name.toLocaleLowerCase("vi-VN");
-
-  if (category === "drink" && /bia|beer/.test(name)) {
-    return "/fnb/fnb-cold-beer.jpg";
-  }
-  if (category === "drink" && /cà phê|coffee/.test(name)) {
-    return "/fnb/fnb-salt-coffee.jpg";
-  }
-  if (category === "accessory") return "/fnb/fnb-salt-coffee.jpg";
-  if (category === "drink") return "/fnb/fnb-peach-tea.jpg";
-  if (category === "food") return "/fnb/fnb-beef-noodles.jpg";
-  if (category === "snack") return "/fnb/fnb-beef-jerky.jpg";
-
-  return "/fnb/fnb-salt-coffee.jpg";
+  return getFnbImageUrl(item.name, resolveFnbCategory(item.name, item.category));
 };
 
 interface CartItem {
@@ -81,6 +58,7 @@ export const CustomerFnB: React.FC = () => {
   const queryTableId = searchParams.get("tableId");
 
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchText, setSearchText] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeTables, setActiveTables] = useState<ActiveOrderTable[]>([]);
   const [selectedTableId, setSelectedTableId] = useState<string>("");
@@ -196,24 +174,26 @@ export const CustomerFnB: React.FC = () => {
     };
   }, [recentOrder]);
 
-  const filteredItems =
-    selectedCategory === "all"
-      ? menuItems
-      : menuItems.filter((item) => normalizeCategory(item.category) === selectedCategory);
+  const filteredItems = menuItems.filter((item) => {
+    const category = resolveFnbCategory(item.name, item.category);
+    const matchesCategory = selectedCategory === "all" || category === selectedCategory;
+    const matchesSearch =
+      !searchText.trim() ||
+      item.name.toLocaleLowerCase("vi-VN").includes(searchText.trim().toLocaleLowerCase("vi-VN"));
+    return matchesCategory && matchesSearch;
+  });
 
   const categoryOptions = useMemo(() => {
-    const set = new Set<string>();
-    menuItems.forEach((item) => {
-      const norm = normalizeCategory(item.category);
-      if (norm && !/^[0-9a-fA-F]{24}$/.test(norm)) {
-        set.add(norm);
-      }
-    });
+    const categories = menuItems.map((item) => resolveFnbCategory(item.name, item.category));
+    const categoryOrder = ["coffee", "tea", "juice", "beer", "food", "snack", "equipment"];
     return [
-      { key: "all", label: "Tất Cả Món" },
-      ...Array.from(set).map((cat) => ({
-        key: cat,
-        label: getCategoryLabel(cat),
+      { key: "all", label: "Tất cả thực đơn", badge: menuItems.length },
+      ...categoryOrder
+        .filter((category) => categories.includes(category))
+        .map((category) => ({
+        key: category,
+        label: getCustomerFnbCategoryLabel(category),
+        badge: categories.filter((itemCategory) => itemCategory === category).length,
       })),
     ];
   }, [menuItems]);
@@ -235,7 +215,7 @@ export const CustomerFnB: React.FC = () => {
   const totalPrice = cart.reduce((sum, i) => sum + i.item.salePrice * i.quantity, 0);
 
   const addToCart = (item: Product) => {
-    if (item.isOutOfStock) {
+    if (isFnbItemOutOfStock(item)) {
       message.warning("Món này hiện đang hết hàng!");
       return;
     }
@@ -357,23 +337,24 @@ export const CustomerFnB: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-        <div className="flex items-center gap-2 flex-wrap">
-          {categoryOptions.map((cat) => (
-            <Button
-              key={cat.key}
-              variant={selectedCategory === cat.key ? "primary" : "outline"}
-              size="sm"
-              onClick={() => handleCategoryChange(cat.key)}
-              className={`!text-xs !h-8 !px-3.5 !rounded-xl transition-all ${
-                selectedCategory === cat.key
-                  ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-xs"
-                  : "!border-slate-200 !bg-white !text-slate-600 hover:!border-slate-300"
-              }`}
-            >
-              {cat.label}
-            </Button>
-          ))}
+      <div className="space-y-3 pb-3 border-b border-slate-200">
+        <div className="space-y-3">
+          <CustomerFnbCategoryPills
+            items={categoryOptions}
+            activeKey={selectedCategory}
+            onSelect={handleCategoryChange}
+          />
+          <Input
+            prefix={<SearchOutlined className="text-slate-400" />}
+            placeholder="Tìm tên món..."
+            value={searchText}
+            onChange={(event) => {
+              setSearchText(event.target.value);
+              setCurrentPage(1);
+            }}
+            allowClear
+            className="w-full sm:!w-64"
+          />
         </div>
 
         <Text className="!text-xs !text-slate-400">
@@ -402,7 +383,7 @@ export const CustomerFnB: React.FC = () => {
                   <Card
                     key={item._id}
                     className={`!rounded-2xl !border-slate-200 !bg-white hover:!shadow-md transition-all overflow-hidden flex flex-col justify-between group p-0 ${
-                      item.isOutOfStock ? "!opacity-75" : ""
+                      isFnbItemOutOfStock(item) ? "!opacity-75" : ""
                     }`}
                   >
                     <div className="p-5 space-y-3">
@@ -410,7 +391,7 @@ export const CustomerFnB: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                             <Text className="!text-[11px] !text-emerald-700 font-semibold uppercase tracking-wider block">
-                              {getCategoryLabel(item.category)}
+                              {getCustomerFnbCategoryLabel(resolveFnbCategory(item.name, item.category))}
                             </Text>
                             {item.isMadeToOrder && (
                               <Tag
@@ -420,7 +401,7 @@ export const CustomerFnB: React.FC = () => {
                                 Pha chế/Bếp
                               </Tag>
                             )}
-                            {item.isOutOfStock && (
+                            {isFnbItemOutOfStock(item) && (
                               <Tag
                                 color="error"
                                 className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase"
@@ -459,7 +440,7 @@ export const CustomerFnB: React.FC = () => {
                       <div>
                         <Text
                           strong
-                          className={`!text-base font-black ${item.isOutOfStock ? "!text-slate-400" : "!text-emerald-600"}`}
+                          className={`!text-base font-black ${isFnbItemOutOfStock(item) ? "!text-slate-400" : "!text-emerald-600"}`}
                         >
                           {item.salePrice.toLocaleString("vi-VN")}đ
                         </Text>
@@ -469,12 +450,12 @@ export const CustomerFnB: React.FC = () => {
                         size="sm"
                         leftIcon={<PlusOutlined />}
                         onClick={() => addToCart(item)}
-                        disabled={item.isOutOfStock}
+                        disabled={isFnbItemOutOfStock(item)}
                         className={`!text-xs !h-8 !px-3 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl ${
-                          item.isOutOfStock ? "!opacity-50 !cursor-not-allowed" : ""
+                          isFnbItemOutOfStock(item) ? "!opacity-50 !cursor-not-allowed" : ""
                         }`}
                       >
-                        {item.isOutOfStock ? "Tạm Ngưng" : "Thêm Món"}
+                        {isFnbItemOutOfStock(item) ? "Tạm Ngưng" : "Thêm Món"}
                       </Button>
                     </div>
                   </Card>

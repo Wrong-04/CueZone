@@ -299,6 +299,9 @@ export class SessionService {
   private readonly walletService = new WalletService();
 
   async open(tableId: string, input: any) {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      throw Object.assign(new Error("Thông tin mở bàn không hợp lệ"), { httpCode: 400 });
+    }
     if (
       (input.customerName !== undefined &&
         (typeof input.customerName !== "string" || input.customerName.length > 120)) ||
@@ -306,16 +309,20 @@ export class SessionService {
         (typeof input.customerPhone !== "string" || input.customerPhone.length > 30)) ||
       (input.note !== undefined && (typeof input.note !== "string" || input.note.length > 1000))
     ) {
-      throw new Error("Thông tin khách hàng không hợp lệ");
+      throw Object.assign(new Error("Thông tin khách hàng không hợp lệ"), { httpCode: 400 });
     }
     const result = await mongoose.connection.transaction(async (session) => {
       const table = await Table.findOne({
         _id: tableId,
         isActive: true,
         status: { $in: [TableStatus.AVAILABLE, TableStatus.BOOKED] },
-        currentSession: { $exists: false },
+        $or: [{ currentSession: { $exists: false } }, { currentSession: null }],
       }).session(session);
-      if (!table) throw new Error("Bàn không còn sẵn sàng để mở");
+      if (!table) {
+        throw Object.assign(new Error("Bàn không còn sẵn sàng để mở. Vui lòng tải lại danh sách bàn."), {
+          httpCode: 409,
+        });
+      }
       let deposit = 0;
       let name = input.customerName?.trim() || "Khách vãng lai";
       let phone = input.customerPhone?.trim();
@@ -340,7 +347,9 @@ export class SessionService {
           _id: table.bookedInfo!.bookingId,
           status: "approved",
         }).session(session);
-        if (!booking) throw new Error("Không tìm thấy lịch đặt bàn hợp lệ");
+        if (!booking) {
+          throw Object.assign(new Error("Không tìm thấy lịch đặt bàn hợp lệ"), { httpCode: 409 });
+        }
         booking.status = "checked_in";
         deposit = booking.deposit;
         name = booking.customerName;
@@ -357,7 +366,9 @@ export class SessionService {
         booking.inventoryReserved = false;
         await booking.save({ session });
       } else if (input.bookingId) {
-        throw new Error("Lịch đặt bàn đã thay đổi, vui lòng tải lại");
+        throw Object.assign(new Error("Lịch đặt bàn đã thay đổi, vui lòng tải lại"), {
+          httpCode: 409,
+        });
       }
       let isMember = Boolean(input.isMember);
       if (phone) {
@@ -975,9 +986,11 @@ export class SessionService {
     input: { sessionId?: unknown; paymentMethod?: unknown; voucherCode?: unknown },
   ) {
     if (!input || typeof input !== "object") {
-      throw new Error("Thông tin yêu cầu thanh toán không hợp lệ");
+      throw Object.assign(new Error("Thông tin yêu cầu thanh toán không hợp lệ"), {
+        httpCode: 400,
+      });
     }
-    const validMethods = ["cash", "transfer", "member_balance"];
+    const validMethods = ["cash", "transfer"];
     if (
       !mongoose.isValidObjectId(customerId) ||
       !mongoose.isValidObjectId(tableId) ||
@@ -987,22 +1000,12 @@ export class SessionService {
       (input.voucherCode !== undefined &&
         (typeof input.voucherCode !== "string" || !input.voucherCode.trim()))
     ) {
-      throw new Error("Thông tin yêu cầu thanh toán không hợp lệ");
+      throw Object.assign(new Error("Thông tin yêu cầu thanh toán không hợp lệ"), {
+        httpCode: 400,
+      });
     }
     const voucherCode =
       typeof input.voucherCode === "string" ? input.voucherCode.trim().toUpperCase() : undefined;
-    if (input.paymentMethod === "member_balance") {
-      const receipt = await this.checkout(tableId, {
-        sessionId: input.sessionId,
-        paymentMethod: "member_balance",
-        customerId,
-        customerCheckout: true,
-        voucherCode,
-        discountPercent: 0,
-      });
-      return { status: "paid", receipt };
-    }
-
     const request = await mongoose.connection.transaction(async (session) => {
       const [user, table, wallet, pricingTiers] = await Promise.all([
         User.findOne({

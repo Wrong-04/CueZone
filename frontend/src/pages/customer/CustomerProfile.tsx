@@ -11,7 +11,6 @@ import {
   CrownOutlined,
   KeyOutlined,
   HistoryOutlined,
-  WalletOutlined,
   TrophyOutlined,
 } from "@ant-design/icons";
 import { Button, Tag, Input, Select, Typography, message, Space, Tabs } from "../../shared/ui";
@@ -46,7 +45,6 @@ export const CustomerProfile: React.FC = () => {
   const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
 
   const [notifyBooking, setNotifyBooking] = useState<boolean>(true);
-  const [notifyWallet, setNotifyWallet] = useState<boolean>(true);
   const [notifyTournament, setNotifyTournament] = useState<boolean>(true);
 
   const [overview, setOverview] = useState<MembershipOverview | null>(null);
@@ -118,11 +116,10 @@ export const CustomerProfile: React.FC = () => {
   };
 
   const handleToggleNotification = (
-    type: "booking" | "wallet" | "tournament",
+    type: "booking" | "tournament",
     nextVal: boolean,
   ) => {
     if (type === "booking") setNotifyBooking(nextVal);
-    if (type === "wallet") setNotifyWallet(nextVal);
     if (type === "tournament") setNotifyTournament(nextVal);
     message.success("Đã cập nhật cài đặt thông báo!");
   };
@@ -180,7 +177,7 @@ export const CustomerProfile: React.FC = () => {
             </div>
           </div>
 
-          {/* Quyền lợi & Số dư ví (Bỏ nút Đăng xuất thừa thãi) */}
+          {/* Quyền lợi hội viên */}
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-800">
             {overview?.currentTier && (
               <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl px-4 py-2.5 text-center min-w-[120px]">
@@ -200,13 +197,6 @@ export const CustomerProfile: React.FC = () => {
               </div>
             </div>
 
-            <Link
-              to="/customer/wallet"
-              className="inline-flex items-center justify-center gap-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-4 py-2.5 rounded-xl transition shadow-sm h-11 shrink-0"
-            >
-              <WalletOutlined />
-              <span>Ví Hội Viên →</span>
-            </Link>
           </div>
         </div>
       </div>
@@ -415,32 +405,6 @@ export const CustomerProfile: React.FC = () => {
                       <span
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                           notifyBooking ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                    <div>
-                      <strong className="block text-sm text-slate-900 mb-0.5">
-                        Biến động số dư ví
-                      </strong>
-                      <span className="text-slate-500">
-                        Nhận thông báo khi nạp tiền, trừ tiền thanh toán và nhận hoàn tiền
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={notifyWallet}
-                      onClick={() => handleToggleNotification("wallet", !notifyWallet)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        notifyWallet ? "bg-emerald-600" : "bg-slate-300"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          notifyWallet ? "translate-x-5" : "translate-x-0"
                         }`}
                       />
                     </button>

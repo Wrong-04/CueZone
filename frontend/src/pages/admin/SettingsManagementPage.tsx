@@ -103,6 +103,7 @@ export interface ClubSettingsData {
   autoTurnOffDelayMinutes: number;
 
   // Payment VietQR
+  bankCode: string;
   bankName: string;
   bankAccountNo: string;
   bankAccountName: string;
@@ -226,10 +227,11 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
   autoTurnOnLightOnOpen: true,
   autoTurnOffDelayMinutes: 2,
 
-  bankName: "MB Bank (Ngân hàng TMCP Quân Đội)",
-  bankAccountNo: "0908888999",
-  bankAccountName: "CLB BIDA CUEZONE - NGUYEN HAI LONG",
-  isVietQREnabled: true,
+  bankCode: "",
+  bankName: "",
+  bankAccountNo: "",
+  bankAccountName: "",
+  isVietQREnabled: false,
 
   autoLockPosTimeoutMinutes: 30,
   requireAdminPassOnCancelItem: true,
@@ -1261,7 +1263,17 @@ const SettingsManagementPage: React.FC = () => {
               </Tag>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Mã ngân hàng VietQR <span className="text-rose-500">*</span>
+                </label>
+                <Input
+                  value={settings.bankCode || ""}
+                  onChange={(e) => setSettings({ ...settings, bankCode: e.target.value.trim() })}
+                  placeholder="Ví dụ: MB, VCB"
+                />
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Ngân hàng thụ hưởng <span className="text-rose-500">*</span>
@@ -1292,6 +1304,9 @@ const SettingsManagementPage: React.FC = () => {
                 />
               </div>
             </div>
+            <p className="text-xs text-slate-500">
+              Cần cấu hình đủ mã ngân hàng, số tài khoản và tên chủ tài khoản để tạo QR chuyển khoản.
+            </p>
           </div>
         </div>
       )}

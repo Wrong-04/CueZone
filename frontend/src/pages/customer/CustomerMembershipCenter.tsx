@@ -8,7 +8,6 @@ import {
   StarOutlined,
   StarFilled,
   TableOutlined,
-  WalletOutlined,
 } from "@ant-design/icons";
 import { Button, Card, Input, message, Pagination, Tag, Typography } from "../../shared/ui";
 import {
@@ -29,9 +28,9 @@ const formatDate = (value: string) =>
 const paymentLabels: Record<string, string> = {
   cash: "Tiền mặt",
   transfer: "Chuyển khoản",
-  vnpay: "VNPay",
   card: "Thẻ",
-  member_balance: "Ví hội viên",
+  vnpay: "Chuyển khoản",
+  member_balance: "Phương thức khác",
 };
 
 const RatingStars = ({
@@ -156,7 +155,7 @@ const MemberOverviewTab = () => {
             <span className="ml-2 text-sm font-semibold text-slate-500">điểm</span>
           </div>
           <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-            <WalletOutlined className="text-emerald-600" />
+            <StarOutlined className="text-emerald-600" />
             Tích 1 điểm cho mỗi {overview.earnPointsRate.toLocaleString("vi-VN")}đ thanh toán.
           </div>
         </Card>

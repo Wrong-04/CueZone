@@ -29,7 +29,6 @@ import CustomerNews from "./pages/customer/CustomerNews";
 import CustomerFnB from "./pages/customer/CustomerFnB";
 import CustomerPlaySession from "./pages/customer/CustomerPlaySession";
 import CustomerHistory from "./pages/customer/CustomerHistory";
-import CustomerWallet from "./pages/customer/CustomerWallet";
 import CustomerProfile from "./pages/customer/CustomerProfile";
 
 import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
@@ -408,14 +407,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="wallet"
-          element={
-            <ProtectedRoute roles={["customer"]}>
-              <CustomerWallet />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="wallet" element={<Navigate to="/customer/session" replace />} />
         <Route
           path="profile"
           element={

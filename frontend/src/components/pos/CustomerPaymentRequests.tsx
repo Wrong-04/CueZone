@@ -13,6 +13,8 @@ import {
   staffOrderService,
   type CheckoutRequest,
 } from "../../services/customer-order.service";
+import type { CheckoutReceipt } from "../../types/pos";
+import PosReceiptModal from "../../pages/pos/modals/PosReceiptModal";
 
 const { Text } = Typography;
 
@@ -21,6 +23,7 @@ export default function CustomerPaymentRequests() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [workingKey, setWorkingKey] = useState("");
+  const [paidSummary, setPaidSummary] = useState<CheckoutReceipt | null>(null);
 
   const loadRequests = useCallback(async () => {
     try {
@@ -46,12 +49,18 @@ export default function CustomerPaymentRequests() {
     const key = `${request.tableId}:${request.sessionId}`;
     setWorkingKey(key);
     try {
-      await staffOrderService.resolvePaymentRequest(
+      const result = await staffOrderService.resolvePaymentRequest(
         request.tableId,
         request.sessionId,
         approved,
       );
-      message.success(approved ? "Đã xác nhận thanh toán" : "Đã từ chối yêu cầu thanh toán");
+      if (result.status === "paid") {
+        setOpen(false);
+        message.success("Đã xác nhận thanh toán. Có thể in hóa đơn cho khách.");
+        setPaidSummary(result.receipt);
+      } else {
+        message.success("Đã từ chối yêu cầu thanh toán");
+      }
       await loadRequests();
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không thể xử lý yêu cầu");
@@ -60,21 +69,23 @@ export default function CustomerPaymentRequests() {
     }
   };
 
-  if (requests.length === 0) {
+  if (requests.length === 0 && !paidSummary) {
     return null;
   }
 
   return (
     <>
-      <Button
-        variant="primary"
-        size="sm"
-        icon={<BellOutlined className="animate-bounce" />}
-        className="!rounded-xl !text-xs !h-8 !px-3 font-bold !bg-rose-600 hover:!bg-rose-700 !border-rose-600 text-white animate-pulse shadow-sm shrink-0"
-        onClick={() => setOpen(true)}
-      >
-        Khách gọi thanh toán ({requests.length})
-      </Button>
+      {requests.length > 0 && (
+        <Button
+          variant="primary"
+          size="sm"
+          icon={<BellOutlined className="animate-bounce" />}
+          className="!rounded-xl !text-xs !h-8 !px-3 font-bold !bg-rose-600 hover:!bg-rose-700 !border-rose-600 text-white animate-pulse shadow-sm shrink-0"
+          onClick={() => setOpen(true)}
+        >
+          Khách gọi thanh toán ({requests.length})
+        </Button>
+      )}
       <Modal
         title="Yêu cầu thanh toán tại bàn"
         open={open}
@@ -141,6 +152,11 @@ export default function CustomerPaymentRequests() {
           )}
         </div>
       </Modal>
+      <PosReceiptModal
+        open={paidSummary !== null}
+        onClose={() => setPaidSummary(null)}
+        paidSummary={paidSummary}
+      />
     </>
   );
 }

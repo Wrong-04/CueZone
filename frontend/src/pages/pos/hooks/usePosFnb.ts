@@ -3,6 +3,7 @@ import { message } from "../../../shared/ui";
 import { posService } from "../../../services/pos.service";
 import { productService } from "../../../services/product.service";
 import { getFnbCategoryLabel, PACKAGED_CATEGORIES } from "../constants/posConstants";
+import { isFnbItemPrepared } from "../../../utils/fnb";
 import type { PosTable, PosOrderItem } from "../../../types/pos";
 import type { FnbStockItem } from "../PosTableFloorPage";
 
@@ -116,10 +117,7 @@ export function usePosFnb({
   };
 
   const handleAddFnbItem = (stockItem: FnbStockItem) => {
-    const isPrepared =
-      stockItem.isMadeToOrder ||
-      (stockItem.unit && ["ly", "tô", "đĩa", "phần", "suất"].includes(stockItem.unit.toLowerCase())) ||
-      (stockItem.category && ["food", "coffee", "tea"].includes(stockItem.category.toLowerCase()));
+    const isPrepared = isFnbItemPrepared(stockItem);
 
     if (!isPrepared && stockItem.stockQuantity <= 0) {
       message.warning(`Món đóng gói "${stockItem.name}" đã hết hàng trong kho!`);

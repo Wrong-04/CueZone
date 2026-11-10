@@ -6,6 +6,7 @@ export interface ProductMenu {
   name: string;
   sku: string;
   category: string;
+  unit?: string;
   salePrice: number;
   imageUrl?: string;
   description: string;

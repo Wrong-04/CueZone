@@ -11,6 +11,7 @@ import {
 import clsx from "clsx";
 import { Button, Input, Modal, Select, Space, Tag } from "../../../shared/ui";
 import type { PosOrderItem, PosTable } from "../../../types/pos";
+import { isFnbItemPrepared } from "../../../utils/fnb";
 
 export interface PosProductItem {
   id: string;
@@ -160,7 +161,7 @@ export const PosFnbModal: React.FC<PosFnbModalProps> = ({
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-xs text-slate-900">{item.name}</span>
-                        {item.isMadeToOrder || (item.unit && ["ly", "tô", "đĩa", "phần", "suất"].includes(item.unit.toLowerCase())) || (item.category && ["food", "coffee", "tea"].includes(item.category.toLowerCase())) ? (
+                        {isFnbItemPrepared(item) ? (
                           <Tag color="purple" className="!text-[9px] !px-1.5 !py-0 !border-0 font-bold !rounded shadow-2xs">
                             CHẾ BIẾN
                           </Tag>
@@ -187,7 +188,7 @@ export const PosFnbModal: React.FC<PosFnbModalProps> = ({
                     </div>
 
                     {(() => {
-                      const isPrepared = item.isMadeToOrder || (item.unit && ["ly", "tô", "đĩa", "phần", "suất"].includes(item.unit.toLowerCase())) || (item.category && ["food", "coffee", "tea"].includes(item.category.toLowerCase()));
+                      const isPrepared = isFnbItemPrepared(item);
                       const isOutOfStock = !isPrepared && item.stockQuantity <= 0;
                       return (
                         <Button
