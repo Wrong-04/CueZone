@@ -156,7 +156,10 @@ const CustomerHome = () => {
 
     const socket = getSocket();
     setSocketConnected(socket.connected);
-    const onConnect = () => setSocketConnected(true);
+    const onConnect = () => {
+      setSocketConnected(true);
+      fetchTables();
+    };
     const onDisconnect = () => setSocketConnected(false);
     const handleUpdate = () => {
       fetchTables();
