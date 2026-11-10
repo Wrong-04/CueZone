@@ -1,13 +1,5 @@
-import axios from "axios";
 import api from "./api";
 import type { ApiResponse } from "../types";
-
-function walletRequestError(error: unknown, fallback: string) {
-  if (axios.isAxiosError(error) && typeof error.response?.data?.message === "string") {
-    return new Error(error.response.data.message);
-  }
-  return error instanceof Error ? error : new Error(fallback);
-}
 
 export type WalletTransactionStatus = "pending" | "success" | "failed";
 export type WalletTransactionType = "topup" | "payment";
@@ -72,41 +64,29 @@ export const walletService = {
   },
 
   async createVnpayTopup(amount: number): Promise<VnpayTopup> {
-    try {
-      const { data } = await api.post<ApiResponse<VnpayTopup>>("/wallet/topups/vnpay", { amount });
-      if (!data.success || !data.data)
-        throw new Error(data.message || "Không thể tạo giao dịch VNPay");
-      return data.data;
-    } catch (error) {
-      throw walletRequestError(error, "Không thể tạo giao dịch VNPay");
-    }
+    const { data } = await api.post<ApiResponse<VnpayTopup>>("/wallet/topups/vnpay", { amount });
+    if (!data.success || !data.data)
+      throw new Error(data.message || "Không thể tạo giao dịch VNPay");
+    return data.data;
   },
 
   async getVnpayTopupStatus(referenceCode: string): Promise<VnpayTopupStatus> {
-    try {
-      const { data } = await api.get<ApiResponse<VnpayTopupStatus>>(
-        `/wallet/topups/vnpay/${encodeURIComponent(referenceCode)}`,
-      );
-      if (!data.success || !data.data)
-        throw new Error(data.message || "Không thể kiểm tra giao dịch VNPay");
-      return data.data;
-    } catch (error) {
-      throw walletRequestError(error, "Không thể kiểm tra giao dịch VNPay");
-    }
+    const { data } = await api.get<ApiResponse<VnpayTopupStatus>>(
+      `/wallet/topups/vnpay/${encodeURIComponent(referenceCode)}`,
+    );
+    if (!data.success || !data.data)
+      throw new Error(data.message || "Không thể kiểm tra giao dịch VNPay");
+    return data.data;
   },
 
   async confirmVnpayReturn(parameters: Record<string, string>): Promise<VnpayTopupStatus> {
-    try {
-      const { data } = await api.post<ApiResponse<VnpayTopupStatus>>(
-        "/wallet/topups/vnpay/return",
-        parameters,
-      );
-      if (!data.success || !data.data)
-        throw new Error(data.message || "Không thể xác nhận kết quả thanh toán VNPay");
-      return data.data;
-    } catch (error) {
-      throw walletRequestError(error, "Không thể xác nhận kết quả thanh toán VNPay");
-    }
+    const { data } = await api.post<ApiResponse<VnpayTopupStatus>>(
+      "/wallet/topups/vnpay/return",
+      parameters,
+    );
+    if (!data.success || !data.data)
+      throw new Error(data.message || "Không thể xác nhận kết quả thanh toán VNPay");
+    return data.data;
   },
 
   async getPendingTopups(): Promise<PendingTopup[]> {

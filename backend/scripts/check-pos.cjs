@@ -7,53 +7,20 @@ try {
 } catch (e) {}
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
-const { createHmac, randomUUID } = require("node:crypto");
+const { randomUUID } = require("node:crypto");
 const { App } = require("../dist/app");
 const { User } = require("../dist/modules/user/user.model");
 const { Table } = require("../dist/modules/table/table.model");
 const { Booking } = require("../dist/modules/booking/booking.model");
 const { Invoice } = require("../dist/modules/invoice/invoice.model");
 const { Wallet } = require("../dist/modules/wallet/wallet.model");
-const { WalletService, vnpaySignData } = require("../dist/modules/wallet/wallet.service");
 const { Product } = require("../dist/modules/product/product.model");
-const Category = require("../dist/modules/product/category.model").default;
 const { playingDetails } = require("../dist/modules/session/session.service");
-const { sessionBelongsToCustomer } = require("../dist/modules/session/session.service");
-const { normalizeRegistrationPhone } = require("../dist/modules/auth/auth.service");
-const { phonePatterns } = require("../dist/utils/phone.util");
-const { normalizeVietnameseMobilePhone } = require("../dist/utils/phone.util");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
 const { getMemberTier, getPointsForSpend } = require("../dist/modules/member/membership.policy");
 const { PlayReview } = require("../dist/modules/member/play-review.model");
 
 async function main() {
-  assert.equal(normalizeRegistrationPhone("0912 345 678"), "0912345678");
-  assert.equal(normalizeRegistrationPhone("+84 912 345 678"), "0912345678");
-  assert.ok(phonePatterns("0912-345-678").some((pattern) => new RegExp(pattern).test("+84 912 345 678")));
-  assert.ok(phonePatterns("0912-345-678").some((pattern) => new RegExp(pattern).test("0912 345 678")));
-  assert.throws(() => normalizeRegistrationPhone("213 212 1323"), /số di động Việt Nam hợp lệ/);
-  assert.throws(() => normalizeVietnameseMobilePhone("12345"), /số di động Việt Nam hợp lệ/);
-  assert.equal(
-    sessionBelongsToCustomer(
-      { customerPhone: "+84 912 345 678" },
-      { _id: "guest-phone-link", phone: "0912-345-678" },
-    ),
-    true,
-    "An account registered with a booking phone should see its active guest session",
-  );
-  const bookingPhoneInput = {
-    customerName: "Guest",
-    phone: "+84 912 345 678",
-    table: new mongoose.Types.ObjectId(),
-    date: "2099-01-01",
-    time: "10:00",
-    duration: 2,
-  };
-  assert.equal(bookingInput(bookingPhoneInput).phone, "0912345678");
-  assert.throws(
-    () => bookingInput({ ...bookingPhoneInput, phone: "213 212 1323" }),
-    /số di động Việt Nam hợp lệ/,
-  );
   assert.equal(getMemberTier(499).tier.name, "Đồng");
   assert.equal(getMemberTier(500).tier.name, "Bạc");
   assert.equal(getMemberTier(1499).tier.name, "Bạc");
@@ -89,9 +56,7 @@ async function main() {
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-      const result = await response.json();
-      result.httpStatus = response.status;
-      return result;
+      return response.json();
     }
     async function ok(path, method, body, token) {
       const result = await request(path, method, body, token);
@@ -271,76 +236,7 @@ async function main() {
       isForSale: true,
       isActive: true,
     });
-    const activeFnbCategory = await Category.create({
-      name: "Món ăn",
-      code: "food",
-      isActive: true,
-    });
-    const idCategoryProduct = await Product.create({
-      name: "Món ăn theo danh mục",
-      sku: "CHECK-FNB-CATEGORY-ID",
-      category: String(activeFnbCategory._id),
-      unit: "phần",
-      salePrice: 5000,
-      stock: 5,
-      isForSale: true,
-      isActive: true,
-    });
-    const inactiveCategory = await Category.create({
-      name: "Đồ ăn tạm ngưng",
-      code: "snack",
-      isActive: false,
-    });
-    const inactiveProducts = await Product.create([
-      {
-        name: "Snack ngừng bán",
-        sku: "CHECK-INACTIVE-CODE",
-        category: "snack",
-        unit: "gói",
-        isForSale: true,
-        isActive: true,
-      },
-      {
-        name: "Snack danh mục ngừng hoạt động",
-        sku: "CHECK-INACTIVE-ID",
-        category: String(inactiveCategory._id),
-        unit: "gói",
-        isForSale: true,
-        isActive: true,
-      },
-      {
-        name: "Món đã ngừng bán",
-        sku: "CHECK-NOT-FOR-SALE",
-        category: "drink",
-        unit: "chai",
-        isForSale: false,
-        isActive: true,
-      },
-      {
-        name: "Phụ kiện không phải F&B",
-        sku: "CHECK-ACCESSORY",
-        category: "accessory",
-        unit: "cái",
-        isForSale: true,
-        isActive: true,
-      },
-    ]);
-    const fnbMenu = await ok("/products/fnb");
-    const fnbMenuIds = new Set(fnbMenu.map((product) => String(product._id)));
-    assert.ok(fnbMenuIds.has(String(preorderProduct._id)));
-    assert.ok(fnbMenuIds.has(String(idCategoryProduct._id)));
-    for (const product of inactiveProducts) {
-      assert.ok(!fnbMenuIds.has(String(product._id)), `${product.name} must not appear in F&B`);
-    }
-
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const availabilityPath =
-      `/public/booking-availability?date=${tomorrow}&time=10%3A00&duration=2`;
-    const availableBeforeBooking = await ok(availabilityPath);
-    assert.ok(
-      availableBeforeBooking.some((table) => String(table._id) === String(second._id)),
-      "An available table should appear in guest availability",
-    );
     const onlineDto = {
       customerName: "Check customer",
       phone: "0901234567",
@@ -349,10 +245,7 @@ async function main() {
       time: "10:00",
       duration: 2,
       deposit: 0,
-      preOrderItems: [
-        { productId: preorderProduct._id, quantity: 2 },
-        { productId: idCategoryProduct._id, quantity: 1 },
-      ],
+      preOrderItems: [{ productId: preorderProduct._id, quantity: 2 }],
     };
     const onlineConcurrent = await Promise.all([
       request("/public/bookings", "POST", onlineDto, customer.accessToken),
@@ -363,29 +256,11 @@ async function main() {
       1,
       "Concurrent online reservations must not claim the same slot",
     );
-    assert.equal(
-      onlineConcurrent.filter((result) => result.httpStatus === 409).length,
-      1,
-      "A concurrent guest reservation conflict must return HTTP 409",
-    );
     const onlineBooking = onlineConcurrent.find((result) => result.success).data;
     assert.equal(onlineBooking.status, "approved");
     assert.match(onlineBooking.qrToken, /^[a-f0-9]{64}$/);
     assert.equal((await Product.findById(preorderProduct._id)).stock, 8);
-    assert.equal((await Product.findById(idCategoryProduct._id)).stock, 4);
     assert.equal((await Table.findById(second._id)).status, "booked");
-    const availableAfterBooking = await ok(availabilityPath);
-    assert.ok(
-      !availableAfterBooking.some((table) => String(table._id) === String(second._id)),
-      "A table must be removed from guest availability during its booked interval",
-    );
-    const nextSlotAvailability = await ok(
-      `/public/booking-availability?date=${tomorrow}&time=13%3A00&duration=2`,
-    );
-    assert.ok(
-      !nextSlotAvailability.some((table) => String(table._id) === String(second._id)),
-      "A table that the booking endpoint cannot accept must not appear in guest availability",
-    );
     const qrBooking = await ok(
       "/bookings/qr/resolve",
       "POST",
@@ -394,11 +269,7 @@ async function main() {
     );
     assert.equal(qrBooking.table.code, "CHECK2");
     assert.equal(qrBooking.preOrderItems[0].name, "Check drink");
-    assert.equal(
-      qrBooking.preOrderItems[1].category,
-      String(activeFnbCategory._id),
-    );
-    assert.equal(qrBooking.preOrderTotal, 25000);
+    assert.equal(qrBooking.preOrderTotal, 20000);
     assert.equal(
       (await request("/bookings/qr/resolve", "POST", { qrToken: onlineBooking.qrToken }, customer.accessToken))
         .success,
@@ -415,17 +286,6 @@ async function main() {
       (await ok("/bookings/mine", "GET", undefined, customer.accessToken)).length,
       1,
     );
-    await Product.updateOne({ _id: preorderProduct._id }, { $set: { isForSale: false } });
-    const staleFnbBooking = await request(
-      "/public/bookings",
-      "POST",
-      { ...onlineDto, tableId: table._id, time: "15:00" },
-      customer.accessToken,
-    );
-    assert.equal(staleFnbBooking.success, false);
-    assert.equal(staleFnbBooking.httpStatus, 409);
-    assert.equal(staleFnbBooking.code, "FNB_MENU_CHANGED");
-    await Product.updateOne({ _id: preorderProduct._id }, { $set: { isForSale: true } });
     assert.equal((await request("/bookings/mine", "GET", undefined, token)).success, false);
     const availability = await ok(
       `/public/booking-availability?date=${tomorrow}&time=10%3A00&duration=2&type=carom`,

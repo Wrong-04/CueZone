@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DollarOutlined,
@@ -16,14 +16,13 @@ import {
 } from "@ant-design/icons";
 import { Card, Button, Tag, Typography } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
-import {
-  INITIAL_POS_TABLES,
-  INITIAL_BOOKING_REQUESTS,
-  INITIAL_FNB_STOCK,
-  type PosTable,
-  type BookingRequest,
-  type FnbStockItem,
-} from "../../mock/posData";
+import { posService, bookingService } from "../../services/pos.service";
+import { productService } from "../../services/product.service";
+import { invoiceService } from "../../services/invoice.service";
+import { tournamentService, type TournamentItem } from "../../services/tournament.service";
+import type { PosTable, BookingRequest } from "../../types/pos";
+import type { ClubInvoice } from "./InvoicesManagementPage";
+import type { FnbStockItem } from "../../mock/posData";
 
 const { Title, Text } = Typography;
 
@@ -31,44 +30,97 @@ export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Load real-time tables from localStorage or initial mock
-  const [tables] = useState<PosTable[]>(() => {
-    const saved = localStorage.getItem("cuezone_pos_tables");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return INITIAL_POS_TABLES;
-  });
+  // Live tables from database
+  const [tables, setTables] = useState<PosTable[]>([]);
+  // Live bookings from database
+  const [bookings, setBookings] = useState<BookingRequest[]>([]);
+  // Live F&B stock from database
+  const [fnbStock, setFnbStock] = useState<FnbStockItem[]>([]);
+  // Invoices data and metrics from database
+  const [todayInvoices, setTodayInvoices] = useState<ClubInvoice[]>([]);
+  const [invoicesRevenue, setInvoicesRevenue] = useState<number>(0);
+  const [invoicesTableFee, setInvoicesTableFee] = useState<number>(0);
+  const [invoicesFnbFee, setInvoicesFnbFee] = useState<number>(0);
+  // Tournaments data from database
+  const [tournaments, setTournaments] = useState<TournamentItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Load bookings from localStorage or initial mock
-  const [bookings] = useState<BookingRequest[]>(() => {
-    const saved = localStorage.getItem("cuezone_bookings");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
-    }
-    return INITIAL_BOOKING_REQUESTS;
-  });
+  const loadDashboardData = useCallback(async () => {
+    try {
+      const [tablesRes, bookingsRes, productsRes, invoicesRes, tournamentsRes] =
+        await Promise.allSettled([
+          posService.getTables(),
+          bookingService.getAll(),
+          productService.getAll(),
+          invoiceService.getInvoices({ limit: 50 }),
+          tournamentService.getTournaments({ limit: 5 }),
+        ]);
 
-  // Load F&B stock
-  const [fnbStock] = useState<FnbStockItem[]>(() => {
-    const saved = localStorage.getItem("cuezone_fnb_stock");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
+      if (tablesRes.status === "fulfilled" && Array.isArray(tablesRes.value)) {
+        setTables(tablesRes.value);
       }
+      if (bookingsRes.status === "fulfilled" && Array.isArray(bookingsRes.value)) {
+        setBookings(bookingsRes.value);
+      }
+      if (productsRes.status === "fulfilled" && Array.isArray(productsRes.value)) {
+        const mappedProducts: FnbStockItem[] = productsRes.value
+          .filter((p: any) => p.category !== "ingredient")
+          .map((p: any) => ({
+            id: String(p._id),
+            code: p.sku || `MN-${String(p._id).slice(-4)}`,
+            name: p.name,
+            category: p.category || "drink",
+            categoryName: p.category || "Đồ Uống",
+            price: Number(p.salePrice) || 0,
+            priceFormatted: `${Number(p.salePrice || 0).toLocaleString("vi-VN")}đ`,
+            stockQuantity: Number(p.stock) || 0,
+            minThreshold: Number(p.minStock) || 5,
+            unit: p.unit || "Lon",
+            image: p.imageUrl || "/fnb/fnb-salt-coffee.jpg",
+            isMadeToOrder: Boolean(p.isMadeToOrder),
+          }));
+        setFnbStock(mappedProducts);
+      }
+      if (invoicesRes.status === "fulfilled" && invoicesRes.value) {
+        const items = invoicesRes.value.items || [];
+        const todayStr = new Date().toDateString();
+        const paidToday = items.filter((inv: any) => {
+          if (!inv.createdAt) return false;
+          return new Date(inv.createdAt).toDateString() === todayStr && inv.status === "paid";
+        });
+        setTodayInvoices(paidToday);
+        const todayPaid = paidToday.reduce((sum: number, inv: any) => sum + (inv.finalTotal || 0), 0);
+        const todayTable = paidToday.reduce((sum: number, inv: any) => sum + (inv.tableFee || 0), 0);
+        const todayFnb = paidToday.reduce((sum: number, inv: any) => sum + (inv.fnbFee || 0), 0);
+        setInvoicesRevenue(todayPaid);
+        setInvoicesTableFee(todayTable);
+        setInvoicesFnbFee(todayFnb);
+      }
+      if (tournamentsRes.status === "fulfilled" && tournamentsRes.value?.items) {
+        setTournaments(tournamentsRes.value.items);
+      }
+    } catch (err) {
+      console.warn("Lỗi đồng bộ Dashboard từ API:", err);
+    } finally {
+      setLoading(false);
     }
-    return INITIAL_FNB_STOCK;
-  });
+  }, []);
+
+  useEffect(() => {
+    void loadDashboardData();
+  }, [loadDashboardData]);
+
+  // Dynamic Shift calculation based on current hour
+  const shiftInfo = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 14) {
+      return { label: "Ca sáng", hours: "06:00 - 14:00" };
+    } else if (hour >= 14 && hour < 22) {
+      return { label: "Ca chiều", hours: "14:00 - 22:00" };
+    } else {
+      return { label: "Ca đêm", hours: "22:00 - 06:00" };
+    }
+  }, []);
 
   // Clock ticker for live session durations
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
@@ -104,29 +156,38 @@ export const AdminDashboard: React.FC = () => {
     const playing = tables.filter((t) => t.status === "playing").length;
     const paused = tables.filter((t) => t.status === "paused").length;
     const booked = tables.filter((t) => t.status === "booked").length;
-    const available = tables.filter((t) => t.status === "available").length;
+    const available = tables.filter((t) => t.status === "available" || !t.status).length;
     const maintenance = tables.filter((t) => t.status === "maintenance").length;
 
-    let totalTempRevenue = 0;
+    let totalTempTableRevenue = 0;
+    let totalTempDrinkRevenue = 0;
+    let totalTempSnackRevenue = 0;
+
     tables.forEach((t) => {
       if (t.currentSession) {
         const { cost } = calculatePlayingDetails(t);
-        const fnbCost = t.currentSession.orders.reduce(
-          (acc, cur) => acc + cur.price * cur.quantity,
-          0,
-        );
-        totalTempRevenue += cost + fnbCost;
+        totalTempTableRevenue += cost;
+        (t.currentSession.orders || []).forEach((order) => {
+          const itemCost = (order.price || 0) * (order.quantity || 1);
+          if (order.category === "drink" || order.category === "coffee") {
+            totalTempDrinkRevenue += itemCost;
+          } else {
+            totalTempSnackRevenue += itemCost;
+          }
+        });
       }
     });
 
-    // Simulated historical paid revenue today
-    const paidRevenueToday = 3173333;
+    const totalTempRevenue = totalTempTableRevenue + totalTempDrinkRevenue + totalTempSnackRevenue;
+    const paidRevenueToday = invoicesRevenue;
     const grandRevenueToday = totalTempRevenue + paidRevenueToday;
 
-    // Occupancy percentage (playing + paused + booked / usable tables)
-    const usableTables = Math.max(1, total - maintenance);
+    const usableTables = total > 0 ? Math.max(1, total - maintenance) : 0;
     const occupiedTables = playing + paused + booked;
-    const occupancyRate = Math.min(100, Math.round((occupiedTables / usableTables) * 100));
+    const occupancyRate =
+      total > 0 && usableTables > 0
+        ? Math.min(100, Math.round((occupiedTables / usableTables) * 100))
+        : 0;
 
     return {
       total,
@@ -136,18 +197,48 @@ export const AdminDashboard: React.FC = () => {
       available,
       maintenance,
       totalTempRevenue,
+      totalTempTableRevenue,
+      totalTempDrinkRevenue,
+      totalTempSnackRevenue,
       paidRevenueToday,
       grandRevenueToday,
       occupancyRate,
+      occupiedTables,
     };
-  }, [tables, currentTime]);
+  }, [tables, currentTime, invoicesRevenue]);
 
-  // Low stock alert items
+  // Low stock alert items (exclude made to order items)
   const lowStockItems = useMemo(() => {
-    return fnbStock.filter((item) => item.stockQuantity <= item.minThreshold);
+    return fnbStock.filter((item) => !item.isMadeToOrder && item.stockQuantity <= item.minThreshold);
   }, [fnbStock]);
 
-  // Active playing/paused tables for the live cockpit
+  // Customer statistics dynamically derived without arbitrary constants
+  const customerStats = useMemo(() => {
+    const activeSessions = tables.filter((t) => t.currentSession);
+    const memberSessions = activeSessions.filter((t) => t.currentSession?.isMember).length;
+
+    // Invoices completed today by club members
+    const invoiceMembers = todayInvoices.filter(
+      (inv) => inv.memberRank && inv.memberRank !== "Normal",
+    ).length;
+    const invoiceGuests = todayInvoices.length - invoiceMembers;
+
+    // Total unique verified customers and guests today
+    const totalMembers = memberSessions + invoiceMembers;
+    const totalGuests = (activeSessions.length - memberSessions) + invoiceGuests + bookings.length;
+    const totalCustomers = totalMembers + totalGuests;
+    const memberPercent =
+      totalCustomers > 0 ? Math.round((totalMembers / totalCustomers) * 100) : 0;
+
+    return {
+      total: totalCustomers,
+      members: totalMembers,
+      guests: totalGuests,
+      memberPercent,
+    };
+  }, [tables, bookings, todayInvoices]);
+
+  // Active playing/paused/booked tables for the live cockpit
   const activeTables = useMemo(() => {
     return tables.filter(
       (t) => t.status === "playing" || t.status === "paused" || t.status === "booked",
@@ -159,17 +250,69 @@ export const AdminDashboard: React.FC = () => {
     return bookings.filter((b) => b.status === "pending").length;
   }, [bookings]);
 
-  // Hourly peak revenue data (Simulation based on actual club hours)
-  const hourlyData = [
-    { hour: "09:00", revenue: 250000, height: 18 },
-    { hour: "11:00", revenue: 480000, height: 35 },
-    { hour: "13:00", revenue: 620000, height: 45 },
-    { hour: "15:00", revenue: 890000, height: 65 },
-    { hour: "17:00", revenue: 750000, height: 55 },
-    { hour: "19:00", revenue: 1150000, height: 85, isPeak: true },
-    { hour: "21:00", revenue: 1420000, height: 100, isPeak: true },
-    { hour: "23:00", revenue: 540000, height: 40 },
-  ];
+  // Dynamic revenue category split
+  const revenueSplit = useMemo(() => {
+    const totalTable = floorStats.totalTempTableRevenue + invoicesTableFee;
+    const totalDrink = floorStats.totalTempDrinkRevenue + Math.round(invoicesFnbFee * 0.7);
+    const totalSnack = floorStats.totalTempSnackRevenue + Math.round(invoicesFnbFee * 0.3);
+    const grand = totalTable + totalDrink + totalSnack;
+
+    if (grand === 0) {
+      return { tablePercent: 0, drinkPercent: 0, snackPercent: 0, hasData: false };
+    }
+
+    const tablePercent = Math.round((totalTable / grand) * 100);
+    const drinkPercent = Math.round((totalDrink / grand) * 100);
+    const snackPercent = Math.max(0, 100 - tablePercent - drinkPercent);
+
+    return { tablePercent, drinkPercent, snackPercent, hasData: true };
+  }, [floorStats, invoicesTableFee, invoicesFnbFee]);
+
+  // Hourly peak revenue data dynamically aggregated from invoices and live sessions
+  const hourlyData = useMemo(() => {
+    const slots = [
+      { hour: "09:00", startH: 8, endH: 10, revenue: 0 },
+      { hour: "11:00", startH: 10, endH: 12, revenue: 0 },
+      { hour: "13:00", startH: 12, endH: 14, revenue: 0 },
+      { hour: "15:00", startH: 14, endH: 16, revenue: 0 },
+      { hour: "17:00", startH: 16, endH: 18, revenue: 0 },
+      { hour: "19:00", startH: 18, endH: 20, revenue: 0 },
+      { hour: "21:00", startH: 20, endH: 22, revenue: 0 },
+      { hour: "23:00", startH: 22, endH: 24, revenue: 0 },
+    ];
+
+    todayInvoices.forEach((inv) => {
+      if (!inv.createdAt) return;
+      const invHour = new Date(inv.createdAt).getHours();
+      const slot =
+        slots.find((s) => invHour >= s.startH && invHour < s.endH) || slots[slots.length - 1];
+      slot.revenue += inv.finalTotal || 0;
+    });
+
+    const currentHour = new Date().getHours();
+    const currentSlot =
+      slots.find((s) => currentHour >= s.startH && currentHour < s.endH) || slots[slots.length - 1];
+    currentSlot.revenue += floorStats.totalTempRevenue;
+
+    const maxRev = Math.max(...slots.map((s) => s.revenue), 1);
+    return slots.map((s) => ({
+      hour: s.hour,
+      revenue: s.revenue,
+      height: s.revenue > 0 ? Math.max(12, Math.round((s.revenue / maxRev) * 100)) : 8,
+      isPeak: s.revenue === maxRev && s.revenue > 0,
+    }));
+  }, [todayInvoices, floorStats.totalTempRevenue]);
+
+  // Active tournament item
+  const activeTournament = useMemo(() => {
+    return (
+      tournaments.find((t) => t.status === "in_progress") ||
+      tournaments.find((t) => t.status === "registration_open") ||
+      tournaments.find((t) => t.status === "draft") ||
+      tournaments[0] ||
+      null
+    );
+  }, [tournaments]);
 
   return (
     <div className="space-y-6">
@@ -186,13 +329,13 @@ export const AdminDashboard: React.FC = () => {
                 level={3}
                 className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
               >
-                Xin chào, {user?.name || "Nguyễn Tiến Dũng (Chủ CLB)"}
+                Xin chào, {user?.name ? user.name.replace(/\s*\([^)]*\)/g, "").trim() : "Quản Trị Viên"}
               </Title>
               <Tag
                 color="green"
                 className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0"
               >
-                CHỦ CLB • SIMONIS EMERALD
+                {user?.role === "admin" ? "CHỦ QUÁN • QUẢN LÝ" : "NHÂN VIÊN VẬN HÀNH"}
               </Tag>
             </div>
             <Text className="!text-xs !text-slate-500 block">
@@ -201,12 +344,26 @@ export const AdminDashboard: React.FC = () => {
             </Text>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
-            {/* Shift & Date badge */}
-            <div className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200/80 text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+            {/* Shift & Date badge dynamically calculated */}
+            <div className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200/80 text-xs font-semibold text-slate-700 flex items-center gap-1.5 whitespace-nowrap">
               <ClockCircleOutlined className="text-emerald-600" />
-              <span>Ca chiều (13:00 - 23:00)</span>
+              <span>{shiftInfo.label} ({shiftInfo.hours})</span>
             </div>
+
+            {/* Manual Sync live data */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoading(true);
+                void loadDashboardData();
+              }}
+              disabled={loading}
+              className="!h-9 !rounded-xl !border-slate-300 !text-slate-600 hover:!border-emerald-600 font-medium !text-xs whitespace-nowrap"
+            >
+              {loading ? "Đang tải..." : "Làm mới"}
+            </Button>
 
             {/* Quick Actions */}
             <Button
@@ -214,19 +371,19 @@ export const AdminDashboard: React.FC = () => {
               size="sm"
               onClick={() => navigate("/pos")}
               leftIcon={<ThunderboltOutlined />}
-              className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs"
+              className="!h-9 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs text-white shadow-2xs whitespace-nowrap"
             >
-              Mở POS Sơ Đồ Bàn
+              Mở Sơ Đồ Bàn (POS)
             </Button>
 
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate("/booking")}
+              onClick={() => navigate("/pos")}
               leftIcon={<CalendarOutlined />}
-              className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs"
+              className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs whitespace-nowrap"
             >
-              Duyệt Đặt Bàn {pendingBookingsCount > 0 && `(${pendingBookingsCount})`}
+              Lịch Đặt Bàn {bookings.length > 0 && `(${bookings.length})`}
             </Button>
           </div>
         </div>
@@ -252,8 +409,8 @@ export const AdminDashboard: React.FC = () => {
               <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
                 {floorStats.grandRevenueToday.toLocaleString("vi-VN")}đ
               </span>
-              <span className="text-xs font-bold text-emerald-600 flex items-center gap-0.5">
-                <ArrowUpOutlined /> +18.4%
+              <span className="text-xs font-bold text-emerald-600 flex items-center gap-0.5 whitespace-nowrap">
+                <ArrowUpOutlined /> Thời gian thực
               </span>
             </div>
 
@@ -267,7 +424,7 @@ export const AdminDashboard: React.FC = () => {
               <span>
                 Đã thu:{" "}
                 <strong className="text-slate-800 font-mono">
-                  {(floorStats.paidRevenueToday / 1000000).toFixed(1)}M
+                  {floorStats.paidRevenueToday.toLocaleString("vi-VN")}đ
                 </strong>
               </span>
             </div>
@@ -293,8 +450,7 @@ export const AdminDashboard: React.FC = () => {
                 {floorStats.occupancyRate}%
               </span>
               <span className="text-xs font-semibold text-slate-500">
-                ({floorStats.playing + floorStats.paused + floorStats.booked}/{floorStats.total} bàn
-                đang mở)
+                ({floorStats.occupiedTables}/{floorStats.total} bàn đang phục vụ)
               </span>
             </div>
 
@@ -335,19 +491,19 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="flex items-baseline gap-2 mb-2">
               <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
-                38 Cơ Thủ
+                {customerStats.total} Cơ Thủ
               </span>
               <Tag color="gold" className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold">
-                +5 VIP Mới
+                {customerStats.members} Hội Viên
               </Tag>
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>
-                Hội viên CLB: <strong className="text-slate-800">24 (63%)</strong>
+                Hội viên CLB: <strong className="text-slate-800">{customerStats.members} ({customerStats.memberPercent}%)</strong>
               </span>
               <span>
-                Khách vãng lai: <strong className="text-slate-800">14</strong>
+                Khách vãng lai: <strong className="text-slate-800">{customerStats.guests}</strong>
               </span>
             </div>
           </div>
@@ -409,7 +565,7 @@ export const AdminDashboard: React.FC = () => {
                     Bàn Đang Hoạt Động (Live Floor)
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
-                    {floorStats.playing + floorStats.paused} phiên chơi đang tính giờ tự động
+                    {activeTables.length} bàn đang phục vụ ({floorStats.playing} đang chơi, {floorStats.paused} tạm dừng, {floorStats.booked} đặt trước)
                   </Text>
                 </div>
               </div>
@@ -427,7 +583,12 @@ export const AdminDashboard: React.FC = () => {
 
             {/* List of active tables */}
             <div className="divide-y divide-slate-100">
-              {activeTables.map((table) => {
+              {activeTables.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  Hiện không có bàn nào đang hoạt động
+                </div>
+              ) : (
+                activeTables.map((table) => {
                 const { cost, formattedTime } = calculatePlayingDetails(table);
                 const fnbTotal =
                   table.currentSession?.orders.reduce(
@@ -446,12 +607,12 @@ export const AdminDashboard: React.FC = () => {
                     className="p-3.5 sm:p-4 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-bold text-slate-400 font-mono leading-none">
-                          {table.code}
+                      <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center flex-shrink-0">
+                        <span className="text-[10px] font-bold text-slate-500 font-mono leading-none">
+                          {table.code.split("-")[0]}
                         </span>
-                        <span className="text-xs font-black text-slate-800 leading-none mt-0.5">
-                          {table.name.split(" ")[1] || "Bàn"}
+                        <span className="text-xs font-black text-slate-800 font-mono leading-none mt-0.5">
+                          {table.code.split("-")[1] || table.code}
                         </span>
                       </div>
 
@@ -494,7 +655,7 @@ export const AdminDashboard: React.FC = () => {
                             <>
                               <UserOutlined className="text-slate-400 text-xs" />
                               <span className="font-semibold text-slate-700 truncate max-w-[120px]">
-                                {table.currentSession?.customerName}
+                                {table.currentSession?.customerName || "Khách lẻ"}
                               </span>
                               {table.currentSession?.isMember && (
                                 <Tag
@@ -506,13 +667,13 @@ export const AdminDashboard: React.FC = () => {
                               )}
                               <span className="text-slate-300">•</span>
                               <span className="font-mono text-slate-600">
-                                Từ {table.currentSession?.sessionStart}
+                                Từ {table.currentSession?.sessionStart || "--:--"}
                               </span>
                             </>
                           ) : (
                             <span>
-                              Hẹn khách: <strong>{table.bookedInfo?.customerName}</strong> (
-                              {table.bookedInfo?.time})
+                              Hẹn khách: <strong>{table.bookedInfo?.customerName || "Khách đặt trước"}</strong>{" "}
+                              {table.bookedInfo?.time ? `(${table.bookedInfo.time})` : ""}
                             </span>
                           )}
                         </div>
@@ -535,7 +696,11 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </div>
                       ) : (
-                        <div className="text-xs text-blue-700 font-medium">Đã cọc 100k</div>
+                        <div className="text-xs text-blue-700 font-medium">
+                          {table.bookedInfo?.deposit
+                            ? `Đã cọc ${table.bookedInfo.deposit.toLocaleString("vi-VN")}đ`
+                            : "Giữ chỗ đặt trước"}
+                        </div>
                       )}
 
                       <Button
@@ -548,7 +713,8 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
                 );
-              })}
+              })
+            )}
             </div>
 
             <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
@@ -600,56 +766,62 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="divide-y divide-slate-100">
-              {bookings.slice(0, 4).map((b) => (
-                <div
-                  key={b.id}
-                  className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-900 truncate">
-                        {b.customerName}
-                      </span>
-                      <span className="text-xs font-mono text-slate-500">({b.phone})</span>
-                      {b.status === "approved" ? (
-                        <Tag
-                          color="green"
-                          className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
-                        >
-                          ĐÃ DUYỆT
-                        </Tag>
-                      ) : b.status === "pending" ? (
-                        <Tag
-                          color="orange"
-                          className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
-                        >
-                          CHỜ DUYỆT
-                        </Tag>
-                      ) : (
-                        <Tag
-                          color="error"
-                          className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
-                        >
-                          TỪ CHỐI
-                        </Tag>
-                      )}
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      Bàn yêu cầu: <strong className="text-slate-800">{b.tableName}</strong> •{" "}
-                      {b.duration} giờ chơi
-                    </div>
-                  </div>
-
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-xs font-bold text-blue-900 font-mono">
-                      {b.time} ({b.date})
-                    </div>
-                    <span className="text-[11px] text-slate-400 block">
-                      Tạm tính: {b.estimatedCost.toLocaleString("vi-VN")}đ
-                    </span>
-                  </div>
+              {bookings.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  Chưa có lịch đặt bàn nào hôm nay
                 </div>
-              ))}
+              ) : (
+                bookings.slice(0, 4).map((b) => (
+                  <div
+                    key={b.id}
+                    className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-900 truncate">
+                          {b.customerName}
+                        </span>
+                        <span className="text-xs font-mono text-slate-500">({b.phone})</span>
+                        {b.status === "approved" ? (
+                          <Tag
+                            color="green"
+                            className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                          >
+                            ĐÃ DUYỆT
+                          </Tag>
+                        ) : b.status === "pending" ? (
+                          <Tag
+                            color="orange"
+                            className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                          >
+                            CHỜ DUYỆT
+                          </Tag>
+                        ) : (
+                          <Tag
+                            color="error"
+                            className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
+                          >
+                            TỪ CHỐI
+                          </Tag>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        Bàn yêu cầu: <strong className="text-slate-800">{b.tableName}</strong> •{" "}
+                        {b.duration} giờ chơi
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-xs font-bold text-blue-900 font-mono">
+                        {b.time} ({b.date})
+                      </div>
+                      <span className="text-[11px] text-slate-400 block">
+                        Tạm tính: {b.estimatedCost.toLocaleString("vi-VN")}đ
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
         </div>
@@ -715,15 +887,21 @@ export const AdminDashboard: React.FC = () => {
               <div className="pt-4 grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                   <span className="text-[11px] text-slate-500 block">Tiền Giờ Bàn</span>
-                  <strong className="text-slate-900 font-bold font-mono">65%</strong>
+                  <strong className="text-slate-900 font-bold font-mono">
+                    {revenueSplit.hasData ? `${revenueSplit.tablePercent}%` : "0%"}
+                  </strong>
                 </div>
                 <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100">
                   <span className="text-[11px] text-emerald-800 block">Đồ Uống & Cafe</span>
-                  <strong className="text-emerald-700 font-bold font-mono">25%</strong>
+                  <strong className="text-emerald-700 font-bold font-mono">
+                    {revenueSplit.hasData ? `${revenueSplit.drinkPercent}%` : "0%"}
+                  </strong>
                 </div>
                 <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-100">
                   <span className="text-[11px] text-amber-800 block">Ăn Vặt & Snack</span>
-                  <strong className="text-amber-800 font-bold font-mono">10%</strong>
+                  <strong className="text-amber-800 font-bold font-mono">
+                    {revenueSplit.hasData ? `${revenueSplit.snackPercent}%` : "0%"}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -743,58 +921,102 @@ export const AdminDashboard: React.FC = () => {
                     level={4}
                     className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight"
                   >
-                    Giải Đấu & Trọng Tài Bank Pool
+                    {activeTournament?.name || "Giải Đấu & Trọng Tài Bank Pool"}
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
-                    Trận thi đấu chính thức tại bàn VIP Match 13
+                    {activeTournament?.assignedTables && activeTournament.assignedTables.length > 0
+                      ? `Bàn thi đấu: ${activeTournament.assignedTables.join(", ")}`
+                      : "Trận thi đấu chính thức tại bàn MTCH-01 (Khu Thi Đấu)"}
                   </Text>
                 </div>
               </div>
 
-              <Tag color="green" className="!text-[10px] !px-2 !py-0.5 !font-bold">
-                LIVE VAR
+              <Tag
+                color={
+                  activeTournament?.status === "in_progress"
+                    ? "green"
+                    : activeTournament?.status === "registration_open"
+                      ? "blue"
+                      : "orange"
+                }
+                className="!text-[10px] !px-2 !py-0.5 !font-bold"
+              >
+                {activeTournament?.status === "in_progress"
+                  ? "LIVE VAR"
+                  : activeTournament?.status === "registration_open"
+                    ? "ĐANG ĐĂNG KÝ"
+                    : "SẮP KHỞI TRANH"}
               </Tag>
             </div>
 
             <div className="p-4 space-y-3">
-              {/* Match Score Strip */}
+              {/* Tournament Match / Overview Strip */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex justify-between">
-                  <span>GIẢI CUEZONE BANK POOL CHAMPIONSHIP</span>
-                  <span className="text-emerald-700 font-mono">RACE TO 5</span>
+                  <span className="truncate max-w-[200px]">
+                    {activeTournament?.name || "GIẢI CUEZONE BANK POOL CHAMPIONSHIP"}
+                  </span>
+                  <span className="text-emerald-700 font-mono">
+                    RACE TO {activeTournament?.raceToScore || 4}
+                  </span>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
-                      L
+                {activeTournament?.players && activeTournament.players.length >= 2 ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
+                        {activeTournament.players[0].name.charAt(0)}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
+                          {activeTournament.players[0].name}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Hạt giống #{activeTournament.players[0].seed || 1}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-900 block">
-                        Nguyễn Hoàng Long
-                      </span>
-                      <span className="text-[10px] text-slate-500">Rank A • ELO 1520</span>
-                    </div>
-                  </div>
 
-                  <div className="px-3 py-1 bg-white rounded-lg border border-slate-200 font-mono font-black text-lg text-slate-900 shadow-2xs">
-                    3 - 2
-                  </div>
+                    <div className="px-3 py-1 bg-white rounded-lg border border-slate-200 font-mono font-black text-lg text-slate-900 shadow-2xs">
+                      VS
+                    </div>
 
-                  <div className="flex items-center gap-2 text-right">
-                    <div>
-                      <span className="text-xs font-bold text-slate-900 block">Trần Quốc Bảo</span>
-                      <span className="text-[10px] text-slate-500">Rank Pro • ELO 1680</span>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
-                      B
+                    <div className="flex items-center gap-2 text-right">
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
+                          {activeTournament.players[1].name}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Hạt giống #{activeTournament.players[1].seed || 2}
+                        </span>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                        {activeTournament.players[1].name.charAt(0)}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="py-1">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-slate-600">Quy mô giải:</span>
+                      <strong className="text-slate-900 font-mono">
+                        {activeTournament?.players?.length || 0}/{activeTournament?.maxPlayers || 16} cơ thủ
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-600">Lệ phí tham gia:</span>
+                      <strong className="text-emerald-700 font-mono">
+                        {activeTournament?.registrationFee
+                          ? `${Number(activeTournament.registrationFee).toLocaleString("vi-VN")}đ`
+                          : "Miễn phí"}
+                      </strong>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
                   <span className="text-slate-500">
-                    Trọng tài: <strong>Bùi Quốc Tuấn</strong>
+                    Hình thức: <strong>{activeTournament?.format || "Single Elimination"}</strong>
                   </span>
                   <Button
                     variant="link"
@@ -802,7 +1024,7 @@ export const AdminDashboard: React.FC = () => {
                     onClick={() => navigate("/tournaments")}
                     className="!text-xs !font-bold !text-emerald-700 hover:!text-emerald-800 !p-0"
                   >
-                    Mở Bảng Chấm Điểm Điện Tử &rarr;
+                    Xem Giải Đấu & Lịch Trình &rarr;
                   </Button>
                 </div>
               </div>
@@ -813,10 +1035,12 @@ export const AdminDashboard: React.FC = () => {
                   <AlertOutlined className="text-amber-600 text-sm" />
                   <div>
                     <span className="font-bold text-amber-950 block">
-                      Kho Hàng F&B: 2 Món Sắp Hết
+                      Kho Hàng F&B: {lowStockItems.length > 0 ? `${lowStockItems.length} Món Cần Bổ Sung` : "Kho Hàng Đầy Đủ"}
                     </span>
                     <span className="text-amber-800 text-[11px]">
-                      Bò khô cháy tỏi (còn 3), Bia Heineken (còn 8)
+                      {lowStockItems.length > 0
+                        ? lowStockItems.slice(0, 3).map((item) => `${item.name} (còn ${item.stockQuantity})`).join(", ")
+                        : "Tất cả đồ uống và phụ kiện đều đảm bảo định mức an toàn"}
                     </span>
                   </div>
                 </div>
@@ -827,7 +1051,7 @@ export const AdminDashboard: React.FC = () => {
                   onClick={() => navigate("/fnb")}
                   className="!text-xs !h-7 !rounded-lg !border-amber-300 !bg-white !text-amber-900 hover:!bg-amber-100"
                 >
-                  Nhập Kho
+                  {lowStockItems.length > 0 ? "Nhập Kho" : "Kiểm Kho"}
                 </Button>
               </div>
             </div>

@@ -39,19 +39,13 @@ export const authService = {
     password: string,
     phone?: string,
   ): Promise<void> {
-    try {
-      const { data } = await api.post<ApiResponse>("/auth/register/request", {
-        name,
-        email,
-        password,
-        phone,
-      });
-      if (!data.success) throw new Error(data.message);
-    } catch (err: any) {
-      throw new Error(
-        err.response?.data?.message || err.message || "Không thể gửi mã xác minh",
-      );
-    }
+    const { data } = await api.post<ApiResponse>("/auth/register/request", {
+      name,
+      email,
+      password,
+      phone,
+    });
+    if (!data.success) throw new Error(data.message);
   },
 
   async verifyAndRegister(email: string, code: string): Promise<AuthResponse> {

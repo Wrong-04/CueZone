@@ -167,11 +167,9 @@ export const CustomerBooking = () => {
   useEffect(() => {
     const socket = getSocket();
     const refreshAvailability = () => setAvailabilityVersion((version) => version + 1);
-    socket.on("connect", refreshAvailability);
     socket.on("table:public_status_changed", refreshAvailability);
     socket.on("table:guest_status_changed", refreshAvailability);
     return () => {
-      socket.off("connect", refreshAvailability);
       socket.off("table:public_status_changed", refreshAvailability);
       socket.off("table:guest_status_changed", refreshAvailability);
     };
@@ -265,10 +263,6 @@ export const CustomerBooking = () => {
     }
     if (!phone.trim()) {
       message.warning("Vui lòng nhập số điện thoại để giữ bàn!");
-      return;
-    }
-    if (!isVietnameseMobilePhone(phone)) {
-      message.warning("Vui lòng nhập số di động Việt Nam hợp lệ (VD: 0912345678 hoặc +84912345678).");
       return;
     }
     if (!selectedTable) {
@@ -485,8 +479,7 @@ export const CustomerBooking = () => {
                   className="!h-10 !rounded-xl !text-xs font-mono"
                 />
                 <span className="text-[11px] text-slate-400 mt-1 block">
-                  Dùng số di động Việt Nam (VD: 0988123456 hoặc +84988123456). Đọc số này tại quầy
-                  lễ tân để nhận bàn nhanh.
+                  Đọc số điện thoại này tại quầy lễ tân để nhận bàn nhanh
                 </span>
               </div>
 

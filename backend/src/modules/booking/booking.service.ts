@@ -4,20 +4,14 @@ import { Booking } from "./booking.model";
 import { Table, TableStatus, TableType } from "../table/table.model";
 import { User } from "../user/user.model";
 import { Product } from "../product/product.model";
-import { getFnbCategoryConfig } from "../product/product.service";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
-import { normalizeVietnameseMobilePhone } from "../../utils/phone.util";
 
 const notificationService = new NotificationService();
 
 const ACTIVE_BOOKING_STATUSES = ["pending", "approved", "confirmed", "checked_in"];
 const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000;
-
-function bookingConflict(message: string, code = "BOOKING_CONFLICT") {
-  return Object.assign(new Error(message), { httpCode: 409, code });
-}
 
 function getBookingInterval(date: string, time: string, duration: number, allowPast = false) {
   const startDate = new Date(`${date}T${time}:00+07:00`);
@@ -50,12 +44,12 @@ export function bookingInput(input: any) {
   const tableRef = input.table || input.tableId;
   const deposit = input.deposit ?? 0;
   const preOrderItems = input.preOrderItems ?? [];
-  const phone = normalizeVietnameseMobilePhone(input.phone);
   if (
     typeof input.customerName !== "string" ||
     !input.customerName.trim() ||
     input.customerName.length > 120 ||
-    !phone ||
+    typeof input.phone !== "string" ||
+    !/^[+\d\s().-]{8,30}$/.test(input.phone) ||
     !mongoose.isValidObjectId(tableRef) ||
     typeof input.date !== "string" ||
     !/^\d{4}-\d{2}-\d{2}$/.test(input.date) ||
@@ -87,7 +81,7 @@ export function bookingInput(input: any) {
   const { startDate, endDate } = getBookingInterval(input.date, input.time, input.duration);
   return {
     customerName: input.customerName.trim(),
-    phone,
+    phone: input.phone.trim(),
     table: tableRef,
     date: input.date,
     time: input.time,
@@ -211,7 +205,6 @@ export class BookingService {
     if (startDate.getTime() <= Date.now()) return [];
     const tableFilter: Record<string, any> = {
       isActive: true,
-      status: TableStatus.AVAILABLE,
     };
     if (input.type) tableFilter.type = input.type;
     const tables = await Table.find(tableFilter).sort({ code: 1 });
@@ -323,9 +316,9 @@ export class BookingService {
         { $inc: { bookingVersion: 1 } },
         { new: true, session },
       );
-      if (!table) throw bookingConflict("Bàn không còn trống, vui lòng tải lại");
+      if (!table) throw new Error("Bàn không còn trống, vui lòng tải lại");
       if (await this.hasSlotConflict(String(table._id), dto.startDate, dto.endDate, session)) {
-        throw bookingConflict("Khung giờ này đã có người đặt, vui lòng chọn thời gian khác");
+        throw new Error("Khung giờ này đã có người đặt, vui lòng chọn thời gian khác");
       }
       let preOrderItems: Array<{
         productId: mongoose.Types.ObjectId;
@@ -335,20 +328,16 @@ export class BookingService {
         quantity: number;
       }> = [];
       if (dto.preOrderItems.length > 0) {
-        const categoryConfig = await getFnbCategoryConfig(session);
         const products = await Product.find({
           _id: { $in: dto.preOrderItems.map((item) => item.productId) },
-          category: { $in: categoryConfig.values },
+          category: { $in: ["drink", "food", "snack"] },
           isForSale: true,
           isActive: true,
         })
           .select("_id name category salePrice")
           .session(session);
         if (products.length !== dto.preOrderItems.length) {
-          throw bookingConflict(
-            "Một hoặc nhiều món F&B vừa ngừng bán. Vui lòng tải lại thực đơn.",
-            "FNB_MENU_CHANGED",
-          );
+          throw new Error("Một hoặc nhiều món F&B không còn được bán");
         }
         const productById = new Map(products.map((product) => [String(product._id), product]));
         preOrderItems = dto.preOrderItems.map(({ productId, quantity }) => {

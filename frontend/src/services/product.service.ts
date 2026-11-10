@@ -78,4 +78,19 @@ export const productService = {
     }
     return data.data;
   },
+
+  async uploadDirect(file: File): Promise<{ imageUrl: string }> {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const { data } = await api.post<ApiResponse<{ imageUrl: string }>>(
+      "/products/upload-image",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Không thể tải ảnh lên Cloudinary");
+    }
+    return data.data;
+  },
 };

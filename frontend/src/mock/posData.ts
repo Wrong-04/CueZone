@@ -68,6 +68,8 @@ export interface FnbStockItem {
   unit: string;
   image: string;
   isMadeToOrder?: boolean;
+  costPrice?: number;
+  isForSale?: boolean;
 }
 
 export interface TournamentMatchScore {

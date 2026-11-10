@@ -41,6 +41,7 @@ const parseProductImage: RequestHandler = (req, res, next) => {
 export const productManagementRouter = Router();
 productManagementRouter.use(requirePermission("products", "manage"));
 productManagementRouter.get("/", productController.getAll);
+productManagementRouter.post("/upload-image", parseProductImage, productController.uploadDirectImage);
 productManagementRouter.get("/:id", productController.getById);
 productManagementRouter.post("/:id/image", parseProductImage, productController.uploadImage);
 productManagementRouter.post("/", productController.create);
