@@ -232,11 +232,12 @@ export const TablesManagementPage: React.FC = () => {
     const snooker = tables.filter((t) => t.type === "snooker").length;
     const maintenance = tables.filter((t) => t.status === "maintenance").length;
     const playing = tables.filter((t) => t.status === "playing").length;
+    const paused = tables.filter((t) => t.status === "paused").length;
     const booked = tables.filter((t) => t.status === "booked").length;
     const available = tables.filter((t) => t.status === "available").length;
     const floor1 = tables.filter((t) => t.floor === 1).length;
     const floor2 = tables.filter((t) => t.floor === 2).length;
-    return { total, pool, carom, snooker, maintenance, playing, booked, available, floor1, floor2 };
+    return { total, pool, carom, snooker, maintenance, playing, paused, booked, available, floor1, floor2 };
   }, [tables]);
 
   const filteredTables = useMemo(() => {
@@ -881,14 +882,22 @@ export const TablesManagementPage: React.FC = () => {
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 shadow-2xs flex flex-col justify-between col-span-2 sm:col-span-1">
               <span className="text-xs font-semibold text-slate-500 mb-1">Tình trạng vận hành</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-emerald-700 font-mono">
+              <div className="flex flex-wrap items-baseline gap-1.5">
+                <span className="text-xl font-black text-emerald-700 font-mono">
                   {stats.available} Trống
                 </span>
                 <span className="text-slate-300">•</span>
-                <span className="text-lg font-bold text-rose-600 font-mono">
+                <span className="text-base font-bold text-rose-600 font-mono">
                   {stats.playing} Chơi
                 </span>
+                {stats.paused > 0 && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-sm font-bold text-amber-600 font-mono">
+                      {stats.paused} Tạm dừng
+                    </span>
+                  </>
+                )}
               </div>
               <span className="text-[11px] text-slate-500 mt-1">
                 Đã đặt: {stats.booked} • Bảo trì: {stats.maintenance}

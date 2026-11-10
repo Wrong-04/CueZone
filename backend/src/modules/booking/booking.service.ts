@@ -381,14 +381,7 @@ export class BookingService {
         { session },
       );
       if (initialStatus === "approved") {
-        const startsAt = new Date(`${booking.date}T${booking.time}:00+07:00`).getTime();
-        const now = Date.now();
-        const minutesUntilStart = (startsAt - now) / 60000;
-        if (
-          minutesUntilStart <= 60 &&
-          minutesUntilStart >= -booking.duration * 60 &&
-          table.status === TableStatus.AVAILABLE
-        ) {
+        if (table.status === TableStatus.AVAILABLE) {
           table.status = TableStatus.BOOKED;
         }
         table.bookedInfo = {
@@ -588,14 +581,7 @@ export class BookingService {
           booking.endDate = interval.endDate;
         }
         booking.estimatedCost = table.pricePerHour * (booking.duration || 2);
-        const startsAt = interval.startDate.getTime();
-        const now = Date.now();
-        const minutesUntilStart = (startsAt - now) / 60000;
-        if (
-          minutesUntilStart <= 60 &&
-          minutesUntilStart >= -(booking.duration || 2) * 60 &&
-          table.status === TableStatus.AVAILABLE
-        ) {
+        if (table.status === TableStatus.AVAILABLE) {
           table.status = TableStatus.BOOKED;
         }
         table.bookedInfo = {

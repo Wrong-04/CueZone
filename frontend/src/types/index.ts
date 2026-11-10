@@ -40,6 +40,7 @@ export interface ApiResponse<T = any> {
 export const TableStatus = {
   AVAILABLE: "available",
   PLAYING: "playing",
+  PAUSED: "paused",
   BOOKED: "booked",
   MAINTENANCE: "maintenance",
 } as const;
