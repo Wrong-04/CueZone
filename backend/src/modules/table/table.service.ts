@@ -10,6 +10,31 @@ import { emitTableStatusChanged } from "../../utils/socketHolder";
 
 const notificationService = new NotificationService();
 
+function parseBookingTimestamp(timeStr?: string): number | null {
+  if (!timeStr) return null;
+  const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+  if (!timeMatch) return null;
+  const h = parseInt(timeMatch[1], 10);
+  const m = parseInt(timeMatch[2], 10);
+
+  const dateMatch = timeStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (dateMatch) {
+    const [, y, mo, d] = dateMatch;
+    const pad = (n: number | string) => String(n).padStart(2, "0");
+    const ts = new Date(`${y}-${pad(mo)}-${pad(d)}T${pad(h)}:${pad(m)}:00+07:00`).getTime();
+    if (!Number.isNaN(ts)) return ts;
+  }
+
+  // Fallback ngày hôm nay theo giờ Việt Nam UTC+7
+  const nowVN = new Date(Date.now() + 7 * 3600000);
+  const y = nowVN.getUTCFullYear();
+  const mo = String(nowVN.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(nowVN.getUTCDate()).padStart(2, "0");
+  const pad = (n: number | string) => String(n).padStart(2, "0");
+  const ts = new Date(`${y}-${mo}-${d}T${pad(h)}:${pad(m)}:00+07:00`).getTime();
+  return Number.isNaN(ts) ? null : ts;
+}
+
 export class TableService {
   async lookupCustomer(query: string) {
     const trimmed = (query || "").trim();
@@ -134,6 +159,11 @@ export class TableService {
     area?: string;
     isActive?: string;
   }): Promise<ITable[]> {
+    try {
+      await this.autoReleaseExpiredBookings();
+    } catch {
+      // Tiếp tục thực hiện truy vấn nếu auto release lỗi
+    }
     const query: any = {};
     if (filters?.type) query.type = filters.type;
     if (filters?.status) query.status = filters.status;
@@ -276,16 +306,31 @@ export class TableService {
   async cancelBooking(id: string): Promise<ITable> {
     const table = await Table.findById(id);
     if (!table) throw new Error("Không tìm thấy bàn");
+    const bId = table.bookedInfo?.bookingId;
+
     if (table.status !== TableStatus.BOOKED) {
       // Nếu bàn đã mở hoặc đang chơi, chỉ cần xóa thông tin đặt trước nếu có
       table.bookedInfo = undefined;
       await table.save();
-      emitTableStatusChanged({ tableId: String(table._id), status: table.status, table });
-      return table;
+    } else {
+      table.status = TableStatus.AVAILABLE;
+      table.bookedInfo = undefined;
+      await table.save();
     }
-    table.status = TableStatus.AVAILABLE;
-    table.bookedInfo = undefined;
-    await table.save();
+
+    if (bId) {
+      await Booking.updateOne(
+        { _id: bId, status: { $in: ["pending", "approved", "confirmed"] } },
+        {
+          $set: {
+            status: "cancelled",
+            cancelledAt: new Date(),
+            cancellationReason: "Hủy giữ bàn tại quầy thu ngân",
+          },
+        },
+      ).catch(() => {});
+    }
+
     notificationService
       .create({
         title: "Hủy đặt bàn",
@@ -297,6 +342,69 @@ export class TableService {
     return table;
   }
 
+  async autoReleaseExpiredBookings(): Promise<number> {
+    const now = Date.now();
+    const tables = await Table.find({
+      $or: [
+        { status: TableStatus.BOOKED },
+        { "bookedInfo.time": { $exists: true } },
+      ],
+    });
+    let releasedCount = 0;
+    for (const t of tables) {
+      if (!t.bookedInfo?.time) {
+        if (t.status === TableStatus.BOOKED) {
+          t.status = TableStatus.AVAILABLE;
+          await t.save();
+          releasedCount++;
+          emitTableStatusChanged({ tableId: String(t._id), status: TableStatus.AVAILABLE, table: t });
+        }
+        continue;
+      }
+
+      const bookingStart = parseBookingTimestamp(t.bookedInfo.time);
+      if (!bookingStart) continue;
+
+      const overdueMinutes = (now - bookingStart) / 60000;
+      // Quá hạn 15 phút không đến nhận bàn -> Tự động hủy và giải phóng bàn
+      if (overdueMinutes > 15) {
+        const bId = t.bookedInfo.bookingId;
+        const customerName = t.bookedInfo.customerName;
+
+        if (t.status === TableStatus.BOOKED) {
+          t.status = TableStatus.AVAILABLE;
+        }
+        t.bookedInfo = undefined;
+        await t.save();
+        releasedCount++;
+
+        if (bId) {
+          await Booking.updateOne(
+            { _id: bId, status: { $in: ["pending", "approved", "confirmed"] } },
+            {
+              $set: {
+                status: "cancelled",
+                cancelledAt: new Date(),
+                cancellationReason: "Tự động hủy do khách trễ quá hạn giữ bàn (15 phút)",
+              },
+            },
+          ).catch(() => {});
+        }
+
+        notificationService
+          .create({
+            title: "Tự động giải phóng bàn quá hạn",
+            message: `Bàn "${t.name}" (${t.code}) đã tự động hủy giữ bàn do khách ${customerName || "hẹn"} trễ quá 15 phút chưa đến nhận bàn.`,
+            type: NotificationType.TABLE,
+          })
+          .catch(() => {});
+
+        emitTableStatusChanged({ tableId: String(t._id), status: t.status, table: t });
+      }
+    }
+    return releasedCount;
+  }
+
   async getStats(): Promise<{
     total: number;
     available: number;
@@ -305,6 +413,11 @@ export class TableService {
     booked: number;
     maintenance: number;
   }> {
+    try {
+      await this.autoReleaseExpiredBookings();
+    } catch {
+      // Bỏ qua lỗi
+    }
     const tables = await Table.find();
     let available = 0,
       playing = 0,
@@ -370,6 +483,12 @@ export class TableService {
     area?: string;
     status?: string;
   }): Promise<any[]> {
+    try {
+      await this.autoReleaseExpiredBookings();
+    } catch {
+      // Bỏ qua lỗi
+    }
+
     const query: any = { isActive: true };
     if (filters?.type) query.type = filters.type;
     if (filters?.status) query.status = filters.status;
@@ -377,37 +496,6 @@ export class TableService {
 
     const tables = await Table.find(query).sort({ code: 1 });
     const now = Date.now();
-
-    // Tự động kiểm tra và giải phóng bàn đã hết hạn đặt hoặc chưa tới giờ giữ bàn
-    for (const t of tables) {
-      if (t.status === TableStatus.BOOKED && t.bookedInfo?.time) {
-        const match = t.bookedInfo.time.match(/(\d{1,2}:\d{2})\s*\(([\d-]+)\)/);
-        if (match) {
-          const [, timeStr, dateStr] = match;
-          const bookingStart = new Date(`${dateStr}T${timeStr}:00+07:00`).getTime();
-          const minutesDiff = (bookingStart - now) / 60000;
-          if (minutesDiff < -60) {
-            t.status = TableStatus.AVAILABLE;
-            const bId = t.bookedInfo.bookingId;
-            t.bookedInfo = undefined;
-            Table.updateOne(
-              { _id: t._id },
-              { $set: { status: TableStatus.AVAILABLE }, $unset: { bookedInfo: 1 } },
-            ).catch(() => {});
-            if (bId) {
-              Booking.updateOne(
-                { _id: bId, status: { $in: ["pending", "approved", "confirmed"] } },
-                { $set: { status: "cancelled", cancelReason: "Tự động hủy do quá hạn nhận bàn" } },
-              ).catch(() => {});
-            }
-          } else if (minutesDiff > 60) {
-            // Còn trên 60 phút nữa mới tới giờ hẹn: bàn vẫn khả dụng cho khách chơi trước
-            t.status = TableStatus.AVAILABLE;
-            Table.updateOne({ _id: t._id }, { $set: { status: TableStatus.AVAILABLE } }).catch(() => {});
-          }
-        }
-      }
-    }
 
     const typeLabels: Record<string, string> = {
       pool: "Bàn Bida Lỗ (Pool)",

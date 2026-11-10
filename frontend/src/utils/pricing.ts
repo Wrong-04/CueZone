@@ -137,7 +137,7 @@ export function calculateSplitPlayingDetails(
     table.code?.startsWith("MTCH") || table.area?.toLowerCase().includes("thi đấu"),
   );
 
-  const cacheKey = `${table.id}-${session.sessionId || session.startedAt}-${totalMinutes}-${table.pricePerHour}-${session.pricePerHour || ""}-${isVip ? 1 : 0}-${isMatch ? 1 : 0}-${activeTiers.length}`;
+  const cacheKey = `${table.id}-${session.sessionId || session.startedAt}-${totalMinutes}-${session.carriedCost || 0}-${table.pricePerHour}-${session.pricePerHour || ""}-${isVip ? 1 : 0}-${isMatch ? 1 : 0}-${activeTiers.length}`;
   const cached = slotsCache.get(cacheKey);
 
   if (cached) {

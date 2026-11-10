@@ -529,7 +529,7 @@ const AdminLayout = () => {
         </aside>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Top bar */}
           <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
             <div className="flex items-center gap-3">
@@ -686,11 +686,15 @@ const AdminLayout = () => {
 
           {/* Page content */}
           <main
-            className={`flex-1 overflow-y-auto ${
-              location.pathname === "/tournaments" ? "p-0" : "p-6"
+            className={`flex-1 overflow-y-auto overflow-x-hidden min-w-0 ${
+              location.pathname === "/tournaments"
+                ? "p-0"
+                : location.pathname === "/pos"
+                  ? "p-3 sm:p-4 md:p-5"
+                  : "p-6"
             }`}
           >
-            <div key={location.pathname} className="animate-slide-up">
+            <div key={location.pathname} className="animate-slide-up max-w-full min-w-0">
               <Outlet />
             </div>
           </main>

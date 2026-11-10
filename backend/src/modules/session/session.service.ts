@@ -283,7 +283,7 @@ export function playingDetails(
   const minutes = Math.max(1, Math.round(elapsed / 60000));
   return {
     minutes,
-    cost: Math.round((minutes * session.pricePerHour) / 60) + session.carriedCost,
+    cost: Math.round((minutes * session.pricePerHour) / 60) + (session.carriedCost || 0),
     formattedTime: [
       Math.floor(elapsed / 3600000),
       Math.floor(elapsed / 60000) % 60,
@@ -633,6 +633,23 @@ export class SessionService {
 
         target.currentSession = sourceSessionObj;
         target.status = source.status;
+
+        // Cập nhật các đơn đặt món online (CustomerOrder) nếu có sang bàn mới
+        await CustomerOrder.updateMany(
+          {
+            tableId: source._id,
+            sessionId: sourceSessionObj.sessionId,
+            status: { $in: [CustomerOrderStatus.PENDING, CustomerOrderStatus.PREPARING] },
+          },
+          {
+            $set: {
+              tableId: target._id,
+              tableCode: target.code,
+              tableName: target.name,
+            },
+          },
+          { session },
+        );
         // Mặc định giữ đơn giá đã thỏa thuận ban đầu (bảo toàn assertion pricePerHour trong test)
       } else {
         if (
@@ -641,8 +658,8 @@ export class SessionService {
         )
           throw new Error("Bàn đích chưa có phiên chơi");
 
-        target.currentSession.carriedCost += sourceDetails.cost;
-        target.currentSession.deposit += source.currentSession.deposit;
+        target.currentSession.carriedCost = (target.currentSession.carriedCost || 0) + sourceDetails.cost;
+        target.currentSession.deposit = (target.currentSession.deposit || 0) + (source.currentSession.deposit || 0);
 
         // Chuyển toàn bộ F&B, gắn nhãn bàn gốc để minh bạch hóa đơn
         // Lưu ý: Cần chuyển đổi Mongoose subdocument sang plain object (.toObject()) để không làm mất schema getters (name, price, quantity...)
@@ -675,6 +692,24 @@ export class SessionService {
           target.currentSession.transfers = [];
         }
         target.currentSession.transfers.push(transferRecord);
+
+        // Cập nhật các đơn đặt món online (CustomerOrder) nếu có sang bàn đích
+        await CustomerOrder.updateMany(
+          {
+            tableId: source._id,
+            sessionId: source.currentSession.sessionId,
+            status: { $in: [CustomerOrderStatus.PENDING, CustomerOrderStatus.PREPARING] },
+          },
+          {
+            $set: {
+              tableId: target._id,
+              tableCode: target.code,
+              tableName: target.name,
+              sessionId: target.currentSession.sessionId,
+            },
+          },
+          { session },
+        );
       }
 
       source.currentSession = undefined;
