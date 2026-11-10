@@ -92,8 +92,15 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
       const tableCode = receipt.tableCode || refTable?.code || "TB";
       const customerName = receipt.customerName || "Khách Vãng Lai";
       const customerPhone = receipt.customerPhone || "";
-      const memberRank = receipt.membershipTier || "Normal";
+      const rawMemberRank = receipt.membershipTier || (inv.customer?.rank ?? "");
+      const memberRank =
+        !rawMemberRank || rawMemberRank === "Normal" || rawMemberRank === "Standard"
+          ? "Phổ thông"
+          : rawMemberRank;
       const discountPercent = receipt.discountPercent || inv.discount || 0;
+      const voucherCode = receipt.voucherCode || "";
+      const voucherDiscountAmount = receipt.voucherDiscountAmount || 0;
+      const membershipDiscountAmount = receipt.membershipDiscountAmount || 0;
       const cashierName = receipt.cashierName || "Thu Ngân";
 
       const timeIn = receipt.sessionStart || new Date(inv.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
@@ -180,6 +187,9 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
         fnbFee,
         subtotal,
         discountAmount,
+        voucherCode,
+        voucherDiscountAmount,
+        membershipDiscountAmount,
         finalTotal,
         paymentMethod: pMethod,
         paymentMethodText: methodMap[pMethod] || "Tiền Mặt",

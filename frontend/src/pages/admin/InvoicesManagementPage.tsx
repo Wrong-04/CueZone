@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
 import type { Dayjs } from "dayjs";
 import { invoiceService } from "../../services/invoice.service";
-import WalletTopupsPage from "./WalletTopupsPage";
-import { useAuth } from "../../contexts/AuthContext";
-import { hasPermission, type PermissionKey } from "../../utils/permissions";
-import TournamentFeesPage from "./TournamentFeesPage";
 import {
   FileTextOutlined,
   PrinterOutlined,
@@ -15,7 +10,6 @@ import {
   CloseCircleOutlined,
   SearchOutlined,
   FilterOutlined,
-  PlusOutlined,
   ReloadOutlined,
   EyeOutlined,
   ThunderboltOutlined,
@@ -61,8 +55,11 @@ export interface ClubInvoice {
   tableCode: string;
   customerName: string;
   customerPhone: string;
-  memberRank: "Diamond" | "Gold" | "Silver" | "Normal";
-  discountPercent: number; // e.g. 15 for Diamond, 10 for Gold
+  memberRank: string;
+  discountPercent: number;
+  voucherCode?: string;
+  voucherDiscountAmount?: number;
+  membershipDiscountAmount?: number;
   cashierName: string;
   timeIn: string;
   timeOut: string;
@@ -73,7 +70,7 @@ export interface ClubInvoice {
   subtotal: number;
   discountAmount: number;
   finalTotal: number;
-  paymentMethod: "vietqr" | "cash" | "cuezone_pay" | "card" | "pending";
+  paymentMethod: string;
   paymentMethodText: string;
   status: "paid" | "pending" | "cancelled";
   statusText: string;
@@ -88,28 +85,6 @@ export interface ClubInvoice {
 const INITIAL_INVOICES: ClubInvoice[] = [];;
 
 export const InvoicesManagementPage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
-  const requestedTab = searchParams.get("tab") || "invoices";
-  const tabPermissions: Record<string, PermissionKey> = {
-    invoices: "invoices.read",
-    wallet: "wallet.operate",
-    tournament: "tournaments.manage",
-  };
-  const currentTab = tabPermissions[requestedTab] && hasPermission(user, tabPermissions[requestedTab])
-    ? requestedTab
-    : "invoices";
-
-  const handleTabChange = (key: string) => {
-    setSearchParams(key === "invoices" ? {} : { tab: key });
-  };
-
-  const financePills = [
-    { key: "invoices", label: "Hóa Đơn Tiền Bàn & Thu Ngân" },
-    { key: "wallet", label: "Đối Soát Nạp Ví Hội Viên" },
-    { key: "tournament", label: "Lệ Phí Giải Đấu Tại Quầy" },
-  ].filter((tab) => hasPermission(user, tabPermissions[tab.key]));
-
   // ── 1. STATE & LIVE API INTEGRATION ──────────────────────────────────────
   const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>(INITIAL_INVOICES);
   const [loading, setLoading] = useState<boolean>(false);
@@ -201,20 +176,6 @@ export const InvoicesManagementPage: React.FC = () => {
 
   // Invoice Detail Modal & Print Preview
   const [selectedInvoice, setSelectedInvoice] = useState<ClubInvoice | null>(null);
-
-  // Quick Checkout / Create Invoice Modal
-  const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
-  const [newInvoiceForm, setNewInvoiceForm] = useState({
-    tableName: "Bàn 02 (Bàn Thường 9FT)",
-    customerName: "",
-    customerPhone: "",
-    durationHours: 2,
-    tableHourlyRate: 50000,
-    fnbTotal: 70000,
-    paymentMethod: "vietqr" as ClubInvoice["paymentMethod"],
-    memberRank: "Normal" as ClubInvoice["memberRank"],
-    note: "",
-  });
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -336,12 +297,19 @@ export const InvoicesManagementPage: React.FC = () => {
           </table>
           <div class="dashed"></div>
           <div class="row"><span>Tiền giờ bàn:</span><span>${selectedInvoice.tableFee.toLocaleString("vi-VN")}đ</span></div>
-          <div class="row"><span>Tiền F&B đồ uống:</span><span>${selectedInvoice.fnbFee.toLocaleString("vi-VN")}đ</span></div>
+          <div class="row"><span>Đồ uống & Dịch vụ:</span><span>${selectedInvoice.fnbFee.toLocaleString("vi-VN")}đ</span></div>
           <div class="row"><span>Tạm tính:</span><span>${selectedInvoice.subtotal.toLocaleString("vi-VN")}đ</span></div>
           ${
-            selectedInvoice.discountAmount > 0
-              ? `<div class="row bold"><span>Giảm giá (${selectedInvoice.discountPercent}%):</span><span>-${selectedInvoice.discountAmount.toLocaleString("vi-VN")}đ</span></div>`
+            selectedInvoice.voucherDiscountAmount && selectedInvoice.voucherDiscountAmount > 0
+              ? `<div class="row bold"><span>Voucher ${selectedInvoice.voucherCode ? `(${selectedInvoice.voucherCode})` : ""}:</span><span>-${selectedInvoice.voucherDiscountAmount.toLocaleString("vi-VN")}đ</span></div>`
               : ""
+          }
+          ${
+            selectedInvoice.membershipDiscountAmount && selectedInvoice.membershipDiscountAmount > 0
+              ? `<div class="row bold"><span>Ưu đãi hội viên (${selectedInvoice.discountPercent || 10}%):</span><span>-${selectedInvoice.membershipDiscountAmount.toLocaleString("vi-VN")}đ</span></div>`
+              : selectedInvoice.discountAmount > 0 && !selectedInvoice.voucherDiscountAmount
+                ? `<div class="row bold"><span>Giảm giá:</span><span>-${selectedInvoice.discountAmount.toLocaleString("vi-VN")}đ</span></div>`
+                : ""
           }
           <div class="double-dashed"></div>
           <div class="row total-row">
@@ -369,52 +337,6 @@ export const InvoicesManagementPage: React.FC = () => {
       printWindow.print();
       printWindow.close();
     }, 250);
-  };
-
-  const handleQuickCheckout = async () => {
-    if (!newInvoiceForm.customerName.trim()) {
-      message.warning("Vui lòng nhập tên khách hàng!");
-      return;
-    }
-
-    const tableFee = Math.round(newInvoiceForm.durationHours * newInvoiceForm.tableHourlyRate);
-    const fnbFee = Number(newInvoiceForm.fnbTotal) || 0;
-    const subtotal = tableFee + fnbFee;
-    const discountRate =
-      newInvoiceForm.memberRank === "Diamond"
-        ? 0.15
-        : newInvoiceForm.memberRank === "Gold"
-          ? 0.1
-          : newInvoiceForm.memberRank === "Silver"
-            ? 0.05
-            : 0;
-    const discountAmount = Math.round(subtotal * discountRate);
-
-    try {
-      await invoiceService.createQuick({
-        customerName: newInvoiceForm.customerName.trim(),
-        customerPhone: newInvoiceForm.customerPhone.trim(),
-        paymentMethod: newInvoiceForm.paymentMethod,
-        items: [
-          {
-            name: `Giờ chơi ${newInvoiceForm.tableName} (${newInvoiceForm.durationHours}h)`,
-            price: tableFee,
-            quantity: 1,
-          },
-          ...(fnbFee > 0
-            ? [{ name: "Món ăn & Đồ uống gọi kèm", price: fnbFee, quantity: 1 }]
-            : []),
-        ],
-        discountAmount,
-        note: newInvoiceForm.note,
-      });
-      message.success("Đã thanh toán và lưu hóa đơn vào cơ sở dữ liệu!");
-      void fetchInvoices();
-    } catch {
-      message.success("Đã ghi nhận hóa đơn thành công!");
-      void fetchInvoices();
-    }
-    setCreateModalVisible(false);
   };
 
   const handleExportExcel = () => {
@@ -696,20 +618,24 @@ export const InvoicesManagementPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="font-bold text-slate-900 text-sm">{record.tableName}</span>
-            {record.memberRank && record.memberRank !== "Normal" && (
-              <Tag
-                color={
-                  record.memberRank === "Diamond"
-                    ? "purple"
-                    : record.memberRank === "Gold"
-                      ? "gold"
-                      : "blue"
-                }
-                className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold"
-              >
-                {record.memberRank} (-{record.discountPercent}%)
-              </Tag>
-            )}
+            {record.memberRank &&
+              record.memberRank !== "Normal" &&
+              record.memberRank !== "Standard" &&
+              record.memberRank !== "Phổ thông" && (
+                <Tag
+                  color={
+                    record.memberRank === "Diamond" || record.memberRank === "Kim Cương"
+                      ? "purple"
+                      : record.memberRank === "Gold" || record.memberRank === "Vàng"
+                        ? "gold"
+                        : "blue"
+                  }
+                  className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold"
+                >
+                  {record.memberRank}
+                  {record.discountPercent > 0 ? ` (-${record.discountPercent}%)` : ""}
+                </Tag>
+              )}
           </div>
           <span className="text-xs text-slate-500">
             {record.customerName} {record.customerPhone ? `• ${record.customerPhone}` : ""}
@@ -808,23 +734,8 @@ export const InvoicesManagementPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── UNIFIED FINANCIAL TABS SWITCHER (Gom Hóa Đơn, Nạp Ví, Lệ Phí) ── */}
-      <div className="bg-white p-3.5 rounded-3xl border border-slate-200/90 shadow-xs flex items-center justify-between">
-        <SegmentedPillList
-          items={financePills}
-          activeKey={currentTab}
-          onSelect={handleTabChange}
-        />
-      </div>
-
-      {currentTab === "wallet" ? (
-        <WalletTopupsPage />
-      ) : currentTab === "tournament" ? (
-        <TournamentFeesPage />
-      ) : (
-        <>
-          {/* ── COMMAND HEADER & SUMMARY METRICS ──────────────────────────────── */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+      {/* ── COMMAND HEADER & SUMMARY METRICS ──────────────────────────────── */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
@@ -837,14 +748,11 @@ export const InvoicesManagementPage: React.FC = () => {
                 level={2}
                 className="!text-xl sm:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
               >
-                Quản Lý & Lịch Sử Hóa Đơn Bida
+                Lịch Sử Hóa Đơn
               </Title>
-              <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
-                CUEZONE BILLING & INVOICES
-              </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Tra cứu lịch sử thanh toán tiền giờ và dịch vụ F&B, theo dõi nguồn tiền thu (Tiền mặt, VietQR, Ví hội viên) và xem lại/in phiếu hóa đơn thanh toán.
+              Theo dõi lịch sử hóa đơn, doanh thu tiền giờ, dịch vụ và in lại phiếu thanh toán.
             </Text>
           </div>
 
@@ -856,7 +764,7 @@ export const InvoicesManagementPage: React.FC = () => {
               onClick={handleExportExcel}
               className="!rounded-xl !text-xs !text-slate-700 hover:!bg-slate-100"
             >
-              Xuất Excel (CSV)
+              Xuất Excel
             </Button>
             <Button
               variant="outline"
@@ -866,15 +774,6 @@ export const InvoicesManagementPage: React.FC = () => {
               className="!rounded-xl !text-xs !text-slate-600"
             >
               Tải lại
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={<PlusOutlined />}
-              onClick={() => setCreateModalVisible(true)}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-sm"
-            >
-              Tạo Hóa Đơn Lẻ
             </Button>
           </div>
         </div>
@@ -922,7 +821,7 @@ export const InvoicesManagementPage: React.FC = () => {
           <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-blue-800 font-semibold uppercase tracking-wider">
-                Doanh số F&B Dịch vụ
+                Doanh thu Đồ uống & Dịch vụ
               </span>
               <span className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 text-xs border border-blue-200">
                 <ThunderboltOutlined />
@@ -941,7 +840,7 @@ export const InvoicesManagementPage: React.FC = () => {
           <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-amber-800 font-semibold uppercase tracking-wider">
-                Đối soát két thu ngân
+                Két tiền mặt & Chuyển khoản
               </span>
               <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 text-xs border border-amber-200">
                 <QrcodeOutlined />
@@ -1139,20 +1038,9 @@ export const InvoicesManagementPage: React.FC = () => {
         footer={null}
         width={540}
         title={
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <FileTextOutlined className="text-emerald-600 text-lg" />
-              <span className="font-black text-slate-900 text-base">Phiếu Thanh Toán Bida</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<PrinterOutlined />}
-              onClick={handlePrintBill}
-              className="!rounded-xl !text-xs !border-slate-300 font-bold"
-            >
-              In Bill Nhiệt
-            </Button>
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <FileTextOutlined className="text-emerald-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">Phiếu Thanh Toán Bida</span>
           </div>
         }
       >
@@ -1166,10 +1054,10 @@ export const InvoicesManagementPage: React.FC = () => {
                   CUEZONE BILLIARDS CLUB
                 </span>
                 <span className="text-[11px] text-slate-500 block">
-                  246 Nguyễn Trãi, Phường 3, Quận 5, TP.HCM
+                  Hệ thống CLB Bida CueZone
                 </span>
                 <span className="text-[11px] text-slate-500 block">
-                  Hotline: 0909 888 999 • Wifi: CueZone_VIP (Pass: 88888888)
+                  Wifi: CueZone_VIP (Mật khẩu: 88888888)
                 </span>
               </div>
 
@@ -1192,7 +1080,11 @@ export const InvoicesManagementPage: React.FC = () => {
                 </div>
                 <div className="text-right">
                   Hạng thẻ:{" "}
-                  <strong className="text-purple-700">{selectedInvoice.memberRank}</strong>
+                  <strong className="text-purple-700">
+                    {selectedInvoice.memberRank === "Normal" || selectedInvoice.memberRank === "Standard"
+                      ? "Phổ thông"
+                      : selectedInvoice.memberRank}
+                  </strong>
                 </div>
                 <div>
                   Giờ vào: <strong>{selectedInvoice.timeIn}</strong>
@@ -1241,26 +1133,42 @@ export const InvoicesManagementPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Dịch vụ F&B & Đồ uống:</span>
+                  <span>Đồ uống & Dịch vụ:</span>
                   <span className="font-mono">
                     {selectedInvoice.fnbFee.toLocaleString("vi-VN")}đ
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Tạm tính (Subtotal):</span>
+                  <span>Tạm tính:</span>
                   <span className="font-mono font-bold">
                     {selectedInvoice.subtotal.toLocaleString("vi-VN")}đ
                   </span>
                 </div>
 
-                {selectedInvoice.discountAmount > 0 && (
+                {selectedInvoice.voucherDiscountAmount && selectedInvoice.voucherDiscountAmount > 0 ? (
                   <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Ưu đãi hội viên ({selectedInvoice.discountPercent}%):</span>
+                    <span>Voucher {selectedInvoice.voucherCode ? `(${selectedInvoice.voucherCode})` : ""}:</span>
+                    <span className="font-mono">
+                      -{selectedInvoice.voucherDiscountAmount.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                ) : null}
+
+                {selectedInvoice.membershipDiscountAmount && selectedInvoice.membershipDiscountAmount > 0 ? (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Ưu đãi hội viên ({selectedInvoice.discountPercent || 10}%):</span>
+                    <span className="font-mono">
+                      -{selectedInvoice.membershipDiscountAmount.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                ) : selectedInvoice.discountAmount > 0 && !selectedInvoice.voucherDiscountAmount ? (
+                  <div className="flex justify-between text-emerald-700 font-medium">
+                    <span>Giảm giá ({selectedInvoice.discountPercent > 0 ? `${selectedInvoice.discountPercent}%` : "Ưu đãi"}):</span>
                     <span className="font-mono">
                       -{selectedInvoice.discountAmount.toLocaleString("vi-VN")}đ
                     </span>
                   </div>
-                )}
+                ) : null}
 
                 <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-dashed border-slate-300">
                   <span>TỔNG CỘNG:</span>
@@ -1278,7 +1186,7 @@ export const InvoicesManagementPage: React.FC = () => {
               {/* VietQR Box preview */}
               <div className="pt-3 border-t border-dashed border-slate-300 text-center space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200/80 text-[11px] font-bold text-slate-700">
-                  <QrcodeOutlined /> Thanh toán VietQR NAPAS 24/7
+                  <QrcodeOutlined /> Quét mã VietQR chuyển khoản
                 </div>
                 <div className="text-[11px] text-slate-400 italic">
                   Xin cảm ơn Quý khách & Hẹn gặp lại tại CueZone!
@@ -1309,211 +1217,6 @@ export const InvoicesManagementPage: React.FC = () => {
           </div>
         )}
       </Modal>
-
-      <Modal
-        open={createModalVisible}
-        onCancel={() => setCreateModalVisible(false)}
-        footer={null}
-        width={580}
-        title={
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-            <PlusOutlined className="text-emerald-600 text-lg" />
-            <span className="font-black text-slate-900 text-base">
-              Lập Hóa Đơn & Chốt Bàn Thanh Toán
-            </span>
-          </div>
-        }
-      >
-        <div className="py-4 space-y-4 text-xs">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Chọn bàn thanh toán:
-            </label>
-            <Select
-              value={newInvoiceForm.tableName}
-              onChange={(val) => {
-                const isMatch = val.includes("Match");
-                const isVIP = val.includes("VIP");
-                const rate = isMatch ? 80000 : isVIP ? 70000 : 50000;
-                setNewInvoiceForm((prev) => ({
-                  ...prev,
-                  tableName: val,
-                  tableHourlyRate: rate,
-                }));
-              }}
-              className="!w-full !rounded-xl !text-xs !h-10"
-              options={[
-                { value: "Bàn 01 (Bàn Thường 9FT)", label: "Bàn 01 (Bàn Thường 9FT - 50k/h)" },
-                { value: "Bàn 02 (Bàn Thường 9FT)", label: "Bàn 02 (Bàn Thường 9FT - 50k/h)" },
-                { value: "Bàn VIP 10 (Bank Pool VIP)", label: "Bàn VIP 10 (Bank Pool - 70k/h)" },
-                {
-                  value: "Bàn Match 13 (K-Steel VAR)",
-                  label: "Bàn Match 13 (K-Steel VAR - 80k/h)",
-                },
-              ]}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Tên khách hàng: <span className="text-rose-500">*</span>
-              </label>
-              <Input
-                placeholder="Ví dụ: Hoàng Minh Trí"
-                value={newInvoiceForm.customerName}
-                onChange={(e) =>
-                  setNewInvoiceForm((prev) => ({
-                    ...prev,
-                    customerName: e.target.value,
-                  }))
-                }
-                className="!h-10 !rounded-xl text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại:</label>
-              <Input
-                placeholder="0908..."
-                value={newInvoiceForm.customerPhone}
-                onChange={(e) =>
-                  setNewInvoiceForm((prev) => ({
-                    ...prev,
-                    customerPhone: e.target.value,
-                  }))
-                }
-                className="!h-10 !rounded-xl text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Thời lượng chơi (Giờ):
-              </label>
-              <Input
-                type="number"
-                value={newInvoiceForm.durationHours}
-                onChange={(e) =>
-                  setNewInvoiceForm((prev) => ({
-                    ...prev,
-                    durationHours: parseFloat(e.target.value) || 1,
-                  }))
-                }
-                className="!h-10 !rounded-xl text-xs font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Hạng thẻ thành viên:
-              </label>
-              <Select
-                value={newInvoiceForm.memberRank}
-                onChange={(val) =>
-                  setNewInvoiceForm((prev) => ({
-                    ...prev,
-                    memberRank: val as ClubInvoice["memberRank"],
-                  }))
-                }
-                className="!w-full !rounded-xl !text-xs !h-10"
-                options={[
-                  { value: "Normal", label: "Khách thường (0%)" },
-                  { value: "Silver", label: "Silver Member (-5%)" },
-                  { value: "Gold", label: "Gold Member (-10%)" },
-                  { value: "Diamond", label: "Diamond VIP (-15%)" },
-                ]}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Tiền đồ uống F&B gọi kèm (VNĐ):
-              </label>
-              <Input
-                type="number"
-                value={newInvoiceForm.fnbTotal}
-                onChange={(e) =>
-                  setNewInvoiceForm((prev) => ({
-                    ...prev,
-                    fnbTotal: parseInt(e.target.value) || 0,
-                  }))
-                }
-                className="!h-10 !rounded-xl text-xs font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Phương thức thanh toán:
-              </label>
-              <Select
-                value={newInvoiceForm.paymentMethod}
-                onChange={(val) =>
-                  setNewInvoiceForm((prev) => ({
-                    ...prev,
-                    paymentMethod: val as ClubInvoice["paymentMethod"],
-                  }))
-                }
-                className="!w-full !rounded-xl !text-xs !h-10"
-                options={[
-                  { value: "vietqr", label: "VietQR Ngân Hàng" },
-                  { value: "cash", label: "Tiền Mặt" },
-                  { value: "cuezone_pay", label: "Ví CueZone Pay" },
-                  { value: "card", label: "Thẻ Visa / Master" },
-                ]}
-              />
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center text-xs">
-            <div>
-              <span className="font-semibold text-emerald-800 block">Tổng ước tính cần thu:</span>
-              <span className="text-[11px] text-emerald-600">
-                (Đã gồm tiền giờ bàn + F&B - Chiết khấu thẻ)
-              </span>
-            </div>
-            <span className="font-black text-emerald-950 text-xl font-mono">
-              {(
-                Math.round(
-                  newInvoiceForm.durationHours * newInvoiceForm.tableHourlyRate +
-                    newInvoiceForm.fnbTotal,
-                ) *
-                (1 -
-                  (newInvoiceForm.memberRank === "Diamond"
-                    ? 0.15
-                    : newInvoiceForm.memberRank === "Gold"
-                      ? 0.1
-                      : newInvoiceForm.memberRank === "Silver"
-                        ? 0.05
-                        : 0))
-              ).toLocaleString("vi-VN")}
-              đ
-            </span>
-          </div>
-
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => setCreateModalVisible(false)}
-              className="!rounded-xl !text-xs"
-            >
-              Hủy
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleQuickCheckout}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
-            >
-              Hoàn Tất & Thu Tiền
-            </Button>
-          </div>
-        </div>
-      </Modal>
-        </>
-      )}
     </div>
   );
 };

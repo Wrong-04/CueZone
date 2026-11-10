@@ -108,8 +108,33 @@ export class AuthService {
     }
 
     if (validated.phone) {
-      const existingPhone = await User.findOne({ phone: validated.phone });
+      const phoneDigits = validated.phone.replace(/\D/g, "");
+      const phonePattern = `^\\+?${phoneDigits.split("").join("[\\s().-]*")}$`;
+      const existingPhone = await User.findOne({ phone: { $regex: phonePattern } });
       if (existingPhone) {
+        // Nếu là tài khoản khách được tạo nhanh tại quầy thu ngân (email tạm .local)
+        // -> Tự động liên kết và kích hoạt tài khoản chính thức, bảo lưu toàn bộ điểm tích lũy & hạng thẻ
+        if (existingPhone.email.endsWith("@cuezone.local") && existingPhone.role === UserRole.CUSTOMER) {
+          existingPhone.email = validated.email;
+          existingPhone.password = validated.password;
+          existingPhone.phone = validated.phone;
+          if (validated.name && (!existingPhone.name || existingPhone.name.startsWith("Khách "))) {
+            existingPhone.name = validated.name;
+          }
+          await existingPhone.save();
+
+          sendWelcomeRegistrationEmail(existingPhone.email, existingPhone.name).catch((err) => {
+            console.warn("⚠️ Không thể gửi email xác thực đăng ký:", err.message);
+          });
+
+          const tokens = this.generateTokens(existingPhone);
+          const userObj = existingPhone.toObject();
+          delete (userObj as any).password;
+          const permissions = await this.getRolePermissions(existingPhone.role);
+
+          return { user: { ...userObj, permissions } as UserWithPermissions, ...tokens };
+        }
+
         throw new Error("Số điện thoại đã được sử dụng");
       }
     }
@@ -162,6 +187,12 @@ export class AuthService {
 
     if (!user.isActive) {
       throw new Error("Tài khoản đã bị vô hiệu hóa");
+    }
+
+    if (user.email && user.email.endsWith("@cuezone.local")) {
+      throw new Error(
+        "Tài khoản của bạn được tạo tại quầy thu ngân. Vui lòng vào trang 'Đăng ký' để kích hoạt tài khoản bằng số điện thoại của bạn.",
+      );
     }
 
     let isPasswordValid = false;

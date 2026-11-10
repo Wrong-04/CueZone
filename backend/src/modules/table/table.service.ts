@@ -1,6 +1,6 @@
 import { Table, ITable, TableStatus } from "./table.model";
 import { User, UserRole } from "../user/user.model";
-import { Voucher, VoucherDiscountType } from "../voucher/voucher.model";
+import { Voucher, VoucherDiscountType, VoucherUsage } from "../voucher/voucher.model";
 import { Wallet } from "../wallet/wallet.model";
 import { Booking } from "../booking/booking.model";
 import { CreateTableDTO, UpdateTableDTO } from "./dto/table.dto";
@@ -61,70 +61,54 @@ export class TableService {
     const wallet = await Wallet.findOne({ userId: user._id }).select("points");
 
     const now = new Date();
-    let availableVouchers = await Voucher.find({
-      isActive: true,
-      startsAt: { $lte: now },
-      expiresAt: { $gt: now },
-      $or: [
-        { maxUses: { $exists: false } },
-        { maxUses: null },
-        { $expr: { $lt: ["$usageCount", "$maxUses"] } },
-      ],
-    })
-      .select("code description discountType discountValue minOrderAmount")
-      .lean();
+    const isVipCustomer = user.rank && ["VIP", "Diamond", "Gold", "Silver", "Bạch Kim", "Kim Cương", "Vàng", "Bạc"].includes(user.rank);
+    const audienceQuery = isVipCustomer
+      ? { $in: ["all", "new_member", "vip", null, undefined] }
+      : { $in: ["all", "new_member", null, undefined] };
 
-    if (availableVouchers.length === 0) {
-      const admin = await User.findOne({ role: UserRole.ADMIN });
-      if (admin) {
-        try {
-          await Voucher.insertMany([
-            {
-              code: "CZVIP50",
-              description: "Voucher Hội Viên VIP - Giảm 50.000đ",
-              discountType: VoucherDiscountType.FIXED,
-              discountValue: 50000,
-              minOrderAmount: 100000,
-              startsAt: new Date(Date.now() - 3600000),
-              expiresAt: new Date(Date.now() + 60 * 86400000),
-              isActive: true,
-              createdBy: admin._id,
-            },
-            {
-              code: "SINHNHAT",
-              description: "Quà Tặng Sinh Nhật - Giảm 20%",
-              discountType: VoucherDiscountType.PERCENT,
-              discountValue: 20,
-              minOrderAmount: 0,
-              startsAt: new Date(Date.now() - 3600000),
-              expiresAt: new Date(Date.now() + 60 * 86400000),
-              isActive: true,
-              createdBy: admin._id,
-            },
-            {
-              code: "CUEZONE20",
-              description: "Voucher Tích Điểm - Giảm 20.000đ",
-              discountType: VoucherDiscountType.FIXED,
-              discountValue: 20000,
-              minOrderAmount: 50000,
-              startsAt: new Date(Date.now() - 3600000),
-              expiresAt: new Date(Date.now() + 60 * 86400000),
-              isActive: true,
-              createdBy: admin._id,
-            },
-          ]);
-          availableVouchers = await Voucher.find({
-            isActive: true,
-            startsAt: { $lte: now },
-            expiresAt: { $gt: now },
-          })
-            .select("code description discountType discountValue minOrderAmount")
-            .lean();
-        } catch {
-          // Bỏ qua lỗi duplicate nếu đã có
-        }
+    // Tìm các voucher mà khách hàng này đã từng sử dụng (mỗi khách dùng 1 lần)
+    const usedConditions: any[] = [{ customerId: user._id }];
+    if (user.phone) {
+      const digits = user.phone.replace(/\D/g, "");
+      if (digits.length >= 8) {
+        const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+        usedConditions.push({ customerPhone: { $regex: phonePattern } });
+      } else {
+        usedConditions.push({ customerPhone: user.phone });
       }
     }
+    const usedVoucherIds = await VoucherUsage.find({ $or: usedConditions }).distinct("voucherId");
+
+    const totalStoreVouchers = await Voucher.countDocuments({ isActive: true });
+
+    const availableVouchers = await Voucher.find({
+      _id: { $nin: usedVoucherIds },
+      isActive: true,
+      startsAt: { $lte: now },
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: null },
+        { expiresAt: { $gt: now } },
+      ],
+      $and: [
+        {
+          $or: [
+            { targetAudience: audienceQuery },
+            { targetAudience: { $exists: false } },
+            { targetAudience: null },
+          ],
+        },
+        {
+          $or: [
+            { maxUses: { $exists: false } },
+            { maxUses: null },
+            { $expr: { $lt: ["$usageCount", "$maxUses"] } },
+          ],
+        },
+      ],
+    })
+      .select("code description discountType discountValue maxDiscountAmount minOrderAmount targetAudience")
+      .lean();
 
     return {
       id: String(user._id),
@@ -134,13 +118,74 @@ export class TableService {
       elo: user.elo || 1000,
       membershipPoints: wallet?.points ?? 0,
       isMember: true,
+      totalStoreVouchers,
       availableVouchers: availableVouchers.map((v) => ({
         code: v.code,
         description: v.description,
         discountType: v.discountType,
         discountValue: v.discountValue,
+        maxDiscountAmount: v.maxDiscountAmount,
         minOrderAmount: v.minOrderAmount,
+        targetAudience: (v as any).targetAudience || "all",
       })),
+    };
+  }
+
+  async quickRegisterCustomer(data: { phone: string; name?: string }) {
+    const rawPhone = (data.phone || "").trim();
+    const digits = rawPhone.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 12) {
+      throw new Error("Số điện thoại không hợp lệ (phải từ 8-12 chữ số)");
+    }
+
+    const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+    let existingAnyUser = await User.findOne({
+      phone: { $regex: phonePattern },
+    });
+
+    if (existingAnyUser && existingAnyUser.role !== UserRole.CUSTOMER) {
+      throw new Error(`Số điện thoại này đã được đăng ký cho tài khoản nhân viên (${existingAnyUser.name})`);
+    }
+
+    let user = existingAnyUser;
+
+    let isNewCustomer = false;
+    if (!user) {
+      isNewCustomer = true;
+      const customerName = (data.name || "").trim() || `Khách ${digits.slice(-4)}`;
+      const uniqueSuffix = Date.now().toString(36);
+      const email = `khach_${digits}_${uniqueSuffix}@cuezone.local`;
+
+      user = new User({
+        name: customerName,
+        phone: rawPhone,
+        email,
+        password: `cz@${digits.slice(-4)}`,
+        role: UserRole.CUSTOMER,
+        rank: "Standard",
+        elo: 1000,
+        isActive: true,
+        isLocked: false,
+      });
+      await user.save();
+
+      await Wallet.create({
+        userId: user._id,
+        balance: 0,
+        points: 0,
+      });
+    } else if (data.name && data.name.trim() && (user.name.startsWith("Khách ") || !user.name)) {
+      user.name = data.name.trim();
+      await user.save();
+    }
+
+    const customerInfo = await this.lookupCustomer(user.phone || digits);
+    return {
+      ...customerInfo,
+      isNewCustomer,
+      message: isNewCustomer
+        ? `Đăng ký thành công hội viên ${user.name}! Đã kích hoạt ví ưu đãi.`
+        : `Hội viên ${user.name} đã sẵn sàng.`,
     };
   }
 

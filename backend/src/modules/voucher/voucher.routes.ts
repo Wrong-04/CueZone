@@ -16,7 +16,7 @@ router.get("/", requireVoucherAdmin, async (_req, res, next) => {
 
 router.post("/validate", requirePermission("pos", "operate"), async (req, res, next) => {
   try {
-    const data = await service.validate(req.body?.code, req.body?.subtotal);
+    const data = await service.validate(req.body?.code, req.body?.subtotal, req.body?.customerPhone);
     res.json({ success: true, message: "Voucher hợp lệ", data });
   } catch (error) {
     next(error);
@@ -50,10 +50,11 @@ router.post("/", requireVoucherAdmin, async (req, res, next) => {
 
 router.put("/:id", requireVoucherAdmin, async (req, res, next) => {
   try {
+    const userId = (req as any).user?.userId || (req as any).user?._id;
     res.json({
       success: true,
       message: "Cập nhật voucher thành công",
-      data: await service.update(req.params.id, req.body),
+      data: await service.update(req.params.id, req.body, userId),
     });
   } catch (error) {
     next(error);

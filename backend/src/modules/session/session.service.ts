@@ -1,5 +1,5 @@
 import { Product } from "../product/product.model";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { randomUUID } from "crypto";
 import { Table, TableStatus, TableSession, SessionTransferRecord } from "../table/table.model";
 import { Booking } from "../booking/booking.model";
@@ -1252,9 +1252,7 @@ export class SessionService {
       input.discountPercent < 0 ||
       input.discountPercent > 100 ||
       (input.voucherCode !== undefined &&
-        (typeof input.voucherCode !== "string" ||
-          !input.voucherCode.trim() ||
-          input.discountPercent !== 0))
+        (typeof input.voucherCode !== "string" || !input.voucherCode.trim()))
     ) {
       throw new Error("Phương thức thanh toán không hợp lệ; giảm giá phải từ 0 đến 100%");
     }
@@ -1357,6 +1355,10 @@ export class SessionService {
       const voucherSubtotal = subtotal - membershipDiscountAmount;
       const voucherService = new VoucherService();
       const invoiceCode = `HD-${randomUUID()}`;
+      const checkoutPhone =
+        typeof input.customerPhone === "string" && input.customerPhone.trim()
+          ? input.customerPhone.trim()
+          : current.customerPhone;
       const voucher = input.voucherCode
         ? await voucherService.redeem(
             input.voucherCode,
@@ -1366,16 +1368,20 @@ export class SessionService {
               invoiceCode,
               tableId: table._id,
               customerName: current.customerName,
+              customerPhone: checkoutPhone,
+              customerId: input.customerId ? new Types.ObjectId(input.customerId) : undefined,
             },
             session,
           )
         : undefined;
       const voucherDiscountAmount = voucher?.discountAmount ?? 0;
-      const discountAmount =
-        membershipDiscountAmount +
-        (voucher
-          ? voucher.discountAmount
-          : Math.round((voucherSubtotal * input.discountPercent) / 100));
+      const manualDiscountAmount = input.discountPercent > 0
+        ? Math.round((subtotal * input.discountPercent) / 100)
+        : 0;
+      const discountAmount = Math.min(
+        subtotal,
+        membershipDiscountAmount + manualDiscountAmount + voucherDiscountAmount,
+      );
       const finalAmount = Math.max(0, subtotal - discountAmount - current.deposit);
 
       // Xử lý thanh toán kết hợp (Tiền mặt + Chuyển khoản QR)
@@ -1390,10 +1396,6 @@ export class SessionService {
       }
 
       // Xử lý thanh toán ví hoặc tích điểm hội viên
-      const checkoutPhone =
-        typeof input.customerPhone === "string" && input.customerPhone.trim()
-          ? input.customerPhone.trim()
-          : current.customerPhone;
       const memberPayment =
         input.paymentMethod === "member_balance" || input.paymentMethod === "wallet"
           ? await this.walletService.chargeForCheckout(
@@ -1424,7 +1426,7 @@ export class SessionService {
         orders: current.orders,
         fnbTotal,
         subtotal,
-        discountPercent: voucher || membershipTier ? 0 : input.discountPercent,
+        discountPercent: input.discountPercent || (membershipTier ? membershipTier.tableDiscountPercent : 0),
         voucherCode: voucher?.code,
         membershipTier: membershipTier?.name,
         membershipDiscountAmount,

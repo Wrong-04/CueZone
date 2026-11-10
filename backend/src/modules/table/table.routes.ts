@@ -12,6 +12,7 @@ router.get("/", posRead, tableController.getAll);
 router.get("/stats", posRead, tableController.getStats);
 router.get("/available", posRead, tableController.findAvailable);
 router.get("/customer-lookup", posRead, tableController.lookupCustomer);
+router.post("/quick-register-customer", posOperate, tableController.quickRegisterCustomer);
 router.get("/:id", posRead, tableController.getById);
 router.post("/", tablesManage, tableController.create);
 router.put("/:id", tablesManage, tableController.update);
