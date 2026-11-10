@@ -4,7 +4,6 @@ import { io, type Socket } from "socket.io-client";
 import {
   DashboardOutlined,
   AppstoreOutlined,
-  CalendarOutlined,
   TrophyOutlined,
   CoffeeOutlined,
   InboxOutlined,
@@ -71,12 +70,6 @@ const menuGroups: MenuGroupConfig[] = [
         label: "Tổng Quan CLB",
         icon: <DashboardOutlined />,
         roles: ["admin"],
-      },
-      {
-        path: "/booking",
-        label: "Quản Lý Đặt Bàn",
-        icon: <CalendarOutlined />,
-        roles: ["admin", "staff"],
       },
     ],
   },
