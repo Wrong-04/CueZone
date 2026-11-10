@@ -11,20 +11,13 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
-import WalletTopupsPage from "./pages/admin/WalletTopupsPage";
-import TournamentFeesPage from "./pages/admin/TournamentFeesPage";
-
-// Three new management pages
-import CatalogManagementPage from "./pages/admin/CatalogManagementPage";
 import VoucherManagementPage from "./pages/admin/VoucherManagementPage";
 import FnbOrderQueuePage from "./pages/admin/FnbOrderQueuePage";
 import StockCatalogPage from "./pages/admin/StockCatalogPage";
-import SupplierManagementPage from "./pages/admin/SupplierManagementPage";
 import GoodsReceiptPage from "./pages/admin/GoodsReceiptPage";
 import InventoryReportPage from "./pages/admin/InventoryReportPage";
 import RevenueReportPage from "./pages/admin/RevenueReportPage";
 import AccessoryWastePage from "./pages/admin/AccessoryWastePage";
-import TablePerformanceReportPage from "./pages/admin/TablePerformanceReportPage";
 import StockCheckPage from "./pages/admin/StockCheckPage";
 
 import CustomerHome from "./pages/customer/CustomerHome";
@@ -41,6 +34,10 @@ import CustomerProfile from "./pages/customer/CustomerProfile";
 
 import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
 import NoAccessPage from "./pages/admin/NoAccessPage";
+import CatalogManagementPage from "./pages/admin/CatalogManagementPage";
+import SupplierManagementPage from "./pages/admin/SupplierManagementPage";
+import WalletTopupsPage from "./pages/admin/WalletTopupsPage";
+import TournamentFeesPage from "./pages/admin/TournamentFeesPage";
 import { getHomePath, hasPermission, STAFF_ROLES, type PermissionKey } from "./utils/permissions";
 
 import {
@@ -199,7 +196,7 @@ const AppRoutes = () => {
           }
         />
 
-        {/* 2. Product and category management */}
+        {/* 2. Product and category management - integrated into /inventory?tab=catalog */}
         <Route
           path="/catalog-management"
           element={
@@ -227,7 +224,7 @@ const AppRoutes = () => {
           }
         />
 
-        {/* 3. Supplier management */}
+        {/* 3. Supplier management - integrated into /inventory?tab=suppliers */}
         <Route
           path="/suppliers"
           element={
@@ -294,6 +291,7 @@ const AppRoutes = () => {
           }
         />
 
+        {/* Reconciliation tabs integrated into /invoices */}
         <Route
           path="/wallet-topups"
           element={
@@ -322,27 +320,15 @@ const AppRoutes = () => {
         />
         <Route
           path="/reports/revenue"
-          element={
-            <ProtectedRoute permission="reports.read">
-              <RevenueReportPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/reports?tab=revenue" replace />}
         />
         <Route
           path="/table-performance"
-          element={
-            <ProtectedRoute permission="reports.read">
-              <TablePerformanceReportPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/reports?tab=performance" replace />}
         />
         <Route
           path="/reports/table-performance"
-          element={
-            <ProtectedRoute permission="reports.read">
-              <TablePerformanceReportPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/reports?tab=performance" replace />}
         />
 
         <Route
@@ -379,7 +365,7 @@ const AppRoutes = () => {
       <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
       <Route path="/admin/pos" element={<Navigate to="/pos" replace />} />
       <Route path="/admin/tables" element={<Navigate to="/tables" replace />} />
-      <Route path="/admin/booking" element={<Navigate to="/booking" replace />} />
+      <Route path="/admin/booking" element={<Navigate to="/pos?drawer=booking" replace />} />
       <Route path="/admin/tournaments" element={<Navigate to="/tournaments" replace />} />
       <Route path="/admin/fnb" element={<Navigate to="/fnb" replace />} />
       <Route path="/admin/inventory" element={<Navigate to="/inventory" replace />} />

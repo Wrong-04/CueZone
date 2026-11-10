@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import dayjs, { Dayjs } from "dayjs";
 import { useAuth } from "../../contexts/AuthContext";
 import { hasPermission } from "../../utils/permissions";
+import CatalogManagementPage from "./CatalogManagementPage";
+import SupplierManagementPage from "./SupplierManagementPage";
 import {
   InboxOutlined,
   SearchOutlined,
@@ -639,8 +642,18 @@ export const WarehouseInventoryPage: React.FC = () => {
     setAlertModalVisible(false);
   };
 
-  // Main navigation tabs
-  const [activeTab, setActiveTab] = useState<string>("stock");
+  // Main navigation tabs with URL search params support
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get("tab") || "stock";
+  const validTabs = [
+    "stock", "inward", "outward", "audit", "report",
+    ...(hasPermission(user, "inventory.manage") ? ["catalog"] : []),
+    ...(hasPermission(user, "suppliers.manage") ? ["suppliers"] : []),
+  ];
+  const activeTab = validTabs.includes(rawTab) ? rawTab : "stock";
+  const setActiveTab = (tab: string) => {
+    setSearchParams(tab === "stock" ? {} : { tab });
+  };
 
   // Filters for Stock tab
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -1407,7 +1420,15 @@ export const WarehouseInventoryPage: React.FC = () => {
       label: "Báo cáo xuất - nhập - tồn",
       badge: "Tổng hợp",
     },
-  ];
+    {
+      key: "catalog",
+      label: "Danh mục & Phụ kiện",
+    },
+    {
+      key: "suppliers",
+      label: "Nhà cung cấp",
+    },
+  ].filter((tab) => validTabs.includes(tab.key));
 
 
 
@@ -3023,6 +3044,20 @@ export const WarehouseInventoryPage: React.FC = () => {
             />
             <Pagination current={reportPage} pageSize={pageSize} total={filteredReportItems.length} unit="mặt hàng" onChange={(p) => setReportPage(p)} />
           </div>
+        </div>
+      )}
+
+      {/* ── TAB 6: DANH MỤC & PHỤ KIỆN BIDA ── */}
+      {activeTab === "catalog" && (
+        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
+          <CatalogManagementPage />
+        </div>
+      )}
+
+      {/* ── TAB 7: QUẢN LÝ NHÀ CUNG CẤP ── */}
+      {activeTab === "suppliers" && (
+        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
+          <SupplierManagementPage />
         </div>
       )}
 

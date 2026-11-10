@@ -49,7 +49,7 @@ export function SegmentedPillList({
               <span className={clsx("w-2 h-2 rounded-full shrink-0", item.dotClassName)} />
             ) : null}
             <span>{item.label}</span>
-            {item.badge ? (
+            {item.badge !== undefined && item.badge !== null ? (
               <span
                 className={clsx(
                   "px-1.5 py-0.5 rounded text-[11px] font-semibold shrink-0",

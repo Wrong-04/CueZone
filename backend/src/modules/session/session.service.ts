@@ -329,11 +329,15 @@ export class SessionService {
         orderTime: string;
         status: string;
       }> = [];
-      if (table.status === TableStatus.BOOKED) {
-        if (!table.bookedInfo || input.bookingId !== table.bookedInfo.bookingId)
-          throw new Error("Lịch đặt bàn đã thay đổi, vui lòng tải lại");
+      const isBookingCheckIn = Boolean(
+        input.bookingId &&
+        table.bookedInfo &&
+        input.bookingId === table.bookedInfo.bookingId
+      );
+
+      if (isBookingCheckIn) {
         const booking = await Booking.findOne({
-          _id: table.bookedInfo.bookingId,
+          _id: table.bookedInfo!.bookingId,
           status: "approved",
         }).session(session);
         if (!booking) throw new Error("Không tìm thấy lịch đặt bàn hợp lệ");
@@ -402,7 +406,11 @@ export class SessionService {
         note: input.note,
         deposit,
       };
-      table.bookedInfo = undefined;
+      // Chỉ xoá bookedInfo nếu đây là lượt nhận bàn thật sự của khách đặt trước
+      // Nếu mở bàn cho khách vãng lai chơi tạm trong lúc chờ, giữ nguyên bookedInfo để POS cảnh báo khi sắp đến giờ đón khách
+      if (isBookingCheckIn) {
+        table.bookedInfo = undefined;
+      }
       table.status = TableStatus.PLAYING;
       await table.save({ session });
       return table;
@@ -1223,7 +1231,7 @@ export class SessionService {
         ) {
           throw Object.assign(new Error("Hóa đơn không thuộc tài khoản này"), { httpCode: 403 });
         }
-        return previous.receipt;
+        return { receipt: previous.receipt };
       }
       const table = await Table.findOne({
         _id: tableId,
@@ -1402,11 +1410,17 @@ export class SessionService {
         },
       );
       table.currentSession = undefined;
-      table.status = TableStatus.AVAILABLE;
+      table.status = table.bookedInfo ? TableStatus.BOOKED : TableStatus.AVAILABLE;
       await table.save({ session });
-      return receipt;
+      return { receipt, nextStatus: table.status, updatedTable: table };
     });
-    emitTableStatusChanged({ tableId, status: TableStatus.AVAILABLE });
-    return result;
+    if (result.nextStatus) {
+      emitTableStatusChanged({
+        tableId,
+        status: result.nextStatus,
+        table: result.updatedTable,
+      });
+    }
+    return result.receipt;
   }
 }

@@ -1417,7 +1417,7 @@ export const FnBInventoryPage: React.FC = () => {
                     className="!h-10 !rounded-xl font-mono text-xs font-bold"
                   />
                   <div className="mt-1 text-[11px] text-emerald-700 font-semibold flex items-center justify-between">
-                    <span>👉 Giá hiển thị cho khách:</span>
+                    <span>Giá hiển thị cho khách:</span>
                     <strong className="text-xs">
                       {Number(editingItemData.price || 0).toLocaleString("vi-VN")}đ
                     </strong>

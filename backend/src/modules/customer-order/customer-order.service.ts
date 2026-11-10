@@ -10,6 +10,11 @@ import {
   CustomerOrderStatus,
   ICustomerOrderItem,
 } from "./customer-order.model";
+import {
+  emitCustomerOrderNew,
+  emitCustomerOrderStatusChanged,
+  emitTableStatusChanged,
+} from "../../utils/socketHolder";
 
 const notifications = new NotificationService();
 
@@ -81,7 +86,7 @@ export class CustomerOrderService {
     }
     const products = await Product.find({
       _id: { $in: productIds },
-      category: { $in: ["drink", "food", "snack"] },
+      category: { $ne: "ingredient" },
       isForSale: true,
       isActive: true,
     }).select("_id name category salePrice stock");
@@ -152,6 +157,7 @@ export class CustomerOrderService {
         [UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER],
       )
       .catch((error) => console.error("Không thể gửi thông báo order mới:", error));
+    emitCustomerOrderNew(order);
     return order;
   }
 
@@ -269,6 +275,10 @@ export class CustomerOrderService {
         type: NotificationType.SYSTEM,
       })
       .catch((error) => console.error("Không thể gửi cập nhật trạng thái order:", error));
+    emitCustomerOrderStatusChanged(order);
+    if (order.status === CustomerOrderStatus.PREPARING) {
+      emitTableStatusChanged({ tableId: String(order.tableId) });
+    }
     return order;
   }
 }

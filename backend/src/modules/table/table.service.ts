@@ -2,6 +2,7 @@ import { Table, ITable, TableStatus } from "./table.model";
 import { User, UserRole } from "../user/user.model";
 import { Voucher, VoucherDiscountType } from "../voucher/voucher.model";
 import { Wallet } from "../wallet/wallet.model";
+import { Booking } from "../booking/booking.model";
 import { CreateTableDTO, UpdateTableDTO } from "./dto/table.dto";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
@@ -275,7 +276,13 @@ export class TableService {
   async cancelBooking(id: string): Promise<ITable> {
     const table = await Table.findById(id);
     if (!table) throw new Error("Không tìm thấy bàn");
-    if (table.status !== TableStatus.BOOKED) throw new Error("Bàn không ở trạng thái đặt trước");
+    if (table.status !== TableStatus.BOOKED) {
+      // Nếu bàn đã mở hoặc đang chơi, chỉ cần xóa thông tin đặt trước nếu có
+      table.bookedInfo = undefined;
+      await table.save();
+      emitTableStatusChanged({ tableId: String(table._id), status: table.status, table });
+      return table;
+    }
     table.status = TableStatus.AVAILABLE;
     table.bookedInfo = undefined;
     await table.save();
@@ -370,6 +377,37 @@ export class TableService {
 
     const tables = await Table.find(query).sort({ code: 1 });
     const now = Date.now();
+
+    // Tự động kiểm tra và giải phóng bàn đã hết hạn đặt hoặc chưa tới giờ giữ bàn
+    for (const t of tables) {
+      if (t.status === TableStatus.BOOKED && t.bookedInfo?.time) {
+        const match = t.bookedInfo.time.match(/(\d{1,2}:\d{2})\s*\(([\d-]+)\)/);
+        if (match) {
+          const [, timeStr, dateStr] = match;
+          const bookingStart = new Date(`${dateStr}T${timeStr}:00+07:00`).getTime();
+          const minutesDiff = (bookingStart - now) / 60000;
+          if (minutesDiff < -60) {
+            t.status = TableStatus.AVAILABLE;
+            const bId = t.bookedInfo.bookingId;
+            t.bookedInfo = undefined;
+            Table.updateOne(
+              { _id: t._id },
+              { $set: { status: TableStatus.AVAILABLE }, $unset: { bookedInfo: 1 } },
+            ).catch(() => {});
+            if (bId) {
+              Booking.updateOne(
+                { _id: bId, status: { $in: ["pending", "approved", "confirmed"] } },
+                { $set: { status: "cancelled", cancelReason: "Tự động hủy do quá hạn nhận bàn" } },
+              ).catch(() => {});
+            }
+          } else if (minutesDiff > 60) {
+            // Còn trên 60 phút nữa mới tới giờ hẹn: bàn vẫn khả dụng cho khách chơi trước
+            t.status = TableStatus.AVAILABLE;
+            Table.updateOne({ _id: t._id }, { $set: { status: TableStatus.AVAILABLE } }).catch(() => {});
+          }
+        }
+      }
+    }
 
     const typeLabels: Record<string, string> = {
       pool: "Bàn Bida Lỗ (Pool)",

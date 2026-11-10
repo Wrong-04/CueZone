@@ -205,7 +205,6 @@ export class BookingService {
     if (startDate.getTime() <= Date.now()) return [];
     const tableFilter: Record<string, any> = {
       isActive: true,
-      status: TableStatus.AVAILABLE,
     };
     if (input.type) tableFilter.type = input.type;
     const tables = await Table.find(tableFilter).sort({ code: 1 });
@@ -382,7 +381,9 @@ export class BookingService {
         { session },
       );
       if (initialStatus === "approved") {
-        table.status = TableStatus.BOOKED;
+        if (table.status === TableStatus.AVAILABLE) {
+          table.status = TableStatus.BOOKED;
+        }
         table.bookedInfo = {
           customerName: booking.customerName || "Khách đặt trước",
           phone: booking.phone || "0900000000",
@@ -580,7 +581,9 @@ export class BookingService {
           booking.endDate = interval.endDate;
         }
         booking.estimatedCost = table.pricePerHour * (booking.duration || 2);
-        table.status = TableStatus.BOOKED;
+        if (table.status === TableStatus.AVAILABLE) {
+          table.status = TableStatus.BOOKED;
+        }
         table.bookedInfo = {
           customerName: resolvedName,
           phone: resolvedPhone,
