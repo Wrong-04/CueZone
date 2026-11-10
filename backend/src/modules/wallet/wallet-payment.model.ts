@@ -18,7 +18,16 @@ const walletPaymentSchema = new Schema<IWalletPayment>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     referenceCode: { type: String, required: true, unique: true, trim: true },
-    amount: { type: Number, required: true, enum: [100000, 200000, 500000] },
+    amount: {
+      type: Number,
+      required: true,
+      min: 50_000,
+      max: 10_000_000,
+      validate: {
+        validator: (amount: number) => amount % 10_000 === 0,
+        message: "Số tiền nạp phải là bội số của 10.000đ",
+      },
+    },
     status: {
       type: String,
       enum: Object.values(WalletTransactionStatus),
