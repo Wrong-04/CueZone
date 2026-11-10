@@ -13,6 +13,7 @@ import { Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Button, Input, Space, Typography, Alert } from "../../shared/ui";
 import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
+import { isVietnameseMobilePhone } from "../../utils/phone";
 
 const { Title, Text } = Typography;
 
@@ -46,6 +47,9 @@ const RegisterPage: React.FC = () => {
   const validateForm = (): string | null => {
     if (!name.trim()) return "Vui lòng nhập họ và tên của bạn";
     if (!email.trim()) return "Vui lòng nhập địa chỉ email hợp lệ";
+    if (phone.trim() && !isVietnameseMobilePhone(phone)) {
+      return "Số điện thoại phải là số di động Việt Nam hợp lệ (VD: 0912345678 hoặc +84912345678)";
+    }
     if (password !== confirmPassword) return "Mật khẩu xác nhận không khớp";
     if (password.length < 8) return "Mật khẩu phải có ít nhất 8 ký tự";
     if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
@@ -277,11 +281,12 @@ const RegisterPage: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Số điện thoại <span className="text-slate-400 font-normal">(tùy chọn)</span>
+                      Số điện thoại di động Việt Nam{" "}
+                      <span className="text-slate-400 font-normal">(tùy chọn)</span>
                     </label>
                     <Input
                       type="tel"
-                      placeholder="0912 345 678"
+                      placeholder="0912345678 hoặc +84912345678"
                       value={phone}
                       autoComplete="tel"
                       onChange={(e) => setPhone(e.target.value)}

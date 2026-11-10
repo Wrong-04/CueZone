@@ -67,6 +67,7 @@ export interface FnbStockItem {
   minThreshold: number;
   unit: string;
   image: string;
+  isMadeToOrder?: boolean;
 }
 
 export interface TournamentMatchScore {

@@ -4,38 +4,46 @@ import Category from "./category.model";
 import { CreateProductDTO, UpdateProductDTO } from "./dto/product.dto";
 import { uploadProductImage } from "../../config/cloudinary.config";
 
+const FNB_CATEGORY_CODES = ["drink", "food", "snack"];
+
+export async function getFnbCategoryConfig(session?: mongoose.ClientSession) {
+  let query = Category.find().select("_id code name isActive").lean();
+  if (session) query = query.session(session);
+  const categories = await query;
+  const categoriesByCode = new Map(categories.map((category) => [category.code, category]));
+  const legacyCategoryCodes = FNB_CATEGORY_CODES.filter(
+    (code) => !categoriesByCode.has(code) || categoriesByCode.get(code)?.isActive !== false,
+  );
+  const activeCategories = categories.filter(
+    (category) => category.isActive !== false && FNB_CATEGORY_CODES.includes(category.code),
+  );
+
+  return {
+    values: [
+      ...legacyCategoryCodes,
+      ...activeCategories.map((category) => String(category._id)),
+    ],
+    names: new Map(
+      activeCategories.map((category) => [
+        String(category._id),
+        category.name || category.code,
+      ]),
+    ),
+  };
+}
+
 export class ProductService {
   async getFnbMenu(): Promise<any[]> {
+    const categoryConfig = await getFnbCategoryConfig();
     const products = await Product.find({
-      category: { $ne: "ingredient" },
+      category: { $in: categoryConfig.values },
       isForSale: true,
       isActive: true,
     }).sort({ category: 1, name: 1 });
 
-    const rawCategoryValues = products.map((p) => String(p.category || "").trim());
-    const objectIds = rawCategoryValues.filter((c) => mongoose.Types.ObjectId.isValid(c));
-    const catMap = new Map<string, string>();
-
-    if (objectIds.length > 0) {
-      try {
-        const foundCats = await Category.find({ _id: { $in: objectIds } }).lean();
-        foundCats.forEach((c) => {
-          catMap.set(c._id.toString(), c.name || c.code);
-        });
-      } catch (err) {
-        console.error("Lỗi khi tìm danh mục F&B:", err);
-      }
-    }
-
     return products.map((p) => {
       const rawCat = String(p.category || "").trim();
-      let resolvedCategory = rawCat;
-
-      if (catMap.has(rawCat)) {
-        resolvedCategory = catMap.get(rawCat)!;
-      } else if (mongoose.Types.ObjectId.isValid(rawCat)) {
-        resolvedCategory = /kem|bánh|snack|khô/i.test(p.name) ? "snack" : "accessory";
-      }
+      const resolvedCategory = categoryConfig.names.get(rawCat) || rawCat;
 
       return {
         _id: p._id,
@@ -47,7 +55,8 @@ export class ProductService {
         imageUrl: p.imageUrl,
         description: p.description,
         stock: p.stock,
-        isOutOfStock: p.stock === 0,
+        isMadeToOrder: Boolean(p.isMadeToOrder),
+        isOutOfStock: p.isMadeToOrder ? !p.isForSale : p.stock === 0,
       };
     });
   }

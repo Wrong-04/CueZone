@@ -105,6 +105,21 @@ publicRouter.post(
         .status(201)
         .json({ success: true, message: "Đặt bàn đã được xác nhận tự động", data: booking });
     } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "httpCode" in error &&
+        error.httpCode === 409 &&
+        "code" in error &&
+        typeof error.code === "string" &&
+        "message" in error &&
+        typeof error.message === "string"
+      ) {
+        res
+          .status(409)
+          .json({ success: false, code: error.code, message: error.message });
+        return;
+      }
       next(error);
     }
   },

@@ -17,6 +17,19 @@ import {
   sendPasswordResetEmail,
   sendWelcomeRegistrationEmail,
 } from "./email.service";
+import { normalizeVietnameseMobilePhone, phonePatterns } from "../../utils/phone.util";
+
+export function normalizeRegistrationPhone(value: unknown): string | undefined {
+  return normalizeVietnameseMobilePhone(value);
+}
+
+async function findUserByPhone(phone: string, excludeUserId?: string) {
+  const filter: Record<string, unknown> = {
+    phone: { $in: phonePatterns(phone).map((pattern) => new RegExp(pattern)) },
+  };
+  if (excludeUserId) filter._id = { $ne: excludeUserId };
+  return User.findOne(filter).select("_id");
+}
 
 export interface TokenPayload {
   userId: string;
@@ -76,14 +89,7 @@ export class AuthService {
       throw new Error("Email không đúng định dạng");
     }
 
-    let phone: string | undefined = undefined;
-    if (dto.phone !== undefined && dto.phone !== null && String(dto.phone).trim() !== "") {
-      phone = String(dto.phone).trim();
-      const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
-      if (!phoneRegex.test(phone)) {
-        throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
-      }
-    }
+    const phone = normalizeRegistrationPhone(dto.phone);
 
     this.validatePassword(dto.password);
 
@@ -108,7 +114,7 @@ export class AuthService {
     }
 
     if (validated.phone) {
-      const existingPhone = await User.findOne({ phone: validated.phone });
+      const existingPhone = await findUserByPhone(validated.phone);
       if (existingPhone) {
         throw new Error("Số điện thoại đã được sử dụng");
       }
@@ -149,7 +155,13 @@ export class AuthService {
     const user = await User.findOne(
       isEmail
         ? { email: identifier.toLowerCase() }
-        : { $or: [{ phone: identifier }, { email: identifier.toLowerCase() }] },
+        : {
+            $or: [
+              { phone: identifier },
+              { phone: { $in: phonePatterns(identifier).map((pattern) => new RegExp(pattern)) } },
+              { email: identifier.toLowerCase() },
+            ],
+          },
     ).select("+password");
 
     if (!user) {
@@ -207,13 +219,11 @@ export class AuthService {
 
     let phone: string | undefined;
     if (input.phone !== undefined && input.phone !== null && String(input.phone).trim()) {
-      phone = String(input.phone).trim();
-      const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
-      if (!phoneRegex.test(phone)) {
-        throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
+      phone = normalizeRegistrationPhone(input.phone);
+      if (phone) {
+        const existingPhone = await findUserByPhone(phone, userId);
+        if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
       }
-      const existingPhone = await User.findOne({ phone, _id: { $ne: userId } }).select("_id");
-      if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
     }
 
     const user = await User.findById(userId);
@@ -242,7 +252,7 @@ export class AuthService {
       }
 
       if (validated.phone) {
-        const existingPhone = await User.findOne({ phone: validated.phone });
+        const existingPhone = await findUserByPhone(validated.phone);
         if (existingPhone) {
           throw new Error("Số điện thoại đã được sử dụng");
         }
@@ -322,7 +332,7 @@ export class AuthService {
     }
 
     if (pending.phone) {
-      const existingPhone = await User.findOne({ phone: pending.phone });
+      const existingPhone = await findUserByPhone(pending.phone);
       if (existingPhone) {
         await EmailVerification.deleteOne({ email: normalizedEmail });
         throw new Error("Số điện thoại đã được sử dụng");

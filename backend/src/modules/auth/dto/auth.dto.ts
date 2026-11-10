@@ -23,8 +23,8 @@ export class RegisterDTO {
   password!: string;
 
   @IsOptional()
-  @Matches(/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/, {
-    message: "Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)",
+  @Matches(/^(?:0|\+84)[\s().-]*[35789](?:[\s().-]*\d){8}$/, {
+    message: "Số điện thoại phải là số di động Việt Nam hợp lệ",
   })
   phone?: string;
 

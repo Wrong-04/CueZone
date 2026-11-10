@@ -67,12 +67,6 @@ const menuGroups: MenuGroupConfig[] = [
         isSpecial: true,
       },
       {
-        path: "/booking",
-        label: "Duyệt Đặt Bàn",
-        icon: <AppstoreOutlined />,
-        permission: "bookings.manage",
-      },
-      {
         path: "/dashboard",
         label: "Tổng Quan CLB",
         icon: <DashboardOutlined />,
@@ -95,24 +89,6 @@ const menuGroups: MenuGroupConfig[] = [
         label: "Kho Hàng & Vật Tư",
         icon: <InboxOutlined />,
         permission: "inventory.read",
-      },
-      {
-        path: "/catalog-management",
-        label: "Danh mục sản phẩm",
-        icon: <InboxOutlined />,
-        permission: "inventory.manage",
-      },
-      {
-        path: "/fnb-orders",
-        label: "Order F&B tại bàn",
-        icon: <CoffeeOutlined />,
-        permission: "fnb_orders.manage",
-      },
-      {
-        path: "/suppliers",
-        label: "Nhà cung cấp",
-        icon: <InboxOutlined />,
-        permission: "suppliers.manage",
       },
     ],
   },
@@ -144,18 +120,6 @@ const menuGroups: MenuGroupConfig[] = [
         icon: <FileTextOutlined />,
         permission: "invoices.read",
       },
-      {
-        path: "/wallet-topups",
-        label: "Đối soát nạp ví",
-        icon: <WalletOutlined />,
-        permission: "wallet.operate",
-      },
-      {
-        path: "/tournament-fees",
-        label: "Đối soát lệ phí giải",
-        icon: <TrophyOutlined />,
-        permission: "tournaments.manage",
-      },
     ],
   },
   {
@@ -178,12 +142,6 @@ const menuGroups: MenuGroupConfig[] = [
         path: "/employees",
         label: "Nhân Sự CLB",
         icon: <TeamOutlined />,
-        roles: ["admin"],
-      },
-      {
-        path: "/news",
-        label: "Tin tức",
-        icon: <FileTextOutlined />,
         roles: ["admin"],
       },
       {
@@ -529,7 +487,7 @@ const AdminLayout = () => {
         </aside>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Top bar */}
           <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
             <div className="flex items-center gap-3">
@@ -686,11 +644,15 @@ const AdminLayout = () => {
 
           {/* Page content */}
           <main
-            className={`flex-1 overflow-y-auto ${
-              location.pathname === "/tournaments" ? "p-0" : "p-6"
+            className={`flex-1 overflow-y-auto overflow-x-hidden min-w-0 ${
+              location.pathname === "/tournaments"
+                ? "p-0"
+                : location.pathname === "/pos"
+                  ? "p-3 sm:p-4 md:p-5"
+                  : "p-6"
             }`}
           >
-            <div key={location.pathname} className="animate-slide-up">
+            <div key={location.pathname} className="animate-slide-up max-w-full min-w-0">
               <Outlet />
             </div>
           </main>

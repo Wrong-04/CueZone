@@ -246,7 +246,20 @@ export class WalletService {
 
     const result = await this.handleVnpayIpn(parameters);
     if (result.RspCode !== "00") {
-      throw httpError("Không thể xác thực kết quả thanh toán VNPay", 400);
+      const failures: Record<string, { message: string; httpCode: number }> = {
+        "01": { message: "Không tìm thấy giao dịch nạp ví VNPay", httpCode: 404 },
+        "04": { message: "Số tiền thanh toán VNPay không khớp với giao dịch", httpCode: 400 },
+        "97": {
+          message: "Chữ ký phản hồi VNPay không hợp lệ. Giao dịch chưa được cộng tiền.",
+          httpCode: 400,
+        },
+        "99": { message: "Dữ liệu phản hồi VNPay không hợp lệ", httpCode: 400 },
+      };
+      const failure = failures[result.RspCode];
+      throw httpError(
+        failure?.message ?? "Không thể xác thực kết quả thanh toán VNPay",
+        failure?.httpCode ?? 400,
+      );
     }
     return this.getVnpayTopupStatus(userId, referenceCode);
   }
