@@ -79,6 +79,16 @@ export const walletService = {
     return data.data;
   },
 
+  async confirmVnpayReturn(parameters: Record<string, string>): Promise<VnpayTopupStatus> {
+    const { data } = await api.post<ApiResponse<VnpayTopupStatus>>(
+      "/wallet/topups/vnpay/return",
+      parameters,
+    );
+    if (!data.success || !data.data)
+      throw new Error(data.message || "Không thể xác nhận kết quả thanh toán VNPay");
+    return data.data;
+  },
+
   async getPendingTopups(): Promise<PendingTopup[]> {
     const { data } = await api.get<ApiResponse<PendingTopup[]>>("/wallet/topups/pending");
     if (!data.success) throw new Error(data.message || "Không thể tải yêu cầu nạp ví");

@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { User, UserRole } from "../user/user.model";
-import { WalletService } from "./wallet.service";
+import { WalletService, type VnpayParameters } from "./wallet.service";
 
 const router = Router();
 const walletService = new WalletService();
@@ -61,6 +61,33 @@ router.post(
       res.status(201).json({
         success: true,
         message: "Đã tạo giao dịch nạp ví",
+        data: payment,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  "/topups/vnpay/return",
+  requireWalletUser,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parameters = Object.entries(req.body ?? {}).reduce<VnpayParameters>(
+        (result, [key, value]) => {
+          if (typeof value === "string") result[key] = value;
+          return result;
+        },
+        {},
+      );
+      const payment = await walletService.confirmVnpayReturn(
+        (req as any).user.userId,
+        parameters,
+      );
+      res.json({
+        success: true,
+        message: "Đã xác nhận kết quả thanh toán VNPay",
         data: payment,
       });
     } catch (error) {

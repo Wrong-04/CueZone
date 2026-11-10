@@ -231,6 +231,20 @@ export class WalletService {
     return payment;
   }
 
+  async confirmVnpayReturn(userId: string, parameters: VnpayParameters) {
+    if (!mongoose.isValidObjectId(userId)) throw httpError("Tài khoản không hợp lệ", 401);
+    const referenceCode = parameters.vnp_TxnRef;
+    if (!referenceCode) throw httpError("Thiếu mã giao dịch VNPay");
+    const payment = await WalletPayment.findOne({ userId, referenceCode }).select("_id");
+    if (!payment) throw httpError("Không tìm thấy giao dịch nạp ví", 404);
+
+    const result = await this.handleVnpayIpn(parameters);
+    if (result.RspCode !== "00") {
+      throw httpError("Không thể xác thực kết quả thanh toán VNPay", 400);
+    }
+    return this.getVnpayTopupStatus(userId, referenceCode);
+  }
+
   async handleVnpayIpn(parameters: VnpayParameters) {
     const config = getVnpayConfig();
     if (
