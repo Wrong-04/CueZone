@@ -790,7 +790,7 @@ export const PosTableFloorPage: React.FC = () => {
 
   const areaOptions = [
     { value: "all", label: `Tất cả khu vực (${stats.total})` },
-    { value: "standard", label: `Khu Standard (${stats.standardCount})` },
+    { value: "standard", label: `Khu Phổ Thông (${stats.standardCount})` },
     { value: "vip", label: `Khu VIP (${stats.vipCount})` },
     { value: "match", label: `Khu Thi Đấu (${stats.matchCount})` },
   ];

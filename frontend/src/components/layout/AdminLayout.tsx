@@ -60,7 +60,7 @@ const menuGroups: MenuGroupConfig[] = [
     items: [
       {
         path: "/pos",
-        label: "POS Sơ Đồ Bàn",
+        label: "Sơ Đồ Bàn (POS)",
         icon: <ThunderboltOutlined />,
         roles: ["admin", "staff"],
         badge: "Chính",
@@ -74,7 +74,7 @@ const menuGroups: MenuGroupConfig[] = [
       },
       {
         path: "/booking",
-        label: "Duyệt Đặt Bàn",
+        label: "Quản Lý Đặt Bàn",
         icon: <CalendarOutlined />,
         roles: ["admin", "staff"],
       },
@@ -87,7 +87,7 @@ const menuGroups: MenuGroupConfig[] = [
     items: [
       {
         path: "/fnb",
-        label: "Thực Đơn F&B",
+        label: "Thực Đơn & Dịch Vụ",
         icon: <CoffeeOutlined />,
         roles: ["admin", "staff"],
       },
@@ -112,7 +112,7 @@ const menuGroups: MenuGroupConfig[] = [
       },
       {
         path: "/vouchers",
-        label: "Mã Giảm Giá",
+        label: "Khuyến Mãi & Voucher",
         icon: <GiftOutlined />,
         roles: ["admin"],
       },
@@ -144,7 +144,7 @@ const menuGroups: MenuGroupConfig[] = [
       },
       {
         path: "/tables",
-        label: "Cấu Hình Bàn Bida",
+        label: "Quản Lý Bàn & Bảng Giá",
         icon: <AppstoreOutlined />,
         roles: ["admin"],
       },

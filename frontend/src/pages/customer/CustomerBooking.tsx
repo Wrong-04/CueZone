@@ -446,11 +446,11 @@ export const CustomerBooking = () => {
                 </span>
               </div>
 
-              {/* Grid 2 cột: Ngày chơi & Giờ bắt đầu (Tự động ghim giờ gần nhất theo quy tắc) */}
+              {/* Grid 2 cột: Ngày nhận bàn & Giờ nhận bàn */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Ngày chơi:
+                    Ngày nhận bàn:
                   </label>
                   <Select
                     value={date}
@@ -467,7 +467,7 @@ export const CustomerBooking = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Giờ bắt đầu:
+                    Giờ nhận bàn:
                   </label>
                   <Select
                     value={time}
@@ -480,7 +480,7 @@ export const CustomerBooking = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Thời gian dự kiến chơi:
+                  Thời lượng dự kiến:
                 </label>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map((h) => (
@@ -520,7 +520,7 @@ export const CustomerBooking = () => {
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <ShoppingOutlined className="text-emerald-600" />
-                    Đặt trước đồ uống (Tùy chọn)
+                    Đặt trước đồ uống & món (Tùy chọn)
                   </label>
                   <span className="text-[11px] text-slate-500">
                     {preOrderItems.reduce((sum, item) => sum + item.quantity, 0)} món
@@ -568,7 +568,7 @@ export const CustomerBooking = () => {
                 )}
                 {preOrderItems.length > 0 && (
                   <div className="border-t border-slate-100 pt-1.5 text-right text-xs font-bold text-emerald-700">
-                    Tiền nước uống tạm tính: {preOrderTotal.toLocaleString("vi-VN")}đ
+                    Tiền món tạm tính: {preOrderTotal.toLocaleString("vi-VN")}đ
                   </div>
                 )}
               </div>
@@ -582,7 +582,7 @@ export const CustomerBooking = () => {
                   </strong>
                 </div>
                 <div className="flex items-center justify-between text-slate-600">
-                  <span>Thời gian đến:</span>
+                  <span>Giờ nhận bàn:</span>
                   <span className="font-semibold text-slate-800">
                     {time} ({selectedDateLabel}) • {duration} tiếng
                   </span>
