@@ -8,7 +8,7 @@ import {
   TeamOutlined,
   ClockCircleOutlined,
   UserOutlined,
-  ArrowUpOutlined,
+  CheckCircleOutlined,
   RightOutlined,
   AlertOutlined,
   AppstoreOutlined,
@@ -339,8 +339,7 @@ export const AdminDashboard: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs !text-slate-500 block">
-              Trung tâm giám sát điều hành toàn diện, kiểm soát doanh thu thời gian thực và quản trị
-              sàn bida
+              Theo dõi doanh thu, tình trạng bàn và hoạt động tại câu lạc bộ hôm nay
             </Text>
           </div>
 
@@ -398,7 +397,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Doanh Thu Hôm Nay
+                Doanh Thu Đã Thu Hôm Nay
               </span>
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200/60 shadow-2xs">
                 <DollarOutlined className="text-lg" />
@@ -406,25 +405,25 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="flex items-baseline gap-2 mb-2">
-              <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight">
-                {floorStats.grandRevenueToday.toLocaleString("vi-VN")}đ
+              <span className="text-2xl sm:text-3xl font-black text-emerald-800 font-mono tracking-tight">
+                {floorStats.paidRevenueToday.toLocaleString("vi-VN")}đ
               </span>
               <span className="text-xs font-bold text-emerald-600 flex items-center gap-0.5 whitespace-nowrap">
-                <ArrowUpOutlined /> Thời gian thực
+                <CheckCircleOutlined /> Đã thanh toán
               </span>
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>
-                Tạm tính sàn:{" "}
-                <strong className="text-emerald-700 font-mono">
+                Tạm tính bàn đang chơi:{" "}
+                <strong className="text-amber-700 font-mono">
                   {floorStats.totalTempRevenue.toLocaleString("vi-VN")}đ
                 </strong>
               </span>
               <span>
-                Đã thu:{" "}
-                <strong className="text-slate-800 font-mono">
-                  {floorStats.paidRevenueToday.toLocaleString("vi-VN")}đ
+                Tổng ước tính:{" "}
+                <strong className="text-slate-700 font-mono">
+                  {floorStats.grandRevenueToday.toLocaleString("vi-VN")}đ
                 </strong>
               </span>
             </div>
@@ -562,7 +561,7 @@ export const AdminDashboard: React.FC = () => {
                     level={4}
                     className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight"
                   >
-                    Bàn Đang Hoạt Động (Live Floor)
+                    Bàn Đang Hoạt Động
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
                     {activeTables.length} bàn đang phục vụ ({floorStats.playing} đang chơi, {floorStats.paused} tạm dừng, {floorStats.booked} đặt trước)
@@ -841,15 +840,15 @@ export const AdminDashboard: React.FC = () => {
                     level={4}
                     className="!text-base !font-black !text-slate-900 !mb-0 tracking-tight"
                   >
-                    Khung Giờ Vàng (Peak Hours)
+                    Khung Giờ Cao Điểm
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
-                    Phân bố mật độ doanh thu theo các mốc giờ trong ngày
+                    Phân bổ mật độ doanh thu theo các mốc giờ trong ngày
                   </Text>
                 </div>
               </div>
               <Tag color="gold" className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-bold">
-                19h - 22h PEAK
+                GIỜ CAO ĐIỂM
               </Tag>
             </div>
 
@@ -942,7 +941,7 @@ export const AdminDashboard: React.FC = () => {
                 className="!text-[10px] !px-2 !py-0.5 !font-bold"
               >
                 {activeTournament?.status === "in_progress"
-                  ? "LIVE VAR"
+                  ? "ĐANG DIỄN RA"
                   : activeTournament?.status === "registration_open"
                     ? "ĐANG ĐĂNG KÝ"
                     : "SẮP KHỞI TRANH"}
@@ -1016,7 +1015,7 @@ export const AdminDashboard: React.FC = () => {
 
                 <div className="mt-3 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
                   <span className="text-slate-500">
-                    Hình thức: <strong>{activeTournament?.format || "Single Elimination"}</strong>
+                    Hình thức: <strong>{activeTournament?.format === "Single Elimination" || !activeTournament?.format ? "Loại trực tiếp" : activeTournament.format}</strong>
                   </span>
                   <Button
                     variant="link"

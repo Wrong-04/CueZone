@@ -44,6 +44,10 @@ api.interceptors.response.use(
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("cuezone_user");
 
+        if (error.response?.data?.message && typeof error.response.data.message === "string") {
+          error.message = error.response.data.message;
+        }
+
         return Promise.reject(error);
       }
 
@@ -88,6 +92,10 @@ api.interceptors.response.use(
 
         return Promise.reject(refreshError);
       }
+    }
+
+    if (error.response?.data?.message && typeof error.response.data.message === "string") {
+      error.message = error.response.data.message;
     }
 
     return Promise.reject(error);

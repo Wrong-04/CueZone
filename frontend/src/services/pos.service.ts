@@ -165,18 +165,47 @@ export const posService = {
         elo: number;
         isMember: boolean;
         membershipPoints?: number;
+        totalStoreVouchers?: number;
         availableVouchers?: Array<{
           code: string;
           description?: string;
           discountType: "percent" | "fixed";
           discountValue: number;
+          maxDiscountAmount?: number;
           minOrderAmount: number;
+          targetAudience?: "all" | "new_member" | "vip";
         }>;
       }>
     >("/tables/customer-lookup", { params: { phone } });
     return data;
   },
-  async validateVoucher(code: string, subtotal: number) {
+  async quickRegisterCustomer(input: { phone: string; name?: string }) {
+    const { data } = await api.post<
+      ApiResponse<{
+        id: string;
+        name: string;
+        phone: string;
+        rank: string;
+        elo: number;
+        isMember: boolean;
+        membershipPoints?: number;
+        totalStoreVouchers?: number;
+        availableVouchers?: Array<{
+          code: string;
+          description?: string;
+          discountType: "percent" | "fixed";
+          discountValue: number;
+          maxDiscountAmount?: number;
+          minOrderAmount: number;
+          targetAudience?: "all" | "new_member" | "vip";
+        }>;
+        isNewCustomer?: boolean;
+        message?: string;
+      }>
+    >("/tables/quick-register-customer", input);
+    return data;
+  },
+  async validateVoucher(code: string, subtotal: number, customerPhone?: string) {
     const { data } = await api.post<
       ApiResponse<{
         code: string;
@@ -185,7 +214,7 @@ export const posService = {
         minOrderAmount: number;
         discountAmount: number;
       }>
-    >("/vouchers/validate", { code, subtotal });
+    >("/vouchers/validate", { code, subtotal, customerPhone });
     return result(data);
   },
   async cancelOrderItem(

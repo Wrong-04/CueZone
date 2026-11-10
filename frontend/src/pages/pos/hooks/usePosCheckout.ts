@@ -9,6 +9,7 @@ export interface LoyaltyCustomerInfo {
   phone: string;
   rank?: string;
   membershipPoints?: number;
+  totalStoreVouchers?: number;
   availableVouchers?: Array<{
     code: string;
     description?: string;
@@ -65,6 +66,7 @@ export function usePosCheckout({
           phone: res.data.phone,
           rank: res.data.rank,
           membershipPoints: res.data.membershipPoints,
+          totalStoreVouchers: res.data.totalStoreVouchers,
           availableVouchers: res.data.availableVouchers || [],
         });
         const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;
@@ -116,6 +118,7 @@ export function usePosCheckout({
               phone: res.data.phone,
               rank: res.data.rank,
               membershipPoints: res.data.membershipPoints,
+              totalStoreVouchers: res.data.totalStoreVouchers,
               availableVouchers: res.data.availableVouchers || [],
             });
             const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;
@@ -136,9 +139,10 @@ export function usePosCheckout({
     const ok = await save(async () => {
       const summary = await posService.checkout(
         selectedTable,
-        appliedVoucher ? 0 : discountPercent,
+        discountPercent,
         paymentMethod,
         appliedVoucher?.code,
+        loyaltyCustomer?.phone || selectedTable.currentSession?.customerPhone,
       );
       setPaidSummary(summary);
     });
@@ -203,16 +207,15 @@ export function usePosCheckout({
         0,
       );
     try {
-      const voucher = await posService.validateVoucher(code, subtotal);
+      const phone = loyaltyCustomer?.phone || selectedTable.currentSession.customerPhone;
+      const voucher = await posService.validateVoucher(code, subtotal, phone);
       setVoucherCode(voucher.code);
       setAppliedVoucher({ code: voucher.code, discountAmount: voucher.discountAmount });
-      setDiscountPercent(0);
-      message.success(`Đã áp dụng voucher ${voucher.code}`);
-    } catch (error) {
+      message.success(`Đã áp dụng voucher ${voucher.code} (giảm ${voucher.discountAmount.toLocaleString("vi-VN")}đ)`);
+    } catch (error: any) {
       setAppliedVoucher(null);
-      message.error(
-        error instanceof Error ? error.message : "Không thể áp dụng voucher này.",
-      );
+      const msg = error?.response?.data?.message || (error instanceof Error ? error.message : "Không thể áp dụng voucher này.");
+      message.error(msg);
     }
   };
 
@@ -220,7 +223,6 @@ export function usePosCheckout({
     if (appliedVoucher?.code === code) {
       setAppliedVoucher(null);
       setVoucherCode("");
-      if (loyaltyCustomer) setDiscountPercent(10);
       message.info(`Đã gỡ voucher ${code}`);
       return;
     }

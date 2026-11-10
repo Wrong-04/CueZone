@@ -5,11 +5,7 @@ import { productService } from "../../services/product.service";
 import type { PosTable, BookingRequest } from "../../types/pos";
 import type { PricingTier } from "../../types";
 import { calculateSplitPlayingDetails, defaultPricingTiers } from "../../utils/pricing";
-import {
-  ExclamationCircleOutlined,
-  SearchOutlined,
-  SyncOutlined,
-} from "@ant-design/icons";
+import { ExclamationCircleOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
 import { Button, Modal, message, notification } from "../../shared/ui";
 import { getSocket } from "../../services/socket.service";
 import type { CustomerOrder } from "../../services/customer-order.service";
@@ -91,7 +87,8 @@ export const PosTableFloorPage: React.FC = () => {
       return true;
     } catch (error: any) {
       const errorCode = error.response?.data?.code;
-      const errorMessage = error.response?.data?.message || error.message || "Không thể lưu thay đổi";
+      const errorMessage =
+        error.response?.data?.message || error.message || "Không thể lưu thay đổi";
       message.error(errorCode === "WAL001" ? `${errorCode}: ${errorMessage}` : errorMessage);
       return false;
     } finally {
@@ -153,47 +150,42 @@ export const PosTableFloorPage: React.FC = () => {
   );
 
   // Load tables, pricing tiers, and F&B stock
-  const loadTables = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      try {
-        const [tableData, pricingData, productsData] = await Promise.all([
-          posService.getTables(),
-          posService.getPricingTiers().catch(() => []),
-          productService.getFnbMenu().catch(() => []),
-        ]);
-        setTables(tableData);
-        setSelectedTable((prev) =>
-          prev ? tableData.find((t) => t.id === prev.id) || prev : null,
-        );
-        if (pricingData && pricingData.length > 0) {
-          setPricingTiers(pricingData);
-        }
-        if (Array.isArray(productsData)) {
-          const mappedStock: FnbStockItem[] = productsData.map((p) => ({
-            id: String(p._id),
-            code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
-            name: p.name,
-            category: p.category,
-            categoryName: getFnbCategoryLabel(p.category),
-            price: p.salePrice,
-            priceFormatted: `${p.salePrice.toLocaleString("vi-VN")}đ`,
-            stockQuantity: p.stock ?? 0,
-            minThreshold: 10,
-            unit: (p as any).unit || "Phần",
-            image: p.imageUrl,
-          }));
-          setFnbStock(mappedStock);
-        }
-        setLoadError("");
-      } catch (error: any) {
-        setLoadError(error.response?.data?.message || error.message || "Không thể tải sơ đồ bàn");
-      } finally {
-        if (!silent) setLoading(false);
+  const loadTables = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const [tableData, pricingData, productsData] = await Promise.all([
+        posService.getTables(),
+        posService.getPricingTiers().catch(() => []),
+        productService.getFnbMenu().catch(() => []),
+      ]);
+      setTables(tableData);
+      setSelectedTable((prev) => (prev ? tableData.find((t) => t.id === prev.id) || prev : null));
+      if (pricingData && pricingData.length > 0) {
+        setPricingTiers(pricingData);
       }
-    },
-    [],
-  );
+      if (Array.isArray(productsData)) {
+        const mappedStock: FnbStockItem[] = productsData.map((p) => ({
+          id: String(p._id),
+          code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
+          name: p.name,
+          category: p.category,
+          categoryName: getFnbCategoryLabel(p.category),
+          price: p.salePrice,
+          priceFormatted: `${p.salePrice.toLocaleString("vi-VN")}đ`,
+          stockQuantity: p.stock ?? 0,
+          minThreshold: 10,
+          unit: (p as any).unit || "Phần",
+          image: p.imageUrl,
+        }));
+        setFnbStock(mappedStock);
+      }
+      setLoadError("");
+    } catch (error: any) {
+      setLoadError(error.response?.data?.message || error.message || "Không thể tải sơ đồ bàn");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
 
   // Initial load and socket listener
   useEffect(() => {
@@ -376,10 +368,7 @@ export const PosTableFloorPage: React.FC = () => {
   const notifiedUpcomingRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     tables.forEach((table) => {
-      if (
-        (table.status === "playing" || table.status === "paused") &&
-        table.bookedInfo?.time
-      ) {
+      if ((table.status === "playing" || table.status === "paused") && table.bookedInfo?.time) {
         const upcomingMin = getBookingUpcomingMinutes(table.bookedInfo.time);
         if (upcomingMin < 0) return;
         const customerName = table.bookedInfo.customerName || "Khách hẹn";
@@ -545,7 +534,12 @@ export const PosTableFloorPage: React.FC = () => {
       { key: "playing", label: "Đang chơi", badge: stats.playing, dotClassName: "bg-emerald-500" },
       { key: "paused", label: "Tạm dừng", badge: stats.paused, dotClassName: "bg-amber-500" },
       { key: "booked", label: "Đã đặt", badge: stats.booked, dotClassName: "bg-blue-500" },
-      { key: "available", label: "Bàn trống", badge: stats.available, dotClassName: "bg-slate-400" },
+      {
+        key: "available",
+        label: "Bàn trống",
+        badge: stats.available,
+        dotClassName: "bg-slate-400",
+      },
     ],
     [stats],
   );
@@ -555,7 +549,9 @@ export const PosTableFloorPage: React.FC = () => {
   const getTableOptionsForGuest = useCallback(
     (preferredType: string) => {
       if (availableTables.length === 0) return [];
-      const matching = availableTables.filter((t) => t.typeName === preferredType || !preferredType);
+      const matching = availableTables.filter(
+        (t) => t.typeName === preferredType || !preferredType,
+      );
       const others = availableTables.filter((t) => t.typeName !== preferredType && preferredType);
 
       const groups: Array<{ label: string; options: Array<{ value: string; label: string }> }> = [];
@@ -598,7 +594,8 @@ export const PosTableFloorPage: React.FC = () => {
       if (filterStatus === "playing" && table.status !== "playing") return false;
       if (filterStatus === "paused" && table.status !== "paused") return false;
       if (filterStatus === "booked" && !isHoldingTable) return false;
-      if (filterStatus === "available" && table.status !== "available" && isHoldingTable) return false;
+      if (filterStatus === "available" && table.status !== "available" && isHoldingTable)
+        return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
@@ -615,7 +612,15 @@ export const PosTableFloorPage: React.FC = () => {
 
       return true;
     });
-  }, [tables, filterArea, filterType, filterStatus, searchQuery, getBookingUpcomingMinutes, getBookingOverdueMinutes]);
+  }, [
+    tables,
+    filterArea,
+    filterType,
+    filterStatus,
+    searchQuery,
+    getBookingUpcomingMinutes,
+    getBookingOverdueMinutes,
+  ]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -744,9 +749,13 @@ export const PosTableFloorPage: React.FC = () => {
               getBookingOverdueMinutes={getBookingOverdueMinutes}
               getBookingUpcomingMinutes={getBookingUpcomingMinutes}
               pendingOrdersByTable={pendingOrdersByTable}
-              onOpenTableModal={(tbl, isCheckIn) => openTableHook.handleOpenTableModal(tbl, isCheckIn)}
+              onOpenTableModal={(tbl, isCheckIn) =>
+                openTableHook.handleOpenTableModal(tbl, isCheckIn)
+              }
               onTogglePause={handleTogglePause}
-              onOpenTransferModal={(tbl, action) => transferHook.handleOpenTransferModal(tbl, action)}
+              onOpenTransferModal={(tbl, action) =>
+                transferHook.handleOpenTransferModal(tbl, action)
+              }
               onOpenFnbModal={(tbl) => fnbHook.handleOpenFnbModal(tbl)}
               onOpenCheckout={(tbl) => checkoutHook.handleOpenCheckout(tbl)}
               onPrePrintBill={(tbl) => checkoutHook.handleOpenPrePrintReceipt(tbl)}

@@ -109,3 +109,16 @@ export const lookupCustomer = async (req: Request, res: Response) => {
     return res.json({ success: false, message: error.message });
   }
 };
+
+export const quickRegisterCustomer = async (req: Request, res: Response) => {
+  try {
+    const { phone, name } = req.body || {};
+    if (!phone || typeof phone !== "string") {
+      return res.status(400).json({ success: false, message: "Vui lòng nhập số điện thoại hợp lệ" });
+    }
+    const result = await tableService.quickRegisterCustomer({ phone, name });
+    return res.json({ success: true, data: result });
+  } catch (error: any) {
+    return res.status(400).json({ success: false, message: error.message || "Không thể đăng ký hội viên" });
+  }
+};

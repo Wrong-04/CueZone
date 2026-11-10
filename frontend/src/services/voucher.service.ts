@@ -2,6 +2,7 @@ import api from "./api";
 import type { ApiResponse } from "../types";
 
 export type VoucherDiscountType = "percent" | "fixed";
+export type VoucherTargetAudience = "all" | "new_member" | "vip";
 
 export interface Voucher {
   _id: string;
@@ -9,12 +10,14 @@ export interface Voucher {
   description?: string;
   discountType: VoucherDiscountType;
   discountValue: number;
+  maxDiscountAmount?: number;
   minOrderAmount: number;
   startsAt: string;
-  expiresAt: string;
+  expiresAt?: string | null;
   maxUses?: number;
   usageCount: number;
   isActive: boolean;
+  targetAudience?: VoucherTargetAudience;
 }
 
 export interface VoucherUsage {
@@ -34,11 +37,13 @@ export interface VoucherInput {
   description: string;
   discountType: VoucherDiscountType;
   discountValue: number;
+  maxDiscountAmount?: number | null;
   minOrderAmount: number;
   startsAt: string;
-  expiresAt: string;
+  expiresAt?: string | null;
   maxUses: number | null;
   isActive?: boolean;
+  targetAudience?: VoucherTargetAudience;
 }
 
 function unwrap<T>(response: ApiResponse<T>): T {

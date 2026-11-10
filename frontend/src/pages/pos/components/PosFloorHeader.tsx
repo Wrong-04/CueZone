@@ -111,7 +111,7 @@ export const PosFloorHeader: React.FC<PosFloorHeaderProps> = ({
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 min-w-0">
         <div className="flex items-center gap-2 shrink-0">
-          <Tooltip title={socketConnected ? "Đã kết nối Socket.io - Đồng bộ trực tiếp tức thì" : "Đang kết nối Socket.io..."}>
+          <Tooltip title={socketConnected ? "Kết nối trực tiếp ổn định" : "Đang kết nối lại máy chủ..."}>
             <span
               className={`flex h-2.5 w-2.5 rounded-full cursor-pointer ${
                 socketConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-400"
@@ -199,7 +199,7 @@ export const PosFloorHeader: React.FC<PosFloorHeaderProps> = ({
 
           {/* Nhóm nút tiện ích (Toàn màn hình & Tải lại) - luôn gắn kết cạnh nhau */}
           <div className="flex items-center gap-1 shrink-0">
-            <Tooltip title={isFullscreen ? "Thu nhỏ cửa sổ" : "Toàn màn hình (Kiosk POS)"}>
+            <Tooltip title={isFullscreen ? "Thu nhỏ cửa sổ" : "Toàn màn hình"}>
               <Button
                 variant="outline"
                 size="sm"

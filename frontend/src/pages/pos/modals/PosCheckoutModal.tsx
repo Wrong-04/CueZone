@@ -2,6 +2,7 @@ import React from "react";
 import {
   DollarOutlined,
   UserOutlined,
+  UserAddOutlined,
   PhoneOutlined,
   CheckCircleOutlined,
   GiftOutlined,
@@ -12,8 +13,9 @@ import {
   QrcodeOutlined,
   PrinterOutlined,
 } from "@ant-design/icons";
-import { Button, Input, Modal, Space, Tag } from "../../../shared/ui";
+import { Button, Input, Modal, Space, Tag, message } from "../../../shared/ui";
 import { getClubPaymentSettings, RANK_DISCOUNT_PERCENT } from "../constants/posConstants";
+import { posService } from "../../../services/pos.service";
 import type { PosTable } from "../../../types/pos";
 
 interface PosCheckoutModalProps {
@@ -73,6 +75,61 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
   loading = false,
   loadError,
 }) => {
+  const [showQuickRegister, setShowQuickRegister] = React.useState(false);
+  const [quickRegName, setQuickRegName] = React.useState("");
+  const [quickRegPhone, setQuickRegPhone] = React.useState("");
+  const [isRegistering, setIsRegistering] = React.useState(false);
+
+  React.useEffect(() => {
+    if (checkoutPhone) setQuickRegPhone(checkoutPhone);
+  }, [checkoutPhone]);
+
+  React.useEffect(() => {
+    if (!open) {
+      setShowQuickRegister(false);
+      setQuickRegName("");
+    }
+  }, [open]);
+
+  const handleQuickRegister = async () => {
+    const phoneToRegister = (quickRegPhone || checkoutPhone).trim();
+    if (!phoneToRegister || phoneToRegister.replace(/\D/g, "").length < 8) {
+      message.error("Vui lòng nhập số điện thoại hợp lệ (tối thiểu 8 số)");
+      return;
+    }
+    setIsRegistering(true);
+    try {
+      const res = await posService.quickRegisterCustomer({
+        phone: phoneToRegister,
+        name: quickRegName.trim(),
+      });
+      if (res.success && res.data) {
+        setCheckoutPhone(res.data.phone);
+        setLoyaltyCustomer({
+          name: res.data.name,
+          phone: res.data.phone,
+          rank: res.data.rank || "Standard",
+          membershipPoints: res.data.membershipPoints || 0,
+          totalStoreVouchers: res.data.totalStoreVouchers,
+          availableVouchers: res.data.availableVouchers || [],
+        });
+        const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;
+        setDiscountPercent(rankDiscount);
+        setShowQuickRegister(false);
+        setQuickRegName("");
+        message.success(
+          res.data.message || `Đã đăng ký thành công hội viên ${res.data.name}! Đã kích hoạt ví voucher.`,
+        );
+      } else {
+        message.error(res.message || "Không thể đăng ký hội viên");
+      }
+    } catch (err: any) {
+      message.error(err.response?.data?.message || err.message || "Đăng ký hội viên thất bại");
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   return (
     <Modal
       open={open}
@@ -100,11 +157,11 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
         );
         const subtotal = playingDetailsObj.cost + fnbTotal;
         const memberDiscountAmount =
-          !appliedVoucher && discountPercent > 0
+          discountPercent > 0
             ? Math.round(subtotal * (discountPercent / 100))
             : 0;
         const voucherDiscountAmount = appliedVoucher ? appliedVoucher.discountAmount : 0;
-        const totalDiscount = memberDiscountAmount + voucherDiscountAmount;
+        const totalDiscount = Math.min(subtotal, memberDiscountAmount + voucherDiscountAmount);
         const depositAmount = selectedTable.currentSession.deposit || 0;
         const finalAmount = Math.max(0, subtotal - totalDiscount - depositAmount);
 
@@ -168,6 +225,87 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                   </Button>
                 </div>
 
+                {!loyaltyCustomer && !showQuickRegister && (
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-gradient-to-r from-amber-50/70 via-emerald-50/50 to-teal-50/70 border border-emerald-200/80 text-[11px] text-slate-700 shadow-2xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <GiftOutlined className="text-amber-500 text-xs shrink-0" />
+                      <span className="truncate">
+                        Khách chưa có thẻ? Đăng ký ngay để nhận <strong className="text-emerald-700 font-bold">Voucher chào mừng</strong> & tích điểm!
+                      </span>
+                    </div>
+                    <Button
+                      htmlType="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setQuickRegPhone(checkoutPhone);
+                        setShowQuickRegister(true);
+                      }}
+                      className="!h-7 !px-2.5 !rounded-lg !text-[11px] !font-bold !text-emerald-700 !border-emerald-300 hover:!bg-emerald-50 shrink-0"
+                    >
+                      + Đăng ký (3s)
+                    </Button>
+                  </div>
+                )}
+
+                {!loyaltyCustomer && showQuickRegister && (
+                  <div className="p-3 rounded-xl bg-gradient-to-b from-emerald-50/90 to-teal-50/70 border border-emerald-300 space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
+                      <span className="flex items-center gap-1.5">
+                        <UserAddOutlined className="text-emerald-600" />
+                        Đăng ký nhanh Hội viên mới
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickRegister(false)}
+                        className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                      >
+                        Đóng ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-700 block mb-0.5">
+                          Số điện thoại <span className="text-rose-500">*</span>
+                        </label>
+                        <Input
+                          value={quickRegPhone}
+                          onChange={(e) => setQuickRegPhone(e.target.value)}
+                          placeholder="0988xxxxxx"
+                          className="!h-8 !text-xs font-mono !rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-700 block mb-0.5">
+                          Họ và tên khách hàng
+                        </label>
+                        <Input
+                          value={quickRegName}
+                          onChange={(e) => setQuickRegName(e.target.value)}
+                          placeholder="VD: Anh Nam (hoặc để trống)"
+                          className="!h-8 !text-xs !rounded-lg"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[10px] text-emerald-800 font-medium">
+                        🎁 Tự động kích hoạt ví ưu đãi ngay sau khi tạo
+                      </span>
+                      <Button
+                        htmlType="button"
+                        size="sm"
+                        loading={isRegistering}
+                        onClick={handleQuickRegister}
+                        className="!h-7 !px-3 !rounded-lg !text-xs !bg-emerald-600 !text-white hover:!bg-emerald-700 !font-bold shadow-2xs"
+                      >
+                        Kích hoạt ngay
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {loyaltyCustomer ? (
                   <div className="space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200 transition-all">
@@ -193,51 +331,85 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                     </div>
 
                     {/* Customer available membership vouchers */}
-                    {loyaltyCustomer.availableVouchers && loyaltyCustomer.availableVouchers.length > 0 && (
+                    {loyaltyCustomer.availableVouchers && (loyaltyCustomer.availableVouchers.length > 0 || Boolean(loyaltyCustomer.totalStoreVouchers)) && (
                       <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-50/70 to-teal-50/60 border border-emerald-200/90 space-y-1.5">
                         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
                           <span className="flex items-center gap-1.5">
                             <GiftOutlined className="text-emerald-600" />
-                            Voucher hội viên ({loyaltyCustomer.availableVouchers.length}):
+                            Voucher khả dụng (
+                            {loyaltyCustomer.totalStoreVouchers
+                              ? `${loyaltyCustomer.availableVouchers.length}/${loyaltyCustomer.totalStoreVouchers}`
+                              : loyaltyCustomer.availableVouchers.length}
+                            ):
                           </span>
                           <span className="text-[10px] text-slate-500 font-normal">
-                            Bấm để áp dụng nhanh
+                            {loyaltyCustomer.availableVouchers.length > 0
+                              ? "Bấm để áp dụng nhanh"
+                              : "Đã dùng hết ưu đãi"}
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
-                          {loyaltyCustomer.availableVouchers.map((v: any) => {
-                            const isApplied = appliedVoucher?.code === v.code;
-                            return (
-                              <button
-                                key={v.code}
-                                type="button"
-                                onClick={() => void onSelectCustomerVoucher(v.code)}
-                                title={v.description || v.code}
-                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer select-none text-left ${
-                                  isApplied
-                                    ? "bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold"
-                                    : "bg-white border-emerald-200 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-50"
-                                }`}
-                              >
-                                <span className="font-bold">{v.code}</span>
-                                <span
-                                  className={`text-[10px] ${
-                                    isApplied ? "text-emerald-100" : "text-emerald-700 font-semibold"
+                        {loyaltyCustomer.availableVouchers.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {loyaltyCustomer.availableVouchers.map((v: any) => {
+                              const isApplied = appliedVoucher?.code === v.code;
+                              const isEligible = subtotal >= (v.minOrderAmount || 0);
+                              return (
+                                <button
+                                  key={v.code}
+                                  type="button"
+                                  onClick={() => {
+                                    if (!isEligible && !isApplied) {
+                                      message.warning(
+                                        `Hóa đơn hiện tại (${subtotal.toLocaleString("vi-VN")}đ) chưa đạt mức tối thiểu ${(v.minOrderAmount || 0).toLocaleString("vi-VN")}đ để dùng voucher ${v.code}.`,
+                                      );
+                                      return;
+                                    }
+                                    void onSelectCustomerVoucher(v.code);
+                                  }}
+                                  title={v.description || v.code}
+                                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-mono transition-all select-none text-left ${
+                                    isApplied
+                                      ? "bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold cursor-pointer"
+                                      : isEligible
+                                      ? "bg-white border-emerald-200 text-emerald-900 hover:border-emerald-400 hover:bg-emerald-50 cursor-pointer"
+                                      : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-80"
                                   }`}
                                 >
-                                  ({v.discountType === "percent" ? `-${v.discountValue}%` : `-${(v.discountValue / 1000).toLocaleString("vi-VN")}k`})
-                                </span>
-                                {isApplied ? (
-                                  <CheckCircleOutlined className="text-white text-xs ml-0.5" />
-                                ) : (
-                                  <span className="text-[9px] text-slate-400 font-sans">
-                                    [Dùng]
+                                  <span className="font-bold flex items-center gap-1">
+                                    {v.targetAudience === "new_member" && (
+                                      <span className={`text-[9px] px-1 rounded font-normal font-sans ${isApplied ? "bg-white/20 text-white" : "bg-purple-100 text-purple-700"}`}>
+                                        Mới
+                                      </span>
+                                    )}
+                                    {v.code}
                                   </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
+                                  <span
+                                    className={`text-[10px] ${
+                                      isApplied ? "text-emerald-100" : isEligible ? "text-emerald-700 font-semibold" : "text-slate-400"
+                                    }`}
+                                  >
+                                    ({v.discountType === "percent" ? `-${v.discountValue}%` : `-${(v.discountValue / 1000).toLocaleString("vi-VN")}k`})
+                                  </span>
+                                  {isApplied ? (
+                                    <CheckCircleOutlined className="text-white text-xs ml-0.5" />
+                                  ) : !isEligible ? (
+                                    <span className="text-[9px] text-amber-600 font-sans">
+                                      [Đơn từ {((v.minOrderAmount || 0) / 1000).toLocaleString("vi-VN")}k]
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] text-emerald-600 font-sans">
+                                      [Dùng]
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-500 italic py-1">
+                            Hội viên đã sử dụng hết hoặc chưa có ưu đãi khả dụng trong đợt này.
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
