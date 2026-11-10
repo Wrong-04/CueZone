@@ -29,7 +29,6 @@ import { bookingService } from "../../services/pos.service";
 import { getSocket } from "../../services/socket.service";
 import { productService, type ProductMenu } from "../../services/product.service";
 import { useAuth } from "../../contexts/AuthContext";
-import { isVietnameseMobilePhone } from "../../utils/phone";
 
 const { Title, Paragraph } = Typography;
 
@@ -157,11 +156,9 @@ export const CustomerBooking = () => {
   useEffect(() => {
     const socket = getSocket();
     const refreshAvailability = () => setAvailabilityVersion((version) => version + 1);
-    socket.on("connect", refreshAvailability);
     socket.on("table:public_status_changed", refreshAvailability);
     socket.on("table:guest_status_changed", refreshAvailability);
     return () => {
-      socket.off("connect", refreshAvailability);
       socket.off("table:public_status_changed", refreshAvailability);
       socket.off("table:guest_status_changed", refreshAvailability);
     };
@@ -257,10 +254,6 @@ export const CustomerBooking = () => {
       message.warning("Vui lòng nhập số điện thoại để giữ bàn!");
       return;
     }
-    if (!isVietnameseMobilePhone(phone)) {
-      message.warning("Vui lòng nhập số di động Việt Nam hợp lệ (VD: 0912345678 hoặc +84912345678).");
-      return;
-    }
     if (!selectedTable) {
       message.warning("Vui lòng chọn một bàn bida!");
       return;
@@ -292,32 +285,7 @@ export const CustomerBooking = () => {
     } catch (err: any) {
       const errMsg =
         err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
-      if (err.response?.status === 409) {
-        setAvailabilityVersion((version) => version + 1);
-      }
-      if (err.response?.data?.code === "FNB_MENU_CHANGED") {
-        try {
-          const currentMenu = await productService.getFnbMenu();
-          const currentProductIds = new Set(currentMenu.map((item) => item._id));
-          setMenuItems(currentMenu);
-          setSelectedFnb((selected) =>
-            Object.fromEntries(
-              Object.entries(selected).filter(
-                ([productId]) => currentProductIds.has(productId),
-              ),
-            ),
-          );
-          message.warning("Thực đơn vừa thay đổi; món đã ngừng bán được bỏ khỏi đơn đặt trước.");
-        } catch (menuError) {
-          message.error(
-            menuError instanceof Error
-              ? menuError.message
-              : "Không thể cập nhật thực đơn F&B",
-          );
-        }
-      } else {
-        message.error(errMsg);
-      }
+      message.error(errMsg);
     } finally {
       setLoading(false);
     }
@@ -474,8 +442,7 @@ export const CustomerBooking = () => {
                   className="!h-10 !rounded-xl !text-xs font-mono"
                 />
                 <span className="text-[11px] text-slate-400 mt-1 block">
-                  Dùng số di động Việt Nam (VD: 0988123456 hoặc +84988123456). Đọc số này tại quầy
-                  lễ tân để nhận bàn nhanh.
+                  Đọc số điện thoại này tại quầy lễ tân để nhận bàn nhanh
                 </span>
               </div>
 

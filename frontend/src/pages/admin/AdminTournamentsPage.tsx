@@ -235,7 +235,7 @@ export const AdminTournamentsPage: React.FC = () => {
       setCreateModalVisible(false);
       void fetchTournaments();
     } catch (err: any) {
-      message.error(err?.response?.data?.message || err?.message || "Tạo giải đấu thất bại, vui lòng kiểm tra lại thông tin!");
+      message.error(err?.message || "Tạo giải đấu thất bại, vui lòng kiểm tra lại thông tin!");
     } finally {
       setCreateLoading(false);
     }
@@ -342,7 +342,7 @@ export const AdminTournamentsPage: React.FC = () => {
       setSelectedTourneyForEdit(null);
       void fetchTournaments();
     } catch (err: any) {
-      message.error(err?.response?.data?.message || err?.message || "Cập nhật giải đấu thất bại!");
+      message.error(err?.message || "Cập nhật giải đấu thất bại!");
     } finally {
       setEditLoading(false);
     }

@@ -64,7 +64,13 @@ export interface PosTable {
   area?: string;
   floor?: number;
   status: "available" | "playing" | "paused" | "booked" | "maintenance";
-  bookedInfo?: { customerName: string; phone: string; time: string; bookingId: string };
+  bookedInfo?: {
+    customerName: string;
+    phone: string;
+    time: string;
+    bookingId: string;
+    deposit?: number;
+  };
   currentSession?: PosTableSession;
 }
 

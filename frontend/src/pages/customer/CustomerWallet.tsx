@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowDownOutlined,
@@ -28,13 +28,7 @@ export const CustomerWallet: React.FC = () => {
   const [searchParams] = useSearchParams();
   const paymentReference = searchParams.get("vnp_TxnRef");
   const vnpayReturnParameters = useMemo(
-    () => {
-      const parameters: Record<string, string> = {};
-      searchParams.forEach((value, key) => {
-        parameters[key] = value;
-      });
-      return parameters;
-    },
+    () => Object.fromEntries(searchParams.entries()),
     [searchParams],
   );
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
@@ -48,26 +42,6 @@ export const CustomerWallet: React.FC = () => {
   const [gatewayStatus, setGatewayStatus] = useState<VnpayTopupStatus | null>(null);
   const [gatewayError, setGatewayError] = useState("");
   const [checkingGatewayStatus, setCheckingGatewayStatus] = useState(false);
-  const vnpayConfirmationRef = useRef<{
-    key: string;
-    promise: Promise<VnpayTopupStatus>;
-  } | null>(null);
-
-  const confirmVnpayReturn = useCallback((retry = false) => {
-    const secureHash = vnpayReturnParameters.vnp_SecureHash;
-    if (!paymentReference || !secureHash) {
-      return Promise.reject(new Error("Thiếu thông tin xác nhận thanh toán VNPay"));
-    }
-
-    const key = `${paymentReference}:${secureHash}`;
-    if (retry || vnpayConfirmationRef.current?.key !== key) {
-      vnpayConfirmationRef.current = {
-        key,
-        promise: walletService.confirmVnpayReturn(vnpayReturnParameters),
-      };
-    }
-    return vnpayConfirmationRef.current.promise;
-  }, [paymentReference, vnpayReturnParameters]);
 
   const loadWallet = useCallback(async () => {
     if (!user) {
@@ -97,7 +71,7 @@ export const CustomerWallet: React.FC = () => {
     setGatewayError("");
     try {
       if (vnpayReturnParameters.vnp_SecureHash) {
-        await confirmVnpayReturn(true);
+        await walletService.confirmVnpayReturn(vnpayReturnParameters);
       }
       const status = await walletService.getVnpayTopupStatus(paymentReference);
       setGatewayStatus(status);
@@ -112,7 +86,7 @@ export const CustomerWallet: React.FC = () => {
     } finally {
       setCheckingGatewayStatus(false);
     }
-  }, [confirmVnpayReturn, loadWallet, paymentReference, vnpayReturnParameters]);
+  }, [loadWallet, paymentReference, vnpayReturnParameters]);
 
   useEffect(() => {
     if (!paymentReference) return;
@@ -126,7 +100,7 @@ export const CustomerWallet: React.FC = () => {
       try {
         if (shouldConfirmReturn) {
           shouldConfirmReturn = false;
-          await confirmVnpayReturn();
+          await walletService.confirmVnpayReturn(vnpayReturnParameters);
           if (!active) return;
         }
         const status = await walletService.getVnpayTopupStatus(paymentReference);
@@ -149,7 +123,7 @@ export const CustomerWallet: React.FC = () => {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [confirmVnpayReturn, loadWallet, paymentReference, vnpayReturnParameters]);
+  }, [loadWallet, paymentReference, vnpayReturnParameters]);
 
   const handleRequestTopup = async () => {
     const finalAmount = isCustomAmount
@@ -319,7 +293,7 @@ export const CustomerWallet: React.FC = () => {
                       ? `Đã nạp thành công ${formatMoney(gatewayStatus.amount)}`
                       : gatewayStatus.status === "failed"
                         ? "Giao dịch chưa thành công. Số dư ví không thay đổi."
-                        : "Đang chờ VNPay xác nhận. Số dư sẽ tự cập nhật sau khi xác minh kết quả thanh toán."}
+                        : "Đang chờ VNPay xác nhận. Số dư sẽ cập nhật sau khi nhận IPN."}
                   </Text>
                 )}
                 {gatewayError && (
@@ -347,8 +321,7 @@ export const CustomerWallet: React.FC = () => {
           </div>
           <div className="mt-4 text-3xl font-black text-slate-900">
             {wallet?.transactions.filter(
-              (item) =>
-                item.type === "topup" && item.status === "pending" && item.gateway !== "vnpay",
+              (item) => item.type === "topup" && item.status === "pending",
             ).length ?? 0}
           </div>
           <Text className="!text-xs !text-slate-500">
