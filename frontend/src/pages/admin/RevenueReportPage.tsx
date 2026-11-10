@@ -496,10 +496,10 @@ export const RevenueReportPage: React.FC = () => {
           </div>
           <div className="text-xs text-slate-400 mt-2">
             Chiếm{" "}
-            {kpis?.totalRevenue
-              ? `${(((kpis.tableRevenue || 0) / kpis.totalRevenue) * 100).toFixed(1)}%`
+            {((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0)) > 0
+              ? `${(((kpis?.tableRevenue || 0) / ((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0))) * 100).toFixed(1)}%`
               : "0%"}{" "}
-            tổng doanh thu
+            cơ cấu phát sinh
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
         </div>
@@ -519,10 +519,10 @@ export const RevenueReportPage: React.FC = () => {
           </div>
           <div className="text-xs text-slate-400 mt-2">
             Chiếm{" "}
-            {kpis?.totalRevenue
-              ? `${(((kpis.fnbRevenue || 0) / kpis.totalRevenue) * 100).toFixed(1)}%`
+            {((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0)) > 0
+              ? `${(((kpis?.fnbRevenue || 0) / ((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0))) * 100).toFixed(1)}%`
               : "0%"}{" "}
-            tổng doanh thu
+            cơ cấu phát sinh
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
         </div>
