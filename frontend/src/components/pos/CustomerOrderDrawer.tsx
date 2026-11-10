@@ -4,10 +4,10 @@ import {
   CheckOutlined,
   ClockCircleOutlined,
   CloseOutlined,
-  CoffeeOutlined,
   InfoCircleOutlined,
   ShoppingOutlined,
   SyncOutlined,
+  PrinterOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -47,14 +47,96 @@ const rejectTemplates = [
 
 interface Props {
   onOrdersUpdated?: (orders: CustomerOrder[]) => void;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+  filterTableId?: string | null;
 }
 
-export const CustomerOrderDrawer: React.FC<Props> = ({ onOrdersUpdated }) => {
+export const CustomerOrderDrawer: React.FC<Props> = ({
+  onOrdersUpdated,
+  externalOpen,
+  onExternalOpenChange,
+  filterTableId,
+}) => {
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const drawerOpen = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setDrawerOpen = (open: boolean) => {
+    if (onExternalOpenChange) {
+      onExternalOpenChange(open);
+    } else {
+      setInternalOpen(open);
+    }
+  };
+
   const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "preparing" | "ready">("all");
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+
+  const handlePrintTicket = (order: CustomerOrder) => {
+    const printWindow = window.open("", "_blank", "width=380,height=560");
+    if (!printWindow) {
+      message.warning("Vui lòng cho phép mở popup để in phiếu order");
+      return;
+    }
+    const itemsHtml = order.items
+      .map(
+        (item) => `
+        <tr style="border-bottom: 1px dashed #bbb;">
+          <td style="padding: 7px 0; font-weight: bold; font-size: 13px;">${item.name}</td>
+          <td style="padding: 7px 0; text-align: center; font-size: 15px; font-weight: 900;">x${item.quantity}</td>
+        </tr>`,
+      )
+      .join("");
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Phiếu Bếp / Kho - ${order.tableName}</title>
+          <style>
+            body { font-family: monospace, sans-serif; padding: 12px; max-width: 280px; margin: 0 auto; color: #000; }
+            h2 { text-align: center; margin: 0; font-size: 17px; }
+            p { margin: 4px 0; font-size: 11px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .badge { font-size: 15px; font-weight: bold; text-align: center; background: #e5e7eb; padding: 5px; border-radius: 4px; margin: 6px 0; }
+          </style>
+        </head>
+        <body>
+          <h2>CUEZONE CLUB</h2>
+          <p style="text-align: center; font-size: 11px;">PHIẾU ORDER TẠI BÀN (BẾP / BAR / KHO)</p>
+          <div class="divider"></div>
+          <div class="badge">${order.tableName}</div>
+          <p>Mã đơn: <strong>#${order.orderCode}</strong></p>
+          <p>Giờ gọi: ${new Date(order.createdAt).toLocaleTimeString("vi-VN")} (${new Date(order.createdAt).toLocaleDateString("vi-VN")})</p>
+          ${order.note ? `<p style="background: #fef3c7; padding: 4px; border: 1px solid #fde68a;">Ghi chú: <strong>${order.note}</strong></p>` : ""}
+          <div class="divider"></div>
+          <table>
+            <thead>
+              <tr style="border-bottom: 1px solid #000; text-align: left; font-size: 11px;">
+                <th>TÊN MÓN / PHỤ KIỆN</th>
+                <th style="text-align: center;">SL</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          <div class="divider"></div>
+          <p style="text-align: center; font-size: 10px;">--- Vui lòng chuẩn bị và giao ra bàn ---</p>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   // Reject modal state
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -148,9 +230,13 @@ export const CustomerOrderDrawer: React.FC<Props> = ({ onOrdersUpdated }) => {
   };
 
   const filteredOrders = useMemo(() => {
-    if (activeFilter === "all") return orders;
-    return orders.filter((o) => o.status === activeFilter);
-  }, [orders, activeFilter]);
+    let list = orders;
+    if (filterTableId) {
+      list = list.filter((o) => o.tableId === filterTableId || o.tableCode === filterTableId);
+    }
+    if (activeFilter === "all") return list;
+    return list.filter((o) => o.status === activeFilter);
+  }, [orders, activeFilter, filterTableId]);
 
   return (
     <>
@@ -195,14 +281,14 @@ export const CustomerOrderDrawer: React.FC<Props> = ({ onOrdersUpdated }) => {
           <div className="flex items-center justify-between gap-3 pr-2">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center font-bold text-base">
-                <CoffeeOutlined />
+                <ShoppingOutlined />
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-sm leading-tight">
-                  Tiếp Nhận Đơn Gọi Món Trực Tuyến
+                  Tiếp Nhận Đơn Order & Dịch Vụ Tại Bàn
                 </h3>
                 <p className="text-[11px] text-slate-500 font-normal">
-                  Đơn khách gửi từ điện thoại qua QR tại bàn
+                  Yêu cầu đồ uống, món ăn & phụ kiện bida khách gửi từ bàn
                 </p>
               </div>
             </div>
@@ -375,6 +461,16 @@ export const CustomerOrderDrawer: React.FC<Props> = ({ onOrdersUpdated }) => {
                       </div>
 
                       <div className="flex items-center gap-1.5">
+                        <Tooltip title="In phiếu báo Bếp / Bar / Kho (80mm)">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePrintTicket(order)}
+                            icon={<PrinterOutlined className="text-slate-600" />}
+                            className="!h-8 !w-8 !p-0 !rounded-xl !border-slate-300 hover:!bg-slate-100"
+                          />
+                        </Tooltip>
+
                         {isPending && (
                           <>
                             <Button

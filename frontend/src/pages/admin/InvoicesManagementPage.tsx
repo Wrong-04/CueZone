@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { Dayjs } from "dayjs";
 import { invoiceService } from "../../services/invoice.service";
+import WalletTopupsPage from "./WalletTopupsPage";
+import TournamentFeesPage from "./TournamentFeesPage";
 import {
   FileTextOutlined,
   PrinterOutlined,
@@ -83,6 +86,19 @@ export interface ClubInvoice {
 const INITIAL_INVOICES: ClubInvoice[] = [];;
 
 export const InvoicesManagementPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get("tab") || "invoices";
+
+  const handleTabChange = (key: string) => {
+    setSearchParams(key === "invoices" ? {} : { tab: key });
+  };
+
+  const financePills = [
+    { key: "invoices", label: "Hóa Đơn Tiền Bàn & Thu Ngân" },
+    { key: "wallet", label: "Đối Soát Nạp Ví Hội Viên" },
+    { key: "tournament", label: "Lệ Phí Giải Đấu Tại Quầy" },
+  ];
+
   // ── 1. STATE & LIVE API INTEGRATION ──────────────────────────────────────
   const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>(INITIAL_INVOICES);
   const [loading, setLoading] = useState<boolean>(false);
@@ -781,8 +797,23 @@ export const InvoicesManagementPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── COMMAND HEADER & SUMMARY METRICS ──────────────────────────────── */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
+      {/* ── UNIFIED FINANCIAL TABS SWITCHER (Gom Hóa Đơn, Nạp Ví, Lệ Phí) ── */}
+      <div className="bg-white p-3.5 rounded-3xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <SegmentedPillList
+          items={financePills}
+          activeKey={currentTab}
+          onSelect={handleTabChange}
+        />
+      </div>
+
+      {currentTab === "wallet" ? (
+        <WalletTopupsPage />
+      ) : currentTab === "tournament" ? (
+        <TournamentFeesPage />
+      ) : (
+        <>
+          {/* ── COMMAND HEADER & SUMMARY METRICS ──────────────────────────────── */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
@@ -1470,6 +1501,8 @@ export const InvoicesManagementPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+        </>
+      )}
     </div>
   );
 };

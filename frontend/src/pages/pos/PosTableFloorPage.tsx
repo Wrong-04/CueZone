@@ -90,12 +90,15 @@ export const PosTableFloorPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [pendingOrdersByTable, setPendingOrdersByTable] = useState<Record<string, number>>({});
+  const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+  const [orderDrawerFilterTableId, setOrderDrawerFilterTableId] = useState<string | null>(null);
 
   const handleOrdersUpdated = useCallback((orders: CustomerOrder[]) => {
     const map: Record<string, number> = {};
     orders.forEach((o) => {
       if (o.status === "pending") {
-        map[o.tableId] = (map[o.tableId] || 0) + 1;
+        if (o.tableId) map[String(o.tableId)] = (map[String(o.tableId)] || 0) + 1;
+        if (o.tableCode) map[String(o.tableCode)] = (map[String(o.tableCode)] || 0) + 1;
       }
     });
     setPendingOrdersByTable(map);
@@ -787,7 +790,7 @@ export const PosTableFloorPage: React.FC = () => {
 
   const areaOptions = [
     { value: "all", label: `Tất cả khu vực (${stats.total})` },
-    { value: "standard", label: `Khu Standard (${stats.standardCount})` },
+    { value: "standard", label: `Khu Phổ Thông (${stats.standardCount})` },
     { value: "vip", label: `Khu VIP (${stats.vipCount})` },
     { value: "match", label: `Khu Thi Đấu (${stats.matchCount})` },
   ];
@@ -1447,7 +1450,15 @@ export const PosTableFloorPage: React.FC = () => {
 
           <div className="flex items-center gap-2 flex-wrap self-start md:self-center shrink-0">
             {/* Tiếp nhận & Phê duyệt Đơn gọi món trực tuyến tại bàn (SCRUM-941, SCRUM-942) */}
-            <CustomerOrderDrawer onOrdersUpdated={handleOrdersUpdated} />
+            <CustomerOrderDrawer
+              onOrdersUpdated={handleOrdersUpdated}
+              externalOpen={orderDrawerOpen}
+              onExternalOpenChange={(open) => {
+                setOrderDrawerOpen(open);
+                if (!open) setOrderDrawerFilterTableId(null);
+              }}
+              filterTableId={orderDrawerFilterTableId}
+            />
 
             {/* Yêu cầu thanh toán tại bàn */}
             <CustomerPaymentRequests />
@@ -1962,17 +1973,31 @@ export const PosTableFloorPage: React.FC = () => {
                       </div>
 
                       {/* Badge cảnh báo đơn gọi món mới tại bàn */}
-                      {pendingOrdersByTable[table.id] > 0 && (
-                        <div className="p-1 px-2 rounded-lg bg-rose-50 border border-rose-300 text-rose-800 text-[11px] font-bold flex items-center justify-between animate-pulse shadow-2xs">
-                          <span className="flex items-center gap-1.5">
-                            <ShoppingOutlined className="text-rose-600 animate-bounce text-xs" />
-                            <span>{pendingOrdersByTable[table.id]} đơn món chờ duyệt!</span>
-                          </span>
-                          <span className="text-[10px] text-rose-600 font-semibold underline">
-                            Mở Drawer ➔
-                          </span>
-                        </div>
-                      )}
+                      {(() => {
+                        const tablePendingCount =
+                          (pendingOrdersByTable[table.id] || 0) +
+                          (pendingOrdersByTable[table.code] || 0);
+                        if (tablePendingCount <= 0) return null;
+                        return (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOrderDrawerFilterTableId(table.id || table.code);
+                              setOrderDrawerOpen(true);
+                            }}
+                            className="p-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 text-[11px] font-bold flex items-center justify-between cursor-pointer animate-pulse shadow-2xs transition-colors"
+                            title="Bấm để mở danh sách duyệt đơn cho bàn này"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <ShoppingOutlined className="text-rose-600 animate-bounce text-xs" />
+                              <span>{tablePendingCount} đơn chờ duyệt!</span>
+                            </span>
+                            <span className="text-[10px] text-rose-700 font-bold underline">
+                              Duyệt ngay ➔
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Grand Total */}

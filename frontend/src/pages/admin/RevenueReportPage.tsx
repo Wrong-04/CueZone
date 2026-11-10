@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import dayjs, { Dayjs } from "dayjs";
+import { TablePerformanceReportPage } from "./TablePerformanceReportPage";
 import {
   DollarOutlined,
   ClockCircleOutlined,
@@ -30,6 +32,7 @@ import {
   Spin,
   Alert,
   Table,
+  SegmentedPillList,
   type TableColumnsType,
 } from "../../shared/ui";
 import {
@@ -57,6 +60,18 @@ const { RangePicker } = DatePicker;
 type PeriodType = "day" | "week" | "month" | "year" | "custom";
 
 export const RevenueReportPage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get("tab") || "revenue";
+
+  const handleTabChange = (key: string) => {
+    setSearchParams(key === "revenue" ? {} : { tab: key });
+  };
+
+  const reportPills = [
+    { key: "revenue", label: "Báo Cáo Doanh Thu CLB" },
+    { key: "performance", label: "Hiệu Suất & Công Suất Từng Bàn" },
+  ];
+
   const [period, setPeriod] = useState<PeriodType>("week");
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
     dayjs().subtract(6, "day"),
@@ -300,8 +315,21 @@ export const RevenueReportPage: React.FC = () => {
 
   return (
     <div className="space-y-6 p-2 sm:p-4 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+      {/* ── TOP LEVEL UNIFIED REPORT TABS SWITCHER ── */}
+      <div className="bg-white p-3.5 rounded-3xl border border-slate-200/90 shadow-xs flex items-center justify-between">
+        <SegmentedPillList
+          items={reportPills}
+          activeKey={currentTab}
+          onSelect={handleTabChange}
+        />
+      </div>
+
+      {currentTab === "performance" ? (
+        <TablePerformanceReportPage />
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700">
@@ -615,6 +643,8 @@ export const RevenueReportPage: React.FC = () => {
           className="border border-slate-100 rounded-xl"
         />
       </Card>
+        </>
+      )}
     </div>
   );
 };
