@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { posService } from "../../services/pos.service";
 import {
   SettingOutlined,
   ShopOutlined,
@@ -8,8 +10,6 @@ import {
   SafetyCertificateOutlined,
   SaveOutlined,
   ReloadOutlined,
-  CheckCircleOutlined,
-  ThunderboltOutlined,
   WifiOutlined,
   ClockCircleOutlined,
   PhoneOutlined,
@@ -18,10 +18,10 @@ import {
   QrcodeOutlined,
   BellOutlined,
   LockOutlined,
-  BulbOutlined,
   BankOutlined,
   CopyOutlined,
   EyeOutlined,
+  AppstoreOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -39,15 +39,6 @@ import {
 const { Title, Text } = Typography;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface TablePricingRule {
-  id: string;
-  tableType: string;
-  tableTypeName: string;
-  regularHourRate: number;
-  goldHourRate: number;
-  description: string;
-}
 
 export interface MemberTierPolicy {
   tierKey: string;
@@ -80,7 +71,6 @@ export interface ClubSettingsData {
   isVatEnabled: boolean;
   serviceChargePercent: number; // e.g. 0
   holidaySurchargePercent: number; // e.g. 15
-  pricingRules: TablePricingRule[];
 
   // Membership Points
   earnPointsRate: number;
@@ -94,13 +84,6 @@ export interface ClubSettingsData {
   autoCutPaper: boolean;
   printVietQROnBill: boolean;
   printClubLogoOnBill: boolean;
-
-  // Smart Relay Table Lighting
-  isRelayConnected: boolean;
-  relayProtocol: string;
-  relayControllerIp: string;
-  autoTurnOnLightOnOpen: boolean;
-  autoTurnOffDelayMinutes: number;
 
   // Payment VietQR
   bankCode: string;
@@ -128,7 +111,7 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
   openingHours: "08:00 - 04:00 Sáng hôm sau (Mở cửa xuyên đêm)",
   wifiSSID: "CueZone_5G_VIP",
   wifiPassword: "cuezone8888",
-  totalTables: 20,
+  totalTables: 26,
 
   goldHourStart: "18:00",
   goldHourEnd: "23:00",
@@ -138,40 +121,6 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
   isVatEnabled: false,
   serviceChargePercent: 0,
   holidaySurchargePercent: 15,
-  pricingRules: [
-    {
-      id: "pr-1",
-      tableType: "standard",
-      tableTypeName: "Bàn Pool Tiêu Chuẩn (9ft)",
-      regularHourRate: 50000,
-      goldHourRate: 70000,
-      description: "Bàn thi đấu lỗ phổ thông, bi Dynasphere tiêu chuẩn",
-    },
-    {
-      id: "pr-2",
-      tableType: "vip",
-      tableTypeName: "Bàn VIP Tournament (Nỉ Simonis 860)",
-      regularHourRate: 80000,
-      goldHourRate: 110000,
-      description: "Nỉ Iwan Simonis 860 Bỉ, bi Aramith Pro TV Cup, đèn LED chống chói",
-    },
-    {
-      id: "pr-3",
-      tableType: "match_var",
-      tableTypeName: "Bàn Match 13 - 14 (Có Camera VAR)",
-      regularHourRate: 100000,
-      goldHourRate: 140000,
-      description: "Sảnh trung tâm truyền hình trực tiếp, camera VAR phân giải 4K",
-    },
-    {
-      id: "pr-4",
-      tableType: "carom_3c",
-      tableTypeName: "Bàn Carom 3 Băng (Sưởi Nhiệt Điện)",
-      regularHourRate: 70000,
-      goldHourRate: 90000,
-      description: "Mặt đá sưởi ấm điện trở tự động, băng cao su Artemis chuẩn quốc tế",
-    },
-  ],
 
   earnPointsRate: 10000,
   redeemPointsRate: 100,
@@ -221,17 +170,11 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
   printVietQROnBill: true,
   printClubLogoOnBill: true,
 
-  isRelayConnected: true,
-  relayProtocol: "Modbus TCP / RS485 Gateway",
-  relayControllerIp: "192.168.1.150:502",
-  autoTurnOnLightOnOpen: true,
-  autoTurnOffDelayMinutes: 2,
-
-  bankCode: "",
-  bankName: "",
-  bankAccountNo: "",
-  bankAccountName: "",
-  isVietQREnabled: false,
+  bankCode: "MB",
+  bankName: "MB Bank (Ngân hàng TMCP Quân Đội)",
+  bankAccountNo: "0908888999",
+  bankAccountName: "CLB BIDA CUEZONE - NGUYEN HAI LONG",
+  isVietQREnabled: true,
 
   autoLockPosTimeoutMinutes: 30,
   requireAdminPassOnCancelItem: true,
@@ -240,21 +183,70 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
   soundAlertNewBooking: true,
 };
 
+export const POPULAR_BANKS = [
+  { code: "MB", name: "MB Bank (Ngân hàng TMCP Quân Đội)" },
+  { code: "VCB", name: "Vietcombank (Ngân hàng TMCP Ngoại thương VN)" },
+  { code: "TCB", name: "Techcombank (Ngân hàng TMCP Kỹ Thương)" },
+  { code: "BIDV", name: "BIDV (Ngân hàng TMCP Đầu tư & Phát triển VN)" },
+  { code: "CTG", name: "VietinBank (Ngân hàng TMCP Công Thương VN)" },
+  { code: "ACB", name: "ACB (Ngân hàng TMCP Á Châu)" },
+  { code: "VPB", name: "VPBank (Ngân hàng TMCP Việt Nam Thịnh Vượng)" },
+  { code: "TPB", name: "TPBank (Ngân hàng TMCP Tiên Phong)" },
+  { code: "STB", name: "Sacombank (Ngân hàng TMCP Sài Gòn Thương Tín)" },
+  { code: "HDB", name: "HDBank (Ngân hàng TMCP Phát triển TP.HCM)" },
+];
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const SettingsManagementPage: React.FC = () => {
+  const navigate = useNavigate();
+
   // Local Storage Data Management
   const [settings, setSettings] = useState<ClubSettingsData>(() => {
     const saved = localStorage.getItem("cuezone_admin_settings");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          totalTables: 26,
+          bankCode: parsed.bankCode || "MB",
+          bankName: parsed.bankName || "MB Bank (Ngân hàng TMCP Quân Đội)",
+          bankAccountNo: parsed.bankAccountNo || "0908888999",
+          bankAccountName: parsed.bankAccountName || "CLB BIDA CUEZONE - NGUYEN HAI LONG",
+        };
       } catch (e) {
         console.error("Failed to parse settings from storage:", e);
       }
     }
     return DEFAULT_SETTINGS;
   });
+
+  // Đồng bộ số lượng bàn thực tế từ Database
+  const [actualTableCount, setActualTableCount] = useState<number>(26);
+  const [actualTablesBreakdown, setActualTablesBreakdown] = useState({ pool: 14, carom: 9, snooker: 3 });
+
+  useEffect(() => {
+    let mounted = true;
+    posService
+      .getTables()
+      .then((tables) => {
+        if (mounted && Array.isArray(tables) && tables.length > 0) {
+          const count = tables.length;
+          setActualTableCount(count);
+          const pool = tables.filter((t) => t.type === "pool").length;
+          const carom = tables.filter((t) => t.type === "carom").length;
+          const snooker = tables.filter((t) => t.type === "snooker").length;
+          setActualTablesBreakdown({ pool, carom, snooker });
+          setSettings((prev) => ({ ...prev, totalTables: count }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("cuezone_admin_settings", JSON.stringify(settings));
@@ -264,10 +256,6 @@ const SettingsManagementPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     "general" | "pricing" | "membership" | "hardware" | "system"
   >("general");
-
-  // Edit Pricing Rule Modal State
-  const [editingPriceRule, setEditingPriceRule] = useState<TablePricingRule | null>(null);
-  const [priceModalVisible, setPriceModalVisible] = useState<boolean>(false);
 
   // Bill Preview Modal
   const [billPreviewVisible, setBillPreviewVisible] = useState<boolean>(false);
@@ -282,7 +270,7 @@ const SettingsManagementPage: React.FC = () => {
     Modal.confirm({
       title: "Khôi phục toàn bộ cấu hình ban đầu?",
       content:
-        "Tất cả cài đặt thông tin CLB, bảng giá giờ chơi, rơ-le đèn và tích điểm sẽ trở về thông số chuẩn ban đầu của hệ thống.",
+        "Tất cả cài đặt thông tin CLB, quy tắc tính tiền, máy in bill và tích điểm sẽ trở về thông số chuẩn ban đầu của hệ thống.",
       okText: "Khôi phục",
       cancelText: "Hủy bỏ",
       onOk: () => {
@@ -296,7 +284,7 @@ const SettingsManagementPage: React.FC = () => {
   // Test hardware actions
   const handleTestPrinter = () => {
     message.loading({
-      content: "Đang gửi lệnh in thử đến máy in nhiệt K80 (192.168.1.200)...",
+      content: "Đang gửi lệnh in thử đến máy in nhiệt K80...",
       key: "print",
     });
     setTimeout(() => {
@@ -307,86 +295,6 @@ const SettingsManagementPage: React.FC = () => {
       });
     }, 1200);
   };
-
-  const handleTestRelay = (action: "all_on" | "all_off") => {
-    const actText =
-      action === "all_on" ? "BẬT TOÀN BỘ 20 RƠ-LE ĐÈN BÀN" : "TẮT TOÀN BỘ RƠ-LE ĐÈN BÀN";
-    message.loading({ content: `Đang gửi tín hiệu Modbus TCP tới ${actText}...`, key: "relay" });
-    setTimeout(() => {
-      message.success({ content: `Thao tác thành công: ${actText}!`, key: "relay", duration: 3 });
-    }, 1000);
-  };
-
-  // Pricing Rule Edit
-  const handleOpenEditPricing = (rule: TablePricingRule) => {
-    setEditingPriceRule({ ...rule });
-    setPriceModalVisible(true);
-  };
-
-  const handleSavePricingRule = () => {
-    if (!editingPriceRule) return;
-    setSettings((prev) => ({
-      ...prev,
-      pricingRules: prev.pricingRules.map((r) =>
-        r.id === editingPriceRule.id ? editingPriceRule : r,
-      ),
-    }));
-    setPriceModalVisible(false);
-    message.success(`Đã cập nhật bảng giá cho ${editingPriceRule.tableTypeName}!`);
-  };
-
-  // Pricing Table Columns
-  const pricingColumns: TableColumnsType<TablePricingRule> = [
-    {
-      title: "Loại bàn bida",
-      key: "tableTypeName",
-      render: (_, r) => (
-        <div>
-          <Text strong className="!text-slate-900 !text-sm block font-bold">
-            {r.tableTypeName}
-          </Text>
-          <Text className="!text-xs !text-slate-500 block">{r.description}</Text>
-        </div>
-      ),
-    },
-    {
-      title: "Giá giờ ban ngày (08:00 - 18:00)",
-      key: "regularHourRate",
-      width: 220,
-      render: (_, r) => (
-        <div className="flex items-center gap-1.5 font-bold text-emerald-700 text-sm bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 w-fit">
-          <DollarOutlined />
-          <span>{r.regularHourRate.toLocaleString()} đ / giờ</span>
-        </div>
-      ),
-    },
-    {
-      title: "Giá Giờ Vàng (18:00 - 23:00)",
-      key: "goldHourRate",
-      width: 220,
-      render: (_, r) => (
-        <div className="flex items-center gap-1.5 font-bold text-amber-800 text-sm bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 w-fit">
-          <CrownOutlined className="text-amber-600" />
-          <span>{r.goldHourRate.toLocaleString()} đ / giờ</span>
-        </div>
-      ),
-    },
-    {
-      title: "Thao tác",
-      key: "actions",
-      width: 110,
-      render: (_, r) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleOpenEditPricing(r)}
-          className="!border-slate-300 font-semibold"
-        >
-          Sửa giá
-        </Button>
-      ),
-    },
-  ];
 
   // Member Tier Table Columns
   const tierColumns: TableColumnsType<MemberTierPolicy> = [
@@ -455,15 +363,14 @@ const SettingsManagementPage: React.FC = () => {
                   level={2}
                   className="!text-xl md:!text-2xl !font-black !text-slate-900 !mb-0 tracking-tight"
                 >
-                  Cài Đặt Hệ Thống & Cấu Hình CLB
+                  Cài Đặt Hệ Thống & CLB
                 </Title>
-                <Tag color="green" className="!px-2.5 !py-0.5 !text-xs !font-black !rounded-full">
-                  CUEZONE ADMIN V2.6.4
+                <Tag color="green" className="!px-2.5 !py-0.5 !text-xs !font-bold !rounded-full">
+                  HỆ THỐNG QUẢN TRỊ
                 </Tag>
               </div>
               <Text className="!text-xs md:!text-sm !text-slate-500">
-                Quản lý thông tin câu lạc bộ, bảng giá giờ chơi, thẻ hội viên, rơ-le đèn tự động và
-                cổng thanh toán
+                Thiết lập thông tin câu lạc bộ, quy tắc tính tiền, máy in hóa đơn, tài khoản thanh toán và hội viên
               </Text>
             </div>
           </div>
@@ -490,47 +397,47 @@ const SettingsManagementPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 2. Quick Hardware Status Bar (Clean Light Cards) ── */}
+      {/* ── 2. Quick Status Bar (Clean Light Cards) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-emerald-300 transition-all flex items-center justify-between">
           <div>
-            <span className="text-xs text-slate-500 block font-medium">Hệ thống POS</span>
+            <span className="text-xs text-slate-500 block font-medium">Hệ Thống Bàn Bida</span>
             <div className="text-base font-black text-emerald-700 mt-1 flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              Đang trực tuyến (Online)
+              Đang hoạt động
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
-              {settings.totalTables} Bàn hoạt động
+              26 Bàn phục vụ (Pool, Carom, Snooker)
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
-            <ThunderboltOutlined />
+            <AppstoreOutlined />
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-teal-300 transition-all flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-amber-300 transition-all flex items-center justify-between">
           <div>
-            <span className="text-xs text-slate-500 block font-medium">Rơ-le Đèn Thông Minh</span>
-            <div className="text-base font-black text-teal-700 mt-1 flex items-center gap-1.5">
-              <CheckCircleOutlined /> Modbus TCP
+            <span className="text-xs text-slate-500 block font-medium">Chính Sách Hội Viên</span>
+            <div className="text-base font-black text-amber-800 mt-1 flex items-center gap-1.5">
+              <CrownOutlined /> 4 Cấp Bậc Thẻ
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
-              20/20 Cổng rơ-le sẵn sàng
+              Tích điểm & giảm giá giờ chơi tự động
             </span>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-600 text-xl">
-            <BulbOutlined />
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
+            <CrownOutlined />
           </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-blue-300 transition-all flex items-center justify-between">
           <div>
-            <span className="text-xs text-slate-500 block font-medium">Máy in hóa đơn</span>
+            <span className="text-xs text-slate-500 block font-medium">Máy In Hóa Đơn</span>
             <div className="text-base font-black text-blue-700 mt-1 flex items-center gap-1.5">
               <PrinterOutlined /> Khổ K80 (80mm)
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
-              {settings.printerIpAddress}
+              Tự động cắt giấy khi in xong bill
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl">
@@ -538,17 +445,17 @@ const SettingsManagementPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-amber-300 transition-all flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-emerald-300 transition-all flex items-center justify-between">
           <div>
-            <span className="text-xs text-slate-500 block font-medium">Cổng VietQR Napas</span>
-            <div className="text-base font-black text-amber-800 mt-1 flex items-center gap-1.5">
-              <BankOutlined /> MB Bank Quầy
+            <span className="text-xs text-slate-500 block font-medium">Cổng Thanh Toán VietQR</span>
+            <div className="text-base font-black text-emerald-800 mt-1 flex items-center gap-1.5">
+              <BankOutlined /> {settings.bankName || "MB Bank Quầy"}
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
-              STK: {settings.bankAccountNo}
+              STK: {settings.bankAccountNo || "0908888999"}
             </span>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
             <QrcodeOutlined />
           </div>
         </div>
@@ -581,7 +488,7 @@ const SettingsManagementPage: React.FC = () => {
               : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
           }
         >
-          Bảng giá & Quy tắc tính tiền
+          Quy Tắc Tính Tiền & Phụ Thu
         </Button>
 
         <Button
@@ -609,7 +516,7 @@ const SettingsManagementPage: React.FC = () => {
               : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
           }
         >
-          Thiết bị phần cứng & Thanh toán
+          Máy In Bill & Tài Khoản Ngân Hàng
         </Button>
 
         <Button
@@ -623,7 +530,7 @@ const SettingsManagementPage: React.FC = () => {
               : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
           }
         >
-          Bảo mật & Tự động hóa
+          Bảo Mật & Thông Báo Quầy
         </Button>
       </div>
 
@@ -651,15 +558,28 @@ const SettingsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Số lượng bàn hoạt động
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Quy mô bàn hoạt động
+                    </label>
+                    <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Đồng bộ từ Database
+                    </span>
+                  </div>
                   <Input
-                    type="number"
-                    value={settings.totalTables.toString()}
-                    onChange={(e) =>
-                      setSettings({ ...settings, totalTables: parseInt(e.target.value) || 20 })
+                    readOnly
+                    value={`${actualTableCount} Bàn (${actualTablesBreakdown.pool} Pool · ${actualTablesBreakdown.carom} Carom · ${actualTablesBreakdown.snooker} Snooker)`}
+                    suffix={
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => navigate("/tables")}
+                        className="!text-xs !p-0 !text-emerald-700 font-bold hover:!text-emerald-800"
+                      >
+                        Quản lý bàn →
+                      </Button>
                     }
+                    className="!bg-slate-50 !text-slate-900 font-medium cursor-default"
                   />
                 </div>
               </div>
@@ -820,28 +740,29 @@ const SettingsManagementPage: React.FC = () => {
       {/* ── 5. Tab 2: Pricing & Billing Rules ── */}
       {activeTab === "pricing" && (
         <div className="space-y-6">
-          {/* Hourly Rates by Table Type */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <DollarOutlined className="text-emerald-600 text-lg" />
-                <div>
-                  <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                    Bảng Giá Giờ Chơi Theo Loại Bàn
-                  </Title>
-                  <Text className="!text-xs !text-slate-500">
-                    Hệ thống POS tự động áp dụng giá theo phân loại bàn và khung giờ trong ngày
-                  </Text>
-                </div>
+          {/* Banner liên kết sang Quản Lý Bàn & Bảng Giá */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 text-lg shadow-2xs">
+                <DollarOutlined />
+              </div>
+              <div>
+                <strong className="text-sm sm:text-base text-emerald-950 block font-bold">
+                  Quản Lý Đơn Giá Giờ Chơi Theo Bàn & Khung Giờ
+                </strong>
+                <span className="text-xs text-emerald-800 leading-relaxed block mt-0.5">
+                  Đơn giá giờ chơi chính thức theo từng loại bàn (Pool, Carom, Snooker) và theo khung giờ (Ngày, Đêm, Giờ Cao Điểm) được thiết lập tại trang <strong>Quản Lý Bàn & Bảng Giá</strong> để đồng bộ trực tiếp tới máy POS.
+                </span>
               </div>
             </div>
-
-            <Table<TablePricingRule>
-              dataSource={settings.pricingRules}
-              columns={pricingColumns}
-              rowKey="id"
-              pagination={false}
-            />
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate("/tables")}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !rounded-xl !h-9 !px-4 text-xs text-white shadow-2xs shrink-0 self-start sm:self-center whitespace-nowrap"
+            >
+              Mở Quản Lý Bàn & Bảng Giá &rarr;
+            </Button>
           </div>
 
           {/* Billing Calculation Rules */}
@@ -849,7 +770,7 @@ const SettingsManagementPage: React.FC = () => {
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
               <ClockCircleOutlined className="text-amber-600 text-lg" />
               <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                Quy Tắc Tính Tiền Giờ & Khung Giờ Vàng
+                Quy Tắc Tính Tiền Giờ & Phụ Thu
               </Title>
             </div>
 
@@ -1013,10 +934,16 @@ const SettingsManagementPage: React.FC = () => {
                     }
                     suffix="VNĐ"
                   />
-                  <span className="text-slate-900 text-sm font-bold">= 1 Điểm</span>
+                  <span className="text-slate-900 text-sm font-bold whitespace-nowrap shrink-0">= 1 Điểm</span>
                 </div>
                 <span className="text-[11px] text-emerald-700 font-semibold mt-1 block">
-                  Ví dụ: Hóa đơn 300.000đ sẽ tích được 30 điểm
+                  Ví dụ: Hóa đơn 300.000đ sẽ tích được{" "}
+                  <strong>
+                    {Math.floor(
+                      300000 / (settings.earnPointsRate > 0 ? settings.earnPointsRate : 10000)
+                    ).toLocaleString("vi-VN")}
+                  </strong>{" "}
+                  điểm
                 </span>
               </div>
 
@@ -1036,10 +963,20 @@ const SettingsManagementPage: React.FC = () => {
                     }
                     suffix="Điểm"
                   />
-                  <span className="text-slate-900 text-sm font-bold">= 10.000 VNĐ</span>
+                  <span className="text-slate-900 text-sm font-bold whitespace-nowrap shrink-0">= 10.000 VNĐ</span>
                 </div>
                 <span className="text-[11px] text-amber-800 font-semibold mt-1 block">
-                  Trừ trực tiếp vào tổng tiền khi khách yêu cầu dùng điểm
+                  Ví dụ: Dùng{" "}
+                  <strong>
+                    {(
+                      (settings.redeemPointsRate > 0 ? settings.redeemPointsRate : 100) * 2
+                    ).toLocaleString("vi-VN")}
+                  </strong>{" "}
+                  điểm sẽ được trừ <strong>20.000đ</strong> vào bill (1 điểm ={" "}
+                  {Math.round(
+                    10000 / (settings.redeemPointsRate > 0 ? settings.redeemPointsRate : 100)
+                  ).toLocaleString("vi-VN")}
+                  đ)
                 </span>
               </div>
             </div>
@@ -1164,91 +1101,6 @@ const SettingsManagementPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Smart Relay Table Lighting */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <BulbOutlined className="text-teal-600 text-lg" />
-                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                  Rơ-le Đèn Bàn Thông Minh (Smart Relay)
-                </Title>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleTestRelay("all_on")}
-                  className="!border-slate-300 font-semibold"
-                >
-                  Bật tất cả
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => handleTestRelay("all_off")}>
-                  Tắt tất cả
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Giao thức điều khiển
-                  </label>
-                  <Input
-                    value={settings.relayProtocol}
-                    onChange={(e) => setSettings({ ...settings, relayProtocol: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Địa chỉ Gateway Modbus TCP
-                  </label>
-                  <Input
-                    value={settings.relayControllerIp}
-                    onChange={(e) =>
-                      setSettings({ ...settings, relayControllerIp: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoTurnOnLightOnOpen}
-                    onChange={(e) =>
-                      setSettings({ ...settings, autoTurnOnLightOnOpen: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                  />
-                  <span className="font-bold text-teal-800">
-                    Tự động bật rơ-le đèn bàn ngay khi bấm "Mở bàn" trên POS
-                  </span>
-                </label>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Độ trễ tự động tắt đèn sau khi thanh toán hóa đơn
-                  </label>
-                  <Select
-                    value={settings.autoTurnOffDelayMinutes.toString()}
-                    onChange={(val) =>
-                      setSettings({ ...settings, autoTurnOffDelayMinutes: parseInt(val) || 2 })
-                    }
-                    className="w-full"
-                    options={[
-                      { label: "Tắt đèn ngay lập tức (0 phút)", value: "0" },
-                      { label: "Tắt sau 2 phút (Để khách thu dọn gậy cơ)", value: "2" },
-                      { label: "Tắt sau 5 phút", value: "5" },
-                    ]}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Payment VietQR Gateway */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -1266,20 +1118,31 @@ const SettingsManagementPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Mã ngân hàng VietQR <span className="text-rose-500">*</span>
+                  Ngân hàng thụ hưởng (VietQR) <span className="text-rose-500">*</span>
                 </label>
-                <Input
-                  value={settings.bankCode || ""}
-                  onChange={(e) => setSettings({ ...settings, bankCode: e.target.value.trim() })}
-                  placeholder="Ví dụ: MB, VCB"
+                <Select
+                  value={settings.bankCode || "MB"}
+                  onChange={(val) => {
+                    const matched = POPULAR_BANKS.find((b) => b.code === val);
+                    setSettings({
+                      ...settings,
+                      bankCode: val,
+                      bankName: matched ? matched.name : val,
+                    });
+                  }}
+                  options={POPULAR_BANKS.map((b) => ({
+                    value: b.code,
+                    label: `${b.code} - ${b.name.split(" (")[0]}`,
+                  }))}
+                  className="w-full !rounded-lg"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Ngân hàng thụ hưởng <span className="text-rose-500">*</span>
+                  Tên ngân hàng đầy đủ <span className="text-rose-500">*</span>
                 </label>
                 <Input
-                  value={settings.bankName}
+                  value={settings.bankName || "MB Bank (Ngân hàng TMCP Quân Đội)"}
                   onChange={(e) => setSettings({ ...settings, bankName: e.target.value })}
                 />
               </div>
@@ -1290,7 +1153,8 @@ const SettingsManagementPage: React.FC = () => {
                 </label>
                 <Input
                   value={settings.bankAccountNo}
-                  onChange={(e) => setSettings({ ...settings, bankAccountNo: e.target.value })}
+                  onChange={(e) => setSettings({ ...settings, bankAccountNo: e.target.value.trim() })}
+                  placeholder="VD: 0908888999"
                 />
               </div>
 
@@ -1300,7 +1164,8 @@ const SettingsManagementPage: React.FC = () => {
                 </label>
                 <Input
                   value={settings.bankAccountName}
-                  onChange={(e) => setSettings({ ...settings, bankAccountName: e.target.value })}
+                  onChange={(e) => setSettings({ ...settings, bankAccountName: e.target.value.toUpperCase() })}
+                  placeholder="VD: CLB BIDA CUEZONE"
                 />
               </div>
             </div>
@@ -1383,7 +1248,7 @@ const SettingsManagementPage: React.FC = () => {
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
               <BellOutlined className="text-amber-600 text-lg" />
               <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                Tự Động Hóa & Thông Báo Ca Trực
+                Thông Báo & Ca Trực
               </Title>
             </div>
 
@@ -1415,8 +1280,7 @@ const SettingsManagementPage: React.FC = () => {
                 </label>
 
                 <div className="text-[11px] text-slate-500 leading-relaxed">
-                  Hệ thống tự động kích hoạt Web Audio API phát âm thanh "Ding" tại quầy thu ngân
-                  giúp nhân viên không bỏ lỡ lịch đặt bàn giờ vàng của hội viên.
+                  Phát chuông thông báo âm thanh tại quầy thu ngân khi có yêu cầu đặt bàn mới từ khách hàng để nhân viên kịp thời chuẩn bị bàn.
                 </div>
               </div>
             </div>
@@ -1424,96 +1288,12 @@ const SettingsManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── 9. Modal: Edit Price Rule ── */}
-      <Modal
-        title={
-          <div className="flex items-center gap-2 text-slate-900 font-bold">
-            <DollarOutlined className="text-emerald-600" />
-            <span>Chỉnh Sửa Giá Giờ Chơi: {editingPriceRule?.tableTypeName}</span>
-          </div>
-        }
-        open={priceModalVisible}
-        onCancel={() => {
-          setPriceModalVisible(false);
-          setEditingPriceRule(null);
-        }}
-        width={520}
-        footer={[
-          <Button
-            key="cancel"
-            variant="ghost"
-            onClick={() => {
-              setPriceModalVisible(false);
-              setEditingPriceRule(null);
-            }}
-          >
-            Hủy
-          </Button>,
-          <Button key="save" variant="primary" onClick={handleSavePricingRule}>
-            Lưu mức giá
-          </Button>,
-        ]}
-      >
-        {editingPriceRule && (
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Giá ngày thường (08:00 - 18:00)
-              </label>
-              <Input
-                type="number"
-                value={editingPriceRule.regularHourRate.toString()}
-                onChange={(e) =>
-                  setEditingPriceRule({
-                    ...editingPriceRule,
-                    regularHourRate: parseInt(e.target.value) || 0,
-                  })
-                }
-                suffix="VNĐ / giờ"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Giá Giờ Vàng (18:00 - 23:00)
-              </label>
-              <Input
-                type="number"
-                value={editingPriceRule.goldHourRate.toString()}
-                onChange={(e) =>
-                  setEditingPriceRule({
-                    ...editingPriceRule,
-                    goldHourRate: parseInt(e.target.value) || 0,
-                  })
-                }
-                suffix="VNĐ / giờ"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Mô tả loại bàn
-              </label>
-              <Input
-                value={editingPriceRule.description}
-                onChange={(e) =>
-                  setEditingPriceRule({
-                    ...editingPriceRule,
-                    description: e.target.value,
-                  })
-                }
-              />
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* ── 10. Modal: Thermal Bill Header Preview ── */}
+      {/* ── 9. Modal: Thermal Bill Header Preview ── */}
       <Modal
         title={
           <div className="flex items-center gap-2 text-slate-900 font-bold">
             <PrinterOutlined className="text-emerald-600" />
-            <span>Mô Phỏng Đầu Hóa Đơn Nhiệt K80 (Thermal Receipt)</span>
+            <span>Mô Phỏng Đầu Hóa Đơn Nhiệt K80</span>
           </div>
         }
         open={billPreviewVisible}
