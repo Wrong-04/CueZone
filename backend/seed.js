@@ -10,6 +10,13 @@ require("dotenv").config({ path: path.resolve(__dirname, ".env") });
 const DEFAULT_PASSWORD = "admin123";
 const { EJSON } = mongoose.mongo.BSON;
 
+function formatHHMM(date) {
+  const vnDate = new Date(date.getTime() + 7 * 3600000);
+  const hours = String(vnDate.getUTCHours()).padStart(2, "0");
+  const mins = String(vnDate.getUTCMinutes()).padStart(2, "0");
+  return `${hours}:${mins}`;
+}
+
 async function runSeed() {
   if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed ở production.");
   if (!process.argv.includes("--yes")) {
@@ -21,9 +28,254 @@ async function runSeed() {
   console.log(`Đang nạp dữ liệu demo vào "${db.databaseName}"...`);
 
   const passwordHash = bcrypt.hashSync(DEFAULT_PASSWORD, 10);
+  const now = Date.now();
+  const todayVn = new Date(now + 7 * 3600000).toISOString().slice(0, 10);
+
   for (const [name, raw] of Object.entries(SEED_DATA)) {
     const docs = EJSON.deserialize(raw);
     if (name === "users") docs.forEach((u) => (u.password = passwordHash));
+
+    // Dynamic clean & realistic table sessions
+    if (name === "pool_tables") {
+      for (const tbl of docs) {
+        const code = tbl.code;
+        if (code === "STD-01") {
+          const startMs = now - 45 * 60 * 1000;
+          tbl.status = "playing";
+          tbl.currentSession = {
+            sessionId: "sess-std-01",
+            checkoutState: "open",
+            customerOrderRevision: 0,
+            sessionStart: formatHHMM(new Date(startMs)),
+            startedAt: startMs,
+            pricePerHour: tbl.pricePerHour || 60000,
+            isPaused: false,
+            totalPausedMs: 0,
+            carriedCost: 0,
+            customerName: "Nguyễn Văn An",
+            customerPhone: "0988123456",
+            isMember: false,
+            orders: [
+              {
+                id: "ord-std-01-1",
+                name: "Bò Húc Thái (Red Bull)",
+                price: 25000,
+                quantity: 2,
+                category: "drink",
+                orderTime: formatHHMM(new Date(now - 30 * 60 * 1000)),
+                status: "served",
+              },
+            ],
+            note: "",
+            deposit: 0,
+            transfers: [],
+          };
+          tbl.bookedInfo = null;
+        } else if (code === "STD-06") {
+          const startMs = now - 75 * 60 * 1000;
+          tbl.status = "playing";
+          tbl.currentSession = {
+            sessionId: "sess-std-06",
+            checkoutState: "open",
+            customerOrderRevision: 0,
+            sessionStart: formatHHMM(new Date(startMs)),
+            startedAt: startMs,
+            pricePerHour: tbl.pricePerHour || 60000,
+            isPaused: false,
+            totalPausedMs: 0,
+            carriedCost: 0,
+            customerName: "Trần Quốc Đạt",
+            customerPhone: "0988123456",
+            isMember: true,
+            orders: [
+              {
+                id: "ord-std-06-1",
+                name: "Cà Phê Muối Đặc Biệt",
+                price: 35000,
+                quantity: 1,
+                category: "drink",
+                orderTime: formatHHMM(new Date(now - 45 * 60 * 1000)),
+                status: "served",
+              },
+            ],
+            note: "Hội viên quen",
+            deposit: 0,
+            transfers: [],
+          };
+          tbl.bookedInfo = null;
+        } else if (code === "VIP-01") {
+          const startMs = now - 30 * 60 * 1000;
+          tbl.status = "playing";
+          tbl.currentSession = {
+            sessionId: "sess-vip-01",
+            checkoutState: "open",
+            customerOrderRevision: 0,
+            sessionStart: formatHHMM(new Date(startMs)),
+            startedAt: startMs,
+            pricePerHour: tbl.pricePerHour || 120000,
+            isPaused: false,
+            totalPausedMs: 0,
+            carriedCost: 0,
+            customerName: "Dương Quốc Hoàng",
+            customerPhone: "0912345678",
+            isMember: true,
+            orders: [],
+            note: "",
+            deposit: 0,
+            transfers: [],
+          };
+          tbl.bookedInfo = null;
+        } else if (code === "MTCH-01") {
+          const startMs = now - 60 * 60 * 1000;
+          tbl.status = "playing";
+          tbl.currentSession = {
+            sessionId: "sess-mtch-01",
+            checkoutState: "open",
+            customerOrderRevision: 0,
+            sessionStart: formatHHMM(new Date(startMs)),
+            startedAt: startMs,
+            pricePerHour: tbl.pricePerHour || 100000,
+            isPaused: false,
+            totalPausedMs: 0,
+            carriedCost: 0,
+            customerName: "Phan Thành Long",
+            customerPhone: "0966778899",
+            isMember: false,
+            orders: [],
+            note: "Tập luyện thi đấu",
+            deposit: 0,
+            transfers: [],
+          };
+          tbl.bookedInfo = null;
+        } else if (code === "STD-02") {
+          const startMs = now - 50 * 60 * 1000;
+          const pauseMs = now - 10 * 60 * 1000;
+          tbl.status = "paused";
+          tbl.currentSession = {
+            sessionId: "sess-std-02",
+            checkoutState: "open",
+            customerOrderRevision: 0,
+            sessionStart: formatHHMM(new Date(startMs)),
+            startedAt: startMs,
+            pricePerHour: tbl.pricePerHour || 60000,
+            isPaused: true,
+            pausedAt: pauseMs,
+            totalPausedMs: 0,
+            carriedCost: 0,
+            customerName: "Nguyễn Quang Huy",
+            customerPhone: "0975685609",
+            isMember: false,
+            orders: [],
+            note: "Khách tạm dừng ra ngoài",
+            deposit: 0,
+            transfers: [],
+          };
+          tbl.bookedInfo = null;
+        } else if (code === "VIP-02") {
+          const startMs = now - 40 * 60 * 1000;
+          const pauseMs = now - 5 * 60 * 1000;
+          tbl.status = "paused";
+          tbl.currentSession = {
+            sessionId: "sess-vip-02",
+            checkoutState: "open",
+            customerOrderRevision: 0,
+            sessionStart: formatHHMM(new Date(startMs)),
+            startedAt: startMs,
+            pricePerHour: tbl.pricePerHour || 120000,
+            isPaused: true,
+            pausedAt: pauseMs,
+            totalPausedMs: 0,
+            carriedCost: 0,
+            customerName: "Lê Trọng Tấn",
+            customerPhone: "0988776655",
+            isMember: false,
+            orders: [],
+            note: "",
+            deposit: 0,
+            transfers: [],
+          };
+          tbl.bookedInfo = null;
+        } else if (code === "STD-03") {
+          tbl.status = "booked";
+          tbl.currentSession = null;
+          tbl.bookedInfo = {
+            customerName: "Phạm Thành Trung",
+            phone: "0988123456",
+            time: "14:00",
+            bookingId: "book-demo-01",
+          };
+        } else if (code === "VIP-03") {
+          tbl.status = "booked";
+          tbl.currentSession = null;
+          tbl.bookedInfo = {
+            customerName: "Nguyễn Bích Trâm",
+            phone: "0975685609",
+            time: "19:30",
+            bookingId: "book-demo-02",
+          };
+        } else if (code === "MTCH-02") {
+          tbl.status = "booked";
+          tbl.currentSession = null;
+          tbl.bookedInfo = {
+            customerName: "Đặng Thành Công",
+            phone: "0912345678",
+            time: "16:00",
+            bookingId: "book-demo-03",
+          };
+        } else {
+          // 18 tables: AVAILABLE
+          tbl.status = "available";
+          tbl.currentSession = null;
+          tbl.bookedInfo = null;
+        }
+      }
+    }
+
+    if (name === "table_sessions") {
+      docs.length = 0;
+      const poolTableDocs = EJSON.deserialize(SEED_DATA.pool_tables);
+      const findTableId = (c) => poolTableDocs.find((t) => t.code === c)?._id;
+
+      const activeConfigs = [
+        { code: "STD-01", minsAgo: 45, isPaused: false, rate: 60000 },
+        { code: "STD-06", minsAgo: 75, isPaused: false, rate: 60000 },
+        { code: "VIP-01", minsAgo: 30, isPaused: false, rate: 120000 },
+        { code: "MTCH-01", minsAgo: 60, isPaused: false, rate: 100000 },
+        { code: "STD-02", minsAgo: 50, isPaused: true, pausedMins: 10, rate: 60000 },
+        { code: "VIP-02", minsAgo: 40, isPaused: true, pausedMins: 5, rate: 120000 },
+      ];
+
+      for (const cfg of activeConfigs) {
+        const tId = findTableId(cfg.code);
+        if (tId) {
+          const sTime = new Date(now - cfg.minsAgo * 60 * 1000);
+          docs.push({
+            table: tId,
+            status: cfg.isPaused ? "paused" : "active",
+            startTime: sTime,
+            endTime: null,
+            totalPausedMinutes: cfg.isPaused ? cfg.pausedMins : 0,
+            pricingSnapshot: { pricePerHour: cfg.rate, tierName: "Khung Giờ Tiêu Chuẩn" },
+            notes: `Phiên chơi trực tiếp tại ${cfg.code}`,
+            pauses: cfg.isPaused
+              ? [{ pausedAt: new Date(now - cfg.pausedMins * 60 * 1000), resumedAt: null }]
+              : [],
+            createdAt: sTime,
+            updatedAt: new Date(),
+          });
+        }
+      }
+    }
+
+    if (name === "bookings") {
+      for (const b of docs) {
+        if (b.status === "approved" || b.status === "pending") {
+          b.date = todayVn;
+          b.bookingDate = new Date();
+        }
+      }
+    }
+
     await db.collection(name).deleteMany({});
     if (docs.length) await db.collection(name).insertMany(docs);
     console.log(`  ${name}: ${docs.length}`);
