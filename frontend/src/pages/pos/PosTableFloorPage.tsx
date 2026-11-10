@@ -1,13 +1,14 @@
 import clsx from "clsx";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { posService } from "../../services/pos.service";
+import { posService, bookingService } from "../../services/pos.service";
 import type { PricingTier } from "../../types";
 import type {
   PosTable,
   PosOrderItem,
   CheckoutReceipt,
   EligibleMoveTargetsResponse,
+  BookingRequest,
 } from "../../types/pos";
 import { calculateSplitPlayingDetails, defaultPricingTiers } from "../../utils/pricing";
 import {
@@ -76,9 +77,9 @@ export interface FnbStockItem {
   unit: string;
   image?: string;
 }
-import BookingQrScanner from "../../components/booking/BookingQrScanner";
 import CustomerPaymentRequests from "../../components/pos/CustomerPaymentRequests";
 import CustomerOrderDrawer from "../../components/pos/CustomerOrderDrawer";
+import { BookingDispatchDrawer } from "../../components/booking/BookingDispatchDrawer";
 import type { CustomerOrder } from "../../services/customer-order.service";
 
 const { Title, Text } = Typography;
@@ -92,6 +93,35 @@ export const PosTableFloorPage: React.FC = () => {
   const [pendingOrdersByTable, setPendingOrdersByTable] = useState<Record<string, number>>({});
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [orderDrawerFilterTableId, setOrderDrawerFilterTableId] = useState<string | null>(null);
+  const [bookingDrawerOpen, setBookingDrawerOpen] = useState(false);
+  const [todayBookingsCount, setTodayBookingsCount] = useState(0);
+
+  const fetchTodayBookingsCount = useCallback(async () => {
+    try {
+      const records = await bookingService.getAll();
+      const todayIso = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+      const count = records.filter(
+        (b) => b.date === todayIso && b.status !== "rejected" && b.status !== "checked_in",
+      ).length;
+      setTodayBookingsCount(count);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchTodayBookingsCount();
+    const socket = getSocket();
+    const handleSync = () => void fetchTodayBookingsCount();
+    socket.on("booking:created", handleSync);
+    socket.on("booking:updated", handleSync);
+    socket.on("booking:cancelled", handleSync);
+    return () => {
+      socket.off("booking:created", handleSync);
+      socket.off("booking:updated", handleSync);
+      socket.off("booking:cancelled", handleSync);
+    };
+  }, [fetchTodayBookingsCount]);
 
   const handleOrdersUpdated = useCallback((orders: CustomerOrder[]) => {
     const map: Record<string, number> = {};
@@ -105,7 +135,6 @@ export const PosTableFloorPage: React.FC = () => {
   }, []);
   const [saving, setSaving] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
-  const [bookingQrScannerOpen, setBookingQrScannerOpen] = useState(false);
   const busy = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -483,7 +512,33 @@ export const PosTableFloorPage: React.FC = () => {
     });
   };
 
+  const handleCheckInFromBooking = (tableId: string, booking: BookingRequest) => {
+    const target =
+      tables.find((t) => t.id === tableId || t.code === tableId) ||
+      tables.find((t) => t.status === "available");
+    if (!target) {
+      message.warning("Toàn bộ bàn bida hiện đã kín!");
+      return;
+    }
+    setSelectedTable(target);
+    setCustomerName(booking.customerName || "");
+    setCustomerPhone(booking.phone || "");
+    setSessionNote(
+      booking.note ? `Lịch hẹn ${booking.time}: ${booking.note}` : `Lịch hẹn lúc ${booking.time}`,
+    );
+    setIsCheckInMode(true);
+    setOpenModalVisible(true);
+    if (booking.phone) {
+      void handlePhoneChangeInOpenModal(booking.phone);
+    }
+  };
+
   useEffect(() => {
+    if (searchParams.get("drawer") === "booking") {
+      setBookingDrawerOpen(true);
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const tableId = searchParams.get("tableId");
     if (loading || loadError || !tableId) return;
     const table = tables.find((item) => item.id === tableId);
@@ -1463,15 +1518,28 @@ export const PosTableFloorPage: React.FC = () => {
             {/* Yêu cầu thanh toán tại bàn */}
             <CustomerPaymentRequests />
 
-            {/* Quét QR Nhận Bàn */}
+            {/* Lịch Đặt Bàn & Điều Phối Đón Khách (Booking Dispatch Drawer) */}
+            <BookingDispatchDrawer
+              open={bookingDrawerOpen}
+              onClose={() => setBookingDrawerOpen(false)}
+              tables={tables}
+              onCheckInTable={handleCheckInFromBooking}
+              onTablesReload={loadTables}
+            />
+
+            {/* Nút mở Lịch Hẹn Đặt Bàn */}
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setBookingQrScannerOpen(true)}
-              leftIcon={<QrcodeOutlined className="text-indigo-600 text-sm" />}
-              className="!rounded-xl !text-xs !h-8 !px-3 font-bold !border-indigo-200 !bg-indigo-50/80 !text-indigo-800 hover:!bg-indigo-100 hover:!border-indigo-300 shadow-2xs"
+              onClick={() => setBookingDrawerOpen(true)}
+              leftIcon={<CalendarOutlined className="text-emerald-600 text-sm" />}
+              className={`!rounded-xl !text-xs !h-8 !px-3 font-bold transition-all shadow-2xs ${
+                todayBookingsCount > 0
+                  ? "!border-emerald-500 !bg-emerald-50/90 !text-emerald-800 hover:!bg-emerald-100"
+                  : "!border-slate-200 !text-slate-700 hover:!border-slate-300"
+              }`}
             >
-              Quét QR Nhận Bàn
+              Lịch Hẹn {todayBookingsCount > 0 ? `(${todayBookingsCount})` : ""}
             </Button>
 
             {/* Danh sách khách chờ */}
@@ -1543,14 +1611,14 @@ export const PosTableFloorPage: React.FC = () => {
             <Select
               value={filterArea}
               onChange={(val) => setFilterArea(val as string)}
-              className="w-36 !text-xs font-semibold"
+              className="w-40 sm:w-44 !text-xs font-semibold"
               options={areaOptions}
             />
 
             <Select
               value={filterType}
               onChange={(val) => setFilterType(val as string)}
-              className="w-36 !text-xs font-semibold"
+              className="w-40 sm:w-44 !text-xs font-semibold"
               options={tableTypeOptions}
             />
 
@@ -1674,7 +1742,7 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
         {filteredTables.map((table) => {
           const { cost, formattedTime, minutes, timeSlots, isCrossed } =
             calculatePlayingDetails(table);
@@ -1747,28 +1815,117 @@ export const PosTableFloorPage: React.FC = () => {
                 }`}
               />
 
-              <div className="px-3.5 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-mono text-[11px] font-black text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0 shadow-2xs">
+              <div className="px-3.5 py-2.5 bg-slate-50/80 border-b border-slate-100 flex flex-col gap-1.5">
+                {/* Dòng 1: Mã bàn + Tên bàn bên trái; Tag trạng thái bên phải */}
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className="font-mono text-[11px] font-black text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0 shadow-2xs">
                       {table.code}
                     </span>
                     <span className="font-extrabold text-sm text-slate-900 truncate" title={table.name}>
                       {table.name}
                     </span>
                   </div>
+
+                  <div className="shrink-0 flex items-center">
+                    {/* Tag trạng thái */}
+                    {isPlaying && (
+                      <Tag
+                        color="green"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 shadow-2xs"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        ĐANG CHƠI
+                      </Tag>
+                    )}
+                    {isPaused && (
+                      <Tag
+                        color="orange"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
+                      >
+                        <PauseCircleOutlined className="text-[10px]" />
+                        TẠM DỪNG
+                      </Tag>
+                    )}
+                    {hasAdvanceBooking ? (
+                      <div className="flex items-center gap-1">
+                        <Tag
+                          color="default"
+                          className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-600 border border-slate-200"
+                        >
+                          BÀN TRỐNG
+                        </Tag>
+                        <Tag
+                          color="blue"
+                          className="!rounded-full !px-2 !py-0.5 !text-[9.5px] !font-bold !m-0 border border-blue-200 shadow-2xs"
+                        >
+                          ⏰ Hẹn {table.bookedInfo?.time ? table.bookedInfo.time.split(" ")[0] : ""}
+                        </Tag>
+                      </div>
+                    ) : isExpiredHold ? (
+                      <Tag
+                        color="error"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
+                      >
+                        <AlertOutlined className="text-[10px]" />
+                        QUÁ HẠN {overdueMinutes}P (HẾT GIỮ)
+                      </Tag>
+                    ) : isHoldingForBooking ? (
+                      overdueMinutes > 0 ? (
+                        <Tag
+                          color="warning"
+                          className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
+                        >
+                          <ClockCircleOutlined className="text-[10px]" />
+                          TRỄ {overdueMinutes}P
+                        </Tag>
+                      ) : (
+                        <Tag
+                          color="blue"
+                          className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
+                        >
+                          <CalendarOutlined className="text-[10px]" />
+                          GIỮ BÀN ĐÓN KHÁCH
+                        </Tag>
+                      )
+                    ) : isBooked ? (
+                      <Tag
+                        color="default"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
+                      >
+                        ĐÃ ĐẶT
+                      </Tag>
+                    ) : null}
+                    {isAvailable && (
+                      <Tag
+                        color="default"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-600 border border-slate-200"
+                      >
+                        BÀN TRỐNG
+                      </Tag>
+                    )}
+                    {isMaintenance && (
+                      <Tag
+                        color="error"
+                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
+                      >
+                        BẢO TRÌ
+                      </Tag>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dòng 2: Loại bàn & Khu vực bên trái; Tác vụ nhanh Tạm dừng / Chuyển bàn bên phải */}
+                <div className="flex items-center justify-between gap-2 min-w-0">
                   <div
-                    className="text-[10.5px] text-slate-500 mt-0.5 leading-tight line-clamp-1 font-medium"
+                    className="text-[10.5px] text-slate-500 leading-tight truncate font-medium flex-1 min-w-0"
                     title={`${table.typeName} • ${table.area || "Khu chính"}`}
                   >
                     {table.typeName} • {table.area || "Khu chính"}
                   </div>
-                </div>
 
-                <div className="shrink-0 flex items-center gap-1.5">
-                  {/* Tác vụ nhanh trên Header: Tạm dừng & Chuyển bàn */}
                   {(isPlaying || isPaused) && (
-                    <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                    <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs shrink-0">
                       <Tooltip title={isPaused ? "Tiếp tục tính giờ" : "Tạm dừng tính giờ"}>
                         <button
                           type="button"
@@ -1777,7 +1934,7 @@ export const PosTableFloorPage: React.FC = () => {
                             handleTogglePause(table);
                           }}
                           disabled={saving || loading || !!loadError}
-                          className={`h-6 w-6 rounded flex items-center justify-center text-xs transition-colors cursor-pointer ${
+                          className={`h-5 w-5 rounded flex items-center justify-center text-xs transition-colors cursor-pointer ${
                             isPaused
                               ? "bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold"
                               : "hover:bg-slate-100 text-slate-500 hover:text-amber-600"
@@ -1785,9 +1942,9 @@ export const PosTableFloorPage: React.FC = () => {
                           aria-label={isPaused ? "Tiếp tục" : "Tạm dừng"}
                         >
                           {isPaused ? (
-                            <PlayCircleOutlined className="text-[12px] text-amber-700" />
+                            <PlayCircleOutlined className="text-[11px] text-amber-700" />
                           ) : (
-                            <PauseCircleOutlined className="text-[12px]" />
+                            <PauseCircleOutlined className="text-[11px]" />
                           )}
                         </button>
                       </Tooltip>
@@ -1799,98 +1956,13 @@ export const PosTableFloorPage: React.FC = () => {
                             e.stopPropagation();
                             void handleOpenTransferModal(table, "transfer");
                           }}
-                          className="h-6 w-6 rounded flex items-center justify-center text-xs hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer"
+                          className="h-5 w-5 rounded flex items-center justify-center text-xs hover:bg-slate-100 text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer"
                           aria-label="Chuyển bàn"
                         >
-                          <SwapOutlined className="text-[11px]" />
+                          <SwapOutlined className="text-[10px]" />
                         </button>
                       </Tooltip>
                     </div>
-                  )}
-
-                  {/* Tag trạng thái */}
-                  {isPlaying && (
-                    <Tag
-                      color="green"
-                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 shadow-2xs"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      ĐANG CHƠI
-                    </Tag>
-                  )}
-                  {isPaused && (
-                    <Tag
-                      color="orange"
-                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
-                    >
-                      <PauseCircleOutlined className="text-[10px]" />
-                      TẠM DỪNG
-                    </Tag>
-                  )}
-                  {hasAdvanceBooking ? (
-                    <div className="flex items-center gap-1">
-                      <Tag
-                        color="default"
-                        className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-600 border border-slate-200"
-                      >
-                        BÀN TRỐNG
-                      </Tag>
-                      <Tag
-                        color="blue"
-                        className="!rounded-full !px-2 !py-0.5 !text-[9.5px] !font-bold !m-0 border border-blue-200 shadow-2xs"
-                      >
-                        ⏰ Hẹn {table.bookedInfo?.time ? table.bookedInfo.time.split(" ")[0] : ""}
-                      </Tag>
-                    </div>
-                  ) : isExpiredHold ? (
-                    <Tag
-                      color="error"
-                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
-                    >
-                      <AlertOutlined className="text-[10px]" />
-                      QUÁ HẠN {overdueMinutes}P (HẾT GIỮ)
-                    </Tag>
-                  ) : isHoldingForBooking ? (
-                    overdueMinutes > 0 ? (
-                      <Tag
-                        color="warning"
-                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1"
-                      >
-                        <ClockCircleOutlined className="text-[10px]" />
-                        TRỄ {overdueMinutes}P
-                      </Tag>
-                    ) : (
-                      <Tag
-                        color="blue"
-                        className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 inline-flex items-center gap-1 animate-pulse"
-                      >
-                        <CalendarOutlined className="text-[10px]" />
-                        GIỮ BÀN ĐÓN KHÁCH
-                      </Tag>
-                    )
-                  ) : isBooked ? (
-                    <Tag
-                      color="default"
-                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
-                    >
-                      ĐÃ ĐẶT
-                    </Tag>
-                  ) : null}
-                  {isAvailable && (
-                    <Tag
-                      color="default"
-                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-600 border border-slate-200"
-                    >
-                      BÀN TRỐNG
-                    </Tag>
-                  )}
-                  {isMaintenance && (
-                    <Tag
-                      color="error"
-                      className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0"
-                    >
-                      BẢO TRÌ
-                    </Tag>
                   )}
                 </div>
               </div>
@@ -2220,16 +2292,6 @@ export const PosTableFloorPage: React.FC = () => {
                     >
                       Khách Nhận Bàn
                     </Button>
-                    <Tooltip title="Quét mã QR đặt bàn của khách">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBookingQrScannerOpen(true)}
-                        icon={<QrcodeOutlined className="text-sm text-indigo-600" />}
-                        className="!rounded-xl !border-indigo-200 hover:!bg-indigo-50 !h-9 !w-9 !p-0 shrink-0"
-                        aria-label="Quét QR nhận bàn"
-                      />
-                    </Tooltip>
                     <Tooltip title="Hủy giữ bàn và chuyển về trạng thái Trống">
                       <Button
                         variant="outline"
@@ -2311,16 +2373,6 @@ export const PosTableFloorPage: React.FC = () => {
                       >
                         Nhận Bàn
                       </Button>
-                    </Tooltip>
-                    <Tooltip title="Quét mã QR nhận bàn">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBookingQrScannerOpen(true)}
-                        icon={<QrcodeOutlined className="text-sm text-indigo-600" />}
-                        className="!rounded-xl !border-indigo-200 hover:!bg-indigo-50 !h-9 !w-9 !p-0 shrink-0"
-                        aria-label="Quét QR nhận bàn"
-                      />
                     </Tooltip>
                   </div>
                 ) : isAvailable ? (
@@ -4662,10 +4714,6 @@ export const PosTableFloorPage: React.FC = () => {
           </div>
         </div>
       </Modal>
-      <BookingQrScanner
-        open={bookingQrScannerOpen}
-        onClose={() => setBookingQrScannerOpen(false)}
-      />
     </div>
   );
 };

@@ -265,7 +265,13 @@ export class TableService {
   async cancelBooking(id: string): Promise<ITable> {
     const table = await Table.findById(id);
     if (!table) throw new Error("Không tìm thấy bàn");
-    if (table.status !== TableStatus.BOOKED) throw new Error("Bàn không ở trạng thái đặt trước");
+    if (table.status !== TableStatus.BOOKED) {
+      // Nếu bàn đã mở hoặc đang chơi, chỉ cần xóa thông tin đặt trước nếu có
+      table.bookedInfo = undefined;
+      await table.save();
+      emitTableStatusChanged({ tableId: String(table._id), status: table.status, table });
+      return table;
+    }
     table.status = TableStatus.AVAILABLE;
     table.bookedInfo = undefined;
     await table.save();

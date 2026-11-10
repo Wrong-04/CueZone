@@ -36,7 +36,6 @@ import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
 
 import {
   TablesPage,
-  BookingPage,
   TournamentsPage,
   FnBPage,
   InventoryPage,
@@ -149,11 +148,7 @@ const AppRoutes = () => {
 
         <Route
           path="/booking"
-          element={
-            <ProtectedRoute roles={["admin", "staff"]}>
-              <BookingPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/pos?drawer=booking" replace />}
         />
 
         <Route
@@ -345,7 +340,7 @@ const AppRoutes = () => {
       <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
       <Route path="/admin/pos" element={<Navigate to="/pos" replace />} />
       <Route path="/admin/tables" element={<Navigate to="/tables" replace />} />
-      <Route path="/admin/booking" element={<Navigate to="/booking" replace />} />
+      <Route path="/admin/booking" element={<Navigate to="/pos?drawer=booking" replace />} />
       <Route path="/admin/tournaments" element={<Navigate to="/tournaments" replace />} />
       <Route path="/admin/fnb" element={<Navigate to="/fnb" replace />} />
       <Route path="/admin/inventory" element={<Navigate to="/inventory" replace />} />
