@@ -408,16 +408,24 @@ export const CustomerFnB: React.FC = () => {
                     <div className="p-5 space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                             <Text className="!text-[11px] !text-emerald-700 font-semibold uppercase tracking-wider block">
                               {getCategoryLabel(item.category)}
                             </Text>
+                            {item.isMadeToOrder && (
+                              <Tag
+                                color="purple"
+                                className="!text-[10px] !font-bold !px-1.5 !py-0 !rounded-md uppercase !border-0"
+                              >
+                                Pha chế/Bếp
+                              </Tag>
+                            )}
                             {item.isOutOfStock && (
                               <Tag
                                 color="error"
                                 className="!text-[10px] !font-bold !px-2 !py-0.5 !rounded-md uppercase"
                               >
-                                HẾT HÀNG
+                                {item.isMadeToOrder ? "TẠM NGƯNG BÁN" : "HẾT HÀNG"}
                               </Tag>
                             )}
                           </div>
@@ -466,7 +474,7 @@ export const CustomerFnB: React.FC = () => {
                           item.isOutOfStock ? "!opacity-50 !cursor-not-allowed" : ""
                         }`}
                       >
-                        Thêm Món
+                        {item.isOutOfStock ? "Tạm Ngưng" : "Thêm Món"}
                       </Button>
                     </div>
                   </Card>

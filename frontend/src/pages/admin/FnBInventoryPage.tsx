@@ -18,6 +18,7 @@ import {
   FireOutlined,
   CheckOutlined,
   FilterOutlined,
+  CoffeeOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -166,6 +167,10 @@ export const FnBInventoryPage: React.FC = () => {
           .filter((p: any) => p.category !== "ingredient")
           .map((p: any) => {
             const cat = resolveCat(p.name, p.category);
+            const isMadeToOrder =
+              p.isMadeToOrder !== undefined
+                ? Boolean(p.isMadeToOrder)
+                : isFreshPreparedCategory(cat);
             return {
               id: String(p._id),
               code: p.sku || `MN-${String(p._id).slice(-4)}`,
@@ -174,11 +179,18 @@ export const FnBInventoryPage: React.FC = () => {
               categoryName: categoryNameMap[cat] || "Khác",
               price: Number(p.salePrice) || 0,
               priceFormatted: `${Number(p.salePrice || 0).toLocaleString("vi-VN")}đ`,
-              stockQuantity: p.isForSale === false ? 0 : (Number(p.stock) ?? 20),
-              minThreshold: Number(p.minStock) || 5,
+              stockQuantity: isMadeToOrder
+                ? p.isForSale === false
+                  ? 0
+                  : 999
+                : p.isForSale === false
+                  ? 0
+                  : (Number(p.stock) ?? 20),
+              minThreshold: isMadeToOrder ? 0 : (Number(p.minStock) || 5),
               unit: p.unit || "Phần",
               description: p.description || "",
               image: resolveProductImage(p.name, cat, p.imageUrl),
+              isMadeToOrder,
             };
           });
         if (mapped.length > 0) {
@@ -292,13 +304,18 @@ export const FnBInventoryPage: React.FC = () => {
       minThreshold: 10,
       unit: "Ly",
       image: "/fnb/fnb-salt-coffee.jpg",
+      isMadeToOrder: true,
+      description: "",
     });
     setEditItemModalVisible(true);
   };
 
   const handleOpenEditItemModal = (item: FnbStockItem) => {
     setIsCreatingNew(false);
-    setEditingItemData({ ...item });
+    setEditingItemData({
+      ...item,
+      isMadeToOrder: item.isMadeToOrder ?? isFreshPreparedCategory(item.category),
+    });
     setEditItemModalVisible(true);
   };
 
@@ -323,6 +340,10 @@ export const FnBInventoryPage: React.FC = () => {
     };
 
     const finalCategoryName = categoryMap[editingItemData.category || "coffee"] || "Khác";
+    const isMadeToOrder =
+      editingItemData.isMadeToOrder !== undefined
+        ? Boolean(editingItemData.isMadeToOrder)
+        : isFreshPreparedCategory(editingItemData.category || "coffee");
 
     const itemToSave: FnbStockItem = {
       id: editingItemData.id || `fnb-${Date.now()}`,
@@ -332,11 +353,12 @@ export const FnBInventoryPage: React.FC = () => {
       categoryName: finalCategoryName,
       price: Number(editingItemData.price) || 0,
       priceFormatted: `${Number(editingItemData.price || 0).toLocaleString("vi-VN")}đ`,
-      stockQuantity: Number(editingItemData.stockQuantity) || 0,
-      minThreshold: Number(editingItemData.minThreshold) || 5,
-      unit: editingItemData.unit || "Món",
+      stockQuantity: isMadeToOrder ? 999 : (Number(editingItemData.stockQuantity) || 0),
+      minThreshold: isMadeToOrder ? 0 : (Number(editingItemData.minThreshold) || 5),
+      unit: editingItemData.unit || (isMadeToOrder ? "Ly" : "Lon"),
       description: editingItemData.description || "",
       image: editingItemData.image || "/fnb/fnb-salt-coffee.jpg",
+      isMadeToOrder,
     };
 
     try {
@@ -352,6 +374,7 @@ export const FnBInventoryPage: React.FC = () => {
           stock: itemToSave.stockQuantity,
           imageUrl: itemToSave.image,
           description: itemToSave.description,
+          isMadeToOrder: itemToSave.isMadeToOrder,
           isForSale: true,
           isActive: true,
         });
@@ -367,6 +390,7 @@ export const FnBInventoryPage: React.FC = () => {
           minStock: itemToSave.minThreshold,
           imageUrl: itemToSave.image,
           description: itemToSave.description,
+          isMadeToOrder: itemToSave.isMadeToOrder,
         });
         setStockList((prev) => prev.map((i) => (i.id === itemToSave.id ? itemToSave : i)));
         message.success(`Đã cập nhật thông tin món "${itemToSave.name}" trong cơ sở dữ liệu!`);
@@ -415,15 +439,22 @@ export const FnBInventoryPage: React.FC = () => {
   // Metrics
   const metrics = useMemo(() => {
     const totalItems = stockList.length;
-    const lowStockCount = stockList.filter(
-      (i) => i.stockQuantity > 0 && i.stockQuantity <= i.minThreshold,
-    ).length;
+    const lowStockCount = stockList.filter((i) => {
+      const isMadeToOrder = i.isMadeToOrder ?? isFreshPreparedCategory(i.category);
+      if (isMadeToOrder) return false;
+      return i.stockQuantity > 0 && i.stockQuantity <= i.minThreshold;
+    }).length;
     const outOfStockCount = stockList.filter((i) => i.stockQuantity === 0).length;
-    const inStockCount = stockList.filter((i) => i.stockQuantity > i.minThreshold).length;
-    const totalInventoryValue = stockList.reduce(
-      (acc, cur) => acc + cur.price * cur.stockQuantity,
-      0,
-    );
+    const inStockCount = stockList.filter((i) => {
+      const isMadeToOrder = i.isMadeToOrder ?? isFreshPreparedCategory(i.category);
+      if (isMadeToOrder) return i.stockQuantity > 0;
+      return i.stockQuantity > i.minThreshold;
+    }).length;
+    const totalInventoryValue = stockList.reduce((acc, cur) => {
+      const isMadeToOrder = cur.isMadeToOrder ?? isFreshPreparedCategory(cur.category);
+      if (isMadeToOrder) return acc;
+      return acc + cur.price * cur.stockQuantity;
+    }, 0);
     const totalCategories = new Set(stockList.map((i) => i.category)).size;
 
     return {
@@ -541,7 +572,10 @@ export const FnBInventoryPage: React.FC = () => {
       key: "stockQuantity",
       width: 180,
       render: (qty: number, record: FnbStockItem) => {
-        const isFresh = isFreshPreparedCategory(record.category);
+        const isFresh =
+          record.isMadeToOrder !== undefined
+            ? record.isMadeToOrder
+            : isFreshPreparedCategory(record.category);
         const isOutOfStock = qty === 0;
         const isLowStock = qty > 0 && qty <= record.minThreshold;
         const percent = Math.min(100, Math.round((qty / (record.minThreshold * 2.5 || 20)) * 100));
@@ -630,7 +664,10 @@ export const FnBInventoryPage: React.FC = () => {
       width: 220,
       align: "right",
       render: (_: unknown, record: FnbStockItem) => {
-        const isFresh = isFreshPreparedCategory(record.category);
+        const isFresh =
+          record.isMadeToOrder !== undefined
+            ? record.isMadeToOrder
+            : isFreshPreparedCategory(record.category);
         const isOutOfStock = record.stockQuantity === 0;
         return (
           <div className="flex items-center justify-end gap-1.5">
@@ -690,11 +727,11 @@ export const FnBInventoryPage: React.FC = () => {
                 Thực Đơn Món Ăn & Thức Uống F&B
               </Title>
               <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
-                CUEZONE MENU & BEVERAGE
+                MENU DỊCH VỤ CLB
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Quản lý thực đơn đồ ăn & thức uống, kiểm soát định mức tồn kho, cập nhật hình ảnh món và đồng bộ gọi món tại quầy POS.
+              Quản lý menu đồ ăn, thức uống, cấu hình món chế biến theo yêu cầu và kiểm soát tồn kho hàng đóng gói phục vụ tại bàn.
             </Text>
           </div>
 
@@ -747,14 +784,14 @@ export const FnBInventoryPage: React.FC = () => {
               <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 {metrics.totalItems}
               </span>
-              <span className="text-xs font-semibold text-slate-500">món ăn & đồ uống</span>
+              <span className="text-xs font-semibold text-slate-500">món trong menu</span>
             </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 hover:border-amber-300 transition-all">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-amber-800 font-semibold uppercase tracking-wider">
-                Sắp hết (&lt; Ngưỡng Min)
+                Sắp hết hàng
               </span>
               <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 text-xs border border-amber-200">
                 <WarningOutlined />
@@ -764,14 +801,14 @@ export const FnBInventoryPage: React.FC = () => {
               <span className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight">
                 {metrics.lowStockCount}
               </span>
-              <span className="text-xs font-semibold text-amber-700">cần nhập thêm</span>
+              <span className="text-xs font-semibold text-amber-700">cần nhập thêm kho</span>
             </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200/80 hover:border-rose-300 transition-all">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-rose-800 font-semibold uppercase tracking-wider">
-                Đã hết hàng
+                Tạm ngưng bán
               </span>
               <span className="w-6 h-6 rounded-lg bg-rose-100 flex items-center justify-center text-rose-700 text-xs border border-rose-200">
                 <CloseCircleOutlined />
@@ -781,14 +818,14 @@ export const FnBInventoryPage: React.FC = () => {
               <span className="text-2xl sm:text-3xl font-black text-rose-800 tracking-tight">
                 {metrics.outOfStockCount}
               </span>
-              <span className="text-xs font-semibold text-rose-700">tạm ngưng order</span>
+              <span className="text-xs font-semibold text-rose-700">hết hàng / ngưng phục vụ</span>
             </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 hover:border-emerald-300 transition-all">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">
-                Giá trị tồn kho F&B
+                Giá trị tồn quầy
               </span>
               <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs border border-emerald-200">
                 <DollarOutlined />
@@ -818,17 +855,17 @@ export const FnBInventoryPage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-              <FilterOutlined /> Lọc tình trạng:
+              <FilterOutlined /> Trạng thái:
             </span>
             <Select
               value={stockStatusFilter}
               onChange={(val) => setStockStatusFilter(val)}
               className="!w-48 !rounded-xl !text-xs"
               options={[
-                { value: "all", label: "Tất cả tình trạng kho" },
-                { value: "in_stock", label: "Còn nhiều hàng" },
-                { value: "low_stock", label: "Sắp hết hàng (< Min)" },
-                { value: "out_of_stock", label: "Hết hàng (Tạm dừng)" },
+                { value: "all", label: "Tất cả trạng thái món" },
+                { value: "in_stock", label: "Đang sẵn sàng phục vụ" },
+                { value: "low_stock", label: "Sắp hết hàng (< Tối thiểu)" },
+                { value: "out_of_stock", label: "Tạm hết / Ngưng bán" },
               ]}
             />
           </div>
@@ -1330,10 +1367,89 @@ export const FnBInventoryPage: React.FC = () => {
       >
         {(() => {
           const currentCategory = editingItemData.category || "coffee";
-          const isFresh = isFreshPreparedCategory(currentCategory);
+          const isMadeToOrder =
+            editingItemData.isMadeToOrder !== undefined
+              ? Boolean(editingItemData.isMadeToOrder)
+              : isFreshPreparedCategory(currentCategory);
 
           return (
-            <div className="py-4 space-y-5 text-xs">
+            <div className="py-4 space-y-4 text-xs">
+              {/* Item Type Selector: Made to order vs Packaged */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-50 to-emerald-50/40 border border-slate-200/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <CoffeeOutlined className="text-emerald-600" />
+                    Loại hình phục vụ & Quản lý tồn kho:
+                  </span>
+                  <Tag
+                    color={isMadeToOrder ? "purple" : "blue"}
+                    className="!rounded-md !text-[10px] !font-bold uppercase !border-0"
+                  >
+                    {isMadeToOrder ? "Chế biến theo order" : "Hàng đóng gói sẵn"}
+                  </Tag>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItemData((prev) => ({
+                        ...prev,
+                        isMadeToOrder: true,
+                        category:
+                          prev.category === "beer" || prev.category === "equipment"
+                            ? "coffee"
+                            : prev.category,
+                        unit:
+                          prev.unit && ["lon", "chai", "gói", "bao"].includes(prev.unit.toLowerCase())
+                            ? "Ly"
+                            : prev.unit || "Ly",
+                      }));
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      isMadeToOrder
+                        ? "border-emerald-600 bg-emerald-50/80 text-emerald-950 font-bold shadow-2xs ring-1 ring-emerald-200"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                      <span className="text-xs font-bold text-slate-900">Món Pha Chế & Bếp Nấu</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal m-0 leading-tight">
+                      Cà phê, trà, nước ép, mì tôm, đồ chiên... Chế biến theo order, không bắt đếm tồn kho, quản lý nhanh bằng bật/tắt phục vụ.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItemData((prev) => ({
+                        ...prev,
+                        isMadeToOrder: false,
+                        category: prev.category === "coffee" ? "juice" : prev.category,
+                        unit:
+                          prev.unit && ["ly", "tô", "đĩa"].includes(prev.unit.toLowerCase())
+                            ? "Lon"
+                            : prev.unit || "Lon",
+                      }));
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      !isMadeToOrder
+                        ? "border-emerald-600 bg-emerald-50/80 text-emerald-950 font-bold shadow-2xs ring-1 ring-emerald-200"
+                        : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-2 h-2 rounded-full bg-blue-600" />
+                      <span className="text-xs font-bold text-slate-900">Hàng Đóng Gói & Phụ Kiện</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-normal m-0 leading-tight">
+                      Bia lon, nước ngọt đóng chai, snack, găng tay, lơ bida... Đếm tồn kho quầy thực tế và cảnh báo nhập hàng khi sắp hết.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
               {/* Item Basic Information */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
@@ -1370,7 +1486,7 @@ export const FnBInventoryPage: React.FC = () => {
                     Phân loại danh mục:
                   </label>
                   <Select
-                    value={editingItemData.category || "coffee"}
+                    value={editingItemData.category || (isMadeToOrder ? "coffee" : "juice")}
                     onChange={(val) =>
                       setEditingItemData((prev) => ({
                         ...prev,
@@ -1378,23 +1494,30 @@ export const FnBInventoryPage: React.FC = () => {
                       }))
                     }
                     className="!w-full !rounded-xl !text-xs !h-10"
-                    options={[
-                      { value: "coffee", label: "Cà Phê (Pha chế)" },
-                      { value: "tea", label: "Trà Trái Cây (Pha chế)" },
-                      { value: "juice", label: "Nước Giải Khát (Lon/Chai)" },
-                      { value: "beer", label: "Bia & Đồ Có Cồn (Lon/Chai)" },
-                      { value: "food", label: "Món Ăn Nóng (Bếp nấu)" },
-                      { value: "snack", label: "Ăn Vặt (Đóng gói)" },
-                      { value: "equipment", label: "Phụ Kiện Bida" },
-                    ]}
+                    options={
+                      isMadeToOrder
+                        ? [
+                            { value: "coffee", label: "Cà Phê (Pha chế tại quầy)" },
+                            { value: "tea", label: "Trà Trái Cây & Nước Ép (Pha chế)" },
+                            { value: "food", label: "Món Ăn Nóng (Bếp nấu)" },
+                            { value: "snack", label: "Ăn Vặt & Đồ Chiên Nóng" },
+                            { value: "juice", label: "Đồ Uống Pha Chế Khác" },
+                          ]
+                        : [
+                            { value: "juice", label: "Nước Giải Khát (Lon/Chai)" },
+                            { value: "beer", label: "Bia & Đồ Có Cồn (Lon/Chai)" },
+                            { value: "snack", label: "Ăn Vặt & Bánh Kẹo (Đóng gói)" },
+                            { value: "equipment", label: "Phụ Kiện Bida" },
+                          ]
+                    }
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Đơn vị tính:</label>
                   <Input
-                    placeholder="Ly, Đĩa, Lon, Chai, Gói, Bộ..."
-                    value={editingItemData.unit || "Ly"}
+                    placeholder={isMadeToOrder ? "Ly, Cốc, Tô, Đĩa, Phần..." : "Lon, Chai, Gói, Cái, Hộp..."}
+                    value={editingItemData.unit || (isMadeToOrder ? "Ly" : "Lon")}
                     onChange={(e) => setEditingItemData((prev) => ({ ...prev, unit: e.target.value }))}
                     className="!h-10 !rounded-xl text-xs"
                   />
@@ -1425,11 +1548,11 @@ export const FnBInventoryPage: React.FC = () => {
                 </div>
 
                 {/* Conditional Stock Inputs based on category */}
-                {isFresh ? (
+                {isMadeToOrder ? (
                   <div className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5">
                     <CheckCircleOutlined className="text-lg text-emerald-600 shrink-0" />
                     <span className="leading-relaxed">
-                      <strong>Món chế biến theo order:</strong> Hệ thống tự động phục vụ liên tục, nhân viên quản lý nhanh bằng nút <em>Báo hết món</em> khi hết đá hoặc nguyên liệu.
+                      <strong>Món chế biến theo order:</strong> Hệ thống tự động phục vụ liên tục tại bàn. Nhân viên quản lý nhanh bằng nút <em>Báo hết món</em> khi hết đá hoặc nguyên liệu.
                     </span>
                   </div>
                 ) : (
@@ -1456,7 +1579,7 @@ export const FnBInventoryPage: React.FC = () => {
                 )}
 
                 {/* Min stock for packaged items */}
-                {!isFresh && (
+                {!isMadeToOrder && (
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Mức cảnh báo sắp hết (Tối thiểu):

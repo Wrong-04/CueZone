@@ -14,6 +14,7 @@ import { CustomerOrder } from "./modules/customer-order/customer-order.model";
 import { PasswordResetOtp } from "./modules/auth/passwordResetOtp.model";
 import { corsOptions } from "./config/cors.config";
 import { TournamentPaymentIntent, TournamentPaymentReceipt } from "./modules/tournament/tournament-payment.model";
+import { TableService } from "./modules/table/table.service";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
@@ -71,6 +72,14 @@ if (!process.env.VERCEL) {
     httpServer.listen(PORT, () => {
       console.log(`🚀 API Server is running on http://localhost:${PORT}`);
       console.log(`📡 Socket.io is ready`);
+
+      // Quét và tự động giải phóng các bàn giữ chỗ quá hẹn 15 phút mỗi 15 giây
+      const tableService = new TableService();
+      setInterval(() => {
+        void tableService.autoReleaseExpiredBookings().catch((err) => {
+          console.error("Lỗi tự động hủy đặt bàn quá hẹn 15p:", err);
+        });
+      }, 15000);
     });
   }).catch((err) => {
     console.error("Không thể khởi động API Server:", err);

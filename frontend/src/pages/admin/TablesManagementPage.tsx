@@ -225,6 +225,23 @@ export const TablesManagementPage: React.FC = () => {
     name: string;
   } | null>(null);
 
+  const distinctFloors = useMemo(() => {
+    const set = new Set<number>();
+    tables.forEach((t) => {
+      if (typeof t.floor === "number" && !isNaN(t.floor)) set.add(t.floor);
+    });
+    const arr = Array.from(set).sort((a, b) => a - b);
+    return arr.length > 0 ? arr : [1, 2];
+  }, [tables]);
+
+  const distinctAreas = useMemo(() => {
+    const set = new Set<string>();
+    tables.forEach((t) => {
+      if (t.area && t.area.trim()) set.add(t.area.trim());
+    });
+    return Array.from(set).sort();
+  }, [tables]);
+
   const stats = useMemo(() => {
     const total = tables.length;
     const pool = tables.filter((t) => t.type === "pool").length;
@@ -235,10 +252,12 @@ export const TablesManagementPage: React.FC = () => {
     const paused = tables.filter((t) => t.status === "paused").length;
     const booked = tables.filter((t) => t.status === "booked").length;
     const available = tables.filter((t) => t.status === "available").length;
-    const floor1 = tables.filter((t) => t.floor === 1).length;
-    const floor2 = tables.filter((t) => t.floor === 2).length;
-    return { total, pool, carom, snooker, maintenance, playing, paused, booked, available, floor1, floor2 };
-  }, [tables]);
+    const floorBreakdown = distinctFloors.map((f) => ({
+      floor: f,
+      count: tables.filter((t) => t.floor === f).length,
+    }));
+    return { total, pool, carom, snooker, maintenance, playing, paused, booked, available, floorBreakdown };
+  }, [tables, distinctFloors]);
 
   const filteredTables = useMemo(() => {
     return tables.filter((t) => {
@@ -319,8 +338,8 @@ export const TablesManagementPage: React.FC = () => {
     setTableCode(`T${tables.length + 1 < 10 ? "0" + (tables.length + 1) : tables.length + 1}`);
     setTableName(`Bàn ${tables.length + 1 < 10 ? "0" + (tables.length + 1) : tables.length + 1}`);
     setTableType("pool");
-    setTableArea("Tầng 1 - Khu C");
-    setTableFloor(1);
+    setTableFloor(distinctFloors[0] ?? 1);
+    setTableArea(distinctAreas[0] ?? "Khu Tiêu Chuẩn");
     setTablePrice(50000);
     setTableModalVisible(true);
   };
@@ -852,7 +871,9 @@ export const TablesManagementPage: React.FC = () => {
                 {stats.total} Bàn
               </span>
               <span className="text-[11px] text-slate-400 mt-1">
-                Tầng 1: {stats.floor1} • Tầng 2: {stats.floor2}
+                {stats.floorBreakdown.length > 0
+                  ? stats.floorBreakdown.map((fb) => `Tầng ${fb.floor}: ${fb.count}`).join(" • ")
+                  : "Chưa phân tầng"}
               </span>
             </div>
 
@@ -926,11 +947,13 @@ export const TablesManagementPage: React.FC = () => {
                 <Select
                   value={filterFloor}
                   onChange={handleFilterFloorChange}
-                  className="!w-36 !rounded-xl !text-xs"
+                  className="!w-40 !rounded-xl !text-xs"
                   options={[
                     { value: "all", label: "Tất cả tầng" },
-                    { value: "1", label: "Tầng 1 (19 bàn)" },
-                    { value: "2", label: "Tầng 2 (8 bàn)" },
+                    ...distinctFloors.map((f) => ({
+                      value: String(f),
+                      label: `Tầng ${f} (${tables.filter((t) => t.floor === f).length} bàn)`,
+                    })),
                   ]}
                 />
 
@@ -1804,8 +1827,16 @@ export const TablesManagementPage: React.FC = () => {
                 onChange={(val) => setTableFloor(Number(val))}
                 className="!w-full !rounded-xl"
                 options={[
-                  { value: 1, label: "Tầng 1 (Khu Sàn)" },
-                  { value: 2, label: "Tầng 2 (Khu VIP & Match)" },
+                  ...distinctFloors.map((f) => ({
+                    value: f,
+                    label: `Tầng ${f}`,
+                  })),
+                  ...[1, 2, 3, 4, 5]
+                    .filter((f) => !distinctFloors.includes(f))
+                    .map((f) => ({
+                      value: f,
+                      label: `Tầng ${f} (Mở rộng)`,
+                    })),
                 ]}
               />
             </div>
@@ -1814,11 +1845,26 @@ export const TablesManagementPage: React.FC = () => {
           <div>
             <label className="block text-slate-700 font-semibold mb-1">Khu vực đặt bàn:</label>
             <Input
-              placeholder="Tầng 1 - Khu A, Tầng 2 - Phòng VIP..."
+              placeholder="VD: Khu VIP, Tầng 1 - Khu A, Khu Hút Thuốc..."
               value={tableArea}
               onChange={(e) => setTableArea(e.target.value)}
               className="!h-9 !rounded-xl"
             />
+            {distinctAreas.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                <span className="text-[10.5px] text-slate-400 mr-1">Gợi ý nhanh:</span>
+                {distinctAreas.slice(0, 6).map((area) => (
+                  <button
+                    key={area}
+                    type="button"
+                    onClick={() => setTableArea(area)}
+                    className="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 border border-slate-200 transition-colors"
+                  >
+                    {area}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

@@ -47,7 +47,8 @@ export class ProductService {
         imageUrl: p.imageUrl,
         description: p.description,
         stock: p.stock,
-        isOutOfStock: p.stock === 0,
+        isMadeToOrder: Boolean(p.isMadeToOrder),
+        isOutOfStock: p.isMadeToOrder ? !p.isForSale : p.stock === 0,
       };
     });
   }

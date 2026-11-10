@@ -244,7 +244,7 @@ export class BookingService {
       return {
         ...obj,
         customerName: obj.customerName || (cust && cust.name ? cust.name : "Khách đặt trước"),
-        phone: obj.phone || (cust && cust.phone ? cust.phone : "0900000000"),
+        phone: obj.phone || (cust && cust.phone ? cust.phone : ""),
         tableId: tbl ? String(tbl._id) : obj.table ? String(obj.table) : "",
         tableName: obj.tableName || (tbl ? tbl.name : "Bàn bida"),
         date:
@@ -386,7 +386,7 @@ export class BookingService {
         }
         table.bookedInfo = {
           customerName: booking.customerName || "Khách đặt trước",
-          phone: booking.phone || "0900000000",
+          phone: booking.phone || "",
           time: `${booking.time} (${booking.date})`,
           bookingId: String(booking._id),
         };
@@ -571,7 +571,7 @@ export class BookingService {
         const resolvedName: string = String(
           booking.customerName || custUser?.name || "Khách đặt trước",
         );
-        const resolvedPhone: string = String(booking.phone || custUser?.phone || "0900000000");
+        const resolvedPhone: string = String(booking.phone || custUser?.phone || "");
         booking.customerName = resolvedName;
         booking.phone = resolvedPhone;
         booking.table = table._id;
