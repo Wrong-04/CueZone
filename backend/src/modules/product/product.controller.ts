@@ -30,6 +30,26 @@ export const getById = async (req: Request, res: Response) => {
   }
 };
 
+export const uploadDirectImage = async (req: Request, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: "Vui lòng chọn ảnh sản phẩm" });
+  }
+
+  try {
+    const imageUrl = await productService.uploadDirectImage(req.file.buffer);
+    return res.json({
+      success: true,
+      message: "Đã tải ảnh lên Cloudinary thành công",
+      data: { imageUrl },
+    });
+  } catch (error: any) {
+    const status = error.httpCode || 502;
+    const message =
+      status === 502 ? "Không thể tải ảnh lên Cloudinary. Vui lòng thử lại." : error.message;
+    return res.status(status).json({ success: false, message });
+  }
+};
+
 export const uploadImage = async (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "Vui lòng chọn ảnh sản phẩm" });

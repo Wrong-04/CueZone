@@ -63,6 +63,11 @@ export class ProductService {
     return product;
   }
 
+  async uploadDirectImage(buffer: Buffer): Promise<string> {
+    const uploadedImage = await uploadProductImage(buffer);
+    return uploadedImage.secure_url;
+  }
+
   async replaceImage(id: string, buffer: Buffer): Promise<IProduct> {
     const product = await Product.findById(id);
     if (!product) throw new Error("Không tìm thấy sản phẩm");

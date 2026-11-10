@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { hasPermission } from "../../utils/permissions";
 import {
@@ -14,11 +15,10 @@ import {
   CameraOutlined,
   ReloadOutlined,
   SearchOutlined,
-  DollarOutlined,
-  FireOutlined,
-  CheckOutlined,
   FilterOutlined,
   CoffeeOutlined,
+  PictureOutlined,
+  SortAscendingOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -40,46 +40,6 @@ import { productService } from "../../services/product.service";
 
 const { Title, Text } = Typography;
 
-// Preset culinary photo library for quick selection
-const PRESET_CULINARY_IMAGES = [
-  {
-    url: "/fnb/fnb-salt-coffee.jpg",
-    label: "Cà Phê Muối / Đồ Uống Cà Phê",
-    category: "coffee",
-  },
-  {
-    url: "/fnb/fnb-peach-tea.jpg",
-    label: "Trà Đào Cam Sả / Trà Hoa Quả",
-    category: "tea",
-  },
-  {
-    url: "/fnb/fnb-cold-beer.jpg",
-    label: "Bia Lon & Đồ Uống Ướp Lạnh",
-    category: "beer",
-  },
-  {
-    url: "/fnb/fnb-beef-noodles.jpg",
-    label: "Mì Xào Bò / Món Ăn Nóng",
-    category: "food",
-  },
-  {
-    url: "/fnb/fnb-seafood-rice.jpg",
-    label: "Cơm Chiên Hải Sản / Cơm Rang",
-    category: "food",
-  },
-  {
-    url: "/fnb/fnb-beef-jerky.jpg",
-    label: "Bò Khô Cháy Tỏi / Ăn Vặt",
-    category: "snack",
-  },
-  {
-    url: "/fnb/fnb-billiard-gear.jpg",
-    label: "Lơ Bida & Găng Tay Chuyên Nghiệp",
-    category: "equipment",
-  },
-];
-
-
 // Helper to determine accurate preparation type and storage location
 const isFreshPreparedCategory = (category: string) => {
   return category === "coffee" || category === "tea" || category === "food";
@@ -99,38 +59,77 @@ const getItemLocationName = (category: string) => {
   return "Kệ Quầy Bar";
 };
 
-// Curated image resolver to avoid blurry or mismatched placeholder images
-const resolveProductImage = (name: string, category: string, currentUrl?: string): string => {
-  if (currentUrl && currentUrl.includes("cloudinary.com")) return currentUrl;
-  const n = name.toLowerCase();
-  if (n.includes("bia") || n.includes("beer") || n.includes("heineken") || n.includes("tiger")) {
-    return "/fnb/fnb-cold-beer.jpg";
+// Product image resolver: preserve real URLs from Cloudinary/DB, return empty string if no image provided
+const resolveProductImage = (_name: string, _category: string, currentUrl?: string): string => {
+  if (
+    currentUrl &&
+    currentUrl.trim() &&
+    !currentUrl.includes("photo-1538481199705") &&
+    !currentUrl.includes("photo-1618886614638") &&
+    !currentUrl.startsWith("/fnb/fnb-")
+  ) {
+    return currentUrl.trim();
   }
-  if (n.includes("cà phê") || n.includes("cafe") || n.includes("coffee")) {
-    return "/fnb/fnb-salt-coffee.jpg";
+  return "";
+};
+
+// Automatic SKU generation based on category prefix and item count
+export const generateSkuForCategory = (category: string, currentCount: number) => {
+  const prefixMap: Record<string, string> = {
+    coffee: "CF",
+    tea: "TEA",
+    juice: "DRK",
+    beer: "BEER",
+    food: "FOOD",
+    snack: "SNK",
+    equipment: "EQ",
+  };
+  const prefix = prefixMap[category] || "FNB";
+  const num = String(currentCount + 1).padStart(3, "0");
+  return `${prefix}-${num}`;
+};
+
+// Default unit suggestions based on category
+export const getDefaultUnitForCategory = (category: string) => {
+  switch (category) {
+    case "coffee":
+    case "tea":
+      return "Ly";
+    case "juice":
+    case "beer":
+      return "Lon";
+    case "food":
+      return "Đĩa";
+    case "snack":
+      return "Gói";
+    case "equipment":
+      return "Cái";
+    default:
+      return "Phần";
   }
-  if (n.includes("trà") || n.includes("tea") || n.includes("đào")) {
-    return "/fnb/fnb-peach-tea.jpg";
+};
+
+// Common unit options for easy selection without manual typing
+export const getCommonUnitsForCategory = (category: string) => {
+  if (category === "coffee" || category === "tea") {
+    return ["Ly", "Cốc", "Tách", "Bình", "Chai", "Phần"];
   }
-  if (n.includes("mì") || n.includes("xúc xích") || n.includes("bò") || n.includes("bánh mì") || n.includes("cơm")) {
-    return "/fnb/fnb-beef-noodles.jpg";
+  if (category === "beer" || category === "juice") {
+    return ["Lon", "Chai", "Ly", "Thùng", "Két", "Hộp"];
   }
-  if (n.includes("hướng dương") || n.includes("hạt điều") || n.includes("khô") || n.includes("khoai")) {
-    return "/fnb/fnb-beef-jerky.jpg";
+  if (category === "food") {
+    return ["Đĩa", "Tô", "Phần", "Suất", "Bát", "Mẹt"];
   }
-  if (category === "equipment" || n.includes("bida") || n.includes("lơ") || n.includes("găng") || n.includes("bao tay") || n.includes("kamui") || n.includes("bóng")) {
-    return "/fnb/fnb-billiard-gear.jpg";
+  if (category === "snack") {
+    return ["Gói", "Bịch", "Hộp", "Đĩa", "Phần", "Lon"];
   }
-  if (currentUrl && !currentUrl.includes("photo-1538481199705") && !currentUrl.includes("photo-1618886614638")) {
-    return currentUrl;
-  }
-  return "/fnb/fnb-salt-coffee.jpg";
+  return ["Cái", "Cục", "Chiếc", "Hộp", "Bao", "Bộ"];
 };
 
 export const FnBInventoryPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
-  const canManageInventory = hasPermission(user, "inventory.manage");
+  const canManageInventory = hasPermission(user, "inventory.manage") || user?.role === "admin";
   // ── 1. STATE & LIVE DATABASE INTEGRATION ──────────────────────────────────
   const [stockList, setStockList] = useState<FnbStockItem[]>(INITIAL_FNB_STOCK);
   const [loading, setLoading] = useState<boolean>(false);
@@ -214,13 +213,30 @@ export const FnBInventoryPage: React.FC = () => {
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
+  const [serviceTypeFilter, setServiceTypeFilter] = useState<string>("all");
+  const [photoStatusFilter, setPhotoStatusFilter] = useState<string>("all");
+  const [sortOption, setSortOption] = useState<string>("default");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Quick Inward / Stock Adjustment Modal
-  const [adjustModalVisible, setAdjustModalVisible] = useState<boolean>(false);
-  const [selectedItemForAdjust, setSelectedItemForAdjust] = useState<FnbStockItem | null>(null);
-  const [adjustedQty, setAdjustedQty] = useState<number>(0);
-  const [adjustNote, setAdjustNote] = useState<string>("");
+  const handleResetFilters = useCallback(() => {
+    setSelectedCategory("all");
+    setStockStatusFilter("all");
+    setServiceTypeFilter("all");
+    setPhotoStatusFilter("all");
+    setSortOption("default");
+    setSearchQuery("");
+  }, []);
+
+  const isFilterActive = useMemo(() => {
+    return (
+      selectedCategory !== "all" ||
+      stockStatusFilter !== "all" ||
+      serviceTypeFilter !== "all" ||
+      photoStatusFilter !== "all" ||
+      sortOption !== "default" ||
+      Boolean(searchQuery.trim())
+    );
+  }, [selectedCategory, stockStatusFilter, serviceTypeFilter, photoStatusFilter, sortOption, searchQuery]);
 
   // Add / Edit Item Details Modal
   const [editItemModalVisible, setEditItemModalVisible] = useState<boolean>(false);
@@ -230,42 +246,16 @@ export const FnBInventoryPage: React.FC = () => {
     name: "",
     category: "coffee",
     categoryName: "Cà Phê",
-    price: 35000,
+    price: 30000,
     unit: "Ly",
-      description: "",
-    stockQuantity: 20,
-    minThreshold: 10,
-    image: "/fnb/fnb-salt-coffee.jpg",
+    description: "",
+    stockQuantity: 0,
+    minThreshold: 0,
+    image: "",
   });
   const [isUploadingProductImage, setIsUploadingProductImage] = useState(false);
 
   // ── 2. ACTIONS ────────────────────────────────────────────────────────────
-  const handleOpenAdjustModal = (item: FnbStockItem) => {
-    setSelectedItemForAdjust(item);
-    setAdjustedQty(item.stockQuantity);
-    setAdjustNote("");
-    setAdjustModalVisible(true);
-  };
-
-  const handleSaveStockAdjustment = () => {
-    if (!selectedItemForAdjust) return;
-    if (adjustedQty < 0) {
-      message.warning("Số lượng tồn kho không thể là số âm!");
-      return;
-    }
-
-    setStockList((prev) =>
-      prev.map((i) =>
-        i.id === selectedItemForAdjust.id ? { ...i, stockQuantity: adjustedQty } : i,
-      ),
-    );
-
-    message.success(
-      `Đã cập nhật tồn kho món "${selectedItemForAdjust.name}" thành ${adjustedQty} ${selectedItemForAdjust.unit}!`,
-    );
-    setAdjustModalVisible(false);
-    setSelectedItemForAdjust(null);
-  };
 
   const handleToggleZeroStock = async (item: FnbStockItem) => {
     const nextQty = item.stockQuantity > 0 ? 0 : Math.max(item.minThreshold + 10, 15);
@@ -289,21 +279,25 @@ export const FnBInventoryPage: React.FC = () => {
   };
 
   const handleOpenCreateModal = () => {
+    if (!canManageInventory) {
+      message.warning("Chỉ Quản lý / Admin mới có quyền thêm món mới vào thực đơn.");
+      return;
+    }
     setIsCreatingNew(true);
     const newId = `fnb-${Date.now().toString().slice(-4)}`;
-    const newCode = `MN-${Math.floor(100 + Math.random() * 900)}`;
+    const autoCode = generateSkuForCategory("coffee", stockList.length);
     setEditingItemData({
       id: newId,
-      code: newCode,
+      code: autoCode,
       name: "",
       category: "coffee",
       categoryName: "Cà Phê",
-      price: 35000,
-      priceFormatted: "35.000đ",
-      stockQuantity: 25,
-      minThreshold: 10,
+      price: 30000,
+      priceFormatted: "30.000đ",
+      stockQuantity: 0,
+      minThreshold: 0,
       unit: "Ly",
-      image: "/fnb/fnb-salt-coffee.jpg",
+      image: "",
       isMadeToOrder: true,
       description: "",
     });
@@ -311,15 +305,24 @@ export const FnBInventoryPage: React.FC = () => {
   };
 
   const handleOpenEditItemModal = (item: FnbStockItem) => {
+    if (!canManageInventory) {
+      message.warning("Chỉ Quản lý / Admin mới có quyền chỉnh sửa thông tin món.");
+      return;
+    }
     setIsCreatingNew(false);
     setEditingItemData({
       ...item,
+      image: item.image || "",
       isMadeToOrder: item.isMadeToOrder ?? isFreshPreparedCategory(item.category),
     });
     setEditItemModalVisible(true);
   };
 
   const handleSaveItemDetails = async () => {
+    if (!canManageInventory) {
+      message.error("Bạn không có quyền lưu thông tin món!");
+      return;
+    }
     if (!editingItemData.name?.trim()) {
       message.warning("Vui lòng nhập tên món ăn/thức uống!");
       return;
@@ -353,11 +356,11 @@ export const FnBInventoryPage: React.FC = () => {
       categoryName: finalCategoryName,
       price: Number(editingItemData.price) || 0,
       priceFormatted: `${Number(editingItemData.price || 0).toLocaleString("vi-VN")}đ`,
-      stockQuantity: isMadeToOrder ? 999 : (Number(editingItemData.stockQuantity) || 0),
+      stockQuantity: isMadeToOrder ? 999 : isCreatingNew ? 0 : (Number(editingItemData.stockQuantity) || 0),
       minThreshold: isMadeToOrder ? 0 : (Number(editingItemData.minThreshold) || 5),
       unit: editingItemData.unit || (isMadeToOrder ? "Ly" : "Lon"),
       description: editingItemData.description || "",
-      image: editingItemData.image || "/fnb/fnb-salt-coffee.jpg",
+      image: editingItemData.image?.trim() || "",
       isMadeToOrder,
     };
 
@@ -380,7 +383,7 @@ export const FnBInventoryPage: React.FC = () => {
         });
         if (created?._id) itemToSave.id = String(created._id);
         setStockList((prev) => [itemToSave, ...prev]);
-        message.success(`Đã thêm mới thành công món "${itemToSave.name}" vào cơ sở dữ liệu!`);
+        message.success(`Đã thêm món "${itemToSave.name}" vào thực đơn!`);
       } else {
         await productService.update(itemToSave.id, {
           name: itemToSave.name,
@@ -393,37 +396,51 @@ export const FnBInventoryPage: React.FC = () => {
           isMadeToOrder: itemToSave.isMadeToOrder,
         });
         setStockList((prev) => prev.map((i) => (i.id === itemToSave.id ? itemToSave : i)));
-        message.success(`Đã cập nhật thông tin món "${itemToSave.name}" trong cơ sở dữ liệu!`);
+        message.success(`Đã lưu thay đổi món "${itemToSave.name}"!`);
       }
-    } catch {
-      if (isCreatingNew) {
-        setStockList((prev) => [itemToSave, ...prev]);
+      setEditItemModalVisible(false);
+    } catch (err: any) {
+      console.error("Lỗi lưu món:", err);
+      if (itemToSave.id.startsWith("fnb-")) {
+        if (isCreatingNew) {
+          setStockList((prev) => [itemToSave, ...prev]);
+        } else {
+          setStockList((prev) => prev.map((i) => (i.id === itemToSave.id ? itemToSave : i)));
+        }
+        message.success(`Đã lưu thay đổi món "${itemToSave.name}"!`);
+        setEditItemModalVisible(false);
       } else {
-        setStockList((prev) => prev.map((i) => (i.id === itemToSave.id ? itemToSave : i)));
+        message.error(err?.response?.data?.message || err?.message || "Không thể lưu món. Vui lòng thử lại!");
       }
-      message.success(`Đã lưu món "${itemToSave.name}" thành công!`);
     }
-
-    setEditItemModalVisible(false);
   };
 
   const handleResetToDefaults = () => {
     void fetchProductsFromDb();
-    message.success("Đã đồng bộ lại danh sách món từ cơ sở dữ liệu!");
+    message.success("Đã làm mới danh sách thực đơn!");
   };
 
   // ── 3. FILTER & SEARCH ────────────────────────────────────────────────────
   const filteredItems = useMemo(() => {
-    return stockList.filter((item) => {
+    const list = stockList.filter((item) => {
       const matchCat = selectedCategory === "all" || item.category === selectedCategory;
+      const isMadeToOrder = item.isMadeToOrder ?? isFreshPreparedCategory(item.category);
       const isOutOfStock = item.stockQuantity === 0;
-      const isLowStock = item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
-      const isInStock = item.stockQuantity > item.minThreshold;
+      const isLowStock = !isMadeToOrder && item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
+      const isInStock = isMadeToOrder ? item.stockQuantity > 0 : item.stockQuantity > item.minThreshold;
 
       let matchStockStatus = true;
       if (stockStatusFilter === "in_stock") matchStockStatus = isInStock;
       if (stockStatusFilter === "low_stock") matchStockStatus = isLowStock;
       if (stockStatusFilter === "out_of_stock") matchStockStatus = isOutOfStock;
+
+      let matchServiceType = true;
+      if (serviceTypeFilter === "made_to_order") matchServiceType = isMadeToOrder;
+      if (serviceTypeFilter === "packaged") matchServiceType = !isMadeToOrder;
+
+      let matchPhoto = true;
+      if (photoStatusFilter === "has_image") matchPhoto = Boolean(item.image?.trim());
+      if (photoStatusFilter === "no_image") matchPhoto = !item.image?.trim();
 
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
@@ -432,40 +449,23 @@ export const FnBInventoryPage: React.FC = () => {
         item.code.toLowerCase().includes(q) ||
         item.categoryName.toLowerCase().includes(q);
 
-      return matchCat && matchStockStatus && matchQuery;
+      return matchCat && matchStockStatus && matchServiceType && matchPhoto && matchQuery;
     });
-  }, [stockList, selectedCategory, stockStatusFilter, searchQuery]);
 
-  // Metrics
-  const metrics = useMemo(() => {
-    const totalItems = stockList.length;
-    const lowStockCount = stockList.filter((i) => {
-      const isMadeToOrder = i.isMadeToOrder ?? isFreshPreparedCategory(i.category);
-      if (isMadeToOrder) return false;
-      return i.stockQuantity > 0 && i.stockQuantity <= i.minThreshold;
-    }).length;
-    const outOfStockCount = stockList.filter((i) => i.stockQuantity === 0).length;
-    const inStockCount = stockList.filter((i) => {
-      const isMadeToOrder = i.isMadeToOrder ?? isFreshPreparedCategory(i.category);
-      if (isMadeToOrder) return i.stockQuantity > 0;
-      return i.stockQuantity > i.minThreshold;
-    }).length;
-    const totalInventoryValue = stockList.reduce((acc, cur) => {
-      const isMadeToOrder = cur.isMadeToOrder ?? isFreshPreparedCategory(cur.category);
-      if (isMadeToOrder) return acc;
-      return acc + cur.price * cur.stockQuantity;
-    }, 0);
-    const totalCategories = new Set(stockList.map((i) => i.category)).size;
+    if (sortOption === "stock_asc") {
+      list.sort((a, b) => a.stockQuantity - b.stockQuantity);
+    } else if (sortOption === "stock_desc") {
+      list.sort((a, b) => b.stockQuantity - a.stockQuantity);
+    } else if (sortOption === "price_asc") {
+      list.sort((a, b) => a.price - b.price);
+    } else if (sortOption === "price_desc") {
+      list.sort((a, b) => b.price - a.price);
+    } else if (sortOption === "name_asc") {
+      list.sort((a, b) => a.name.localeCompare(b.name, "vi"));
+    }
 
-    return {
-      totalItems,
-      lowStockCount,
-      outOfStockCount,
-      inStockCount,
-      totalInventoryValue,
-      totalCategories,
-    };
-  }, [stockList]);
+    return list;
+  }, [stockList, selectedCategory, stockStatusFilter, serviceTypeFilter, photoStatusFilter, searchQuery, sortOption]);
 
   // Pill filter items
   const categoryPillItems = [
@@ -515,22 +515,28 @@ export const FnBInventoryPage: React.FC = () => {
       key: "image",
       width: 90,
       render: (imgUrl: string, record: FnbStockItem) => (
-        <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 shadow-2xs group shrink-0">
-          <Image
-            src={imgUrl || "/fnb/fnb-salt-coffee.jpg"}
-            alt={record.name}
-            width={56}
-            height={56}
-            className="!w-14 !h-14 !object-cover rounded-xl transition-transform duration-300 group-hover:scale-110"
-            fallback="/fnb/fnb-salt-coffee.jpg"
-            preview={{
-              mask: (
-                <div className="flex items-center justify-center text-[10px] text-white font-bold bg-black/50">
-                  <EyeOutlined />
-                </div>
-              ),
-            }}
-          />
+        <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 shadow-2xs group shrink-0 bg-slate-50 flex items-center justify-center">
+          {imgUrl ? (
+            <Image
+              src={imgUrl}
+              alt={record.name}
+              width={56}
+              height={56}
+              className="!w-14 !h-14 !object-cover rounded-xl transition-transform duration-300 group-hover:scale-110"
+              preview={{
+                mask: (
+                  <div className="flex items-center justify-center text-[10px] text-white font-bold bg-black/50">
+                    <EyeOutlined />
+                  </div>
+                ),
+              }}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center text-slate-300">
+              <CameraOutlined className="text-base" />
+              <span className="text-[9px] font-semibold text-slate-400 mt-0.5">Không ảnh</span>
+            </div>
+          )}
         </div>
       ),
     },
@@ -687,21 +693,23 @@ export const FnBInventoryPage: React.FC = () => {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => handleOpenAdjustModal(record)}
-                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-slate-100 hover:!bg-slate-200 !text-slate-700 font-bold"
+                onClick={() => navigate("/inventory")}
+                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-slate-100 hover:!bg-slate-200 !text-slate-700 font-semibold"
               >
-                Cập nhật tồn
+                Xem sổ kho
               </Button>
             )}
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => handleOpenEditItemModal(record)}
-              leftIcon={<EditOutlined />}
-              className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold"
-            >
-              Sửa
-            </Button>
+            {canManageInventory && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => handleOpenEditItemModal(record)}
+                leftIcon={<EditOutlined />}
+                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold"
+              >
+                Sửa
+              </Button>
+            )}
           </div>
         );
       },
@@ -714,7 +722,7 @@ export const FnBInventoryPage: React.FC = () => {
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
@@ -757,85 +765,17 @@ export const FnBInventoryPage: React.FC = () => {
                 Xem Kho Hàng
               </Button>
             )}
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={<PlusOutlined />}
-              onClick={handleOpenCreateModal}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-sm"
-            >
-              Thêm Món Mới
-            </Button>
-          </div>
-        </div>
-
-        {/* KPI Counter Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 relative z-10">
-          <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 hover:border-slate-300 transition-all">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Tổng số món
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-slate-400 text-xs border border-slate-200">
-                <FireOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                {metrics.totalItems}
-              </span>
-              <span className="text-xs font-semibold text-slate-500">món trong menu</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 hover:border-amber-300 transition-all">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-amber-800 font-semibold uppercase tracking-wider">
-                Sắp hết hàng
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 text-xs border border-amber-200">
-                <WarningOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight">
-                {metrics.lowStockCount}
-              </span>
-              <span className="text-xs font-semibold text-amber-700">cần nhập thêm kho</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200/80 hover:border-rose-300 transition-all">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-rose-800 font-semibold uppercase tracking-wider">
-                Tạm ngưng bán
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-rose-100 flex items-center justify-center text-rose-700 text-xs border border-rose-200">
-                <CloseCircleOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-rose-800 tracking-tight">
-                {metrics.outOfStockCount}
-              </span>
-              <span className="text-xs font-semibold text-rose-700">hết hàng / ngưng phục vụ</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 hover:border-emerald-300 transition-all">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">
-                Giá trị tồn quầy
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs border border-emerald-200">
-                <DollarOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl sm:text-2xl font-black text-emerald-800 tracking-tight truncate">
-                {metrics.totalInventoryValue.toLocaleString("vi-VN")}đ
-              </span>
-            </div>
+            {canManageInventory && (
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<PlusOutlined />}
+                onClick={handleOpenCreateModal}
+                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-sm"
+              >
+                Thêm Món Mới
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -851,35 +791,88 @@ export const FnBInventoryPage: React.FC = () => {
           />
         </div>
 
-        {/* Second Row: Stock Filter, Search & View Mode Switcher */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+        {/* Second Row: Stock Filter, Service Type, Photo Status, Sort & Search */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-              <FilterOutlined /> Trạng thái:
-            </span>
-            <Select
-              value={stockStatusFilter}
-              onChange={(val) => setStockStatusFilter(val)}
-              className="!w-48 !rounded-xl !text-xs"
-              options={[
-                { value: "all", label: "Tất cả trạng thái món" },
-                { value: "in_stock", label: "Đang sẵn sàng phục vụ" },
-                { value: "low_stock", label: "Sắp hết hàng (< Tối thiểu)" },
-                { value: "out_of_stock", label: "Tạm hết / Ngưng bán" },
-              ]}
-            />
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                <FilterOutlined /> Trạng thái:
+              </span>
+              <Select
+                value={stockStatusFilter}
+                onChange={(val) => setStockStatusFilter(val)}
+                className="!w-44 !rounded-xl !text-xs"
+                options={[
+                  { value: "all", label: "Tất cả trạng thái" },
+                  { value: "in_stock", label: "Đang sẵn sàng" },
+                  { value: "low_stock", label: "Sắp hết hàng (< Min)" },
+                  { value: "out_of_stock", label: "Tạm hết / Ngưng bán" },
+                ]}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                <CoffeeOutlined /> Loại hình:
+              </span>
+              <Select
+                value={serviceTypeFilter}
+                onChange={(val) => setServiceTypeFilter(val)}
+                className="!w-40 !rounded-xl !text-xs"
+                options={[
+                  { value: "all", label: "Tất cả loại hình" },
+                  { value: "made_to_order", label: "☕ Chế biến tươi (Order)" },
+                  { value: "packaged", label: "📦 Đóng gói sẵn (Có kho)" },
+                ]}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                <PictureOutlined /> Ảnh:
+              </span>
+              <Select
+                value={photoStatusFilter}
+                onChange={(val) => setPhotoStatusFilter(val)}
+                className="!w-36 !rounded-xl !text-xs"
+                options={[
+                  { value: "all", label: "Tất cả ảnh" },
+                  { value: "has_image", label: "📷 Đã có ảnh" },
+                  { value: "no_image", label: "⚠️ Chưa có ảnh" },
+                ]}
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                <SortAscendingOutlined /> Sắp xếp:
+              </span>
+              <Select
+                value={sortOption}
+                onChange={(val) => setSortOption(val)}
+                className="!w-44 !rounded-xl !text-xs"
+                options={[
+                  { value: "default", label: "Mặc định hệ thống" },
+                  { value: "stock_asc", label: "Tồn kho: Thấp → Cao" },
+                  { value: "stock_desc", label: "Tồn kho: Cao → Thấp" },
+                  { value: "price_asc", label: "Giá bán: Thấp → Cao" },
+                  { value: "price_desc", label: "Giá bán: Cao → Thấp" },
+                  { value: "name_asc", label: "Tên món: A → Z" },
+                ]}
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {/* Search Input */}
-            <div className="w-full sm:w-64">
+            <div className="w-full sm:w-56">
               <Input
-                placeholder="Tìm món, mã món, loại..."
+                placeholder="Tìm món, mã món..."
                 prefix={<SearchOutlined className="text-slate-400" />}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 allowClear
-                className="!rounded-xl !h-10 text-xs"
+                className="!rounded-xl !h-9 text-xs"
               />
             </div>
 
@@ -890,7 +883,7 @@ export const FnBInventoryPage: React.FC = () => {
                 size="sm"
                 onClick={() => setViewMode("grid")}
                 leftIcon={<AppstoreOutlined />}
-                className={`!rounded-lg !text-xs !font-bold !h-8 !px-3 ${
+                className={`!rounded-lg !text-xs !font-bold !h-7 !px-2.5 ${
                   viewMode === "grid"
                     ? "!bg-white !text-emerald-700 !shadow-2xs !border-transparent"
                     : "!text-slate-600 hover:!text-slate-900"
@@ -903,16 +896,40 @@ export const FnBInventoryPage: React.FC = () => {
                 size="sm"
                 onClick={() => setViewMode("table")}
                 leftIcon={<BarsOutlined />}
-                className={`!rounded-lg !text-xs !font-bold !h-8 !px-3 ${
+                className={`!rounded-lg !text-xs !font-bold !h-7 !px-2.5 ${
                   viewMode === "table"
                     ? "!bg-white !text-emerald-700 !shadow-2xs !border-transparent"
                     : "!text-slate-600 hover:!text-slate-900"
                 }`}
               >
-                Danh Sách Dạng Bảng
+                Danh Sách Bảng
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Third Row: Result counter & Reset filter */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+          <div className="text-slate-500 font-medium">
+            Đang hiển thị{" "}
+            <strong className="text-slate-800 font-bold">{filteredItems.length}</strong> /{" "}
+            <span className="text-slate-600">{stockList.length}</span> món
+            {isFilterActive && (
+              <span className="text-emerald-600 ml-1.5 font-semibold">
+                (Đang áp dụng bộ lọc)
+              </span>
+            )}
+          </div>
+
+          {isFilterActive && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+            >
+              <ReloadOutlined className="text-[11px]" /> Đặt lại bộ lọc
+            </button>
+          )}
         </div>
       </div>
 
@@ -953,19 +970,25 @@ export const FnBInventoryPage: React.FC = () => {
                   >
                     {/* Top Image Container with Quick Edit Pen */}
                     <div className="relative w-full aspect-[4/3] overflow-hidden bg-slate-100 rounded-t-3xl [&_.ant-image]:!w-full [&_.ant-image]:!h-full [&_.ant-image-img]:!w-full [&_.ant-image-img]:!h-full [&_.ant-image-img]:!object-cover">
-                      <Image
-                        src={item.image || "/fnb/fnb-salt-coffee.jpg"}
-                        alt={item.name}
-                        fallback="/fnb/fnb-salt-coffee.jpg"
-                        className="group-hover:scale-105 transition-transform duration-500 ease-out"
-                        preview={{
-                          mask: (
-                            <div className="flex items-center gap-1.5 text-xs text-white font-bold bg-black/40 px-3 py-1.5 rounded-full">
-                              <EyeOutlined /> Xem ảnh gốc
-                            </div>
-                          ),
-                        }}
-                      />
+                      {item.image ? (
+                        <Image
+                          src={item.image}
+                          alt={item.name}
+                          className="group-hover:scale-105 transition-transform duration-500 ease-out"
+                          preview={{
+                            mask: (
+                              <div className="flex items-center gap-1.5 text-xs text-white font-bold bg-black/40 px-3 py-1.5 rounded-full">
+                                <EyeOutlined /> Xem ảnh gốc
+                              </div>
+                            ),
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200/60 text-slate-400">
+                          <CameraOutlined className="text-3xl text-slate-300 mb-1" />
+                          <span className="text-xs font-semibold text-slate-400">Chưa có ảnh</span>
+                        </div>
+                      )}
 
                       {/* Floating Category Badge */}
                       <div className="absolute top-3 left-3 z-10">
@@ -974,18 +997,20 @@ export const FnBInventoryPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Floating Quick Edit Button (Accessible to both staff & admin to fix photos/descriptions) */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditItemModal(item);
-                        }}
-                        title="Chỉnh sửa thông tin, giá bán & hình ảnh món"
-                        className="absolute bottom-3 right-3 z-10 w-8 h-8 rounded-full bg-white/95 hover:bg-white text-slate-700 hover:text-emerald-700 shadow-md flex items-center justify-center transition-all hover:scale-110 border border-slate-200"
-                      >
-                        <EditOutlined className="text-xs" />
-                      </button>
+                      {/* Floating Quick Edit Button (Only managers/admins can edit product details) */}
+                      {canManageInventory && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditItemModal(item);
+                          }}
+                          title="Chỉnh sửa thông tin, giá bán & hình ảnh món"
+                          className="absolute bottom-3 right-3 z-10 w-8 h-8 rounded-full bg-white/95 hover:bg-white text-slate-700 hover:text-emerald-700 shadow-md flex items-center justify-center transition-all hover:scale-110 border border-slate-200 cursor-pointer"
+                        >
+                          <EditOutlined className="text-xs" />
+                        </button>
+                      )}
 
                       {/* Floating Stock Status Badge */}
                       <div className="absolute top-3 right-3 z-10">
@@ -1101,7 +1126,7 @@ export const FnBInventoryPage: React.FC = () => {
                       {/* Card Action Buttons - Clean layout without duplicate icons */}
                       <div className="pt-3 border-t border-slate-100 mt-2">
                         {isMadeToOrder ? (
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className={`grid ${canManageInventory ? "grid-cols-2" : "grid-cols-1"} gap-2`}>
                             <Button
                               variant="outline"
                               size="sm"
@@ -1114,15 +1139,17 @@ export const FnBInventoryPage: React.FC = () => {
                             >
                               {isOutOfStock ? "Mở bán lại" : "Báo hết món"}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenEditItemModal(item)}
-                              leftIcon={<EditOutlined />}
-                              className="!rounded-xl !text-xs !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !font-bold !h-9"
-                            >
-                              Sửa món
-                            </Button>
+                            {canManageInventory && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEditItemModal(item)}
+                                leftIcon={<EditOutlined />}
+                                className="!rounded-xl !text-xs !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !font-bold !h-9"
+                              >
+                                Sửa món
+                              </Button>
+                            )}
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 gap-2">
@@ -1139,22 +1166,35 @@ export const FnBInventoryPage: React.FC = () => {
                               {isOutOfStock ? "Mở bán lại" : "Báo hết"}
                             </Button>
 
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleOpenAdjustModal(item)}
-                              leftIcon={<InboxOutlined />}
-                              className="!bg-slate-100 hover:!bg-slate-200 !text-slate-700 !rounded-xl !text-xs !font-bold !h-9"
-                            >
-                              Cập nhật tồn
-                            </Button>
+                            {canManageInventory ? (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleOpenEditItemModal(item)}
+                                leftIcon={<EditOutlined />}
+                                className="!bg-slate-100 hover:!bg-slate-200 !text-slate-700 !rounded-xl !text-xs !font-bold !h-9"
+                              >
+                                Sửa món
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => navigate("/inventory")}
+                                leftIcon={<InboxOutlined />}
+                                className="!bg-slate-100 hover:!bg-slate-200 !text-slate-700 !rounded-xl !text-xs !font-bold !h-9"
+                              >
+                                Xem sổ kho
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
                     </div>
                   </Card>
                 );
-              })}            </div>
+              })}
+            </div>
           )}
         </div>
       )}
@@ -1177,172 +1217,6 @@ export const FnBInventoryPage: React.FC = () => {
       )}
 
       <Modal
-        open={adjustModalVisible}
-        onCancel={() => setAdjustModalVisible(false)}
-        footer={null}
-        title={
-          <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <InboxOutlined className="text-base" />
-            </div>
-            <div>
-              <span className="font-extrabold text-slate-900 text-base block leading-tight">
-                {isAdmin ? "Điều Chỉnh Tồn Kho & Kiểm Kê" : "Bổ Sung Quầy & Cập Nhật Số Lượng"}
-              </span>
-              <span className="text-xs text-slate-500 font-normal">
-                {selectedItemForAdjust?.name} ({selectedItemForAdjust?.code})
-              </span>
-            </div>
-          </div>
-        }
-      >
-        {selectedItemForAdjust && (
-          <div className="py-4 space-y-4 text-xs">
-            {/* Thumbnail + info header */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3.5">
-              <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 shrink-0">
-                <img
-                  src={selectedItemForAdjust.image}
-                  alt={selectedItemForAdjust.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="space-y-0.5 flex-1">
-                <span className="font-mono text-[11px] font-bold text-slate-500">
-                  {selectedItemForAdjust.code} • {selectedItemForAdjust.categoryName}
-                </span>
-                <span className="font-bold text-slate-900 text-sm block">
-                  {selectedItemForAdjust.name}
-                </span>
-                <div className="flex items-center gap-3 pt-0.5 text-xs">
-                  <span>
-                    Hiện có:{" "}
-                    <strong className="text-emerald-700 font-black">
-                      {selectedItemForAdjust.stockQuantity} {selectedItemForAdjust.unit}
-                    </strong>
-                  </span>
-                  <span>
-                    Ngưỡng Min: <strong>{selectedItemForAdjust.minThreshold}</strong>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Stepper Input */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-2">
-                Số lượng tồn kho sau điều chỉnh ({selectedItemForAdjust.unit}):
-              </label>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="md"
-                  onClick={() => setAdjustedQty((prev) => Math.max(0, prev - 10))}
-                  className="!h-10 !px-3 !rounded-xl !font-bold text-slate-700"
-                >
-                  -10
-                </Button>
-                <Button
-                  variant="outline"
-                  size="md"
-                  onClick={() => setAdjustedQty((prev) => Math.max(0, prev - 1))}
-                  className="!h-10 !px-3 !rounded-xl !font-bold text-slate-700"
-                >
-                  -1
-                </Button>
-                <Input
-                  type="number"
-                  value={adjustedQty}
-                  onChange={(e) => setAdjustedQty(parseInt(e.target.value) || 0)}
-                  className="!h-10 !rounded-xl text-center font-black text-lg font-mono flex-1 !text-emerald-700"
-                />
-                <Button
-                  variant="outline"
-                  size="md"
-                  onClick={() => setAdjustedQty((prev) => prev + 1)}
-                  className="!h-10 !px-3 !rounded-xl !font-bold !text-emerald-700 !border-emerald-200 hover:!bg-emerald-50"
-                >
-                  +1
-                </Button>
-                <Button
-                  variant="outline"
-                  size="md"
-                  onClick={() => setAdjustedQty((prev) => prev + 10)}
-                  className="!h-10 !px-3 !rounded-xl !font-bold !text-emerald-700 !border-emerald-200 hover:!bg-emerald-50"
-                >
-                  +10
-                </Button>
-              </div>
-            </div>
-
-            {/* Quick Presets */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">Thao tác nhanh:</span>
-              <div className="flex flex-wrap gap-1.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAdjustedQty(selectedItemForAdjust.stockQuantity + 20)}
-                  className="!rounded-lg !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !text-xs"
-                >
-                  Nhập thêm +20
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAdjustedQty(selectedItemForAdjust.stockQuantity + 50)}
-                  className="!rounded-lg !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !text-xs"
-                >
-                  Nhập thêm +50
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAdjustedQty(selectedItemForAdjust.minThreshold * 2)}
-                  className="!rounded-lg !bg-slate-100 hover:!bg-slate-200 !text-slate-700 !text-xs"
-                >
-                  Lên mức an toàn (x2 Min)
-                </Button>
-              </div>
-            </div>
-
-            {/* Note field */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Lý do / Ghi chú đợt kiểm kê hoặc nhập kho:
-              </label>
-              <Input
-                placeholder="Ví dụ: Nhập bổ sung đồ uống sáng nay, hao hụt..."
-                value={adjustNote}
-                onChange={(e) => setAdjustNote(e.target.value)}
-                className="!h-10 !rounded-xl text-xs"
-              />
-            </div>
-
-            {/* Modal actions */}
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => setAdjustModalVisible(false)}
-                className="!rounded-xl !text-xs"
-              >
-                Hủy bỏ
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                onClick={handleSaveStockAdjustment}
-                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-5 !text-xs"
-              >
-                Xác Nhận Cập Nhật
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal
         open={editItemModalVisible}
         onCancel={() => setEditItemModalVisible(false)}
         footer={null}
@@ -1359,7 +1233,7 @@ export const FnBInventoryPage: React.FC = () => {
                   : `Chỉnh Sửa Món: ${editingItemData.name || ""}`}
               </span>
               <span className="text-xs text-slate-500 font-normal">
-                Cập nhật hình ảnh, đơn giá niêm yết và thông tin hiển thị trên thực đơn gọi món
+                Cấu hình thông tin, giá bán và hình ảnh hiển thị trên thực đơn
               </span>
             </div>
           </div>
@@ -1379,7 +1253,7 @@ export const FnBInventoryPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
                     <CoffeeOutlined className="text-emerald-600" />
-                    Loại hình phục vụ & Quản lý tồn kho:
+                    Loại hình phục vụ:
                   </span>
                   <Tag
                     color={isMadeToOrder ? "purple" : "blue"}
@@ -1416,7 +1290,7 @@ export const FnBInventoryPage: React.FC = () => {
                       <span className="text-xs font-bold text-slate-900">Món Pha Chế & Bếp Nấu</span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-normal m-0 leading-tight">
-                      Cà phê, trà, nước ép, mì tôm, đồ chiên... Chế biến theo order, không bắt đếm tồn kho, quản lý nhanh bằng bật/tắt phục vụ.
+                      Cà phê, trà, đồ ăn... Chế biến theo order (không đếm tồn kho).
                     </p>
                   </button>
 
@@ -1444,7 +1318,7 @@ export const FnBInventoryPage: React.FC = () => {
                       <span className="text-xs font-bold text-slate-900">Hàng Đóng Gói & Phụ Kiện</span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-normal m-0 leading-tight">
-                      Bia lon, nước ngọt đóng chai, snack, găng tay, lơ bida... Đếm tồn kho quầy thực tế và cảnh báo nhập hàng khi sắp hết.
+                      Bia lon, nước ngọt, snack, phụ kiện... Quản lý theo số lượng tồn kho.
                     </p>
                   </button>
                 </div>
@@ -1454,7 +1328,7 @@ export const FnBInventoryPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Tên món ăn / đồ uống: <span className="text-rose-500">*</span>
+                    Tên món: <span className="text-rose-500">*</span>
                   </label>
                   <Input
                     placeholder="Ví dụ: Cà phê muối đặc biệt"
@@ -1465,9 +1339,24 @@ export const FnBInventoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Mã món (SKU): <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">
+                      Mã món: <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newSku = generateSkuForCategory(
+                          editingItemData.category || "coffee",
+                          stockList.length,
+                        );
+                        setEditingItemData((prev) => ({ ...prev, code: newSku }));
+                      }}
+                      className="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer"
+                    >
+                      Tự động tạo mã
+                    </button>
+                  </div>
                   <Input
                     placeholder="Ví dụ: DRK-008"
                     value={editingItemData.code || ""}
@@ -1477,22 +1366,26 @@ export const FnBInventoryPage: React.FC = () => {
                         code: e.target.value.toUpperCase(),
                       }))
                     }
-                    className="!h-10 !rounded-xl font-mono text-xs uppercase"
+                    className="!h-10 !rounded-xl font-mono text-xs uppercase font-bold"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Phân loại danh mục:
+                    Danh mục:
                   </label>
                   <Select
                     value={editingItemData.category || (isMadeToOrder ? "coffee" : "juice")}
-                    onChange={(val) =>
+                    onChange={(val) => {
+                      const newCat = val as FnbStockItem["category"];
+                      const autoUnit = getDefaultUnitForCategory(newCat);
                       setEditingItemData((prev) => ({
                         ...prev,
-                        category: val as FnbStockItem["category"],
-                      }))
-                    }
+                        category: newCat,
+                        unit: autoUnit,
+                        code: isCreatingNew ? generateSkuForCategory(newCat, stockList.length) : prev.code,
+                      }));
+                    }}
                     className="!w-full !rounded-xl !text-xs !h-10"
                     options={
                       isMadeToOrder
@@ -1514,18 +1407,23 @@ export const FnBInventoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Đơn vị tính:</label>
-                  <Input
-                    placeholder={isMadeToOrder ? "Ly, Cốc, Tô, Đĩa, Phần..." : "Lon, Chai, Gói, Cái, Hộp..."}
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Đơn vị tính:
+                  </label>
+                  <Select
                     value={editingItemData.unit || (isMadeToOrder ? "Ly" : "Lon")}
-                    onChange={(e) => setEditingItemData((prev) => ({ ...prev, unit: e.target.value }))}
-                    className="!h-10 !rounded-xl text-xs"
+                    onChange={(val) => setEditingItemData((prev) => ({ ...prev, unit: val }))}
+                    className="!w-full !rounded-xl !text-xs !h-10"
+                    options={getCommonUnitsForCategory(editingItemData.category || "coffee").map((u) => ({
+                      value: u,
+                      label: u,
+                    }))}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Đơn giá bán niêm yết (VNĐ): <span className="text-rose-500">*</span>
+                    Đơn giá bán (VNĐ): <span className="text-rose-500">*</span>
                   </label>
                   <Input
                     type="number"
@@ -1540,75 +1438,20 @@ export const FnBInventoryPage: React.FC = () => {
                     className="!h-10 !rounded-xl font-mono text-xs font-bold"
                   />
                   <div className="mt-1 text-[11px] text-emerald-700 font-semibold flex items-center justify-between">
-                    <span>Giá hiển thị cho khách:</span>
+                    <span>Giá hiển thị:</span>
                     <strong className="text-xs">
                       {Number(editingItemData.price || 0).toLocaleString("vi-VN")}đ
                     </strong>
                   </div>
                 </div>
 
-                {/* Conditional Stock Inputs based on category */}
-                {isMadeToOrder ? (
-                  <div className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5">
-                    <CheckCircleOutlined className="text-lg text-emerald-600 shrink-0" />
-                    <span className="leading-relaxed">
-                      <strong>Món chế biến theo order:</strong> Hệ thống tự động phục vụ liên tục tại bàn. Nhân viên quản lý nhanh bằng nút <em>Báo hết món</em> khi hết đá hoặc nguyên liệu.
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Số lượng tồn quầy hiện tại ({editingItemData.unit || "phần"}):
-                    </label>
-                    <Input
-                      type="number"
-                      placeholder="20"
-                      value={editingItemData.stockQuantity || 0}
-                      onChange={(e) =>
-                        setEditingItemData((prev) => ({
-                          ...prev,
-                          stockQuantity: Math.max(0, parseInt(e.target.value) || 0),
-                        }))
-                      }
-                      className="!h-10 !rounded-xl font-mono text-xs"
-                    />
-                    <span className="text-[10.5px] text-slate-400 mt-1 block">
-                      Số lượng thực tế có sẵn tại tủ mát/quầy để bán cho khách
-                    </span>
-                  </div>
-                )}
-
-                {/* Min stock for packaged items */}
-                {!isMadeToOrder && (
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Mức cảnh báo sắp hết (Tối thiểu):
-                    </label>
-                    <Input
-                      type="number"
-                      placeholder="10"
-                      value={editingItemData.minThreshold || 5}
-                      onChange={(e) =>
-                        setEditingItemData((prev) => ({
-                          ...prev,
-                          minThreshold: Math.max(1, parseInt(e.target.value) || 5),
-                        }))
-                      }
-                      className="!h-10 !rounded-xl font-mono text-xs max-w-xs"
-                    />
-                    <span className="text-[10.5px] text-slate-400 mt-1 block">
-                      Khi số lượng tồn dưới mức này, hệ thống sẽ hiện cảnh báo màu vàng "SẮP HẾT"
-                    </span>
-                  </div>
-                )}
-
-                {/* Description Field for Customer E-Menu */}
-                <div className="sm:col-span-2">
+                {/* Description Field for Customers */}
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Mô tả ngắn (hiển thị cho khách khi quét mã gọi món):
+                    Mô tả món (khách xem khi gọi món):
                   </label>
                   <Input
-                    placeholder="Ví dụ: Cà phê Robusta thơm nồng kết hợp lớp kem muối béo ngậy đặc trưng CueZone, uống lạnh sảng khoái."
+                    placeholder="Ví dụ: Vị êm đằm, ướp lạnh sâu, lon 330ml."
                     value={editingItemData.description || ""}
                     onChange={(e) =>
                       setEditingItemData((prev) => ({ ...prev, description: e.target.value }))
@@ -1618,111 +1461,202 @@ export const FnBInventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* ── IMAGE SELECTION & UPLOAD SECTION ──────────────────────── */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <span className="font-bold text-slate-900 text-xs block">
-                      Hình ảnh món hiển thị trên thực đơn:
+              {/* ── STOCK CONFIGURATION: SEPARATED BY ITEM TYPE & SYNCHRONIZED WITH INVENTORY MODULE ── */}
+              {isMadeToOrder ? (
+                <div className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-3">
+                  <CheckCircleOutlined className="text-lg text-emerald-600 shrink-0" />
+                  <div className="leading-tight">
+                    <strong className="block text-emerald-950 text-xs font-bold">
+                      Chế biến tươi theo order (Bar / Bếp):
+                    </strong>
+                    <span className="text-[11px] text-emerald-800">
+                      Không quản lý tồn kho. Nhân viên chỉ cần bấm nút <em>"Báo hết món"</em> khi hết nguyên liệu.
                     </span>
-                    <span className="text-[11px] text-slate-500">
-                      Tải ảnh thực tế từ thiết bị hoặc chọn ảnh mẫu ẩm thực sắc nét bên dưới
-                    </span>
-                  </div>
-
-                  {/* Preview Current Selected */}
-                  <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm shrink-0 bg-white">
-                    <img
-                      src={editingItemData.image || "/fnb/fnb-salt-coffee.jpg"}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
                   </div>
                 </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800 text-xs">
+                        Quản lý tồn kho & Cảnh báo quầy:
+                      </span>
+                      <Tag color="blue" className="!rounded-md !text-[10px] !font-bold">
+                        HÀNG ĐÓNG GÓI
+                      </Tag>
+                    </div>
 
-                {/* Upload Button */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-1 pb-1">
-                  <Upload
-                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                    showUploadList={false}
-                    beforeUpload={async (file) => {
-                      if (file.size > 5 * 1024 * 1024) {
-                        message.warning("Ảnh không được vượt quá 5 MB");
-                        return Upload.LIST_IGNORE;
-                      }
-                      if (editingItemData.id) {
-                        setIsUploadingProductImage(true);
-                        try {
-                          const updated = await productService.uploadProductImage(editingItemData.id, file);
-                          setEditingItemData((prev) => ({ ...prev, image: updated.imageUrl }));
-                          setStockList((current) =>
-                            current.map((item) =>
-                              item.id === editingItemData.id ? { ...item, image: updated.imageUrl } : item,
-                            ),
-                          );
-                          message.success("Đã tải ảnh lên hệ thống thành công!");
-                        } catch (err: any) {
-                          message.error(err?.message || "Không thể tải ảnh lên máy chủ");
-                        } finally {
-                          setIsUploadingProductImage(false);
-                        }
-                      } else {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                          if (e.target?.result) {
-                            setEditingItemData((prev) => ({ ...prev, image: String(e.target?.result) }));
-                          }
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                      return Upload.LIST_IGNORE;
-                    }}
-                  >
                     <Button
-                      variant="outline"
+                      variant="link"
                       size="sm"
-                      leftIcon={<CameraOutlined />}
-                      loading={isUploadingProductImage}
-                      className="!rounded-xl !text-xs !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50 font-bold !h-9 !px-3.5"
+                      onClick={() => {
+                        setEditItemModalVisible(false);
+                        navigate("/inventory");
+                      }}
+                      className="!text-[11px] !font-bold !text-blue-700 hover:!text-blue-800 !p-0"
                     >
-                      {isUploadingProductImage ? "Đang tải ảnh lên..." : "Tải ảnh từ thiết bị"}
+                      Mở Sổ Kho & Nhập Hàng &rarr;
                     </Button>
-                  </Upload>
-                  <span className="text-[11px] text-slate-400">hoặc bấm chọn một ảnh mẫu bên dưới:</span>
-                </div>
+                  </div>
 
-                {/* Presets Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                  {PRESET_CULINARY_IMAGES.map((preset) => {
-                    const isSelected = editingItemData.image === preset.url;
-                    return (
-                      <div
-                        key={preset.url}
-                        onClick={() => setEditingItemData((prev) => ({ ...prev, image: preset.url }))}
-                        className={`cursor-pointer rounded-2xl border-2 p-1.5 transition-all flex flex-col items-center gap-1.5 bg-white relative group ${
-                          isSelected
-                            ? "border-emerald-600 shadow-xs ring-2 ring-emerald-100"
-                            : "border-slate-200/80 hover:border-slate-300 hover:shadow-2xs"
-                        }`}
-                      >
-                        <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-100">
-                          <img
-                            src={preset.url}
-                            alt={preset.label}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        </div>
-                        <span className="text-[10px] text-center font-bold text-slate-700 line-clamp-1 w-full px-1">
-                          {preset.label}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Stock Quantity: Always read-only on menu screen to enforce inventory accounting principles */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Tồn kho quầy ({editingItemData.unit || "phần"}):
+                      </label>
+                      <div className="h-10 px-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between font-mono text-xs font-bold text-slate-900 shadow-2xs">
+                        <span>
+                          {isCreatingNew ? 0 : (editingItemData.stockQuantity || 0)} {editingItemData.unit || "phần"}
                         </span>
-                        {isSelected && (
-                          <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shadow-xs">
-                            <CheckOutlined />
-                          </div>
-                        )}
+                        <Tag
+                          color={
+                            isCreatingNew
+                              ? "default"
+                              : editingItemData.stockQuantity === 0
+                                ? "error"
+                                : (editingItemData.stockQuantity || 0) <= (editingItemData.minThreshold || 5)
+                                  ? "warning"
+                                  : "green"
+                          }
+                          className="!text-[10px] !px-2 !py-0.5 !border-0 !m-0 !font-bold"
+                        >
+                          {isCreatingNew
+                            ? "MÓN MỚI (CHƯA NHẬP KHO)"
+                            : editingItemData.stockQuantity === 0
+                              ? "HẾT HÀNG"
+                              : (editingItemData.stockQuantity || 0) <= (editingItemData.minThreshold || 5)
+                                ? "SẮP HẾT"
+                                : "CÒN HÀNG"}
+                        </Tag>
                       </div>
-                    );
-                  })}
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        * Tồn kho cập nhật qua <strong>Phiếu nhập kho</strong> tại Kho Hàng & Vật Tư.
+                      </span>
+                    </div>
+
+                    {/* Low-stock alert threshold setting */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Cảnh báo khi tồn quầy &le; :
+                      </label>
+                      <Input
+                        type="number"
+                        placeholder="5"
+                        value={editingItemData.minThreshold ?? 5}
+                        onChange={(e) =>
+                          setEditingItemData((prev) => ({
+                            ...prev,
+                            minThreshold: Math.max(0, parseInt(e.target.value) || 0),
+                          }))
+                        }
+                        className="!h-10 !rounded-xl font-mono text-xs font-bold"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        Hệ thống sẽ báo vàng <strong>"SẮP HẾT"</strong> khi tồn kho chạm mức này.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── IMAGE SELECTION & UPLOAD SECTION ──────────────────────── */}
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-3.5">
+                  {/* Preview Current Selected */}
+                  <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-2xs shrink-0 bg-white group">
+                    {editingItemData.image ? (
+                      <>
+                        <img
+                          src={editingItemData.image}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          title="Xóa ảnh (để trống)"
+                          onClick={() =>
+                            setEditingItemData((prev) => ({
+                              ...prev,
+                              image: "",
+                            }))
+                          }
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-900/70 hover:bg-rose-600 text-white flex items-center justify-center text-[11px] font-bold transition-colors cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400 gap-1">
+                        <CameraOutlined className="text-xl text-slate-400" />
+                        <span className="text-[10px] font-medium text-slate-400">Chưa có ảnh</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2.5 min-w-0">
+                    <div>
+                      <span className="font-bold text-slate-900 text-xs block">
+                        Hình ảnh món:
+                      </span>
+                      <span className="text-[11px] text-slate-500 block leading-tight">
+                        Chọn ảnh từ thiết bị hoặc dán link ảnh web
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Upload
+                        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                        showUploadList={false}
+                        beforeUpload={async (file) => {
+                          if (file.size > 5 * 1024 * 1024) {
+                            message.warning("Ảnh không được vượt quá 5 MB");
+                            return Upload.LIST_IGNORE;
+                          }
+                          setIsUploadingProductImage(true);
+                          try {
+                            if (editingItemData.id && !editingItemData.id.startsWith("fnb-")) {
+                              const updated = await productService.uploadProductImage(editingItemData.id, file);
+                              const cloudUrl = updated.imageUrl || "";
+                              setEditingItemData((prev) => ({ ...prev, image: cloudUrl }));
+                              setStockList((current) =>
+                                current.map((item) =>
+                                  item.id === editingItemData.id ? { ...item, image: cloudUrl } : item,
+                                ),
+                              );
+                              message.success("Tải ảnh lên thành công!");
+                            } else {
+                              const res = await productService.uploadDirect(file);
+                              setEditingItemData((prev) => ({ ...prev, image: res.imageUrl }));
+                              message.success("Tải ảnh lên thành công!");
+                            }
+                          } catch (err: any) {
+                            message.error(err?.message || "Không thể tải ảnh lên. Vui lòng thử lại.");
+                          } finally {
+                            setIsUploadingProductImage(false);
+                          }
+                          return Upload.LIST_IGNORE;
+                        }}
+                      >
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<CameraOutlined />}
+                          loading={isUploadingProductImage}
+                          className="!rounded-xl !text-xs !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50 font-bold !h-8 !px-3"
+                        >
+                          {isUploadingProductImage ? "Đang tải ảnh lên..." : "Tải ảnh từ thiết bị"}
+                        </Button>
+                      </Upload>
+
+                      <Input
+                        placeholder="Hoặc dán link ảnh web (https://...)"
+                        value={editingItemData.image || ""}
+                        onChange={(e) => setEditingItemData((prev) => ({ ...prev, image: e.target.value }))}
+                        className="!h-8 !rounded-xl text-xs flex-1 min-w-[200px]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
