@@ -11,6 +11,7 @@ export interface ProductMenu {
   description: string;
   stock: number;
   isOutOfStock: boolean;
+  isMadeToOrder?: boolean;
 }
 
 export interface ProductImageTarget {

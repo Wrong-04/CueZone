@@ -11,6 +11,7 @@ export interface CreateProductDTO {
   description?: string;
   isForSale?: boolean;
   isActive?: boolean;
+  isMadeToOrder?: boolean;
 }
 
 export interface UpdateProductDTO extends Partial<CreateProductDTO> {}

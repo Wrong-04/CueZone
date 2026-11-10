@@ -67,12 +67,6 @@ const menuGroups: MenuGroupConfig[] = [
         isSpecial: true,
       },
       {
-        path: "/booking",
-        label: "Duyệt Đặt Bàn",
-        icon: <AppstoreOutlined />,
-        permission: "bookings.manage",
-      },
-      {
         path: "/dashboard",
         label: "Tổng Quan CLB",
         icon: <DashboardOutlined />,
@@ -95,24 +89,6 @@ const menuGroups: MenuGroupConfig[] = [
         label: "Kho Hàng & Vật Tư",
         icon: <InboxOutlined />,
         permission: "inventory.read",
-      },
-      {
-        path: "/catalog-management",
-        label: "Danh mục sản phẩm",
-        icon: <InboxOutlined />,
-        permission: "inventory.manage",
-      },
-      {
-        path: "/fnb-orders",
-        label: "Order F&B tại bàn",
-        icon: <CoffeeOutlined />,
-        permission: "fnb_orders.manage",
-      },
-      {
-        path: "/suppliers",
-        label: "Nhà cung cấp",
-        icon: <InboxOutlined />,
-        permission: "suppliers.manage",
       },
     ],
   },
@@ -144,18 +120,6 @@ const menuGroups: MenuGroupConfig[] = [
         icon: <FileTextOutlined />,
         permission: "invoices.read",
       },
-      {
-        path: "/wallet-topups",
-        label: "Đối soát nạp ví",
-        icon: <WalletOutlined />,
-        permission: "wallet.operate",
-      },
-      {
-        path: "/tournament-fees",
-        label: "Đối soát lệ phí giải",
-        icon: <TrophyOutlined />,
-        permission: "tournaments.manage",
-      },
     ],
   },
   {
@@ -178,12 +142,6 @@ const menuGroups: MenuGroupConfig[] = [
         path: "/employees",
         label: "Nhân Sự CLB",
         icon: <TeamOutlined />,
-        roles: ["admin"],
-      },
-      {
-        path: "/news",
-        label: "Tin tức",
-        icon: <FileTextOutlined />,
         roles: ["admin"],
       },
       {
