@@ -48,6 +48,7 @@ type ProductForm = {
   salePrice: string;
   description: string;
   isForSale: boolean;
+  isthemaketoorder: boolean;
 };
 
 type CategoryForm = {
@@ -67,6 +68,7 @@ const EMPTY_PRODUCT_FORM: ProductForm = {
   salePrice: "0",
   description: "",
   isForSale: true,
+  isthemaketoorder: false,
 };
 
 const EMPTY_CATEGORY_FORM: CategoryForm = {
@@ -248,6 +250,7 @@ export default function CatalogManagementPage() {
     setProductForm({
       ...EMPTY_PRODUCT_FORM,
       category: categories[0]?.code || "",
+      isthemaketoorder: false,
     });
     setError("");
     setProductModal(true);
@@ -267,6 +270,9 @@ export default function CatalogManagementPage() {
       salePrice: String(product.salePrice ?? 0),
       description: product.description || "",
       isForSale: product.isForSale !== false,
+      isthemaketoorder: Boolean(
+        product.isthemaketoorder ?? product.isTheMakeToOrder ?? product.isMadeToOrder,
+      ),
     });
 
     setError("");
@@ -311,6 +317,9 @@ export default function CatalogManagementPage() {
         supplierId: editingProduct?.supplierId ?? null,
         description: productForm.description.trim(),
         isForSale: productForm.isForSale,
+        isMadeToOrder: productForm.isthemaketoorder,
+        isTheMakeToOrder: productForm.isthemaketoorder,
+        isthemaketoorder: productForm.isthemaketoorder,
       };
 
       if (!payload.name || !payload.sku || !payload.category || !payload.unit) {
@@ -663,8 +672,20 @@ export default function CatalogManagementPage() {
                               </span>
                             </td>
                             <td className="px-4 py-4 font-semibold text-slate-700">
-                              {product.stock ?? 0}{" "}
-                              <span className="font-normal text-slate-500">{product.unit}</span>
+                              {Boolean(
+                                product.isthemaketoorder ??
+                                product.isTheMakeToOrder ??
+                                product.isMadeToOrder,
+                              ) ? (
+                                <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 border border-amber-200/60">
+                                  Chế biến tại quán (Không lưu kho)
+                                </span>
+                              ) : (
+                                <>
+                                  {product.stock ?? 0}{" "}
+                                  <span className="font-normal text-slate-500">{product.unit}</span>
+                                </>
+                              )}
                             </td>
                             <td className="whitespace-nowrap px-4 py-4 text-slate-600">
                               {formatMoney(product.costPrice)}
@@ -1010,6 +1031,30 @@ export default function CatalogManagementPage() {
                       <option value="active">Đang kinh doanh tại quầy / bàn</option>
                       <option value="inactive">Tạm ngừng bán</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-1.5 sm:col-span-2 pt-1">
+                    <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5 cursor-pointer hover:bg-slate-50 transition-colors shadow-2xs">
+                      <input
+                        type="checkbox"
+                        checked={productForm.isthemaketoorder}
+                        onChange={(e) =>
+                          setProductForm((f) => ({
+                            ...f,
+                            isthemaketoorder: e.target.checked,
+                          }))
+                        }
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-slate-800">
+                          Món chế biến tại quán (Make-to-order - Không quản lý tồn kho)
+                        </span>
+                        <p className="text-[11px] text-slate-500 mb-0">
+                          Áp dụng cho các món ăn / đồ uống được nấu hoặc pha chế trực tiếp khi khách gọi. Món này không có số lượng tồn kho cụ thể và được tự động ẩn khỏi kho hàng.
+                        </p>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>

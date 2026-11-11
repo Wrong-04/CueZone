@@ -106,6 +106,8 @@ export const getFnbImageUrl = (
 
 export const isFnbItemPrepared = (item: {
   isMadeToOrder?: boolean;
+  isTheMakeToOrder?: boolean;
+  isthemaketoorder?: boolean;
   unit?: string;
   category?: string;
 }): boolean => {
@@ -113,6 +115,8 @@ export const isFnbItemPrepared = (item: {
   const category = item.category?.toLowerCase();
   return Boolean(
     item.isMadeToOrder ||
+      item.isTheMakeToOrder ||
+      item.isthemaketoorder ||
       (unit && ["ly", "tô", "đĩa", "phần", "suất"].includes(unit)) ||
       (category && ["food", "coffee", "tea"].includes(category)),
   );

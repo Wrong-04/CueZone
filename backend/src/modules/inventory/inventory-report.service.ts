@@ -71,8 +71,13 @@ export class InventoryReportService {
     const startDate = parseVietnamDate(filter.fromDate, false);
     const endDate = parseVietnamDate(filter.toDate, true);
 
-    // Match filter cho Product
-    const productMatch: Record<string, any> = { isActive: { $ne: false } };
+    // Match filter cho Product (Ẩn các món chế biến tại quán không quản lý tồn kho)
+    const productMatch: Record<string, any> = {
+      isActive: { $ne: false },
+      isMadeToOrder: { $ne: true },
+      isTheMakeToOrder: { $ne: true },
+      isthemaketoorder: { $ne: true },
+    };
     if (filter.category && filter.category !== "all") {
       const catMap: Record<string, string[]> = {
         accessory: ["accessory", "equipment"],

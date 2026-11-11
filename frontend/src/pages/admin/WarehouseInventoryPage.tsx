@@ -87,6 +87,17 @@ export interface WarehouseItem {
   sellingPrice?: number;
   location: string;
   supplier: string;
+  isMakeToOrder?: boolean;
+}
+
+export function isMakeToOrderProduct(p: any): boolean {
+  if (!p) return false;
+  return Boolean(
+    p.isthemaketoorder === true ||
+    p.isTheMakeToOrder === true ||
+    p.isMadeToOrder === true ||
+    p.isKitchenPrepared === true
+  );
 }
 
 export function mapProductToWarehouseItem(p: any): WarehouseItem {
@@ -123,6 +134,7 @@ export function mapProductToWarehouseItem(p: any): WarehouseItem {
     sellingPrice: p.price ?? p.salePrice ?? 0,
     location: p.storageLocation || "Kho CLB CueZone",
     supplier: p.supplier?.name || "Nhà phân phối CueZone",
+    isMakeToOrder: isMakeToOrderProduct(p),
   };
 }
 
@@ -215,7 +227,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const nonMock = parsed.filter((it: WarehouseItem) => !it.id?.startsWith("wh-"));
+          const nonMock = parsed.filter(
+            (it: WarehouseItem) => !it.id?.startsWith("wh-") && !isMakeToOrderProduct(it),
+          );
           if (nonMock.length > 0) return nonMock;
         }
       } catch {}
@@ -247,14 +261,15 @@ export const WarehouseInventoryPage: React.FC = () => {
     localStorage.setItem("cuezone_inventory_slips", JSON.stringify(slipsList));
   }, [slipsList]);
 
-  // Load real products from MongoDB / Backend
+  // Load real products from MongoDB / Backend (Ẩn các món chế biến tại quán không lưu kho)
   useEffect(() => {
     let isMounted = true;
     const loadRealProducts = async () => {
       try {
         const res = await fetchProducts();
         if (isMounted && res && Array.isArray(res.data)) {
-          setStockList(res.data.map(mapProductToWarehouseItem));
+          const warehouseProducts = res.data.filter((p: any) => !isMakeToOrderProduct(p));
+          setStockList(warehouseProducts.map(mapProductToWarehouseItem));
         }
       } catch (err) {
         console.warn("Using local warehouse stock cache:", err);
@@ -1200,10 +1215,16 @@ export const WarehouseInventoryPage: React.FC = () => {
         reason: transferForm.note || `Xuất cấp phát ${targetItem.name} ra ${transferForm.target}`,
       });
 
-      // Đồng bộ tồn kho từ MongoDB
+      // Đồng bộ tồn kho từ MongoDB (loại trừ các món chế biến tại quán)
       const updatedProducts = await fetchProducts();
-      if (Array.isArray(updatedProducts)) {
-        setStockList(updatedProducts.map(mapProductToWarehouseItem));
+      const rawProducts = Array.isArray(updatedProducts?.data)
+        ? updatedProducts.data
+        : Array.isArray(updatedProducts)
+          ? updatedProducts
+          : [];
+      if (rawProducts.length > 0) {
+        const warehouseProducts = rawProducts.filter((p: any) => !isMakeToOrderProduct(p));
+        setStockList(warehouseProducts.map(mapProductToWarehouseItem));
       }
 
       const newSlip: InventorySlip = {
@@ -1272,10 +1293,16 @@ export const WarehouseInventoryPage: React.FC = () => {
         note: wasteForm.note,
       });
 
-      // Đồng bộ tồn kho từ MongoDB
+      // Đồng bộ tồn kho từ MongoDB (loại trừ các món chế biến tại quán)
       const updatedProducts = await fetchProducts();
-      if (Array.isArray(updatedProducts)) {
-        setStockList(updatedProducts.map(mapProductToWarehouseItem));
+      const rawProducts = Array.isArray(updatedProducts?.data)
+        ? updatedProducts.data
+        : Array.isArray(updatedProducts)
+          ? updatedProducts
+          : [];
+      if (rawProducts.length > 0) {
+        const warehouseProducts = rawProducts.filter((p: any) => !isMakeToOrderProduct(p));
+        setStockList(warehouseProducts.map(mapProductToWarehouseItem));
       }
 
       // Re-fetch wastes từ MongoDB

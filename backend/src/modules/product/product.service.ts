@@ -47,8 +47,18 @@ export class ProductService {
         imageUrl: p.imageUrl,
         description: p.description,
         stock: p.stock,
-        isMadeToOrder: Boolean(p.isMadeToOrder),
-        isOutOfStock: p.isMadeToOrder ? !p.isForSale : p.stock === 0,
+        isMadeToOrder: Boolean(
+          (p as any).isthemaketoorder ??
+          (p as any).isTheMakeToOrder ??
+          p.isMadeToOrder
+        ),
+        isOutOfStock: Boolean(
+          (p as any).isthemaketoorder ??
+          (p as any).isTheMakeToOrder ??
+          p.isMadeToOrder
+        )
+          ? !p.isForSale
+          : p.stock === 0,
       };
     });
   }

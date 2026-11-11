@@ -29,6 +29,9 @@ export type Product = {
   description?: string;
   isForSale: boolean;
   isActive: boolean;
+  isMadeToOrder?: boolean;
+  isTheMakeToOrder?: boolean;
+  isthemaketoorder?: boolean;
 };
 
 type CategoryPayload = {
@@ -53,6 +56,9 @@ type ProductPayload = {
   supplierId?: string | null;
   description?: string;
   isForSale: boolean;
+  isMadeToOrder?: boolean;
+  isTheMakeToOrder?: boolean;
+  isthemaketoorder?: boolean;
 };
 
 async function request<T>(
