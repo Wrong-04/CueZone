@@ -45,6 +45,11 @@ import {
   stockCheckService,
   type StockCheckSession,
 } from "../../services/stock-check.service";
+import { fetchProducts } from "../../services/catalog-management.service";
+import { createInventoryTransaction, fetchInventoryTransactions } from "../../services/inventory.service";
+import { fetchGoodsReceipts, createGoodsReceipt, completeGoodsReceipt } from "../../services/goods-receipt.service";
+import { accessoryWasteService } from "../../services/accessory-waste.service";
+import { fetchSuppliers, type Supplier } from "../../services/supplier.service";
 import {
   AuditOutlined,
   SaveOutlined,
@@ -84,6 +89,43 @@ export interface WarehouseItem {
   supplier: string;
 }
 
+export function mapProductToWarehouseItem(p: any): WarehouseItem {
+  const categoryNameMap: Record<string, string> = {
+    equipment: "Cơ & Phụ Kiện Bida",
+    table_supplies: "Vật Tư Bàn Bida",
+    beverage: "Đồ Uống Lưu Kho",
+    ingredients: "Nguyên Liệu Pha Chế",
+    maintenance: "Dụng Cụ Bảo Trì",
+  };
+
+  const rawCat = p.category?.code || p.category?.name?.toLowerCase?.() || (typeof p.category === "string" ? p.category.toLowerCase() : "equipment");
+  let resolvedCat: WarehouseItem["category"] = "equipment";
+  if (rawCat === "drink" || rawCat === "beverage" || rawCat === "food" || rawCat === "snack") {
+    resolvedCat = "beverage";
+  } else if (rawCat === "ingredient" || rawCat === "ingredients") {
+    resolvedCat = "ingredients";
+  } else if (rawCat === "table_supplies") {
+    resolvedCat = "table_supplies";
+  } else if (rawCat === "maintenance") {
+    resolvedCat = "maintenance";
+  }
+
+  return {
+    id: p._id,
+    sku: p.sku,
+    name: p.name,
+    category: resolvedCat,
+    categoryName: p.category?.name || categoryNameMap[rawCat] || "Vật tư bida",
+    stockQty: p.stock ?? 0,
+    minThreshold: p.minStock ?? 5,
+    unit: p.unit || "Cái",
+    costPrice: p.costPrice ?? 0,
+    sellingPrice: p.price ?? p.salePrice ?? 0,
+    location: p.storageLocation || "Kho CLB CueZone",
+    supplier: p.supplier?.name || "Nhà phân phối CueZone",
+  };
+}
+
 export interface InventorySlip {
   id: string;
   slipCode: string;
@@ -107,396 +149,35 @@ export interface InventorySlip {
   }[];
 }
 
-// ── Mock Initial Data chuẩn Billiards ─────────────────────────────────────────
-
-const INITIAL_WAREHOUSE_STOCK: WarehouseItem[] = [
-  {
-    id: "wh-01",
-    sku: "EQ-CUE-01",
-    name: "Cơ Bida Lỗ Predator Sneaky Pete Custom",
-    category: "equipment",
-    categoryName: "Cơ & Phụ Kiện Bida",
-    stockQty: 8,
-    minThreshold: 3,
-    unit: "Cây",
-    costPrice: 9500000,
-    sellingPrice: 12500000,
-    location: "Kệ A1 - Tủ Cơ VIP",
-    supplier: "Predator Cues USA Distribution",
-  },
-  {
-    id: "wh-02",
-    sku: "EQ-SHAFT-01",
-    name: "Ngọn Cơ Carbon Predator REVO 12.4mm",
-    category: "equipment",
-    categoryName: "Cơ & Phụ Kiện Bida",
-    stockQty: 5,
-    minThreshold: 2,
-    unit: "Ngọn",
-    costPrice: 8200000,
-    sellingPrice: 10500000,
-    location: "Kệ A1 - Hộp Kính",
-    supplier: "Predator Cues USA Distribution",
-  },
-  {
-    id: "wh-03",
-    sku: "EQ-CHALK-01",
-    name: "Lơ Bida Taom Pyro Chalk Xanh Cyan (Hộp 9 cục)",
-    category: "equipment",
-    categoryName: "Cơ & Phụ Kiện Bida",
-    stockQty: 24,
-    minThreshold: 10,
-    unit: "Hộp",
-    costPrice: 420000,
-    sellingPrice: 580000,
-    location: "Kệ A2 - Ngăn 1",
-    supplier: "Billiard World Việt Nam",
-  },
-  {
-    id: "wh-04",
-    sku: "EQ-GLOVE-01",
-    name: "Bao Tay Bida Chuyên Dụng Predator Second Skin",
-    category: "equipment",
-    categoryName: "Cơ & Phụ Kiện Bida",
-    stockQty: 45,
-    minThreshold: 15,
-    unit: "Chiếc",
-    costPrice: 240000,
-    sellingPrice: 350000,
-    location: "Kệ A2 - Ngăn 2",
-    supplier: "Billiard World Việt Nam",
-  },
-  {
-    id: "wh-05",
-    sku: "EQ-TIP-01",
-    name: "Đầu Cơ Bida Kamui Black Clear (Size M/H)",
-    category: "equipment",
-    categoryName: "Cơ & Phụ Kiện Bida",
-    stockQty: 30,
-    minThreshold: 10,
-    unit: "Viên",
-    costPrice: 280000,
-    sellingPrice: 390000,
-    location: "Kệ A2 - Hộp Nhỏ",
-    supplier: "Kamui Japan Official",
-  },
-  {
-    id: "wh-06",
-    sku: "TB-FELT-01",
-    name: "Vải Nỉ Bàn Bida Simonis 860 Tournament Blue (Cuộn 9FT)",
-    category: "table_supplies",
-    categoryName: "Vật Tư Bàn Bida",
-    stockQty: 6,
-    minThreshold: 3,
-    unit: "Bộ",
-    costPrice: 4800000,
-    sellingPrice: 6200000,
-    location: "Kho Vật Tư Nặng B1",
-    supplier: "Iwan Simonis Bỉ - Đại lý VN",
-  },
-  {
-    id: "wh-07",
-    sku: "TB-BALL-01",
-    name: "Bộ Bóng Bida Aramith Tournament Pro-Cup TV (Bóng Chấm Đỏ)",
-    category: "table_supplies",
-    categoryName: "Vật Tư Bàn Bida",
-    stockQty: 8,
-    minThreshold: 4,
-    unit: "Bộ",
-    costPrice: 5200000,
-    sellingPrice: 6800000,
-    location: "Kệ B2 - Tủ Bảo Quản Bóng",
-    supplier: "Saluc SA Aramith Bỉ",
-  },
-  {
-    id: "wh-08",
-    sku: "TB-RUBBER-01",
-    name: "Bộ Băng Cao Su K-Steel Bàn Thi Đấu Quốc Tế",
-    category: "table_supplies",
-    categoryName: "Vật Tư Bàn Bida",
-    stockQty: 4,
-    minThreshold: 2,
-    unit: "Bộ",
-    costPrice: 3500000,
-    sellingPrice: 4500000,
-    location: "Kho Vật Tư Nặng B1",
-    supplier: "K-Steel Korea Corp",
-  },
-  {
-    id: "wh-09",
-    sku: "FB-BEER-01",
-    name: "Bia Heineken Silver Lon 330ml (Thùng 24 lon)",
-    category: "beverage",
-    categoryName: "Đồ Uống Lưu Kho",
-    stockQty: 35,
-    minThreshold: 15,
-    unit: "Thùng",
-    costPrice: 395000,
-    sellingPrice: 840000,
-    location: "Kho Lạnh F&B C1",
-    supplier: "Đại lý Phân Phối Bia Nước Ngọt Tân Hiệp",
-  },
-  {
-    id: "wh-10",
-    sku: "FB-BEER-02",
-    name: "Bia Corona Extra Chai 355ml (Thùng 24 chai)",
-    category: "beverage",
-    categoryName: "Đồ Uống Lưu Kho",
-    stockQty: 6,
-    minThreshold: 10,
-    unit: "Thùng",
-    costPrice: 680000,
-    sellingPrice: 1152000,
-    location: "Kho Lạnh F&B C1",
-    supplier: "Đại lý Phân Phối Bia Nước Ngọt Tân Hiệp",
-  },
-  {
-    id: "wh-11",
-    sku: "FB-WATER-01",
-    name: "Nước Suối Tinh Khiết Dasani 500ml (Thùng 24 chai)",
-    category: "beverage",
-    categoryName: "Đồ Uống Lưu Kho",
-    stockQty: 50,
-    minThreshold: 20,
-    unit: "Thùng",
-    costPrice: 95000,
-    sellingPrice: 240000,
-    location: "Kệ C2 - Nước Đóng Chai",
-    supplier: "Coca-Cola Beverages Vietnam",
-  },
-  {
-    id: "wh-12",
-    sku: "FB-INGR-01",
-    name: "Cà Phê Hạt Robusta Đắk Lắk Hảo Hạng",
-    category: "ingredients",
-    categoryName: "Nguyên Liệu Pha Chế",
-    stockQty: 18,
-    minThreshold: 10,
-    unit: "Kg",
-    costPrice: 160000,
-    location: "Tủ Nguyên Liệu C3",
-    supplier: "Nông Trại Cà Phê Buôn Ma Thuột",
-  },
-  {
-    id: "wh-13",
-    sku: "FB-INGR-02",
-    name: "Sữa Đặc Có Đường Ngôi Sao Phương Nam (Thùng 48 lon)",
-    category: "ingredients",
-    categoryName: "Nguyên Liệu Pha Chế",
-    stockQty: 5,
-    minThreshold: 8,
-    unit: "Thùng",
-    costPrice: 890000,
-    location: "Tủ Nguyên Liệu C3",
-    supplier: "Vinamilk Việt Nam",
-  },
-  {
-    id: "wh-14",
-    sku: "MT-CLEAN-01",
-    name: "Dung Dịch Đánh Bóng Bi Aramith Ball Cleaner 250ml",
-    category: "maintenance",
-    categoryName: "Bảo Dưỡng & Vệ Sinh",
-    stockQty: 12,
-    minThreshold: 5,
-    unit: "Chai",
-    costPrice: 320000,
-    location: "Tủ Hóa Chất D1",
-    supplier: "Saluc SA Aramith Bỉ",
-  },
-  {
-    id: "wh-15",
-    sku: "MT-BRUSH-01",
-    name: "Bàn Chải Vệ Sinh Nỉ Bàn Bida Lông Ngựa Simonis",
-    category: "maintenance",
-    categoryName: "Bảo Dưỡng & Vệ Sinh",
-    stockQty: 4,
-    minThreshold: 2,
-    unit: "Cái",
-    costPrice: 250000,
-    location: "Tủ Dụng Cụ D2",
-    supplier: "Iwan Simonis Bỉ - Đại lý VN",
-  },
-];
-
-const getInitialSlips = (): InventorySlip[] => [
-  {
-    id: "slip-01",
-    slipCode: "PNK-2026-101",
-    type: "inward",
-    date: dayjs().format("DD/MM/YYYY"),
-    createdTime: "09:30",
-    creator: "Nguyễn Văn Nam (Thủ kho)",
-    partnerOrTarget: "Iwan Simonis Bỉ - Đại lý VN",
-    itemsCount: 1,
-    totalValue: 24000000,
-    status: "completed",
-    note: "Nhập bổ sung 5 bộ nỉ Simonis 860 chuẩn bị cho giải đấu Q4",
-    details: [
-      {
-        sku: "TB-FELT-01",
-        name: "Vải Nỉ Bàn Bida Simonis 860 Tournament Blue",
-        qty: 5,
-        unit: "Bộ",
-        price: 4800000,
-        subtotal: 24000000,
-      },
-    ],
-  },
-  {
-    id: "slip-02",
-    slipCode: "PNK-2026-102",
-    type: "inward",
-    date: dayjs().subtract(1, "day").format("DD/MM/YYYY"),
-    createdTime: "08:15",
-    creator: "Nguyễn Văn Nam (Thủ kho)",
-    partnerOrTarget: "Đại lý Phân Phối Bia Nước Ngọt Tân Hiệp",
-    itemsCount: 2,
-    totalValue: 18650000,
-    status: "completed",
-    note: "Nhập bia lon Heineken và Corona ướp lạnh cuối tuần",
-    details: [
-      {
-        sku: "FB-BEER-01",
-        name: "Bia Heineken Silver Lon 330ml (Thùng 24 lon)",
-        qty: 30,
-        unit: "Thùng",
-        price: 395000,
-        subtotal: 11850000,
-      },
-      {
-        sku: "FB-BEER-02",
-        name: "Bia Corona Extra Chai 355ml (Thùng 24 chai)",
-        qty: 10,
-        unit: "Thùng",
-        price: 680000,
-        subtotal: 6800000,
-      },
-    ],
-  },
-  {
-    id: "slip-03",
-    slipCode: "PXK-2026-088",
-    type: "outward",
-    date: dayjs().subtract(2, "day").format("DD/MM/YYYY"),
-    createdTime: "11:00",
-    creator: "Nguyễn Văn Nam (Thủ kho)",
-    partnerOrTarget: "Bàn Match 13 & Bàn Match 14 (Khu VAR)",
-    itemsCount: 1,
-    totalValue: 9600000,
-    status: "completed",
-    note: "Xuất 2 bộ nỉ Simonis thay mới mặt bàn phục vụ vòng bán kết Bank Pool",
-    details: [
-      {
-        sku: "TB-FELT-01",
-        name: "Vải Nỉ Bàn Bida Simonis 860 Tournament Blue",
-        qty: 2,
-        unit: "Bộ",
-        price: 4800000,
-        subtotal: 9600000,
-      },
-    ],
-  },
-  {
-    id: "slip-04",
-    slipCode: "PXH-2026-015",
-    type: "waste",
-    date: dayjs().format("DD/MM/YYYY"),
-    createdTime: "15:20",
-    creator: "Nguyễn Văn Nam (Thủ kho)",
-    partnerOrTarget: "Khu vực Bàn VIP 01 - Thi đấu",
-    itemsCount: 1,
-    totalValue: 9500000,
-    status: "completed",
-    reason: "Cơ cong / Gãy ngọn / Bong phíp",
-    note: "Khách làm rơi gãy ngọn trong trận thi đấu, xuất hủy 1 cây gậy Predator để thay mới",
-    details: [
-      {
-        sku: "EQ-CUE-01",
-        name: "Cơ Bida Lỗ Predator Sneaky Pete Custom",
-        qty: 1,
-        unit: "Cây",
-        price: 9500000,
-        subtotal: 9500000,
-      },
-    ],
-  },
-  {
-    id: "slip-05",
-    slipCode: "PNK-2026-103",
-    type: "inward",
-    date: dayjs().subtract(3, "day").format("DD/MM/YYYY"),
-    createdTime: "14:00",
-    creator: "Nguyễn Văn Nam (Thủ kho)",
-    partnerOrTarget: "Đại lý Phụ kiện Bida Sài Gòn",
-    itemsCount: 2,
-    totalValue: 750000,
-    status: "completed",
-    note: "Nhập bổ sung lơ bida Master Blue và đầu cơ Kamui",
-    details: [
-      {
-        sku: "ACC-002",
-        name: "Lơ bida Master Blue",
-        qty: 30,
-        unit: "viên",
-        price: 5000,
-        subtotal: 150000,
-      },
-      {
-        sku: "ACC-001",
-        name: "Đầu cơ Kamui 13mm",
-        qty: 40,
-        unit: "cái",
-        price: 15000,
-        subtotal: 600000,
-      },
-    ],
-  },
-  {
-    id: "slip-06",
-    slipCode: "PXK-2026-089",
-    type: "outward",
-    date: dayjs().subtract(1, "day").format("DD/MM/YYYY"),
-    createdTime: "17:30",
-    creator: "Nguyễn Văn Nam (Thủ kho)",
-    partnerOrTarget: "Quầy Thu Ngân & Phục Vụ Bàn VIP",
-    itemsCount: 2,
-    totalValue: 130000,
-    status: "completed",
-    note: "Cấp phát bao tay và lơ bida lên quầy dịch vụ",
-    details: [
-      {
-        sku: "ACC-002",
-        name: "Lơ bida Master Blue",
-        qty: 10,
-        unit: "viên",
-        price: 5000,
-        subtotal: 50000,
-      },
-      {
-        sku: "ACC-003",
-        name: "Bao tay bida Predator cao cấp",
-        qty: 2,
-        unit: "cái",
-        price: 40000,
-        subtotal: 80000,
-      },
-    ],
-  },
-];
-
-const INITIAL_SLIPS: InventorySlip[] = getInitialSlips();
-
 const parseSlipDate = (dateStr: string): Dayjs | null => {
   if (!dateStr) return null;
-  const parts = dateStr.split("/");
-  if (parts.length === 3) {
-    const d = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10) - 1;
-    const y = parseInt(parts[2], 10);
+  const cleaned = dateStr.split("•")[0].trim();
+
+  // Format DD/MM/YYYY
+  const slashParts = cleaned.split("/");
+  if (slashParts.length === 3) {
+    const d = parseInt(slashParts[0], 10);
+    const m = parseInt(slashParts[1], 10) - 1;
+    const y = parseInt(slashParts[2], 10);
     const fullYear = y < 100 ? y + 2000 : y;
-    return dayjs(new Date(fullYear, m, d));
+    if (!isNaN(d) && !isNaN(m) && !isNaN(fullYear)) {
+      return dayjs(new Date(fullYear, m, d));
+    }
   }
-  const parsed = dayjs(dateStr);
+
+  // Format DD-MM-YYYY
+  const dashParts = cleaned.split("-");
+  if (dashParts.length === 3 && dashParts[0].length <= 2) {
+    const d = parseInt(dashParts[0], 10);
+    const m = parseInt(dashParts[1], 10) - 1;
+    const y = parseInt(dashParts[2], 10);
+    const fullYear = y < 100 ? y + 2000 : y;
+    if (!isNaN(d) && !isNaN(m) && !isNaN(fullYear)) {
+      return dayjs(new Date(fullYear, m, d));
+    }
+  }
+
+  const parsed = dayjs(cleaned);
   return parsed.isValid() ? parsed : null;
 };
 
@@ -532,12 +213,14 @@ export const WarehouseInventoryPage: React.FC = () => {
     const saved = localStorage.getItem("cuezone_warehouse_stock");
     if (saved) {
       try {
-        return JSON.parse(saved);
-      } catch {
-        // fallback
-      }
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const nonMock = parsed.filter((it: WarehouseItem) => !it.id?.startsWith("wh-"));
+          if (nonMock.length > 0) return nonMock;
+        }
+      } catch {}
     }
-    return INITIAL_WAREHOUSE_STOCK;
+    return [];
   });
 
   const [slipsList, setSlipsList] = useState<InventorySlip[]>(() => {
@@ -546,20 +229,15 @@ export const WarehouseInventoryPage: React.FC = () => {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const hasCurrentMonth = parsed.some((s: InventorySlip) => {
-            const d = parseSlipDate(s.date);
-            return d && d.isSame(dayjs(), "month");
-          });
-          if (hasCurrentMonth) {
-            return parsed;
-          }
+          const nonMock = parsed.filter((s: InventorySlip) => !s.id?.startsWith("slip-0"));
+          if (nonMock.length > 0) return nonMock;
         }
-      } catch {
-        // fallback
-      }
+      } catch {}
     }
-    return INITIAL_SLIPS;
+    return [];
   });
+
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
   useEffect(() => {
     localStorage.setItem("cuezone_warehouse_stock", JSON.stringify(stockList));
@@ -568,6 +246,167 @@ export const WarehouseInventoryPage: React.FC = () => {
   useEffect(() => {
     localStorage.setItem("cuezone_inventory_slips", JSON.stringify(slipsList));
   }, [slipsList]);
+
+  // Load real products from MongoDB / Backend
+  useEffect(() => {
+    let isMounted = true;
+    const loadRealProducts = async () => {
+      try {
+        const res = await fetchProducts();
+        if (isMounted && res && Array.isArray(res.data)) {
+          setStockList(res.data.map(mapProductToWarehouseItem));
+        }
+      } catch (err) {
+        console.warn("Using local warehouse stock cache:", err);
+      }
+    };
+
+    loadRealProducts();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Load real suppliers and real receipts/wastes from Backend
+  useEffect(() => {
+    let isMounted = true;
+    fetchSuppliers({ limit: 100 })
+      .then((res) => {
+        if (isMounted && res && Array.isArray(res.data)) {
+          setSuppliers(res.data);
+        }
+      })
+      .catch(() => {});
+
+    const loadRealSlips = async () => {
+      try {
+        const [receiptsRes, wastesRes, txRes] = await Promise.allSettled([
+          fetchGoodsReceipts({ limit: 100 }),
+          accessoryWasteService.getWastes({ limit: 100 }),
+          fetchInventoryTransactions({ limit: 100 }),
+        ]);
+
+        const apiSlips: InventorySlip[] = [];
+
+        if (receiptsRes.status === "fulfilled" && receiptsRes.value?.data) {
+          receiptsRes.value.data.forEach((r) => {
+            const creatorName = typeof r.createdBy === "object" ? r.createdBy?.name : "Thủ kho";
+            const supplierName = typeof r.supplier === "object" ? r.supplier?.name : (r.supplier || "Nhà phân phối");
+            apiSlips.push({
+              id: r._id,
+              slipCode: r.receiptNumber,
+              type: "inward",
+              date: dayjs(r.completedAt || r.createdAt).format("DD/MM/YYYY"),
+              createdTime: dayjs(r.completedAt || r.createdAt).format("HH:mm"),
+              creator: creatorName || "Thủ kho",
+              partnerOrTarget: supplierName || "Nhà phân phối",
+              itemsCount: r.items?.length || 1,
+              totalValue: r.totalAmount || 0,
+              status: r.status === "completed" ? "completed" : "pending",
+              note: r.note || "Phiếu nhập kho hàng hóa vật tư",
+              details: (r.items || []).map((it) => ({
+                sku: it.sku || "SKU",
+                name: it.productName || "Hàng hóa",
+                qty: it.quantity,
+                unit: it.unit || "cái",
+                price: it.unitCost,
+                subtotal: it.totalCost || it.quantity * it.unitCost,
+              })),
+            });
+          });
+        }
+
+        if (wastesRes.status === "fulfilled" && wastesRes.value?.data) {
+          wastesRes.value.data.forEach((w) => {
+            const reporterName = w.performedBy?.name || "Nhân viên CLB";
+            const unitPrice = w.product?.costPrice || 0;
+            const subtotal = w.quantity * unitPrice;
+            apiSlips.push({
+              id: w._id,
+              slipCode: w.disposalNumber || `PXH-${w._id.slice(-6).toUpperCase()}`,
+              type: "waste",
+              date: dayjs(w.createdAt).format("DD/MM/YYYY"),
+              createdTime: dayjs(w.createdAt).format("HH:mm"),
+              creator: reporterName,
+              partnerOrTarget: "Khu vực bàn bida & quầy",
+              itemsCount: 1,
+              totalValue: subtotal,
+              status: "completed",
+              reason: w.reason || "Hao mòn phụ kiện",
+              note: w.note || w.reason,
+              details: [
+                {
+                  sku: w.product?.sku || "SKU",
+                  name: w.product?.name || "Phụ kiện bida",
+                  qty: w.quantity,
+                  unit: w.product?.unit || "cái",
+                  price: unitPrice,
+                  subtotal: subtotal,
+                },
+              ],
+            });
+          });
+        }
+
+        if (txRes.status === "fulfilled" && Array.isArray(txRes.value?.data)) {
+          txRes.value.data.forEach((tx: any) => {
+            if (tx.type === "out") {
+              const performerName = tx.performedBy?.name || "Nhân viên kho";
+              const p = tx.product || {};
+              const unitPrice = p.costPrice || 0;
+              const subtotal = (tx.quantity || 0) * unitPrice;
+              apiSlips.push({
+                id: tx._id,
+                slipCode: `PXK-${tx._id.slice(-6).toUpperCase()}`,
+                type: "outward",
+                date: dayjs(tx.createdAt).format("DD/MM/YYYY"),
+                createdTime: dayjs(tx.createdAt).format("HH:mm"),
+                creator: performerName,
+                partnerOrTarget: tx.reason || "Quầy Bar & Bàn Bida",
+                itemsCount: 1,
+                totalValue: subtotal,
+                status: "completed",
+                note: tx.reason || "Xuất kho cấp phát",
+                details: [
+                  {
+                    sku: p.sku || "SKU",
+                    name: p.name || "Hàng hóa",
+                    qty: tx.quantity || 1,
+                    unit: p.unit || "cái",
+                    price: unitPrice,
+                    subtotal,
+                  },
+                ],
+              });
+            }
+          });
+        }
+
+        if (isMounted && apiSlips.length > 0) {
+          setSlipsList((prev) => {
+            const userCreatedSlips = prev.filter((s) => !s.id.startsWith("slip-0"));
+            const map = new Map<string, InventorySlip>();
+            apiSlips.forEach((s) => map.set(s.id, s));
+            userCreatedSlips.forEach((s) => {
+              if (!map.has(s.id)) map.set(s.id, s);
+            });
+            return Array.from(map.values()).sort((a, b) => {
+              const da = parseSlipDate(a.date)?.unix() || 0;
+              const db = parseSlipDate(b.date)?.unix() || 0;
+              return db - da;
+            });
+          });
+        }
+      } catch (err) {
+        console.warn("Using local slip cache:", err);
+      }
+    };
+
+    loadRealSlips();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Stock Alerts reported by Staff
   const [stockAlerts, setStockAlerts] = useState<Record<string, StockAlertItem>>(() => {
@@ -646,7 +485,11 @@ export const WarehouseInventoryPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab") || "stock";
   const validTabs = [
-    "stock", "inward", "outward", "audit", "report",
+    "stock",
+    "inward",
+    "outward",
+    "audit",
+    "report",
     ...(hasPermission(user, "inventory.manage") ? ["catalog"] : []),
     ...(hasPermission(user, "suppliers.manage") ? ["suppliers"] : []),
   ];
@@ -673,61 +516,13 @@ export const WarehouseInventoryPage: React.FC = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {
-        // fallback
-      }
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const nonMock = parsed.filter((s: StockCheckSession) => !s._id.startsWith("sc-sample"));
+          if (nonMock.length > 0) return nonMock;
+        }
+      } catch {}
     }
-    // Đợt kiểm kê mẫu ban đầu
-    const defaultCheck: StockCheckSession = {
-      _id: "sc-sample-01",
-      checkCode: `KK-${dayjs().format("YYYYMMDD")}-0001`,
-      title: `Kiểm kê định kỳ toàn bộ kho hàng hóa tháng ${dayjs().format("MM/YYYY")}`,
-      category: "all",
-      status: "submitted",
-      items: INITIAL_WAREHOUSE_STOCK.map((item, idx) => {
-        // Tạo một số mặt hàng có chênh lệch thực tế để đối soát
-        let actual = item.stockQty;
-        if (idx === 0) actual = item.stockQty - 1; // Thiếu 1 cây
-        else if (idx === 1) actual = item.stockQty + 2; // Thừa 2
-        const variance = actual - item.stockQty;
-        return {
-          product: item.id,
-          sku: item.sku,
-          name: item.name,
-          category: item.category,
-          unit: item.unit,
-          costPrice: item.costPrice,
-          systemStock: item.stockQty,
-          actualStock: actual,
-          variance: variance,
-          varianceValue: variance * item.costPrice,
-          note: variance !== 0 ? (variance > 0 ? "Thừa kiểm đếm thực tế" : "Khách làm hỏng chưa ghi nhận") : "",
-        };
-      }),
-      summary: {
-        totalItems: INITIAL_WAREHOUSE_STOCK.length,
-        matchedItems: INITIAL_WAREHOUSE_STOCK.length - 2,
-        surplusItems: 1,
-        deficitItems: 1,
-        totalVarianceValue: -1 * 9500000 + 2 * 8200000,
-      },
-      createdBy: {
-        _id: "usr-admin-01",
-        name: "Nguyễn Tiến Dũng (Chủ CLB)",
-        email: "dung.owner@cuezone.vn",
-      },
-      submittedBy: {
-        _id: "usr-staff-01",
-        name: "Nguyễn Văn Nam (Thủ kho)",
-        email: "nam.warehouse@cuezone.vn",
-      },
-      submittedAt: dayjs().format("YYYY-MM-DDTHH:mm:ssZ"),
-      createdAt: dayjs().subtract(1, "day").format("YYYY-MM-DDTHH:mm:ssZ"),
-      updatedAt: dayjs().format("YYYY-MM-DDTHH:mm:ssZ"),
-      note: "Đợt kiểm kê định kỳ đối soát toàn bộ cơ, nỉ, bi và đồ uống trước thềm giải đấu.",
-    };
-    return [defaultCheck];
+    return [];
   });
 
   const [activeCheckSession, setActiveCheckSession] = useState<StockCheckSession | null>(null);
@@ -749,7 +544,7 @@ export const WarehouseInventoryPage: React.FC = () => {
     if (activeTab === "audit") {
       stockCheckService.getStockChecks()
         .then((res) => {
-          if (res && res.data && res.data.length > 0) {
+          if (res && Array.isArray(res.data)) {
             setStockCheckList(res.data);
           }
         })
@@ -811,7 +606,7 @@ export const WarehouseInventoryPage: React.FC = () => {
           totalVarianceValue: 0,
         },
         createdBy: {
-          _id: user?._id || "usr-current",
+          _id: user?._id || "",
           name: user?.name || "Người quản lý",
           email: user?.email || "",
         },
@@ -904,7 +699,7 @@ export const WarehouseInventoryPage: React.FC = () => {
         },
         submittedBy: submit
           ? {
-              _id: user?._id || "usr-staff",
+              _id: user?._id || "",
               name: user?.name || "Thủ kho",
               email: user?.email || "",
             }
@@ -964,7 +759,7 @@ export const WarehouseInventoryPage: React.FC = () => {
         type: "inward", // Dùng type inward để hiển thị trong nhật ký
         date: dayjs().format("DD/MM/YYYY"),
         createdTime: dayjs().format("HH:mm"),
-        creator: user?.name || "Nguyễn Tiến Dũng (Chủ CLB)",
+        creator: user?.name || "Quản trị viên",
         partnerOrTarget: `Cân bằng đợt kiểm kê [${activeCheckSession.checkCode}]`,
         itemsCount: varianceItems.length,
         totalValue: Math.abs(activeCheckSession.summary.totalVarianceValue),
@@ -987,8 +782,8 @@ export const WarehouseInventoryPage: React.FC = () => {
       ...activeCheckSession,
       status: "completed",
       approvedBy: {
-        _id: user?._id || "usr-admin",
-        name: user?.name || "Nguyễn Tiến Dũng (Chủ CLB)",
+        _id: user?._id || "",
+        name: user?.name || "Quản trị viên",
         email: user?.email || "",
       },
       approvedAt: new Date().toISOString(),
@@ -1024,24 +819,57 @@ export const WarehouseInventoryPage: React.FC = () => {
   // Inward Modal
   const [inwardModalVisible, setInwardModalVisible] = useState<boolean>(false);
   const [inwardForm, setInwardForm] = useState({
-    sku: "EQ-CUE-01",
-    qty: 2,
-    unitPrice: 9500000,
-    supplier: "Predator Cues USA Distribution",
-    note: "Nhập bổ sung gậy bida chuyên nghiệp",
+    sku: "",
+    qty: 1,
+    unitPrice: 0,
+    supplier: "",
+    note: "",
   });
 
-  // Outward / Waste Modal
-  const [outwardModalVisible, setOutwardModalVisible] = useState<boolean>(false);
-  const [outwardType, setOutwardType] = useState<"transfer" | "waste">("transfer");
-  const [outwardForm, setOutwardForm] = useState({
-    sku: "EQ-CUE-01",
-    qty: 1, // Default is 1 item! (If 1 cue broken among 8, report exactly 1)
-    target: "Quầy Bar & POS Bàn Bida",
-    reason: "Cơ cong / Gãy ngọn / Bong phíp",
+  // Modal & Form 1: Cấp phát xuất kho ra bàn/quầy
+  const [transferModalVisible, setTransferModalVisible] = useState<boolean>(false);
+  const [transferForm, setTransferForm] = useState({
+    sku: "",
+    qty: 1,
+    target: "Quầy Bar & Phục Vụ Bàn Bida",
+    note: "",
+  });
+
+  // Modal & Form 2: Báo hỏng & hao mòn phụ kiện bida
+  const [wasteModalVisible, setWasteModalVisible] = useState<boolean>(false);
+  const [wasteForm, setWasteForm] = useState({
+    sku: "",
+    qty: 1,
+    reason: "Cơ cong vênh / Gãy ngọn / Bong phíp",
     customReason: "",
     note: "",
   });
+
+  // Auto-sync initial sku from loaded stockList
+  useEffect(() => {
+    if (stockList.length > 0) {
+      if (!inwardForm.sku || !stockList.some((it) => it.sku === inwardForm.sku)) {
+        setInwardForm((prev) => ({
+          ...prev,
+          sku: stockList[0].sku,
+          unitPrice: stockList[0].costPrice,
+          supplier: stockList[0].supplier || prev.supplier,
+        }));
+      }
+      if (!transferForm.sku || !stockList.some((it) => it.sku === transferForm.sku)) {
+        setTransferForm((prev) => ({
+          ...prev,
+          sku: stockList[0].sku,
+        }));
+      }
+      if (!wasteForm.sku || !stockList.some((it) => it.sku === wasteForm.sku)) {
+        setWasteForm((prev) => ({
+          ...prev,
+          sku: stockList[0].sku,
+        }));
+      }
+    }
+  }, [stockList]);
 
   const [selectedSlip, setSelectedSlip] = useState<InventorySlip | null>(null);
 
@@ -1051,8 +879,8 @@ export const WarehouseInventoryPage: React.FC = () => {
   const fetchReportData = async () => {
     try {
       setReportLoading(true);
-      const fromDate = reportRange[0].startOf("day").toISOString();
-      const toDate = reportRange[1].endOf("day").toISOString();
+      const fromDate = reportRange[0].startOf("day").format("YYYY-MM-DD");
+      const toDate = reportRange[1].endOf("day").format("YYYY-MM-DD");
 
       const res = await inventoryReportService.getReport({
         fromDate,
@@ -1063,68 +891,75 @@ export const WarehouseInventoryPage: React.FC = () => {
 
       const slipsInPeriod = slipsList.filter((s) => isSlipInDateRange(s.date, reportRange));
 
-      if (res && res.items) {
-        // Đồng bộ các phiếu trong kỳ vào items từ backend
-        const merged = res.items.map((it) => {
-          const localIn = slipsInPeriod
-            .filter((s) => s.type === "inward")
-            .flatMap((s) => s.details)
-            .filter((d) => d.sku === it.sku)
-            .reduce((acc, cur) => acc + cur.qty, 0);
+      if (res && Array.isArray(res.items)) {
+        const itemMap = new Map<string, InventoryReportItem>();
 
-          const localOut = slipsInPeriod
-            .filter((s) => s.type === "outward")
-            .flatMap((s) => s.details)
-            .filter((d) => d.sku === it.sku)
-            .reduce((acc, cur) => acc + cur.qty, 0);
+        // 1. Lưu các mặt hàng từ backend
+        for (const it of res.items) {
+          const key = it.sku ? it.sku.trim().toUpperCase() : it.name.trim().toLowerCase();
+          itemMap.set(key, { ...it });
+        }
 
-          const localWaste = slipsInPeriod
-            .filter((s) => s.type === "waste")
-            .flatMap((s) => s.details)
-            .filter((d) => d.sku === it.sku)
-            .reduce((acc, cur) => acc + cur.qty, 0);
+        // 2. Đồng bộ các giao dịch xuất nhập kho trong kỳ
+        for (const slip of slipsInPeriod) {
+          for (const d of slip.details) {
+            const key = d.sku ? d.sku.trim().toUpperCase() : d.name.trim().toLowerCase();
+            let target = itemMap.get(key);
 
-          const finalIn = it.inStock + localIn;
-          const finalOut = it.outStock + localOut;
-          const finalWaste = it.wasteStock + localWaste;
-          const finalClosing = Math.max(0, it.openingStock + finalIn - finalOut - finalWaste);
+            if (!target) {
+              const matchedStock = stockList.find(
+                (si) =>
+                  (d.sku && si.sku.trim().toUpperCase() === d.sku.trim().toUpperCase()) ||
+                  si.name.trim().toLowerCase() === d.name.trim().toLowerCase(),
+              );
 
-          return {
-            ...it,
-            inStock: finalIn,
-            outStock: finalOut,
-            wasteStock: finalWaste,
-            closingStock: finalClosing,
-            closingValue: finalClosing * it.costPrice,
-          };
-        });
-        setReportItems(merged);
+              const initStock = matchedStock ? matchedStock.stockQty : d.qty;
+              const cost = matchedStock ? matchedStock.costPrice : d.price;
+
+              target = {
+                productId: matchedStock?.id || `item-${Date.now()}`,
+                sku: d.sku || matchedStock?.sku || "SKU-N/A",
+                name: d.name || matchedStock?.name || "Vật tư bida",
+                category: matchedStock?.category || "accessory",
+                unit: d.unit || matchedStock?.unit || "Cái",
+                costPrice: cost,
+                salePrice: matchedStock?.sellingPrice || cost * 1.3,
+                openingStock: initStock,
+                inStock: 0,
+                outStock: 0,
+                wasteStock: 0,
+                closingStock: initStock,
+                closingValue: initStock * cost,
+              };
+              itemMap.set(key, target);
+            }
+
+            if (slip.type === "inward") {
+              target.inStock += d.qty;
+            } else if (slip.type === "outward") {
+              target.outStock += d.qty;
+            } else if (slip.type === "waste") {
+              target.wasteStock += d.qty;
+            }
+
+            target.closingStock = Math.max(
+              0,
+              target.openingStock + target.inStock - target.outStock - target.wasteStock,
+            );
+            target.closingValue = target.closingStock * target.costPrice;
+          }
+        }
+
+        setReportItems(Array.from(itemMap.values()));
       }
     } catch {
-      // Fallback: derive from local stock và slipsList trong khoảng thời gian đã chọn
+      // Fallback: derive from stockList and slipsList trong khoảng thời gian đã chọn
       const slipsInPeriod = slipsList.filter((s) => isSlipInDateRange(s.date, reportRange));
-      const derived: InventoryReportItem[] = stockList.map((item) => {
-        const inQty = slipsInPeriod
-          .filter((s) => s.type === "inward")
-          .flatMap((s) => s.details)
-          .filter((d) => d.sku === item.sku)
-          .reduce((acc, cur) => acc + cur.qty, 0);
+      const itemMap = new Map<string, InventoryReportItem>();
 
-        const outQty = slipsInPeriod
-          .filter((s) => s.type === "outward")
-          .flatMap((s) => s.details)
-          .filter((d) => d.sku === item.sku)
-          .reduce((acc, cur) => acc + cur.qty, 0);
-
-        const wasteQty = slipsInPeriod
-          .filter((s) => s.type === "waste")
-          .flatMap((s) => s.details)
-          .filter((d) => d.sku === item.sku)
-          .reduce((acc, cur) => acc + cur.qty, 0);
-
-        const opening = Math.max(0, item.stockQty - inQty + outQty + wasteQty);
-
-        return {
+      for (const item of stockList) {
+        const key = item.sku.trim().toUpperCase();
+        itemMap.set(key, {
           productId: item.id,
           sku: item.sku,
           name: item.name,
@@ -1132,16 +967,54 @@ export const WarehouseInventoryPage: React.FC = () => {
           unit: item.unit,
           costPrice: item.costPrice,
           salePrice: item.sellingPrice || item.costPrice * 1.3,
-          openingStock: opening,
-          inStock: inQty,
-          outStock: outQty,
-          wasteStock: wasteQty,
+          openingStock: item.stockQty,
+          inStock: 0,
+          outStock: 0,
+          wasteStock: 0,
           closingStock: item.stockQty,
           closingValue: item.stockQty * item.costPrice,
-        };
-      });
+        });
+      }
 
-      setReportItems(derived);
+      for (const slip of slipsInPeriod) {
+        for (const d of slip.details) {
+          const key = d.sku ? d.sku.trim().toUpperCase() : d.name.trim().toLowerCase();
+          let target = itemMap.get(key);
+
+          if (!target) {
+            target = {
+              productId: `item-${Date.now()}`,
+              sku: d.sku || "SKU-N/A",
+              name: d.name || "Vật tư bida",
+              category: "accessory",
+              unit: d.unit || "Cái",
+              costPrice: d.price || 0,
+              salePrice: (d.price || 0) * 1.3,
+              openingStock: d.qty,
+              inStock: 0,
+              outStock: 0,
+              wasteStock: 0,
+              closingStock: d.qty,
+              closingValue: d.qty * (d.price || 0),
+            };
+            itemMap.set(key, target);
+          }
+
+          if (slip.type === "inward") {
+            target.inStock += d.qty;
+          } else if (slip.type === "outward") {
+            target.outStock += d.qty;
+          } else if (slip.type === "waste") {
+            target.wasteStock += d.qty;
+          }
+
+          target.openingStock = Math.max(0, target.closingStock - target.inStock + target.outStock + target.wasteStock);
+          target.closingStock = Math.max(0, target.openingStock + target.inStock - target.outStock - target.wasteStock);
+          target.closingValue = target.closingStock * target.costPrice;
+        }
+      }
+
+      setReportItems(Array.from(itemMap.values()));
     } finally {
       setReportLoading(false);
     }
@@ -1151,7 +1024,7 @@ export const WarehouseInventoryPage: React.FC = () => {
     if (activeTab === "report") {
       fetchReportData();
     }
-  }, [activeTab, reportRange, reportCategory, reportSearch]);
+  }, [activeTab, reportRange, reportCategory, reportSearch, slipsList]);
 
   const handleExportExcel = async () => {
     try {
@@ -1208,7 +1081,7 @@ export const WarehouseInventoryPage: React.FC = () => {
     }
   };
 
-  const handleCreateInwardSlip = () => {
+  const handleCreateInwardSlip = async () => {
     if (inwardForm.qty <= 0) {
       message.warning("Số lượng nhập kho phải lớn hơn 0!");
       return;
@@ -1217,126 +1090,235 @@ export const WarehouseInventoryPage: React.FC = () => {
     const targetItem = stockList.find((i) => i.sku === inwardForm.sku);
     if (!targetItem) return;
 
-    // Unit price is STRICTLY locked to the target item's costPrice
     const fixedCostPrice = targetItem.costPrice;
-    const subtotal = inwardForm.qty * fixedCostPrice;
 
-    const newSlip: InventorySlip = {
-      id: `slip-${Date.now()}`,
-      slipCode: `PNK-${Date.now().toString().slice(-4)}`,
-      type: "inward",
-      date: new Date().toLocaleDateString("vi-VN"),
-      createdTime: new Date().toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      creator: "Nguyễn Văn Nam (Thủ kho)",
-      partnerOrTarget: inwardForm.supplier || targetItem.supplier,
-      itemsCount: 1,
-      totalValue: subtotal,
-      status: "completed",
-      note: inwardForm.note,
-      details: [
-        {
-          sku: targetItem.sku,
-          name: targetItem.name,
-          qty: inwardForm.qty,
-          unit: targetItem.unit,
-          price: fixedCostPrice,
-          subtotal: subtotal,
-        },
-      ],
-    };
+    // Cập nhật trực tiếp vào MongoDB qua Goods Receipt API
+    try {
+      const matchedSupplier =
+        suppliers.find((s) => s.name === inwardForm.supplier || s._id === inwardForm.supplier) ||
+        suppliers[0];
 
-    // Update stock quantity
-    setStockList((prev) =>
-      prev.map((i) =>
-        i.sku === targetItem.sku ? { ...i, stockQty: i.stockQty + inwardForm.qty } : i,
-      ),
-    );
+      if (matchedSupplier?._id) {
+        const createdReceipt = await createGoodsReceipt({
+          supplier: matchedSupplier._id,
+          items: [
+            {
+              product: targetItem.id,
+              quantity: inwardForm.qty,
+              unitCost: fixedCostPrice,
+            },
+          ],
+          note: inwardForm.note || `Nhập kho mặt hàng ${targetItem.name}`,
+        });
 
-    // Add slip
-    setSlipsList((prev) => [newSlip, ...prev]);
+        if (createdReceipt?._id) {
+          await completeGoodsReceipt(createdReceipt._id);
+        }
+      } else {
+        await createInventoryTransaction({
+          product: targetItem.id,
+          type: "in",
+          quantity: inwardForm.qty,
+          reason: inwardForm.note || `Nhập kho mặt hàng ${targetItem.name}`,
+        });
+      }
 
-    message.success(
-      `Đã lập phiếu nhập kho thành công! Cộng thêm +${inwardForm.qty} ${targetItem.unit} vào mặt hàng "${targetItem.name}".`,
-    );
-    setInwardModalVisible(false);
+      // Re-fetch sản phẩm từ database để đồng bộ số lượng tồn kho thực tế trong MongoDB
+      const updatedProducts = await fetchProducts();
+      if (Array.isArray(updatedProducts)) {
+        setStockList(updatedProducts.map(mapProductToWarehouseItem));
+      }
+
+      // Re-fetch danh sách phiếu nhập kho từ MongoDB
+      const updatedReceipts = await fetchGoodsReceipts({ limit: 100 });
+      if (Array.isArray(updatedReceipts?.data)) {
+        const mappedReceipts: InventorySlip[] = updatedReceipts.data.map((r) => {
+          const supplierName = typeof r.supplier === "object" ? r.supplier.name : "Nhà cung cấp";
+          const creatorName = typeof r.createdBy === "object" ? r.createdBy.name : "Thủ kho";
+          return {
+            id: r._id,
+            slipCode: r.receiptNumber,
+            type: "inward",
+            date: dayjs(r.createdAt).format("DD/MM/YYYY"),
+            createdTime: dayjs(r.createdAt).format("HH:mm"),
+            creator: creatorName,
+            partnerOrTarget: supplierName,
+            itemsCount: r.items.length,
+            totalValue: r.totalAmount,
+            status: r.status === "completed" ? "completed" : "pending",
+            note: r.note,
+            details: r.items.map((it) => ({
+              sku: it.sku || "",
+              name: it.productName || "Sản phẩm",
+              qty: it.quantity,
+              unit: it.unit || "cái",
+              price: it.unitCost,
+              subtotal: it.totalCost || it.quantity * it.unitCost,
+            })),
+          };
+        });
+        setSlipsList((prev) => {
+          const nonInward = prev.filter((s) => s.type !== "inward");
+          return [...mappedReceipts, ...nonInward];
+        });
+      }
+
+      message.success(
+        `Đã lập phiếu nhập kho & cập nhật trực tiếp vào MongoDB! Cộng thêm +${inwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
+      );
+      setInwardModalVisible(false);
+    } catch (err: any) {
+      console.error("Lỗi cập nhật phiếu nhập kho lên MongoDB:", err);
+      message.error(err?.message || "Không thể cập nhật phiếu nhập kho vào MongoDB.");
+    }
   };
 
-  const handleCreateOutwardSlip = () => {
-    if (outwardForm.qty <= 0) {
+  // Handler 1: Xuất kho cấp phát ra bàn & quầy POS
+  const handleCreateTransferSlip = async () => {
+    if (transferForm.qty <= 0) {
       message.warning("Số lượng xuất kho phải lớn hơn 0!");
       return;
     }
 
-    const targetItem = stockList.find((i) => i.sku === outwardForm.sku);
+    const targetItem = stockList.find((i) => i.sku === transferForm.sku);
     if (!targetItem) return;
 
-    if (targetItem.stockQty < outwardForm.qty) {
+    if (targetItem.stockQty < transferForm.qty) {
       message.error(
         `Không đủ tồn kho để xuất! Tồn hiện tại chỉ còn ${targetItem.stockQty} ${targetItem.unit}.`,
       );
       return;
     }
 
-    const subtotal = outwardForm.qty * targetItem.costPrice;
-    const isWaste = outwardType === "waste";
+    const subtotal = transferForm.qty * targetItem.costPrice;
+
+    try {
+      await createInventoryTransaction({
+        product: targetItem.id,
+        type: "out",
+        quantity: transferForm.qty,
+        reason: transferForm.note || `Xuất cấp phát ${targetItem.name} ra ${transferForm.target}`,
+      });
+
+      // Đồng bộ tồn kho từ MongoDB
+      const updatedProducts = await fetchProducts();
+      if (Array.isArray(updatedProducts)) {
+        setStockList(updatedProducts.map(mapProductToWarehouseItem));
+      }
+
+      const newSlip: InventorySlip = {
+        id: `slip-${Date.now()}`,
+        slipCode: `PXK-${Date.now().toString().slice(-4)}`,
+        type: "outward",
+        date: dayjs().format("DD/MM/YYYY"),
+        createdTime: dayjs().format("HH:mm"),
+        creator: user?.name || "Nhân viên kho",
+        partnerOrTarget: transferForm.target,
+        itemsCount: 1,
+        totalValue: subtotal,
+        status: "completed",
+        note: transferForm.note,
+        details: [
+          {
+            sku: targetItem.sku,
+            name: targetItem.name,
+            qty: transferForm.qty,
+            unit: targetItem.unit,
+            price: targetItem.costPrice,
+            subtotal: subtotal,
+          },
+        ],
+      };
+
+      setSlipsList((prev) => [newSlip, ...prev]);
+
+      message.success(
+        `Đã lập phiếu xuất kho thành công! Trừ -${transferForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
+      );
+      setTransferModalVisible(false);
+    } catch (err: any) {
+      console.error("Lỗi xuất kho cấp phát:", err);
+      message.error(err?.message || "Không thể thực hiện xuất kho cấp phát.");
+    }
+  };
+
+  // Handler 2: Báo hao mòn / hư hỏng phụ kiện bida
+  const handleCreateWasteSlip = async () => {
+    if (wasteForm.qty <= 0) {
+      message.warning("Số lượng báo hỏng phải lớn hơn 0!");
+      return;
+    }
+
+    const targetItem = stockList.find((i) => i.sku === wasteForm.sku);
+    if (!targetItem) return;
+
+    if (targetItem.stockQty < wasteForm.qty) {
+      message.error(
+        `Không đủ tồn kho để báo hao mòn! Tồn hiện tại chỉ còn ${targetItem.stockQty} ${targetItem.unit}.`,
+      );
+      return;
+    }
 
     const selectedReason =
-      outwardForm.reason === "Khác" && outwardForm.customReason
-        ? outwardForm.customReason
-        : outwardForm.reason;
+      wasteForm.reason === "Khác" && wasteForm.customReason
+        ? wasteForm.customReason
+        : wasteForm.reason;
 
-    const newSlip: InventorySlip = {
-      id: `slip-${Date.now()}`,
-      slipCode: isWaste ? `PXH-${Date.now().toString().slice(-4)}` : `PXK-${Date.now().toString().slice(-4)}`,
-      type: isWaste ? "waste" : "outward",
-      date: new Date().toLocaleDateString("vi-VN"),
-      createdTime: new Date().toLocaleTimeString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      creator: "Nguyễn Văn Nam (Thủ kho)",
-      partnerOrTarget: isWaste ? `Xuất hủy phụ kiện (${selectedReason})` : outwardForm.target,
-      itemsCount: 1,
-      totalValue: subtotal,
-      status: "completed",
-      reason: isWaste ? selectedReason : undefined,
-      note: isWaste
-        ? `Xuất hủy ${outwardForm.qty} ${targetItem.unit} do: ${selectedReason}. ${outwardForm.note}`
-        : outwardForm.note,
-      details: [
-        {
-          sku: targetItem.sku,
-          name: targetItem.name,
-          qty: outwardForm.qty, // Báo hỏng ĐÚNG số lượng hư hỏng (ví dụ: 1 cái hỏng trong 8 cái, báo 1)
-          unit: targetItem.unit,
-          price: targetItem.costPrice,
-          subtotal: subtotal,
-        },
-      ],
-    };
+    try {
+      await accessoryWasteService.createWaste({
+        productId: targetItem.id,
+        quantity: wasteForm.qty,
+        reason: selectedReason,
+        note: wasteForm.note,
+      });
 
-    // Update stock quantity: exactly minus the damaged/transferred quantity
-    const remainingQty = targetItem.stockQty - outwardForm.qty;
-    setStockList((prev) =>
-      prev.map((i) => (i.sku === targetItem.sku ? { ...i, stockQty: remainingQty } : i)),
-    );
+      // Đồng bộ tồn kho từ MongoDB
+      const updatedProducts = await fetchProducts();
+      if (Array.isArray(updatedProducts)) {
+        setStockList(updatedProducts.map(mapProductToWarehouseItem));
+      }
 
-    // Add slip
-    setSlipsList((prev) => [newSlip, ...prev]);
+      // Re-fetch wastes từ MongoDB
+      const updatedWastes = await accessoryWasteService.getWastes({ limit: 100 });
+      if (Array.isArray(updatedWastes?.data)) {
+        const mappedWastes: InventorySlip[] = updatedWastes.data.map((w) => ({
+          id: w._id,
+          slipCode: w.disposalNumber || `PXH-${w._id.slice(-4)}`,
+          type: "waste",
+          date: dayjs(w.createdAt).format("DD/MM/YYYY"),
+          createdTime: dayjs(w.createdAt).format("HH:mm"),
+          creator: w.performedBy?.name || "Thủ kho",
+          partnerOrTarget: `Xuất hủy phụ kiện (${w.reason})`,
+          itemsCount: 1,
+          totalValue: (w.product?.costPrice || 0) * (w.quantity || 1),
+          status: "completed",
+          reason: w.reason,
+          note: w.note,
+          details: [
+            {
+              sku: w.product?.sku || "",
+              name: w.product?.name || "Phụ kiện",
+              qty: w.quantity,
+              unit: w.product?.unit || "cái",
+              price: w.product?.costPrice || 0,
+              subtotal: (w.product?.costPrice || 0) * (w.quantity || 1),
+            },
+          ],
+        }));
+        setSlipsList((prev) => {
+          const nonWaste = prev.filter((s) => s.type !== "waste");
+          return [...mappedWastes, ...nonWaste];
+        });
+      }
 
-    if (isWaste) {
       message.success(
-        `Đã ghi nhận xuất hủy thành công ${outwardForm.qty} ${targetItem.unit} "${targetItem.name}" do ${selectedReason}. Tồn kho còn lại: ${remainingQty} ${targetItem.unit}.`,
+        `Đã ghi nhận báo hỏng phụ kiện thành công! Trừ -${wasteForm.qty} ${targetItem.unit} "${targetItem.name}" trên MongoDB.`,
       );
-    } else {
-      message.success(
-        `Đã lập phiếu xuất kho thành công! Trừ -${outwardForm.qty} ${targetItem.unit} cho "${targetItem.name}". Tồn kho còn lại: ${remainingQty} ${targetItem.unit}.`,
-      );
+      setWasteModalVisible(false);
+    } catch (err: any) {
+      console.error("Lỗi ghi nhận hao mòn phụ kiện:", err);
+      message.error(err?.message || "Không thể ghi nhận hao mòn phụ kiện.");
     }
-    setOutwardModalVisible(false);
   };
 
 
@@ -1594,16 +1576,13 @@ export const WarehouseInventoryPage: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setOutwardType("transfer");
-                  setOutwardForm({
+                  setTransferForm({
                     sku: record.sku,
                     qty: 1,
-                    target: "Quầy Bar & POS Bàn Bida",
-                    reason: "Cơ cong / Gãy ngọn / Bong phíp",
-                    customReason: "",
+                    target: "Quầy Bar & Phục Vụ Bàn Bida",
                     note: `Xuất mặt hàng ${record.name}`,
                   });
-                  setOutwardModalVisible(true);
+                  setTransferModalVisible(true);
                 }}
                 className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-slate-100 hover:!bg-slate-200 !text-slate-700"
               >
@@ -1957,11 +1936,11 @@ export const WarehouseInventoryPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 max-w-[1440px] mx-auto">
-      {/* ── COMMAND BAR & SUMMARY CARDS ────────────────────────────────────── */}
+      {/* ── COMMAND BAR (HEADER) ────────────────────────────────────── */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
@@ -1981,82 +1960,12 @@ export const WarehouseInventoryPage: React.FC = () => {
               Kiểm soát tồn kho vật tư bida chuyên dụng (cơ, bóng, nỉ, lơ), đồ uống F&B, lịch sử xuất nhập và kiểm kê định kỳ.
             </Text>
           </div>
-
-
-        </div>
-
-        {/* Counter KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 relative z-10">
-          <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/80 shadow-2xs">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Tổng giá trị tồn
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-slate-400 text-xs border border-slate-200">
-                <DollarOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate font-mono">
-                {metrics.totalValue.toLocaleString("vi-VN")}đ
-              </span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 shadow-2xs">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">
-                Mặt hàng lưu kho
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs border border-emerald-200">
-                <InboxOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-800 tracking-tight font-mono">
-                {metrics.totalItems}
-              </span>
-              <span className="text-xs font-semibold text-emerald-700">mặt hàng</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 shadow-2xs">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-amber-800 font-semibold uppercase tracking-wider">
-                Sắp hết hàng
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 text-xs border border-amber-200">
-                <WarningOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-amber-800 tracking-tight font-mono">
-                {metrics.lowStockCount}
-              </span>
-              <span className="text-xs font-semibold text-amber-700">mặt hàng</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200/80 shadow-2xs">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-blue-800 font-semibold uppercase tracking-wider">
-                Phiếu xuất nhập
-              </span>
-              <span className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 text-xs border border-blue-200">
-                <FileTextOutlined />
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-black text-blue-800 tracking-tight font-mono">
-                {metrics.totalSlips}
-              </span>
-              <span className="text-xs font-semibold text-blue-700">phiếu hoàn tất</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* ── MAIN TABS SWITCHER ────────────────────────────────────────────── */}
+
+
+{/* ── MAIN TABS SWITCHER (TOP NAVIGATION BAR) ────────────────────────── */}
       <div className="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-xs">
         <SegmentedPillList
           items={mainPills}
@@ -2068,6 +1977,84 @@ export const WarehouseInventoryPage: React.FC = () => {
       {/* ── TAB 1: TỒN KHO VẬT TƯ & THIẾT BỊ ─────────────────────────────── */}
       {activeTab === "stock" && (
         <div className="space-y-4">
+          {/* 4 Thẻ KPI Thống Kê Chuẩn Giao Diện Ảnh 3 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Tổng giá trị tồn */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Tổng giá trị tồn
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                  <DollarOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-emerald-600 font-mono">
+                {metrics.totalValue.toLocaleString("vi-VN")} đ
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                Tổng giá trị vốn lưu kho thực tế
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
+            </div>
+
+            {/* Card 2: Mặt hàng tồn */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Mặt hàng tồn
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
+                  <InboxOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-cyan-600 font-mono">
+                {metrics.totalItems} mặt hàng
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                Tổng số mã SKU sản phẩm và phụ kiện
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
+            </div>
+
+            {/* Card 3: Cảnh báo hết */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Cảnh báo hết
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                  <WarningOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-amber-600 font-mono">
+                {metrics.lowStockCount} mặt hàng
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                Mặt hàng chạm ngưỡng cần nhập thêm
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
+            </div>
+
+            {/* Card 4: Chứng từ xuất nhập */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Chứng từ xuất nhập
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                  <FileTextOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-blue-600 font-mono">
+                {metrics.totalSlips} chứng từ
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                Hồ sơ phiếu nhập, xuất và xuất hủy
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
+            </div>
+          </div>
           <div className="bg-white p-4 rounded-3xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex flex-wrap items-center gap-2">
               <Select
@@ -2241,10 +2228,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                   variant="outline"
                   size="sm"
                   leftIcon={<DeleteOutlined className="text-rose-600" />}
-                  onClick={() => {
-                    setOutwardType("waste");
-                    setOutwardModalVisible(true);
-                  }}
+                  onClick={() => setWasteModalVisible(true)}
                   className="!border-rose-300 !text-rose-700 hover:!bg-rose-50 !rounded-xl !font-bold"
                 >
                   Báo hao mòn phụ kiện
@@ -2253,10 +2237,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   leftIcon={<PlusOutlined />}
-                  onClick={() => {
-                    setOutwardType("transfer");
-                    setOutwardModalVisible(true);
-                  }}
+                  onClick={() => setTransferModalVisible(true)}
                   className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
                 >
                   Tạo phiếu xuất kho
@@ -3047,15 +3028,15 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 6: DANH MỤC & PHỤ KIỆN BIDA ── */}
-      {activeTab === "catalog" && (
+      {/* ── TAB 6: DANH MỤC & PHỤ KIỆN BIDA (CHỈ DÀNH CHO ADMIN) ── */}
+      {isAdmin && activeTab === "catalog" && (
         <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
           <CatalogManagementPage />
         </div>
       )}
 
-      {/* ── TAB 7: QUẢN LÝ NHÀ CUNG CẤP ── */}
-      {activeTab === "suppliers" && (
+      {/* ── TAB 7: QUẢN LÝ NHÀ CUNG CẤP (CHỈ DÀNH CHO ADMIN) ── */}
+      {isAdmin && activeTab === "suppliers" && (
         <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
           <SupplierManagementPage />
         </div>
@@ -3230,11 +3211,21 @@ export const WarehouseInventoryPage: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Nhà cung cấp / Đối tác giao hàng:
             </label>
-            <Input
-              value={inwardForm.supplier}
-              onChange={(e) => setInwardForm((prev) => ({ ...prev, supplier: e.target.value }))}
-              className="!h-10 !rounded-xl text-xs"
-            />
+            {suppliers.length > 0 ? (
+              <Select
+                value={inwardForm.supplier || suppliers[0]?.name}
+                onChange={(val) => setInwardForm((prev) => ({ ...prev, supplier: val }))}
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={suppliers.map((s) => ({ value: s.name, label: s.name }))}
+              />
+            ) : (
+              <Input
+                value={inwardForm.supplier}
+                onChange={(e) => setInwardForm((prev) => ({ ...prev, supplier: e.target.value }))}
+                placeholder="Nhập tên nhà cung cấp..."
+                className="!h-10 !rounded-xl text-xs"
+              />
+            )}
           </div>
 
           <div>
@@ -3275,57 +3266,29 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ── MODAL 2: XUẤT KHO & HAO MÒN PHỤ KIỆN (BÁO ĐÚNG SỐ LƯỢNG HỎNG) ──── */}
+      {/* ── MODAL 2A: XUẤT KHO & CẤP PHÁT BÀN/QUẦY (RIÊNG BIỆT) ────────────────── */}
       <Modal
-        open={outwardModalVisible}
-        onCancel={() => setOutwardModalVisible(false)}
+        open={transferModalVisible}
+        onCancel={() => setTransferModalVisible(false)}
         footer={null}
         width={580}
         title={
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-            {outwardType === "waste" ? (
-              <DeleteOutlined className="text-rose-600 text-lg" />
-            ) : (
-              <ArrowUpOutlined className="text-blue-600 text-lg" />
-            )}
+            <ArrowUpOutlined className="text-emerald-600 text-lg" />
             <span className="font-black text-slate-900 text-base">
-              {outwardType === "waste"
-                ? "Ghi Nhận Hao Mòn & Xuất Hủy Phụ Kiện Bida"
-                : "Lập Phiếu Xuất Kho & Cấp Phát"}
+              Lập Phiếu Xuất Kho & Cấp Phát Bàn / Quầy
             </span>
           </div>
         }
       >
         <div className="py-4 space-y-4 text-xs">
-          {/* Mode selector */}
-          <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setOutwardType("transfer")}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
-                outwardType === "transfer" ? "bg-white text-slate-800 shadow-xs" : "text-slate-500"
-              }`}
-            >
-              Cấp phát bàn & quầy POS
-            </button>
-            <button
-              type="button"
-              onClick={() => setOutwardType("waste")}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
-                outwardType === "waste" ? "bg-rose-600 text-white shadow-xs" : "text-slate-500"
-              }`}
-            >
-              Báo hỏng / Xuất hủy phụ kiện
-            </button>
-          </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Chọn mặt hàng xuất:
+              Chọn mặt hàng xuất kho:
             </label>
             <Select
-              value={outwardForm.sku}
-              onChange={(val) => setOutwardForm((prev) => ({ ...prev, sku: val }))}
+              value={transferForm.sku}
+              onChange={(val) => setTransferForm((prev) => ({ ...prev, sku: val }))}
               className="!w-full !rounded-xl !text-xs !h-10"
               options={stockList.map((i) => ({
                 value: i.sku,
@@ -3337,12 +3300,10 @@ export const WarehouseInventoryPage: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-slate-700">
-                {outwardType === "waste"
-                  ? "Số lượng phụ kiện bị hỏng:"
-                  : "Số lượng cấp phát xuất kho:"}
+                Số lượng cấp phát xuất kho:
               </label>
               {(() => {
-                const target = stockList.find((i) => i.sku === outwardForm.sku);
+                const target = stockList.find((i) => i.sku === transferForm.sku);
                 return (
                   <span className="text-[11px] text-slate-500">
                     Tổng trong kho: <strong>{target?.stockQty || 0} {target?.unit}</strong>
@@ -3353,104 +3314,55 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Input
               type="number"
               min={1}
-              max={stockList.find((i) => i.sku === outwardForm.sku)?.stockQty || 1}
-              value={outwardForm.qty}
+              max={stockList.find((i) => i.sku === transferForm.sku)?.stockQty || 1}
+              value={transferForm.qty}
               onChange={(e) =>
-                setOutwardForm((prev) => ({
+                setTransferForm((prev) => ({
                   ...prev,
                   qty: Math.max(1, parseInt(e.target.value) || 1),
                 }))
               }
               className="!h-10 !rounded-xl text-xs font-mono font-bold"
             />
-            {outwardType === "waste" && (
-              <span className="text-[11px] text-rose-600 mt-1 block">
-                * Lưu ý: Nếu có 8 cây gậy mà hỏng 1 cây, chỉ nhập đúng 1 cây để trừ tồn và báo cáo đúng số lượng hỏng.
-              </span>
-            )}
           </div>
 
-          {outwardType === "waste" ? (
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Lý do hư hỏng / hao mòn:
-              </label>
-              <Select
-                value={outwardForm.reason}
-                onChange={(val) => setOutwardForm((prev) => ({ ...prev, reason: val }))}
-                className="!w-full !rounded-xl !text-xs !h-10"
-                options={REASON_OPTIONS}
-              />
-              {outwardForm.reason === "Khác" && (
-                <Input
-                  placeholder="Nhập chi tiết lý do hư hỏng..."
-                  value={outwardForm.customReason}
-                  onChange={(e) =>
-                    setOutwardForm((prev) => ({ ...prev, customReason: e.target.value }))
-                  }
-                  className="!h-10 !rounded-xl text-xs mt-2"
-                />
-              )}
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Địa điểm / Bộ phận tiếp nhận:
-              </label>
-              <Select
-                value={outwardForm.target}
-                onChange={(val) => setOutwardForm((prev) => ({ ...prev, target: val }))}
-                className="!w-full !rounded-xl !text-xs !h-10"
-                options={[
-                  { value: "Quầy Bar & Thu ngân", label: "Quầy Bar & Thu ngân" },
-                  { value: "Bàn thi đấu Match 13 (VIP)", label: "Bàn thi đấu Match 13 (VIP)" },
-                  { value: "Bàn thi đấu Match 14 (VIP)", label: "Bàn thi đấu Match 14 (VIP)" },
-                  { value: "Tủ cơ cho thuê (Lễ tân)", label: "Tủ cơ cho thuê (Lễ tân)" },
-                  { value: "Khu vực bảo trì & thay nỉ bàn", label: "Khu vực bảo trì & thay nỉ bàn" },
-                ]}
-              />
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Địa điểm / Bộ phận tiếp nhận:
+            </label>
+            <Select
+              value={transferForm.target}
+              onChange={(val) => setTransferForm((prev) => ({ ...prev, target: val }))}
+              className="!w-full !rounded-xl !text-xs !h-10"
+              options={[
+                { value: "Quầy Bar & Thu ngân", label: "Quầy Bar & Thu ngân" },
+                { value: "Bàn thi đấu Match 13 (VIP)", label: "Bàn thi đấu Match 13 (VIP)" },
+                { value: "Bàn thi đấu Match 14 (VIP)", label: "Bàn thi đấu Match 14 (VIP)" },
+                { value: "Tủ cơ cho thuê (Lễ tân)", label: "Tủ cơ cho thuê (Lễ tân)" },
+                { value: "Khu vực bảo trì & thay nỉ bàn", label: "Khu vực bảo trì & thay nỉ bàn" },
+              ]}
+            />
+          </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú chi tiết:</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú xuất kho:</label>
             <Input
-              value={outwardForm.note}
-              onChange={(e) => setOutwardForm((prev) => ({ ...prev, note: e.target.value }))}
-              placeholder={
-                outwardType === "waste"
-                  ? "Ví dụ: Gãy đầu phíp trong trận bán kết 1, không phục hồi được..."
-                  : "Ví dụ: Cấp phát đồ uống và lơ bida lên quầy thu ngân..."
-              }
+              value={transferForm.note}
+              onChange={(e) => setTransferForm((prev) => ({ ...prev, note: e.target.value }))}
+              placeholder="Ví dụ: Cấp phát đồ uống và lơ bida lên quầy thu ngân..."
               className="!h-10 !rounded-xl text-xs"
             />
           </div>
 
-          <div
-            className={`p-3 rounded-2xl border flex justify-between items-center text-xs ${
-              outwardType === "waste"
-                ? "bg-rose-50 border-rose-200"
-                : "bg-blue-50 border-blue-200"
-            }`}
-          >
-            <span
-              className={`font-semibold ${
-                outwardType === "waste" ? "text-rose-800" : "text-blue-800"
-              }`}
-            >
-              {outwardType === "waste"
-                ? "Giá trị tổn thất hao mòn:"
-                : "Tổng giá trị xuất kho:"}
+          <div className="p-3 rounded-2xl border flex justify-between items-center text-xs bg-emerald-50 border-emerald-200">
+            <span className="font-semibold text-emerald-800">
+              Tổng giá trị xuất kho:
             </span>
-            <span
-              className={`font-black text-base font-mono ${
-                outwardType === "waste" ? "text-rose-900" : "text-blue-900"
-              }`}
-            >
+            <span className="font-black text-base font-mono text-emerald-900">
               {(() => {
-                const target = stockList.find((i) => i.sku === outwardForm.sku);
+                const target = stockList.find((i) => i.sku === transferForm.sku);
                 const cost = target?.costPrice || 0;
-                return `${(outwardForm.qty * cost).toLocaleString("vi-VN")}đ`;
+                return `${(transferForm.qty * cost).toLocaleString("vi-VN")}đ`;
               })()}
             </span>
           </div>
@@ -3459,7 +3371,7 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="outline"
               size="md"
-              onClick={() => setOutwardModalVisible(false)}
+              onClick={() => setTransferModalVisible(false)}
               className="!rounded-xl !text-xs"
             >
               Hủy
@@ -3467,14 +3379,139 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="primary"
               size="md"
-              onClick={handleCreateOutwardSlip}
-              className={`!rounded-xl !font-bold px-6 !text-xs ${
-                outwardType === "waste"
-                  ? "!bg-rose-600 hover:!bg-rose-700 !border-rose-600"
-                  : "!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600"
-              }`}
+              onClick={handleCreateTransferSlip}
+              className="!rounded-xl !font-bold px-6 !text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600"
             >
-              {outwardType === "waste" ? "Xác Nhận Xuất Hủy" : "Xác Nhận Xuất Kho"}
+              Xác Nhận Xuất Kho
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── MODAL 2B: BÁO HỎNG & HAO MÒN PHỤ KIỆN BIDA (RIÊNG BIỆT) ────────────── */}
+      <Modal
+        open={wasteModalVisible}
+        onCancel={() => setWasteModalVisible(false)}
+        footer={null}
+        width={580}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <DeleteOutlined className="text-rose-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">
+              Ghi Nhận Hao Mòn & Xuất Hủy Phụ Kiện Bida
+            </span>
+          </div>
+        }
+      >
+        <div className="py-4 space-y-4 text-xs">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Chọn phụ kiện bị hỏng / hao mòn:
+            </label>
+            <Select
+              value={wasteForm.sku}
+              onChange={(val) => setWasteForm((prev) => ({ ...prev, sku: val }))}
+              className="!w-full !rounded-xl !text-xs !h-10"
+              options={stockList.map((i) => ({
+                value: i.sku,
+                label: `${i.sku} - ${i.name} (Tồn hiện tại: ${i.stockQty} ${i.unit})`,
+              }))}
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700">
+                Số lượng phụ kiện bị hỏng:
+              </label>
+              {(() => {
+                const target = stockList.find((i) => i.sku === wasteForm.sku);
+                return (
+                  <span className="text-[11px] text-slate-500">
+                    Tổng trong kho: <strong>{target?.stockQty || 0} {target?.unit}</strong>
+                  </span>
+                );
+              })()}
+            </div>
+            <Input
+              type="number"
+              min={1}
+              max={stockList.find((i) => i.sku === wasteForm.sku)?.stockQty || 1}
+              value={wasteForm.qty}
+              onChange={(e) =>
+                setWasteForm((prev) => ({
+                  ...prev,
+                  qty: Math.max(1, parseInt(e.target.value) || 1),
+                }))
+              }
+              className="!h-10 !rounded-xl text-xs font-mono font-bold"
+            />
+            <span className="text-[11px] text-rose-600 mt-1 block">
+              * Lưu ý: Nếu có 8 cây gậy mà hỏng 1 cây, chỉ nhập đúng 1 cây để trừ tồn và báo cáo đúng số lượng hỏng.
+            </span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Lý do hư hỏng / hao mòn:
+            </label>
+            <Select
+              value={wasteForm.reason}
+              onChange={(val) => setWasteForm((prev) => ({ ...prev, reason: val }))}
+              className="!w-full !rounded-xl !text-xs !h-10"
+              options={REASON_OPTIONS}
+            />
+            {wasteForm.reason === "Khác" && (
+              <Input
+                placeholder="Nhập chi tiết lý do hư hỏng..."
+                value={wasteForm.customReason}
+                onChange={(e) =>
+                  setWasteForm((prev) => ({ ...prev, customReason: e.target.value }))
+                }
+                className="!h-10 !rounded-xl text-xs mt-2"
+              />
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú chi tiết:</label>
+            <Input
+              value={wasteForm.note}
+              onChange={(e) => setWasteForm((prev) => ({ ...prev, note: e.target.value }))}
+              placeholder="Ví dụ: Gãy đầu phíp trong trận bán kết 1, không phục hồi được..."
+              className="!h-10 !rounded-xl text-xs"
+            />
+          </div>
+
+          <div className="p-3 rounded-2xl border flex justify-between items-center text-xs bg-rose-50 border-rose-200">
+            <span className="font-semibold text-rose-800">
+              Giá trị tổn thất hao mòn:
+            </span>
+            <span className="font-black text-base font-mono text-rose-900">
+              {(() => {
+                const target = stockList.find((i) => i.sku === wasteForm.sku);
+                const cost = target?.costPrice || 0;
+                return `${(wasteForm.qty * cost).toLocaleString("vi-VN")}đ`;
+              })()}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => setWasteModalVisible(false)}
+              className="!rounded-xl !text-xs"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleCreateWasteSlip}
+              className="!rounded-xl !font-bold px-6 !text-xs !bg-rose-600 hover:!bg-rose-700 !border-rose-600"
+            >
+              Xác Nhận Báo Hao Mòn
             </Button>
           </div>
         </div>

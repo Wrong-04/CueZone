@@ -2,6 +2,23 @@ import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 import { Product } from "../product/product.model";
 import InventoryTransaction from "../product/inventory.model";
+import Category from "../product/category.model";
+
+function parseVietnamDate(dateStr?: string, isEnd = false): Date {
+  if (!dateStr) {
+    const d = new Date();
+    if (isEnd) d.setHours(23, 59, 59, 999);
+    else d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T${isEnd ? "23:59:59.999" : "00:00:00.000"}+07:00`);
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
 
 export interface InventoryReportItem {
   productId: string;
@@ -50,23 +67,9 @@ export class InventoryReportService {
    * Tính toán báo cáo Xuất - Nhập - Tồn theo khoảng thời gian bằng MongoDB Aggregation Pipeline
    */
   async getReport(filter: InventoryReportFilter): Promise<InventoryReportResponse> {
-    const now = new Date();
-    
-    // Mặc định từ đầu tháng hiện tại đến cuối ngày hôm nay
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    defaultStart.setHours(0, 0, 0, 0);
-
-    const defaultEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-    const startDate = filter.fromDate ? new Date(filter.fromDate) : defaultStart;
-    if (filter.fromDate && !filter.fromDate.includes("T")) {
-      startDate.setHours(0, 0, 0, 0);
-    }
-
-    const endDate = filter.toDate ? new Date(filter.toDate) : defaultEnd;
-    if (filter.toDate && !filter.toDate.includes("T")) {
-      endDate.setHours(23, 59, 59, 999);
-    }
+    // Chuẩn hóa múi giờ Việt Nam (UTC+7)
+    const startDate = parseVietnamDate(filter.fromDate, false);
+    const endDate = parseVietnamDate(filter.toDate, true);
 
     // Match filter cho Product
     const productMatch: Record<string, any> = { isActive: { $ne: false } };
@@ -84,15 +87,33 @@ export class InventoryReportService {
         maintenance: ["maintenance", "accessory"],
       };
       const allowed = catMap[filter.category] || [filter.category];
-      if (allowed.length === 1) {
-        productMatch.category = allowed[0];
-      } else {
-        productMatch.category = { $in: allowed };
+
+      try {
+        const matchingCats = await Category.find({
+          $or: [
+            { code: { $in: allowed } },
+            { name: { $in: allowed } },
+          ],
+        }).select("_id").lean();
+
+        const catIds = matchingCats.map((c) => c._id);
+        const catIdStrings = catIds.map((id) => id.toString());
+        productMatch.$or = [
+          { category: { $in: [...allowed, ...catIds, ...catIdStrings] } },
+        ];
+      } catch {
+        productMatch.category = allowed.length === 1 ? allowed[0] : { $in: allowed };
       }
     }
     if (filter.search && filter.search.trim()) {
       const searchRegex = new RegExp(filter.search.trim(), "i");
-      productMatch.$or = [{ name: searchRegex }, { sku: searchRegex }];
+      const searchOr = [{ name: searchRegex }, { sku: searchRegex }];
+      if (productMatch.$or) {
+        productMatch.$and = [{ $or: productMatch.$or }, { $or: searchOr }];
+        delete productMatch.$or;
+      } else {
+        productMatch.$or = searchOr;
+      }
     }
 
     // Pipeline tính toán cân đối kho theo từng sản phẩm
@@ -174,6 +195,44 @@ export class InventoryReportService {
               },
             },
           },
+          adjIncPeriod: {
+            $reduce: {
+              input: "$txAfterStart",
+              initialValue: 0,
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $lte: ["$$this.createdAt", endDate] },
+                      { $eq: ["$$this.type", "adjustment"] },
+                      { $gt: ["$$this.newStock", "$$this.previousStock"] },
+                    ],
+                  },
+                  { $add: ["$$value", { $subtract: ["$$this.newStock", "$$this.previousStock"] }] },
+                  "$$value",
+                ],
+              },
+            },
+          },
+          adjDecPeriod: {
+            $reduce: {
+              input: "$txAfterStart",
+              initialValue: 0,
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $lte: ["$$this.createdAt", endDate] },
+                      { $eq: ["$$this.type", "adjustment"] },
+                      { $lt: ["$$this.newStock", "$$this.previousStock"] },
+                    ],
+                  },
+                  { $add: ["$$value", { $subtract: ["$$this.previousStock", "$$this.newStock"] }] },
+                  "$$value",
+                ],
+              },
+            },
+          },
 
           // Tổng biến động từ startDate đến hiện tại (để suy ngược ra Tồn đầu kỳ)
           inAfterStart: {
@@ -215,11 +274,47 @@ export class InventoryReportService {
               },
             },
           },
+          adjIncAfterStart: {
+            $reduce: {
+              input: "$txAfterStart",
+              initialValue: 0,
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$$this.type", "adjustment"] },
+                      { $gt: ["$$this.newStock", "$$this.previousStock"] },
+                    ],
+                  },
+                  { $add: ["$$value", { $subtract: ["$$this.newStock", "$$this.previousStock"] }] },
+                  "$$value",
+                ],
+              },
+            },
+          },
+          adjDecAfterStart: {
+            $reduce: {
+              input: "$txAfterStart",
+              initialValue: 0,
+              in: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$$this.type", "adjustment"] },
+                      { $lt: ["$$this.newStock", "$$this.previousStock"] },
+                    ],
+                  },
+                  { $add: ["$$value", { $subtract: ["$$this.previousStock", "$$this.newStock"] }] },
+                  "$$value",
+                ],
+              },
+            },
+          },
         },
       },
       {
         $addFields: {
-          // Tồn đầu kỳ = Tồn hiện tại - (Nhập từ đầu kỳ tới nay - Xuất từ đầu kỳ tới nay - Hủy từ đầu kỳ tới nay)
+          // Tồn đầu kỳ = Tồn hiện tại - [(Nhập + Tăng kiểm kê) - (Xuất + Hủy + Giảm kiểm kê)]
           openingStock: {
             $max: [
               0,
@@ -228,8 +323,8 @@ export class InventoryReportService {
                   { $ifNull: ["$stock", 0] },
                   {
                     $subtract: [
-                      "$inAfterStart",
-                      { $add: ["$outAfterStart", "$wasteAfterStart"] },
+                      { $add: ["$inAfterStart", "$adjIncAfterStart"] },
+                      { $add: ["$outAfterStart", "$wasteAfterStart", "$adjDecAfterStart"] },
                     ],
                   },
                 ],
@@ -240,14 +335,14 @@ export class InventoryReportService {
       },
       {
         $addFields: {
-          // Tồn cuối kỳ = Tồn đầu kỳ + Nhập trong kỳ - Xuất bán trong kỳ - Xuất hủy trong kỳ
+          // Tồn cuối kỳ = Tồn đầu kỳ + Nhập trong kỳ + Tăng kiểm kê - Xuất bán/chuyển - Xuất hủy/hao mòn - Giảm kiểm kê
           closingStock: {
             $max: [
               0,
               {
                 $subtract: [
-                  { $add: ["$openingStock", "$inPeriod"] },
-                  { $add: ["$outPeriod", "$wastePeriod"] },
+                  { $add: ["$openingStock", "$inPeriod", "$adjIncPeriod"] },
+                  { $add: ["$outPeriod", "$wastePeriod", "$adjDecPeriod"] },
                 ],
               },
             ],

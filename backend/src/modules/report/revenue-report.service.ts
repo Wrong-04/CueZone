@@ -52,6 +52,22 @@ export interface RevenueReportQuery {
   toDate?: string;
 }
 
+function parseVietnamDate(dateStr?: string, isEnd = false): Date {
+  if (!dateStr) {
+    const d = new Date();
+    if (isEnd) d.setHours(23, 59, 59, 999);
+    else d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T${isEnd ? "23:59:59.999" : "00:00:00.000"}+07:00`);
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 export class RevenueReportService {
   /**
    * SCRUM-992, SCRUM-994, SCRUM-995:
@@ -82,12 +98,9 @@ export class RevenueReportService {
       startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
       endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
     } else {
-      // Custom date range
-      startDate = query.fromDate ? new Date(query.fromDate) : new Date(now.getTime() - 6 * 86400000);
-      if (query.fromDate && !query.fromDate.includes("T")) startDate.setHours(0, 0, 0, 0);
-
-      endDate = query.toDate ? new Date(query.toDate) : new Date();
-      if (query.toDate && !query.toDate.includes("T")) endDate.setHours(23, 59, 59, 999);
+      // Custom date range chuẩn hóa múi giờ Việt Nam
+      startDate = parseVietnamDate(query.fromDate, false);
+      endDate = parseVietnamDate(query.toDate, true);
     }
 
     const matchStage = {
@@ -173,25 +186,72 @@ export class RevenueReportService {
           : 0,
     };
 
-    // Parse Payment Methods
+    // Parse Payment Methods: Đảm bảo Tiền mặt, Chuyển khoản, Ví hội viên luôn đầy đủ
     const paymentLabelMap: Record<string, string> = {
       cash: "Tiền mặt",
+      transfer: "Chuyển khoản",
       banking: "Chuyển khoản",
       bank: "Chuyển khoản",
-      wallet: "Ví thành viên",
+      vietqr: "Chuyển khoản VietQR",
+      member_balance: "Ví hội viên",
+      wallet: "Ví hội viên",
+      cuezone_pay: "Ví hội viên",
       momo: "MoMo",
       vnpay: "VNPay",
       card: "Thẻ ngân hàng",
     };
 
-    const paymentMethods: PaymentMethodBreakdown[] = (kpiAggregation[0]?.byPaymentMethod || []).map(
-      (pm: any) => ({
-        method: pm._id,
-        label: paymentLabelMap[pm._id] || pm._id || "Khác",
-        amount: pm.amount || 0,
-        count: pm.count || 0,
+    const channelMap: Record<string, { label: string; amount: number; count: number }> = {
+      cash: { label: "Tiền mặt", amount: 0, count: 0 },
+      transfer: { label: "Chuyển khoản", amount: 0, count: 0 },
+      member_balance: { label: "Ví hội viên", amount: 0, count: 0 },
+    };
+
+    const normalizeMethodKey = (method: string): string => {
+      const m = String(method || "cash").toLowerCase();
+      if (m === "cash") return "cash";
+      if (
+        m.includes("vietqr") ||
+        m.includes("transfer") ||
+        m.includes("bank") ||
+        m.includes("card") ||
+        m.includes("vnpay") ||
+        m.includes("momo")
+      ) {
+        return "transfer";
+      }
+      if (
+        m.includes("member_balance") ||
+        m.includes("wallet") ||
+        m.includes("cuezone_pay") ||
+        m.includes("ví")
+      ) {
+        return "member_balance";
+      }
+      return m;
+    };
+
+    (kpiAggregation[0]?.byPaymentMethod || []).forEach((pm: any) => {
+      const key = normalizeMethodKey(pm._id);
+      if (!channelMap[key]) {
+        channelMap[key] = {
+          label: paymentLabelMap[pm._id] || pm._id || "Khác",
+          amount: 0,
+          count: 0,
+        };
+      }
+      channelMap[key].amount += pm.amount || 0;
+      channelMap[key].count += pm.count || 0;
+    });
+
+    const paymentMethods: PaymentMethodBreakdown[] = Object.entries(channelMap).map(
+      ([method, data]) => ({
+        method,
+        label: data.label,
+        amount: data.amount,
+        count: data.count,
         percentage:
-          kpis.totalRevenue > 0 ? Number(((pm.amount / kpis.totalRevenue) * 100).toFixed(1)) : 0,
+          kpis.totalRevenue > 0 ? Number(((data.amount / kpis.totalRevenue) * 100).toFixed(1)) : 0,
       }),
     );
 
