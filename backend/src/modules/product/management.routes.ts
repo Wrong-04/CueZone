@@ -313,6 +313,10 @@ router.post(
       return sendError(res, 400, "ID nhà cung cấp không hợp lệ.");
     }
 
+    const isMakeToOrder = Boolean(
+      body.isthemaketoorder ?? body.isTheMakeToOrder ?? body.isMadeToOrder
+    );
+
     const product = await Product.create({
       name,
       sku,
@@ -324,6 +328,9 @@ router.post(
       supplierId,
       description: normalizeString(body.description),
       isForSale: body.isForSale !== false,
+      isMadeToOrder: isMakeToOrder,
+      isTheMakeToOrder: isMakeToOrder,
+      isthemaketoorder: isMakeToOrder,
       isActive: true,
     });
 
@@ -423,6 +430,19 @@ router.put(
       }
 
       updates.isForSale = body.isForSale;
+    }
+
+    if (
+      body.isTheMakeToOrder !== undefined ||
+      body.isthemaketoorder !== undefined ||
+      body.isMadeToOrder !== undefined
+    ) {
+      const isMakeToOrder = Boolean(
+        body.isthemaketoorder ?? body.isTheMakeToOrder ?? body.isMadeToOrder
+      );
+      updates.isMadeToOrder = isMakeToOrder;
+      updates.isTheMakeToOrder = isMakeToOrder;
+      updates.isthemaketoorder = isMakeToOrder;
     }
 
     const updated = await Product.findByIdAndUpdate(

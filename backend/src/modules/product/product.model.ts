@@ -26,6 +26,8 @@ export interface IProduct extends Document {
   isActive: boolean;
 
   isMadeToOrder?: boolean;
+  isTheMakeToOrder?: boolean;
+  isthemaketoorder?: boolean;
 
   createdAt: Date;
 
@@ -68,6 +70,8 @@ const ProductSchema = new mongoose.Schema<IProduct>(
     isActive: { type: Boolean, default: true },
 
     isMadeToOrder: { type: Boolean, default: false },
+    isTheMakeToOrder: { type: Boolean, default: false },
+    isthemaketoorder: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

@@ -47,6 +47,9 @@ export async function getInventory(req: Request, res: Response) {
       isActive: {
         $ne: false,
       },
+      isMadeToOrder: { $ne: true },
+      isTheMakeToOrder: { $ne: true },
+      isthemaketoorder: { $ne: true },
     };
 
     if (user.role === "staff") {
@@ -108,6 +111,15 @@ export async function getInventory(req: Request, res: Response) {
         };
       })
       .filter((product: any) => {
+        const isMakeToOrder = Boolean(
+          product.isthemaketoorder === true ||
+          product.isTheMakeToOrder === true ||
+          product.isMadeToOrder === true
+        );
+        if (isMakeToOrder) {
+          return false;
+        }
+
         if (status !== "all" && product.stockStatus !== status) {
           return false;
         }
@@ -271,6 +283,15 @@ export async function createInventoryTransaction(req: Request, res: Response) {
         throw new Error("PRODUCT_NOT_FOUND");
       }
 
+      const isMakeToOrder = Boolean(
+        (currentProduct as any).isthemaketoorder ??
+        (currentProduct as any).isTheMakeToOrder ??
+        (currentProduct as any).isMadeToOrder
+      );
+      if (isMakeToOrder) {
+        throw new Error("MAKE_TO_ORDER_CANNOT_HAVE_INVENTORY");
+      }
+
       const previousStock = Number((currentProduct as any).stock) || 0;
 
       let newStock = previousStock;
@@ -335,6 +356,13 @@ export async function createInventoryTransaction(req: Request, res: Response) {
       return res.status(404).json({
         success: false,
         message: "Không tìm thấy hàng hóa.",
+      });
+    }
+
+    if (error instanceof Error && error.message === "MAKE_TO_ORDER_CANNOT_HAVE_INVENTORY") {
+      return res.status(400).json({
+        success: false,
+        message: "Món này được chế biến tại quán (make-to-order), không quản lý tồn kho vật lý.",
       });
     }
 
