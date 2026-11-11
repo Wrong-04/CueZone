@@ -3,6 +3,7 @@ import mongoose, { Document, Model, Schema } from "mongoose";
 export interface ICategory extends Document {
   name: string;
   code: string;
+  scope?: "fnb" | "warehouse";
   description?: string;
   isActive: boolean;
   createdAt: Date;
@@ -23,6 +24,11 @@ const categorySchema = new Schema<ICategory>(
       trim: true,
       lowercase: true,
       maxlength: 50,
+    },
+    scope: {
+      type: String,
+      enum: ["fnb", "warehouse"],
+      default: "fnb",
     },
     description: {
       type: String,

@@ -5,6 +5,7 @@ import { productService } from "../../services/product.service";
 import type { PosTable, BookingRequest } from "../../types/pos";
 import type { PricingTier } from "../../types";
 import { calculateSplitPlayingDetails, defaultPricingTiers } from "../../utils/pricing";
+import { isFnbWarehouseItem } from "../../utils/fnb";
 import { ExclamationCircleOutlined, SearchOutlined, SyncOutlined } from "@ant-design/icons";
 import { Button, Modal, message, notification } from "../../shared/ui";
 import { getSocket } from "../../services/socket.service";
@@ -164,8 +165,10 @@ export const PosTableFloorPage: React.FC = () => {
         setPricingTiers(pricingData);
       }
       if (Array.isArray(productsData)) {
-        const mappedStock: FnbStockItem[] = productsData.map((p) => ({
-          id: String(p._id),
+        const mappedStock: FnbStockItem[] = productsData
+          .filter((p) => !isFnbWarehouseItem(p.name, p.category, p.productType))
+          .map((p) => ({
+            id: String(p._id),
           code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
           name: p.name,
           category: p.category,

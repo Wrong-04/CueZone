@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Product from "../product/product.model";
 import InventoryTransaction from "../product/inventory.model";
 import AccessoryWaste, { IAccessoryWaste } from "./accessory-waste.model";
+import "../user/user.model";
 
 export interface CreateAccessoryWasteInput {
   product: string;
@@ -64,6 +65,9 @@ export class AccessoryWasteService {
         product.stock = newStock;
         await product.save({ session });
 
+        const costPrice = Number(product.costPrice) || 0;
+        const totalValue = costPrice * quantity;
+
         const [waste] = await AccessoryWaste.create(
           [
             {
@@ -72,6 +76,8 @@ export class AccessoryWasteService {
               sku: product.sku,
               unit: product.unit,
               quantity,
+              costPrice,
+              totalValue,
               previousStock,
               newStock,
               reason: trimmedReason,
@@ -158,6 +164,7 @@ export class AccessoryWasteService {
     const [items, total] = await Promise.all([
       AccessoryWaste.find(filter)
         .populate("performedBy", "name email role")
+        .populate("product", "name sku unit costPrice salePrice category imageUrl")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -165,8 +172,19 @@ export class AccessoryWasteService {
       AccessoryWaste.countDocuments(filter),
     ]);
 
+    const enrichedItems = items.map((it: any) => {
+      const prod = it.product && typeof it.product === "object" ? it.product : null;
+      const unitCost = Number(it.costPrice ?? prod?.costPrice ?? 0);
+      const totalVal = Number(it.totalValue ?? (unitCost * (it.quantity || 1)));
+      return {
+        ...it,
+        costPrice: unitCost,
+        totalValue: totalVal,
+      };
+    });
+
     return {
-      items,
+      items: enrichedItems,
       total,
       page,
       limit,
@@ -188,7 +206,15 @@ export class AccessoryWasteService {
       throw new Error("Không tìm thấy phiếu xuất hủy.");
     }
 
-    return waste;
+    const prod = waste.product && typeof waste.product === "object" ? (waste.product as any) : null;
+    const unitCost = Number(waste.costPrice ?? prod?.costPrice ?? 0);
+    const totalVal = Number(waste.totalValue ?? (unitCost * (waste.quantity || 1)));
+
+    return {
+      ...waste,
+      costPrice: unitCost,
+      totalValue: totalVal,
+    };
   }
 
   async getWasteAuditStats() {

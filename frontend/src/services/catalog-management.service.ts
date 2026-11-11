@@ -11,6 +11,7 @@ export type Category = {
   _id: string;
   name: string;
   code: string;
+  scope?: "fnb" | "warehouse";
   description?: string;
   isActive: boolean;
 };
@@ -37,11 +38,13 @@ export type Product = {
 type CategoryPayload = {
   name: string;
   code: string;
+  scope?: "fnb" | "warehouse";
   description?: string;
 };
 
 type CategoryUpdatePayload = {
   name: string;
+  scope?: "fnb" | "warehouse";
   description?: string;
 };
 

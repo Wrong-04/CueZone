@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import dayjs, { Dayjs } from "dayjs";
 import { useAuth } from "../../contexts/AuthContext";
@@ -20,8 +20,15 @@ import {
   DeleteOutlined,
   BarChartOutlined,
   ShoppingOutlined,
+  ShopOutlined,
   LockOutlined,
   PlusOutlined,
+  AuditOutlined,
+  SaveOutlined,
+  SendOutlined,
+  RollbackOutlined,
+  AlertOutlined,
+  CheckOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -41,23 +48,19 @@ import {
   inventoryReportService,
   type InventoryReportItem,
 } from "../../services/inventory-report.service";
-import {
-  stockCheckService,
-  type StockCheckSession,
-} from "../../services/stock-check.service";
+import { stockCheckService, type StockCheckSession } from "../../services/stock-check.service";
 import { fetchProducts } from "../../services/catalog-management.service";
-import { createInventoryTransaction, fetchInventoryTransactions } from "../../services/inventory.service";
-import { fetchGoodsReceipts, createGoodsReceipt, completeGoodsReceipt } from "../../services/goods-receipt.service";
+import {
+  createInventoryTransaction,
+  fetchInventoryTransactions,
+} from "../../services/inventory.service";
+import {
+  fetchGoodsReceipts,
+  createGoodsReceipt,
+  completeGoodsReceipt,
+} from "../../services/goods-receipt.service";
 import { accessoryWasteService } from "../../services/accessory-waste.service";
 import { fetchSuppliers, type Supplier } from "../../services/supplier.service";
-import {
-  AuditOutlined,
-  SaveOutlined,
-  SendOutlined,
-  RollbackOutlined,
-  AlertOutlined,
-  CheckOutlined,
-} from "@ant-design/icons";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -96,7 +99,7 @@ export function isMakeToOrderProduct(p: any): boolean {
     p.isthemaketoorder === true ||
     p.isTheMakeToOrder === true ||
     p.isMadeToOrder === true ||
-    p.isKitchenPrepared === true
+    p.isKitchenPrepared === true,
   );
 }
 
@@ -109,24 +112,39 @@ export function mapProductToWarehouseItem(p: any): WarehouseItem {
     maintenance: "Dụng Cụ Bảo Trì",
   };
 
-  const rawCat = p.category?.code || p.category?.name?.toLowerCase?.() || (typeof p.category === "string" ? p.category.toLowerCase() : "equipment");
+  const rawCat =
+    p.category?.code ||
+    p.category?.name?.toLowerCase?.() ||
+    (typeof p.category === "string" ? p.category.toLowerCase() : "equipment");
   let resolvedCat: WarehouseItem["category"] = "equipment";
-  if (rawCat === "drink" || rawCat === "beverage" || rawCat === "food" || rawCat === "snack") {
-    resolvedCat = "beverage";
-  } else if (rawCat === "ingredient" || rawCat === "ingredients") {
+  if (p.productType === "ingredient" || rawCat === "ingredient" || rawCat === "ingredients") {
     resolvedCat = "ingredients";
+  } else if (
+    p.productType === "fnb" ||
+    rawCat === "drink" ||
+    rawCat === "beverage" ||
+    rawCat === "food" ||
+    rawCat === "snack"
+  ) {
+    resolvedCat = "beverage";
   } else if (rawCat === "table_supplies") {
     resolvedCat = "table_supplies";
   } else if (rawCat === "maintenance") {
     resolvedCat = "maintenance";
+  } else {
+    resolvedCat = "equipment";
   }
+
+  const isHexId = (str: any) => typeof str === "string" && /^[0-9a-fA-F]{24}$/.test(str.trim());
+  const safeCatName = !isHexId(p.category?.name) && p.category?.name ? p.category.name : undefined;
 
   return {
     id: p._id,
     sku: p.sku,
     name: p.name,
     category: resolvedCat,
-    categoryName: p.category?.name || categoryNameMap[rawCat] || "Vật tư bida",
+    categoryName:
+      safeCatName || categoryNameMap[resolvedCat] || categoryNameMap[rawCat] || "Vật tư bida",
     stockQty: p.stock ?? 0,
     minThreshold: p.minStock ?? 5,
     unit: p.unit || "Cái",
@@ -149,7 +167,7 @@ export interface InventorySlip {
   itemsCount: number;
   totalValue: number;
   status: "completed" | "pending";
-  note: string;
+  note?: string;
   reason?: string;
   details: {
     sku: string;
@@ -200,8 +218,10 @@ const isSlipInDateRange = (slipDateStr: string, range: [Dayjs, Dayjs]): boolean 
 
   const start = range[0].startOf("day");
   const end = range[1].endOf("day");
-  return (slipDate.isAfter(start) || slipDate.isSame(start, "day")) &&
-         (slipDate.isBefore(end) || slipDate.isSame(end, "day"));
+  return (
+    (slipDate.isAfter(start) || slipDate.isSame(start, "day")) &&
+    (slipDate.isBefore(end) || slipDate.isSame(end, "day"))
+  );
 };
 
 const REASON_OPTIONS = [
@@ -306,7 +326,8 @@ export const WarehouseInventoryPage: React.FC = () => {
         if (receiptsRes.status === "fulfilled" && receiptsRes.value?.data) {
           receiptsRes.value.data.forEach((r) => {
             const creatorName = typeof r.createdBy === "object" ? r.createdBy?.name : "Thủ kho";
-            const supplierName = typeof r.supplier === "object" ? r.supplier?.name : (r.supplier || "Nhà phân phối");
+            const supplierName =
+              typeof r.supplier === "object" ? r.supplier?.name : r.supplier || "Nhà phân phối";
             apiSlips.push({
               id: r._id,
               slipCode: r.receiptNumber,
@@ -319,23 +340,33 @@ export const WarehouseInventoryPage: React.FC = () => {
               totalValue: r.totalAmount || 0,
               status: r.status === "completed" ? "completed" : "pending",
               note: r.note || "Phiếu nhập kho hàng hóa vật tư",
-              details: (r.items || []).map((it) => ({
-                sku: it.sku || "SKU",
-                name: it.productName || "Hàng hóa",
-                qty: it.quantity,
-                unit: it.unit || "cái",
-                price: it.unitCost,
-                subtotal: it.totalCost || it.quantity * it.unitCost,
-              })),
+              details: (r.items || []).map((it: any) => {
+                const uCost = Number(it.unitCost ?? it.unitPrice ?? 0);
+                const qty = Number(it.quantity || 1);
+                const tCost = Number(it.totalCost ?? it.totalPrice ?? qty * uCost);
+                return {
+                  sku: it.sku || it.product?.sku || "SKU",
+                  name: it.productName || it.product?.name || "Hàng hóa",
+                  qty,
+                  unit: it.unit || it.product?.unit || "cái",
+                  price: uCost,
+                  subtotal: tCost,
+                };
+              }),
             });
           });
         }
 
         if (wastesRes.status === "fulfilled" && wastesRes.value?.data) {
-          wastesRes.value.data.forEach((w) => {
+          wastesRes.value.data.forEach((w: any) => {
             const reporterName = w.performedBy?.name || "Nhân viên CLB";
-            const unitPrice = w.product?.costPrice || 0;
-            const subtotal = w.quantity * unitPrice;
+            const prodObj = typeof w.product === "object" ? w.product : null;
+            const pName = w.productName || prodObj?.name || "Phụ kiện bida";
+            const pSku = w.sku || prodObj?.sku || "SKU";
+            const pUnit = w.unit || prodObj?.unit || "cái";
+            const unitPrice = Number(w.costPrice ?? prodObj?.costPrice ?? 0);
+            const subtotal = Number(w.totalValue ?? unitPrice * (w.quantity || 1));
+
             apiSlips.push({
               id: w._id,
               slipCode: w.disposalNumber || `PXH-${w._id.slice(-6).toUpperCase()}`,
@@ -351,10 +382,10 @@ export const WarehouseInventoryPage: React.FC = () => {
               note: w.note || w.reason,
               details: [
                 {
-                  sku: w.product?.sku || "SKU",
-                  name: w.product?.name || "Phụ kiện bida",
+                  sku: pSku,
+                  name: pName,
                   qty: w.quantity,
-                  unit: w.product?.unit || "cái",
+                  unit: pUnit,
                   price: unitPrice,
                   subtotal: subtotal,
                 },
@@ -367,9 +398,10 @@ export const WarehouseInventoryPage: React.FC = () => {
           txRes.value.data.forEach((tx: any) => {
             if (tx.type === "out") {
               const performerName = tx.performedBy?.name || "Nhân viên kho";
-              const p = tx.product || {};
-              const unitPrice = p.costPrice || 0;
-              const subtotal = (tx.quantity || 0) * unitPrice;
+              const p = typeof tx.product === "object" ? tx.product : {};
+              const unitPrice = Number(p?.costPrice ?? p?.price ?? 0);
+              const qty = Number(tx.quantity || 1);
+              const subtotal = qty * unitPrice;
               apiSlips.push({
                 id: tx._id,
                 slipCode: `PXK-${tx._id.slice(-6).toUpperCase()}`,
@@ -384,10 +416,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                 note: tx.reason || "Xuất kho cấp phát",
                 details: [
                   {
-                    sku: p.sku || "SKU",
-                    name: p.name || "Hàng hóa",
-                    qty: tx.quantity || 1,
-                    unit: p.unit || "cái",
+                    sku: p?.sku || "SKU",
+                    name: p?.name || "Hàng hóa",
+                    qty,
+                    unit: p?.unit || "cái",
                     price: unitPrice,
                     subtotal,
                   },
@@ -459,7 +491,7 @@ export const WarehouseInventoryPage: React.FC = () => {
     if (existing) {
       setAlertForm({
         priority: existing.priority,
-        suggestedQty: existing.suggestedQty || (item.minThreshold * 2 || 5),
+        suggestedQty: existing.suggestedQty || item.minThreshold * 2 || 5,
         note: existing.note || "",
       });
     } else {
@@ -547,27 +579,36 @@ export const WarehouseInventoryPage: React.FC = () => {
     category: "all",
     note: "",
   });
-  const [editingActualCounts, setEditingActualCounts] = useState<Record<string, { actualStock: number; note: string }>>({});
+  const [editingActualCounts, setEditingActualCounts] = useState<
+    Record<string, { actualStock: number; note: string }>
+  >({});
   const [stockCheckLoading, setStockCheckLoading] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("cuezone_stock_checks", JSON.stringify(stockCheckList));
   }, [stockCheckList]);
 
-  // Load backend stock checks if available
+  // Load backend stock checks
+  const loadStockChecks = useCallback(async () => {
+    try {
+      const res = await stockCheckService.getStockChecks({ limit: 100 });
+      if (res && Array.isArray(res.data)) {
+        setStockCheckList(res.data);
+      }
+    } catch (err) {
+      console.warn("Could not load backend stock checks:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStockChecks();
+  }, [loadStockChecks]);
+
   useEffect(() => {
     if (activeTab === "audit") {
-      stockCheckService.getStockChecks()
-        .then((res) => {
-          if (res && Array.isArray(res.data)) {
-            setStockCheckList(res.data);
-          }
-        })
-        .catch(() => {
-          // Keep local fallback
-        });
+      loadStockChecks();
     }
-  }, [activeTab]);
+  }, [activeTab, loadStockChecks]);
 
   // Tạo đợt kiểm kê mới kèm Snapshot tồn kho hiện tại (SCRUM-1065)
   const handleCreateStockCheck = async () => {
@@ -591,7 +632,8 @@ export const WarehouseInventoryPage: React.FC = () => {
     } catch {
       // Local fallback
       const catFilter = newCheckForm.category;
-      const targetItems = catFilter === "all" ? stockList : stockList.filter((it) => it.category === catFilter);
+      const targetItems =
+        catFilter === "all" ? stockList : stockList.filter((it) => it.category === catFilter);
       const newCode = `KK-${dayjs().format("YYYYMMDD")}-${String(stockCheckList.length + 1).padStart(4, "0")}`;
 
       const newSession: StockCheckSession = {
@@ -658,7 +700,10 @@ export const WarehouseInventoryPage: React.FC = () => {
     if (!activeCheckSession) return;
 
     const countsPayload = activeCheckSession.items.map((it) => {
-      const entry = editingActualCounts[it.product] || { actualStock: it.actualStock ?? it.systemStock, note: "" };
+      const entry = editingActualCounts[it.product] || {
+        actualStock: it.actualStock ?? it.systemStock,
+        note: "",
+      };
       return {
         productId: it.product,
         actualStock: entry.actualStock,
@@ -668,11 +713,19 @@ export const WarehouseInventoryPage: React.FC = () => {
 
     try {
       setStockCheckLoading(true);
-      const updated = await stockCheckService.updateCounts(activeCheckSession._id, countsPayload, submit);
+      const updated = await stockCheckService.updateCounts(
+        activeCheckSession._id,
+        countsPayload,
+        submit,
+      );
       if (updated) {
         setStockCheckList((prev) => prev.map((s) => (s._id === updated._id ? updated : s)));
         setActiveCheckSession(updated);
-        message.success(submit ? "Đã nộp phiếu kiểm kê (SUBMITTED) thành công, chờ Quản lý duyệt!" : "Đã lưu tạm kết quả kiểm đếm!");
+        message.success(
+          submit
+            ? "Đã nộp phiếu kiểm kê (SUBMITTED) thành công, chờ Quản lý duyệt!"
+            : "Đã lưu tạm kết quả kiểm đếm!",
+        );
       }
     } catch {
       // Local fallback
@@ -682,7 +735,10 @@ export const WarehouseInventoryPage: React.FC = () => {
       let totalVarValue = 0;
 
       const updatedItems = activeCheckSession.items.map((it) => {
-        const entry = editingActualCounts[it.product] || { actualStock: it.actualStock ?? it.systemStock, note: "" };
+        const entry = editingActualCounts[it.product] || {
+          actualStock: it.actualStock ?? it.systemStock,
+          note: "",
+        };
         const actual = Math.max(0, entry.actualStock);
         const variance = actual - it.systemStock;
         const varianceVal = variance * it.costPrice;
@@ -723,7 +779,9 @@ export const WarehouseInventoryPage: React.FC = () => {
         updatedAt: new Date().toISOString(),
       };
 
-      setStockCheckList((prev) => prev.map((s) => (s._id === updatedSession._id ? updatedSession : s)));
+      setStockCheckList((prev) =>
+        prev.map((s) => (s._id === updatedSession._id ? updatedSession : s)),
+      );
       setActiveCheckSession(updatedSession);
       message.success(
         submit
@@ -805,7 +863,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       updatedAt: new Date().toISOString(),
     };
 
-    setStockCheckList((prev) => prev.map((s) => (s._id === completedSession._id ? completedSession : s)));
+    setStockCheckList((prev) =>
+      prev.map((s) => (s._id === completedSession._id ? completedSession : s)),
+    );
     setActiveCheckSession(completedSession);
     setStockCheckLoading(false);
 
@@ -814,20 +874,17 @@ export const WarehouseInventoryPage: React.FC = () => {
     );
   };
 
-
   // ── Report Tab States ─────────────────────────────────────────────────────
   const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>([
     dayjs().startOf("month"),
     dayjs().endOf("day"),
   ]);
-  const [reportPreset, setReportPreset] = useState<"today" | "7days" | "thisMonth">("thisMonth");
+  const [reportPreset, setReportPreset] = useState<"today" | "7days" | "thisMonth" | null>("thisMonth");
   const [reportCategory, setReportCategory] = useState<string>("all");
   const [reportSearch, setReportSearch] = useState<string>("");
   const [reportLoading, setReportLoading] = useState<boolean>(false);
   const [reportExporting, setReportExporting] = useState<boolean>(false);
   const [reportItems, setReportItems] = useState<InventoryReportItem[]>([]);
-
-
 
   // ── 2. MODALS ─────────────────────────────────────────────────────────────
 
@@ -1023,8 +1080,14 @@ export const WarehouseInventoryPage: React.FC = () => {
             target.wasteStock += d.qty;
           }
 
-          target.openingStock = Math.max(0, target.closingStock - target.inStock + target.outStock + target.wasteStock);
-          target.closingStock = Math.max(0, target.openingStock + target.inStock - target.outStock - target.wasteStock);
+          target.openingStock = Math.max(
+            0,
+            target.closingStock - target.inStock + target.outStock + target.wasteStock,
+          );
+          target.closingStock = Math.max(
+            0,
+            target.openingStock + target.inStock - target.outStock - target.wasteStock,
+          );
           target.closingValue = target.closingStock * target.costPrice;
         }
       }
@@ -1085,14 +1148,18 @@ export const WarehouseInventoryPage: React.FC = () => {
       setInwardPage(1);
       setOutwardPage(1);
 
-      const isToday = start.isSame(dayjs().startOf("day"), "day") && end.isSame(dayjs().endOf("day"), "day");
-      const is7Days = start.isSame(dayjs().subtract(6, "day").startOf("day"), "day") && end.isSame(dayjs().endOf("day"), "day");
-      const isThisMonth = start.isSame(dayjs().startOf("month"), "day") && end.isSame(dayjs().endOf("day"), "day");
+      const isToday =
+        start.isSame(dayjs().startOf("day"), "day") && end.isSame(dayjs().endOf("day"), "day");
+      const is7Days =
+        start.isSame(dayjs().subtract(6, "day").startOf("day"), "day") &&
+        end.isSame(dayjs().endOf("day"), "day");
+      const isThisMonth =
+        start.isSame(dayjs().startOf("month"), "day") && end.isSame(dayjs().endOf("day"), "day");
 
       if (isToday) setReportPreset("today");
       else if (is7Days) setReportPreset("7days");
       else if (isThisMonth) setReportPreset("thisMonth");
-      else setReportPreset(null as any);
+      else setReportPreset(null);
     }
   };
 
@@ -1140,8 +1207,14 @@ export const WarehouseInventoryPage: React.FC = () => {
 
       // Re-fetch sản phẩm từ database để đồng bộ số lượng tồn kho thực tế trong MongoDB
       const updatedProducts = await fetchProducts();
-      if (Array.isArray(updatedProducts)) {
-        setStockList(updatedProducts.map(mapProductToWarehouseItem));
+      const rawProducts = Array.isArray(updatedProducts?.data)
+        ? updatedProducts.data
+        : Array.isArray(updatedProducts)
+          ? updatedProducts
+          : [];
+      if (rawProducts.length > 0) {
+        const warehouseProducts = rawProducts.filter((p: any) => !isMakeToOrderProduct(p));
+        setStockList(warehouseProducts.map(mapProductToWarehouseItem));
       }
 
       // Re-fetch danh sách phiếu nhập kho từ MongoDB
@@ -1158,18 +1231,22 @@ export const WarehouseInventoryPage: React.FC = () => {
             createdTime: dayjs(r.createdAt).format("HH:mm"),
             creator: creatorName,
             partnerOrTarget: supplierName,
-            itemsCount: r.items.length,
-            totalValue: r.totalAmount,
+            itemsCount: r.items?.length || 1,
+            totalValue: r.totalAmount || 0,
             status: r.status === "completed" ? "completed" : "pending",
-            note: r.note,
-            details: r.items.map((it) => ({
-              sku: it.sku || "",
-              name: it.productName || "Sản phẩm",
-              qty: it.quantity,
-              unit: it.unit || "cái",
-              price: it.unitCost,
-              subtotal: it.totalCost || it.quantity * it.unitCost,
-            })),
+            note: r.note || "Phiếu nhập kho hàng hóa vật tư",
+            details: (r.items || []).map((it: any) => {
+              const uCost = Number(it.unitCost ?? it.unitPrice ?? 0);
+              const qty = Number(it.quantity || 1);
+              return {
+                sku: it.sku || it.product?.sku || "",
+                name: it.productName || it.product?.name || "Sản phẩm",
+                qty,
+                unit: it.unit || it.product?.unit || "cái",
+                price: uCost,
+                subtotal: Number(it.totalCost ?? it.totalPrice ?? qty * uCost),
+              };
+            }),
           };
         });
         setSlipsList((prev) => {
@@ -1308,30 +1385,39 @@ export const WarehouseInventoryPage: React.FC = () => {
       // Re-fetch wastes từ MongoDB
       const updatedWastes = await accessoryWasteService.getWastes({ limit: 100 });
       if (Array.isArray(updatedWastes?.data)) {
-        const mappedWastes: InventorySlip[] = updatedWastes.data.map((w) => ({
-          id: w._id,
-          slipCode: w.disposalNumber || `PXH-${w._id.slice(-4)}`,
-          type: "waste",
-          date: dayjs(w.createdAt).format("DD/MM/YYYY"),
-          createdTime: dayjs(w.createdAt).format("HH:mm"),
-          creator: w.performedBy?.name || "Thủ kho",
-          partnerOrTarget: `Xuất hủy phụ kiện (${w.reason})`,
-          itemsCount: 1,
-          totalValue: (w.product?.costPrice || 0) * (w.quantity || 1),
-          status: "completed",
-          reason: w.reason,
-          note: w.note,
-          details: [
-            {
-              sku: w.product?.sku || "",
-              name: w.product?.name || "Phụ kiện",
-              qty: w.quantity,
-              unit: w.product?.unit || "cái",
-              price: w.product?.costPrice || 0,
-              subtotal: (w.product?.costPrice || 0) * (w.quantity || 1),
-            },
-          ],
-        }));
+        const mappedWastes: InventorySlip[] = updatedWastes.data.map((w: any) => {
+          const prodObj = typeof w.product === "object" ? w.product : null;
+          const pName = w.productName || prodObj?.name || targetItem.name || "Phụ kiện";
+          const pSku = w.sku || prodObj?.sku || targetItem.sku || "";
+          const pUnit = w.unit || prodObj?.unit || targetItem.unit || "cái";
+          const unitPrice = Number(w.costPrice ?? prodObj?.costPrice ?? targetItem.costPrice ?? 0);
+          const subtotal = Number(w.totalValue ?? unitPrice * (w.quantity || 1));
+
+          return {
+            id: w._id,
+            slipCode: w.disposalNumber || `PXH-${w._id.slice(-6).toUpperCase()}`,
+            type: "waste",
+            date: dayjs(w.createdAt).format("DD/MM/YYYY"),
+            createdTime: dayjs(w.createdAt).format("HH:mm"),
+            creator: w.performedBy?.name || "Thủ kho",
+            partnerOrTarget: `Xuất hủy phụ kiện (${w.reason})`,
+            itemsCount: 1,
+            totalValue: subtotal,
+            status: "completed",
+            reason: w.reason,
+            note: w.note,
+            details: [
+              {
+                sku: pSku,
+                name: pName,
+                qty: w.quantity,
+                unit: pUnit,
+                price: unitPrice,
+                subtotal: subtotal,
+              },
+            ],
+          };
+        });
         setSlipsList((prev) => {
           const nonWaste = prev.filter((s) => s.type !== "waste");
           return [...mappedWastes, ...nonWaste];
@@ -1347,10 +1433,6 @@ export const WarehouseInventoryPage: React.FC = () => {
       message.error(err?.message || "Không thể ghi nhận hao mòn phụ kiện.");
     }
   };
-
-
-
-
 
   // ── 4. FILTERED DATA & METRICS ────────────────────────────────────────────
   const CATEGORY_MAP: Record<string, string[]> = {
@@ -1431,15 +1513,13 @@ export const WarehouseInventoryPage: React.FC = () => {
     },
     {
       key: "catalog",
-      label: "Danh mục & Phụ kiện",
+      label: "Danh mục phân loại",
     },
     {
       key: "suppliers",
       label: "Nhà cung cấp",
     },
   ].filter((tab) => validTabs.includes(tab.key));
-
-
 
   // Stock Table Columns
   const stockColumns: TableColumnsType<WarehouseItem> = [
@@ -1666,8 +1746,8 @@ export const WarehouseInventoryPage: React.FC = () => {
             record.type === "inward"
               ? "text-emerald-800 bg-emerald-50 border-emerald-200"
               : record.type === "waste"
-              ? "text-rose-800 bg-rose-50 border-rose-200"
-              : "text-blue-800 bg-blue-50 border-blue-200"
+                ? "text-rose-800 bg-rose-50 border-rose-200"
+                : "text-blue-800 bg-blue-50 border-blue-200"
           }`}
         >
           {code}
@@ -1708,8 +1788,8 @@ export const WarehouseInventoryPage: React.FC = () => {
                 record.type === "inward"
                   ? "text-emerald-600"
                   : record.type === "waste"
-                  ? "text-rose-600"
-                  : "text-blue-600"
+                    ? "text-rose-600"
+                    : "text-blue-600"
               }`}
             >
               {record.type === "inward" ? "+" : "-"}
@@ -1735,8 +1815,8 @@ export const WarehouseInventoryPage: React.FC = () => {
             record.type === "inward"
               ? "text-emerald-700"
               : record.type === "waste"
-              ? "text-rose-700"
-              : "text-blue-700"
+                ? "text-rose-700"
+                : "text-blue-700"
           }`}
         >
           {record.type === "inward" ? "+" : "-"}
@@ -1854,7 +1934,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       align: "right",
       width: 90,
       render: (val: number) => (
-        <span className={`font-mono text-xs ${val > 0 ? "font-bold text-emerald-600" : "text-slate-400"}`}>
+        <span
+          className={`font-mono text-xs ${val > 0 ? "font-bold text-emerald-600" : "text-slate-400"}`}
+        >
           {val > 0 ? `+${val.toLocaleString("vi-VN")}` : 0}
         </span>
       ),
@@ -1866,7 +1948,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       align: "right",
       width: 90,
       render: (val: number) => (
-        <span className={`font-mono text-xs ${val > 0 ? "font-bold text-blue-600" : "text-slate-400"}`}>
+        <span
+          className={`font-mono text-xs ${val > 0 ? "font-bold text-blue-600" : "text-slate-400"}`}
+        >
           {val > 0 ? `-${val.toLocaleString("vi-VN")}` : 0}
         </span>
       ),
@@ -1878,7 +1962,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       align: "right",
       width: 95,
       render: (val: number) => (
-        <span className={`font-mono text-xs ${val > 0 ? "font-bold text-rose-600" : "text-slate-400"}`}>
+        <span
+          className={`font-mono text-xs ${val > 0 ? "font-bold text-rose-600" : "text-slate-400"}`}
+        >
           {val > 0 ? `-${val.toLocaleString("vi-VN")}` : 0}
         </span>
       ),
@@ -1906,9 +1992,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       align: "right",
       width: 110,
       render: (val: number) => (
-        <span className="text-slate-600 font-mono text-xs">
-          {val.toLocaleString("vi-VN")} đ
-        </span>
+        <span className="text-slate-600 font-mono text-xs">{val.toLocaleString("vi-VN")} đ</span>
       ),
     },
     {
@@ -1932,7 +2016,10 @@ export const WarehouseInventoryPage: React.FC = () => {
   const filteredInwardSlips = useMemo(() => {
     return slipsList.filter((s) => s.type === "inward" && isSlipInDateRange(s.date, reportRange));
   }, [slipsList, reportRange]);
-  const paginatedInward = filteredInwardSlips.slice((inwardPage - 1) * pageSize, inwardPage * pageSize);
+  const paginatedInward = filteredInwardSlips.slice(
+    (inwardPage - 1) * pageSize,
+    inwardPage * pageSize,
+  );
 
   // Lọc phiếu xuất kho & hao mòn theo khoảng thời gian
   const filteredOutwardSlips = useMemo(() => {
@@ -1940,7 +2027,48 @@ export const WarehouseInventoryPage: React.FC = () => {
       (s) => (s.type === "outward" || s.type === "waste") && isSlipInDateRange(s.date, reportRange),
     );
   }, [slipsList, reportRange]);
-  const paginatedOutward = filteredOutwardSlips.slice((outwardPage - 1) * pageSize, outwardPage * pageSize);
+  const paginatedOutward = filteredOutwardSlips.slice(
+    (outwardPage - 1) * pageSize,
+    outwardPage * pageSize,
+  );
+
+  // Tính toán KPI cho Tab 2 (Nhật ký nhập kho)
+  const inwardMetrics = useMemo(() => {
+    const totalSlips = filteredInwardSlips.length;
+    const totalValue = filteredInwardSlips.reduce((sum, s) => sum + (s.totalValue || 0), 0);
+    const totalQty = filteredInwardSlips.reduce(
+      (sum, s) => sum + (s.details?.reduce((acc, d) => acc + (d.qty || 0), 0) || s.itemsCount || 0),
+      0,
+    );
+    const suppliers = new Set(filteredInwardSlips.map((s) => s.partnerOrTarget).filter(Boolean));
+    return {
+      totalSlips,
+      totalValue,
+      totalQty,
+      suppliersCount: suppliers.size,
+    };
+  }, [filteredInwardSlips]);
+
+  // Tính toán KPI cho Tab 3 (Xuất kho & hao mòn)
+  const outwardMetrics = useMemo(() => {
+    const transferSlips = filteredOutwardSlips.filter((s) => s.type === "outward");
+    const wasteSlips = filteredOutwardSlips.filter((s) => s.type === "waste");
+
+    const transferValue = transferSlips.reduce((sum, s) => sum + (s.totalValue || 0), 0);
+    const wasteValue = wasteSlips.reduce((sum, s) => sum + (s.totalValue || 0), 0);
+    const totalQty = filteredOutwardSlips.reduce(
+      (sum, s) => sum + (s.details?.reduce((acc, d) => acc + (d.qty || 0), 0) || s.itemsCount || 0),
+      0,
+    );
+
+    return {
+      totalSlips: filteredOutwardSlips.length,
+      transferValue,
+      wasteValue,
+      totalQty,
+      wasteCount: wasteSlips.length,
+    };
+  }, [filteredOutwardSlips]);
 
   // Client-side filter cho tab Báo cáo (áp dụng sau khi fetch/fallback)
   const filteredReportItems = useMemo(() => {
@@ -1949,9 +2077,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       const matchCat = reportCategory === "all" || allowed.includes(item.category);
       const q = reportSearch.toLowerCase().trim();
       const matchQ =
-        !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.sku.toLowerCase().includes(q);
+        !q || item.name.toLowerCase().includes(q) || item.sku.toLowerCase().includes(q);
       return matchCat && matchQ;
     });
   }, [reportItems, reportCategory, reportSearch]);
@@ -1984,15 +2110,14 @@ export const WarehouseInventoryPage: React.FC = () => {
               </Tag>
             </div>
             <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Kiểm soát tồn kho vật tư bida chuyên dụng (cơ, bóng, nỉ, lơ), đồ uống F&B, lịch sử xuất nhập và kiểm kê định kỳ.
+              Kiểm soát tồn kho vật tư bida chuyên dụng (cơ, bóng, nỉ, lơ), đồ uống F&B, lịch sử
+              xuất nhập và kiểm kê định kỳ.
             </Text>
           </div>
         </div>
       </div>
 
-
-
-{/* ── MAIN TABS SWITCHER (TOP NAVIGATION BAR) ────────────────────────── */}
+      {/* ── MAIN TABS SWITCHER (TOP NAVIGATION BAR) ────────────────────────── */}
       <div className="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-xs">
         <SegmentedPillList
           items={mainPills}
@@ -2019,9 +2144,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-3xl font-black text-emerald-600 font-mono">
                 {metrics.totalValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2">
-                Tổng giá trị vốn lưu kho thực tế
-              </div>
+              <div className="text-xs text-slate-400 mt-2">Tổng giá trị vốn lưu kho thực tế</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
             </div>
 
@@ -2038,9 +2161,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-3xl font-black text-cyan-600 font-mono">
                 {metrics.totalItems} mặt hàng
               </div>
-              <div className="text-xs text-slate-400 mt-2">
-                Tổng số mã SKU sản phẩm và phụ kiện
-              </div>
+              <div className="text-xs text-slate-400 mt-2">Tổng số mã SKU sản phẩm và phụ kiện</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
             </div>
 
@@ -2057,9 +2178,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-3xl font-black text-amber-600 font-mono">
                 {metrics.lowStockCount} mặt hàng
               </div>
-              <div className="text-xs text-slate-400 mt-2">
-                Mặt hàng chạm ngưỡng cần nhập thêm
-              </div>
+              <div className="text-xs text-slate-400 mt-2">Mặt hàng chạm ngưỡng cần nhập thêm</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
             </div>
 
@@ -2076,63 +2195,101 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-3xl font-black text-blue-600 font-mono">
                 {metrics.totalSlips} chứng từ
               </div>
-              <div className="text-xs text-slate-400 mt-2">
-                Hồ sơ phiếu nhập, xuất và xuất hủy
-              </div>
+              <div className="text-xs text-slate-400 mt-2">Hồ sơ phiếu nhập, xuất và xuất hủy</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
             </div>
           </div>
-          <div className="bg-white p-4 rounded-3xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={categoryFilter}
-                onChange={(val) => {
-                  setCategoryFilter(val);
-                  setStockPage(1);
-                }}
-                className="!w-44 !rounded-xl !text-xs"
-                options={[
-                  { value: "all", label: "Tất cả vật tư & phụ kiện" },
-                  { value: "equipment", label: "Cơ & Phụ kiện bida" },
-                  { value: "table_supplies", label: "Vật tư bàn bida (Nỉ, bi, băng)" },
-                  { value: "beverage", label: "Đồ uống F&B" },
-                  { value: "ingredients", label: "Nguyên liệu pha chế" },
-                  { value: "maintenance", label: "Dụng cụ bảo dưỡng & vệ sinh" },
-                ]}
-              />
-
-              <Select
-                value={statusFilter}
-                onChange={(val) => {
-                  setStatusFilter(val);
-                  setStockPage(1);
-                }}
-                className="!w-36 !rounded-xl !text-xs"
-                options={[
-                  { value: "all", label: "Tất cả trạng thái" },
-                  { value: "in_stock", label: "Đủ hàng" },
-                  { value: "low_stock", label: "Sắp hết hàng" },
-                  { value: "out_of_stock", label: "Đã hết hàng" },
-                ]}
-              />
-            </div>
-
-            <div className="w-full sm:w-72">
-              <Input
-                placeholder="Tìm cơ, ngọn, nỉ, bóng, lơ, mã SKU..."
-                prefix={<SearchOutlined className="text-slate-400" />}
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setStockPage(1);
-                }}
-                allowClear
-                className="!rounded-xl !h-10 text-xs"
-              />
-            </div>
-          </div>
-
+          {/* Card Bảng Tồn Kho Vật Tư - Chuẩn hóa Header nằm DƯỚI KPI đồng bộ toàn hệ thống */}
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+            {/* Header nằm trong Card dưới KPI */}
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 mb-0.5">
+                  Danh mục tồn kho vật tư &amp; thiết bị
+                </h3>
+                <p className="text-xs text-slate-500 mb-0">
+                  Theo dõi số lượng tồn thực tế, đơn giá vốn và định mức cảnh báo của cơ, bi, nỉ,
+                  phụ kiện bida và F&amp;B.
+                </p>
+              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<PlusOutlined />}
+                    onClick={() => {
+                      const lowStockItem = stockList.find((i) => i.stockQty <= i.minThreshold);
+                      if (lowStockItem) {
+                        setInwardForm({
+                          sku: lowStockItem.sku,
+                          qty: lowStockItem.minThreshold * 2 || 5,
+                          unitPrice: lowStockItem.costPrice,
+                          supplier: lowStockItem.supplier,
+                          note: `Nhập bổ sung cho mặt hàng ${lowStockItem.name}`,
+                        });
+                      }
+                      setInwardModalVisible(true);
+                    }}
+                    className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
+                  >
+                    Nhập kho bổ sung
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Toolbar lọc và tìm kiếm */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={categoryFilter}
+                  onChange={(val) => {
+                    setCategoryFilter(val);
+                    setStockPage(1);
+                  }}
+                  className="!w-44 !rounded-xl !text-xs"
+                  options={[
+                    { value: "all", label: "Tất cả vật tư & phụ kiện" },
+                    { value: "equipment", label: "Cơ & Phụ kiện bida" },
+                    { value: "table_supplies", label: "Vật tư bàn bida (Nỉ, bi, băng)" },
+                    { value: "beverage", label: "Đồ uống F&B" },
+                    { value: "ingredients", label: "Nguyên liệu pha chế" },
+                    { value: "maintenance", label: "Dụng cụ bảo dưỡng & vệ sinh" },
+                  ]}
+                />
+
+                <Select
+                  value={statusFilter}
+                  onChange={(val) => {
+                    setStatusFilter(val);
+                    setStockPage(1);
+                  }}
+                  className="!w-36 !rounded-xl !text-xs"
+                  options={[
+                    { value: "all", label: "Tất cả trạng thái" },
+                    { value: "in_stock", label: "Đủ hàng" },
+                    { value: "low_stock", label: "Sắp hết hàng" },
+                    { value: "out_of_stock", label: "Đã hết hàng" },
+                  ]}
+                />
+              </div>
+
+              <div className="w-full sm:w-72">
+                <Input
+                  placeholder="Tìm cơ, ngọn, nỉ, bóng, lơ, mã SKU..."
+                  prefix={<SearchOutlined className="text-slate-400" />}
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setStockPage(1);
+                  }}
+                  allowClear
+                  className="!rounded-xl !h-10 text-xs"
+                />
+              </div>
+            </div>
+
             <Table<WarehouseItem>
               columns={stockColumns}
               dataSource={paginatedStock}
@@ -2140,400 +2297,633 @@ export const WarehouseInventoryPage: React.FC = () => {
               pagination={false}
               bordered
             />
-            <Pagination current={stockPage} pageSize={pageSize} total={filteredStock.length} unit="vật tư" onChange={(p) => setStockPage(p)} />
+            <Pagination
+              current={stockPage}
+              pageSize={pageSize}
+              total={filteredStock.length}
+              unit="vật tư"
+              onChange={(p) => setStockPage(p)}
+            />
           </div>
         </div>
       )}
 
       {/* ── TAB 2: LỊCH SỬ PHIẾU NHẬP KHO ─────────────────────────────────── */}
       {activeTab === "inward" && (
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-black text-slate-900 mb-0.5">
-                Nhật ký nhập vật tư & thiết bị
-              </h3>
-              <p className="text-xs text-slate-500 mb-0">
-                Lịch sử nhập cơ, bóng, nỉ, lơ, phụ kiện và đồ uống từ các nhà phân phối chính hãng.
-              </p>
+        <div className="space-y-4">
+          {/* 4 Thẻ KPI Nhập Kho Đồng Bộ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Tổng giá trị nhập */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Tổng giá trị nhập
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                  <DollarOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-emerald-600 font-mono">
+                {inwardMetrics.totalValue.toLocaleString("vi-VN")} đ
+              </div>
+              <div className="text-xs text-slate-400 mt-2">Vốn nhập hàng trong kỳ được chọn</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
             </div>
-            {isAdmin && (
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<PlusOutlined />}
-                onClick={() => setInwardModalVisible(true)}
-                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
-              >
-                Tạo phiếu nhập kho
-              </Button>
-            )}
+
+            {/* Card 2: Số phiếu nhập */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Phiếu nhập hoàn thành
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
+                  <FileTextOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-cyan-600 font-mono">
+                {inwardMetrics.totalSlips} phiếu
+              </div>
+              <div className="text-xs text-slate-400 mt-2">Đã ghi sổ nhập kho chính thức</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
+            </div>
+
+            {/* Card 3: Tổng số lượng hàng nhập */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Số lượng nhập kho
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                  <InboxOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-blue-600 font-mono">
+                {inwardMetrics.totalQty.toLocaleString("vi-VN")} đơn vị
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                Cơ, bóng, nỉ, lơ, phụ kiện & đồ uống
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
+            </div>
+
+            {/* Card 4: Nhà phân phối đối tác */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Nhà cung cấp
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg">
+                  <ShopOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-purple-600 font-mono">
+                {inwardMetrics.suppliersCount} đối tác
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                Nhà cung ứng phát sinh giao dịch nhập
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-purple-500" />
+            </div>
           </div>
 
-          {/* Thanh lọc thời gian Tab 2 */}
-          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                THỜI GIAN:
-              </span>
-              <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-white gap-0.5 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("today")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "today"
-                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 mb-0.5">
+                  Nhật ký nhập vật tư & thiết bị
+                </h3>
+                <p className="text-xs text-slate-500 mb-0">
+                  Lịch sử nhập cơ, bóng, nỉ, lơ, phụ kiện và đồ uống từ các nhà phân phối chính
+                  hãng.
+                </p>
+              </div>
+              {isAdmin && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<PlusOutlined />}
+                  onClick={() => setInwardModalVisible(true)}
+                  className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
                 >
-                  Hôm nay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("7days")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "7days"
-                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  7 ngày qua
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("thisMonth")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "thisMonth"
-                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Tháng này
-                </button>
+                  Tạo phiếu nhập kho
+                </Button>
+              )}
+            </div>
+
+            {/* Thanh lọc thời gian Tab 2 */}
+            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  THỜI GIAN:
+                </span>
+                <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-white gap-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("today")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "today"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("7days")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "7days"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    7 ngày qua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("thisMonth")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "thisMonth"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Tháng này
+                  </button>
+                </div>
+
+                <RangePicker
+                  value={reportRange}
+                  onChange={handleRangePickerChange}
+                  format="DD/MM/YYYY"
+                  allowClear={false}
+                  className="w-56 rounded-xl text-xs"
+                />
               </div>
 
-              <RangePicker
-                value={reportRange}
-                onChange={handleRangePickerChange}
-                format="DD/MM/YYYY"
-                allowClear={false}
-                className="w-56 rounded-xl text-xs"
-              />
+              <span className="text-xs text-slate-500">
+                Có{" "}
+                <strong className="text-emerald-700 font-bold">{filteredInwardSlips.length}</strong>{" "}
+                phiếu nhập trong kỳ
+              </span>
             </div>
 
-            <span className="text-xs text-slate-500">
-              Có <strong className="text-emerald-700 font-bold">{filteredInwardSlips.length}</strong> phiếu nhập trong kỳ
-            </span>
+            <Table<InventorySlip>
+              columns={slipColumns}
+              dataSource={paginatedInward}
+              rowKey="id"
+              pagination={false}
+              bordered
+            />
+            <Pagination
+              current={inwardPage}
+              pageSize={pageSize}
+              total={filteredInwardSlips.length}
+              unit="phiếu nhập"
+              onChange={(p) => setInwardPage(p)}
+            />
           </div>
-
-          <Table<InventorySlip>
-            columns={slipColumns}
-            dataSource={paginatedInward}
-            rowKey="id"
-            pagination={false}
-            bordered
-          />
-          <Pagination current={inwardPage} pageSize={pageSize} total={filteredInwardSlips.length} unit="phiếu nhập" onChange={(p) => setInwardPage(p)} />
         </div>
       )}
 
       {/* ── TAB 3: PHIẾU XUẤT KHO & HAO MÒN ──────────────────────────────── */}
       {activeTab === "outward" && (
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-black text-slate-900 mb-0.5">
-                Nhật ký xuất kho & hao mòn vật tư
-              </h3>
-              <p className="text-xs text-slate-500 mb-0">
-                Theo dõi cấp phát vật tư ra bàn bida, quầy bar và ghi nhận hao mòn, hư hại phụ kiện (cơ, bóng, nỉ, lơ).
-              </p>
-            </div>
-            {isAdmin && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<DeleteOutlined className="text-rose-600" />}
-                  onClick={() => setWasteModalVisible(true)}
-                  className="!border-rose-300 !text-rose-700 hover:!bg-rose-50 !rounded-xl !font-bold"
-                >
-                  Báo hao mòn phụ kiện
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<PlusOutlined />}
-                  onClick={() => setTransferModalVisible(true)}
-                  className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
-                >
-                  Tạo phiếu xuất kho
-                </Button>
+        <div className="space-y-4">
+          {/* 4 Thẻ KPI Xuất Kho & Hao Mòn */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Giá trị cấp phát */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Giá trị cấp phát
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
+                  <CheckCircleOutlined />
+                </div>
               </div>
-            )}
+              <div className="text-3xl font-black text-cyan-600 font-mono">
+                {outwardMetrics.transferValue.toLocaleString("vi-VN")} đ
+              </div>
+              <div className="text-xs text-slate-400 mt-2">Xuất ra quầy bar & bàn bida phục vụ</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
+            </div>
+
+            {/* Card 2: Tổn thất hao mòn / hủy */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Hao mòn & Hỏng hóc
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg">
+                  <DeleteOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-rose-600 font-mono">
+                {outwardMetrics.wasteValue.toLocaleString("vi-VN")} đ
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                {outwardMetrics.wasteCount} phiếu báo hỏng cơ, rách nỉ, mẻ bóng
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-rose-500" />
+            </div>
+
+            {/* Card 3: Tổng số phiếu xuất */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Tổng phiếu xuất & hủy
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                  <FileTextOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-blue-600 font-mono">
+                {outwardMetrics.totalSlips} chứng từ
+              </div>
+              <div className="text-xs text-slate-400 mt-2">Hồ sơ xuất cấp phát và xuất hủy kho</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
+            </div>
+
+            {/* Card 4: Tổng số lượng xuất */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Số lượng xuất kho
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                  <WarningOutlined />
+                </div>
+              </div>
+              <div className="text-3xl font-black text-amber-600 font-mono">
+                {outwardMetrics.totalQty.toLocaleString("vi-VN")} đơn vị
+              </div>
+              <div className="text-xs text-slate-400 mt-2">
+                Tổng vật tư đã chuyển khỏi kho chính
+              </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
+            </div>
           </div>
 
-          {/* Thanh lọc thời gian Tab 3 */}
-          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                THỜI GIAN:
+          <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 mb-0.5">
+                  Nhật ký xuất kho & hao mòn vật tư
+                </h3>
+                <p className="text-xs text-slate-500 mb-0">
+                  Theo dõi cấp phát vật tư ra bàn bida, quầy bar và ghi nhận hao mòn, hư hại phụ
+                  kiện (cơ, bóng, nỉ, lơ).
+                </p>
+              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<DeleteOutlined className="text-rose-600" />}
+                    onClick={() => setWasteModalVisible(true)}
+                    className="!border-rose-300 !text-rose-700 hover:!bg-rose-50 !rounded-xl !font-bold"
+                  >
+                    Báo hao mòn phụ kiện
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<PlusOutlined />}
+                    onClick={() => setTransferModalVisible(true)}
+                    className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
+                  >
+                    Tạo phiếu xuất kho
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Thanh lọc thời gian Tab 3 */}
+            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  THỜI GIAN:
+                </span>
+                <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-white gap-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("today")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "today"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("7days")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "7days"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    7 ngày qua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("thisMonth")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "thisMonth"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Tháng này
+                  </button>
+                </div>
+
+                <RangePicker
+                  value={reportRange}
+                  onChange={handleRangePickerChange}
+                  format="DD/MM/YYYY"
+                  allowClear={false}
+                  className="w-56 rounded-xl text-xs"
+                />
+              </div>
+
+              <span className="text-xs text-slate-500">
+                Có{" "}
+                <strong className="text-blue-700 font-bold">{filteredOutwardSlips.length}</strong>{" "}
+                phiếu xuất / hủy trong kỳ
               </span>
-              <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-white gap-0.5 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("today")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "today"
-                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Hôm nay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("7days")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "7days"
-                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  7 ngày qua
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("thisMonth")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "thisMonth"
-                      ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Tháng này
-                </button>
-              </div>
-
-              <RangePicker
-                value={reportRange}
-                onChange={handleRangePickerChange}
-                format="DD/MM/YYYY"
-                allowClear={false}
-                className="w-56 rounded-xl text-xs"
-              />
             </div>
 
-            <span className="text-xs text-slate-500">
-              Có <strong className="text-blue-700 font-bold">{filteredOutwardSlips.length}</strong> phiếu xuất / hủy trong kỳ
-            </span>
+            <Table<InventorySlip>
+              columns={slipColumns}
+              dataSource={paginatedOutward}
+              rowKey="id"
+              pagination={false}
+              bordered
+            />
+            <Pagination
+              current={outwardPage}
+              pageSize={pageSize}
+              total={filteredOutwardSlips.length}
+              unit="phiếu xuất"
+              onChange={(p) => setOutwardPage(p)}
+            />
           </div>
-
-          <Table<InventorySlip>
-            columns={slipColumns}
-            dataSource={paginatedOutward}
-            rowKey="id"
-            pagination={false}
-            bordered
-          />
-          <Pagination current={outwardPage} pageSize={pageSize} total={filteredOutwardSlips.length} unit="phiếu xuất" onChange={(p) => setOutwardPage(p)} />
         </div>
       )}
 
       {/* ── TAB 4: KIỂM KÊ & CÂN BẰNG KHO (SCRUM-1061) ─────────────────────── */}
       {activeTab === "audit" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {!activeCheckSession ? (
             /* ── CHẾ ĐỘ 1: DANH SÁCH CÁC ĐỢT KIỂM KÊ KHO ── */
-            <div className="space-y-6">
-              {/* Toolbar & Create Check Button */}
-              <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <AuditOutlined className="text-emerald-600 text-lg" />
-                    <h3 className="text-lg font-black text-slate-900 mb-0">
-                      Kiểm kê định kỳ & Cân bằng tồn kho
-                    </h3>
+            <div className="space-y-4">
+              {/* 4 Thẻ KPI Summary Cards - Luôn đặt ở đầu tiên đồng bộ toàn hệ thống */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Card 1: Tổng số đợt kiểm kê */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Tổng đợt kiểm kê
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
+                      <AuditOutlined />
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 mb-0">
-                    Đối soát số lượng thực tế tại quầy & bàn với hệ thống và phê duyệt cân bằng chênh lệch.
-                  </p>
+                  <div className="text-3xl font-black text-slate-800 font-mono">
+                    {stockCheckList.length} đợt
+                  </div>
+                  <div className="text-xs text-slate-400 mt-2">Toàn bộ hồ sơ kiểm kê đối soát</div>
+                  <div className="absolute top-0 right-0 left-0 h-1 bg-indigo-500" />
                 </div>
 
-                {isAdmin && (
-                  <Button
-                    variant="primary"
-                    size="md"
-                    leftIcon={<PlusOutlined />}
-                    onClick={() => setCreateCheckModalVisible(true)}
-                    className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-xs"
-                  >
-                    Tạo đợt kiểm kê
-                  </Button>
-                )}
+                {/* Card 2: Đang kiểm đếm */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Đang kiểm đếm
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                      <WarningOutlined />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-amber-600 font-mono">
+                    {stockCheckList.filter((s) => s.status === "draft").length} đợt
+                  </div>
+                  <div className="text-xs text-slate-400 mt-2">Đang kiểm đếm thực tế tại quán</div>
+                  <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
+                </div>
+
+                {/* Card 3: Chờ duyệt cân bằng */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Chờ duyệt cân bằng
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+                      <FileTextOutlined />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-blue-600 font-mono">
+                    {stockCheckList.filter((s) => s.status === "submitted").length} đợt
+                  </div>
+                  <div className="text-xs text-slate-400 mt-2">Đã nộp biên bản đối soát</div>
+                  <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
+                </div>
+
+                {/* Card 4: Đã hoàn tất cân bằng */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Đã hoàn tất cân bằng
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                      <CheckCircleOutlined />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-emerald-600 font-mono">
+                    {stockCheckList.filter((s) => s.status === "completed").length} đợt
+                  </div>
+                  <div className="text-xs text-slate-400 mt-2">
+                    Đã cập nhật kho sổ cái chính thức
+                  </div>
+                  <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
+                </div>
               </div>
 
-              {/* KPI Summary Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1">
-                    Tổng số đợt kiểm kê
-                  </span>
-                  <div className="text-2xl font-black text-slate-900 font-mono">
-                    {stockCheckList.length}
-                  </div>
-                  <span className="text-[11px] text-slate-400 mt-1 block">Toàn bộ hồ sơ kiểm kê</span>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs">
-                  <span className="text-xs font-bold text-amber-700 uppercase tracking-wide block mb-1">
-                    Đang kiểm đếm
-                  </span>
-                  <div className="text-2xl font-black text-amber-800 font-mono">
-                    {stockCheckList.filter((s) => s.status === "draft").length}
-                  </div>
-                  <span className="text-[11px] text-amber-600/80 mt-1 block">Chưa nộp kết quả đếm</span>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 border border-blue-200/80 shadow-xs">
-                  <span className="text-xs font-bold text-blue-700 uppercase tracking-wide block mb-1">
-                    Chờ duyệt cân bằng
-                  </span>
-                  <div className="text-2xl font-black text-blue-800 font-mono">
-                    {stockCheckList.filter((s) => s.status === "submitted").length}
-                  </div>
-                  <span className="text-[11px] text-blue-600/80 mt-1 block">Đã nộp biên bản đối soát</span>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 border border-emerald-200/80 shadow-xs">
-                  <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide block mb-1">
-                    Đã hoàn tất cân bằng
-                  </span>
-                  <div className="text-2xl font-black text-emerald-800 font-mono">
-                    {stockCheckList.filter((s) => s.status === "completed").length}
-                  </div>
-                  <span className="text-[11px] text-emerald-600/80 mt-1 block">Đã cập nhật kho sổ cái</span>
-                </div>
-              </div>
-
-              {/* Stock Checks List */}
+              {/* Stock Checks List Card với Header và Nút Tạo nằm bên dưới KPI */}
               <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                  <span className="font-bold text-slate-900 text-sm">
-                    Lịch sử các phiên kiểm kê kho bida
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    Sắp xếp theo đợt mới nhất
-                  </span>
+                <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <AuditOutlined className="text-emerald-600 text-lg" />
+                      <h3 className="text-lg font-black text-slate-900 mb-0">
+                        Kiểm kê định kỳ &amp; Cân bằng tồn kho
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-0">
+                      Đối soát số lượng thực tế tại quầy &amp; bàn với hệ thống và phê duyệt cân
+                      bằng chênh lệch.
+                    </p>
+                  </div>
+
+                  {isAdmin && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<PlusOutlined />}
+                      onClick={() => setCreateCheckModalVisible(true)}
+                      className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
+                    >
+                      Tạo đợt kiểm kê
+                    </Button>
+                  )}
                 </div>
 
-                <div className="divide-y divide-slate-100">
-                  {stockCheckList.map((check) => {
-                    const matchRate = check.summary.totalItems > 0
-                      ? Math.round((check.summary.matchedItems / check.summary.totalItems) * 100)
-                      : 100;
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                      <tr>
+                        <th className="px-5 py-4">Mã kiểm kê</th>
+                        <th className="px-5 py-4">Tiêu đề phiên kiểm kê</th>
+                        <th className="px-5 py-4">Thời gian tạo</th>
+                        <th className="px-5 py-4">Người lập</th>
+                        <th className="px-5 py-4 text-center">Tỷ lệ khớp</th>
+                        <th className="px-5 py-4 text-right">Tổng chênh lệch</th>
+                        <th className="px-5 py-4 text-center">Trạng thái</th>
+                        <th className="px-5 py-4 text-center">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stockCheckList.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
+                            Chưa có đợt kiểm kê nào được tạo.
+                          </td>
+                        </tr>
+                      ) : (
+                        stockCheckList.map((check) => {
+                          const matchRate =
+                            check.summary.totalItems > 0
+                              ? Math.round(
+                                  (check.summary.matchedItems / check.summary.totalItems) * 100,
+                                )
+                              : 100;
 
-                    return (
-                      <div
-                        key={check._id}
-                        className="p-5 hover:bg-slate-50/80 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono font-black text-xs text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
-                              {check.checkCode}
-                            </span>
-                            <span className="font-black text-slate-900 text-sm">
-                              {check.title}
-                            </span>
-                            {check.status === "draft" && (
-                              <Tag color="warning" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
-                                ĐANG KIỂM ĐẾM
-                              </Tag>
-                            )}
-                            {check.status === "submitted" && (
-                              <Tag color="processing" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
-                                CHỜ DUYỆT CÂN BẰNG
-                              </Tag>
-                            )}
-                            {check.status === "completed" && (
-                              <Tag color="success" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
-                                ĐÃ HOÀN TẤT
-                              </Tag>
-                            )}
-                            {check.status === "cancelled" && (
-                              <Tag color="default" className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold">
-                                ĐÃ HỦY
-                              </Tag>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
-                            <span>Ngày tạo: <strong>{dayjs(check.createdAt).format("DD/MM/YYYY HH:mm")}</strong></span>
-                            <span>Người lập: <strong>{check.createdBy?.name || "Quản trị viên"}</strong></span>
-                            {check.submittedAt && (
-                              <span>Nộp lúc: <strong>{dayjs(check.submittedAt).format("DD/MM/YYYY HH:mm")}</strong></span>
-                            )}
-                            {check.approvedAt && (
-                              <span className="text-emerald-700 font-semibold">
-                                Duyệt lúc: {dayjs(check.approvedAt).format("DD/MM/YYYY HH:mm")}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-5">
-                          <div className="text-center min-w-20">
-                            <span className="text-[11px] text-slate-400 block">Tỷ lệ khớp</span>
-                            <span className={`font-mono font-black text-sm ${matchRate === 100 ? "text-emerald-700" : "text-amber-700"}`}>
-                              {matchRate}%
-                            </span>
-                          </div>
-
-                          <div className="text-center min-w-28">
-                            <span className="text-[11px] text-slate-400 block">Tổng chênh lệch</span>
-                            <span
-                              className={`font-mono font-bold text-xs ${
-                                check.summary.totalVarianceValue === 0
-                                  ? "text-slate-500"
-                                  : check.summary.totalVarianceValue > 0
-                                  ? "text-emerald-700"
-                                  : "text-rose-700"
-                              }`}
-                            >
-                              {check.summary.totalVarianceValue > 0 ? "+" : ""}
-                              {check.summary.totalVarianceValue.toLocaleString("vi-VN")}đ
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOpenCheckSession(check)}
-                              className="!rounded-xl !text-xs !font-bold !border-slate-300"
-                            >
-                              {check.status === "draft" ? "Kiểm Đếm Thực Tế" : "Xem Chi Tiết"}
-                            </Button>
-
-                            {isAdmin && check.status === "submitted" && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                leftIcon={<CheckCircleOutlined />}
-                                onClick={() => {
-                                  handleOpenCheckSession(check);
-                                }}
-                                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold !text-xs"
-                              >
-                                Duyệt Cân Bằng
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                          return (
+                            <tr key={check._id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-5 py-4 font-mono font-bold text-xs text-slate-800">
+                                <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                                  {check.checkCode}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="font-bold text-slate-900 text-sm">
+                                  {check.title}
+                                </div>
+                                {check.note && (
+                                  <div className="text-xs text-slate-400 max-w-xs truncate mt-0.5">
+                                    {check.note}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-5 py-4 text-xs text-slate-600 font-mono">
+                                {dayjs(check.createdAt).format("DD/MM/YYYY HH:mm")}
+                              </td>
+                              <td className="px-5 py-4 text-xs text-slate-700 font-medium">
+                                {check.createdBy?.name || "Quản trị viên"}
+                              </td>
+                              <td className="px-5 py-4 text-center">
+                                <span
+                                  className={`font-mono font-black text-sm ${
+                                    matchRate === 100 ? "text-emerald-700" : "text-amber-700"
+                                  }`}
+                                >
+                                  {matchRate}%
+                                </span>
+                                <div className="text-[10px] text-slate-400">
+                                  {check.summary.matchedItems}/{check.summary.totalItems} món
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 text-right font-mono font-bold text-xs">
+                                <span
+                                  className={
+                                    check.summary.totalVarianceValue === 0
+                                      ? "text-slate-500"
+                                      : check.summary.totalVarianceValue > 0
+                                        ? "text-emerald-700"
+                                        : "text-rose-700"
+                                  }
+                                >
+                                  {check.summary.totalVarianceValue > 0 ? "+" : ""}
+                                  {check.summary.totalVarianceValue.toLocaleString("vi-VN")}đ
+                                </span>
+                              </td>
+                              <td className="px-5 py-4 text-center">
+                                {check.status === "draft" && (
+                                  <Tag
+                                    color="warning"
+                                    className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold"
+                                  >
+                                    ĐANG KIỂM ĐẾM
+                                  </Tag>
+                                )}
+                                {check.status === "submitted" && (
+                                  <Tag
+                                    color="processing"
+                                    className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold"
+                                  >
+                                    CHỜ DUYỆT CÂN BẰNG
+                                  </Tag>
+                                )}
+                                {check.status === "completed" && (
+                                  <Tag
+                                    color="success"
+                                    className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold"
+                                  >
+                                    ĐÃ HOÀN TẤT
+                                  </Tag>
+                                )}
+                                {check.status === "cancelled" && (
+                                  <Tag
+                                    color="default"
+                                    className="!rounded-full !px-2.5 !py-0.2 !text-[11px] !font-bold"
+                                  >
+                                    ĐÃ HỦY
+                                  </Tag>
+                                )}
+                              </td>
+                              <td className="px-5 py-4 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenCheckSession(check)}
+                                    className="!rounded-xl !text-xs !font-bold !border-slate-300"
+                                  >
+                                    {check.status === "draft" ? "Kiểm Đếm Thực Tế" : "Xem Chi Tiết"}
+                                  </Button>
+                                  {isAdmin && check.status === "submitted" && (
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={() => handleOpenCheckSession(check)}
+                                      className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !text-xs !font-bold"
+                                    >
+                                      Duyệt Cân Bằng
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -2561,17 +2951,24 @@ export const WarehouseInventoryPage: React.FC = () => {
                         {activeCheckSession.title}
                       </h3>
                       {activeCheckSession.status === "draft" && (
-                        <Tag color="warning" className="!rounded-full !font-bold">ĐANG KIỂM ĐẾM</Tag>
+                        <Tag color="warning" className="!rounded-full !font-bold">
+                          ĐANG KIỂM ĐẾM
+                        </Tag>
                       )}
                       {activeCheckSession.status === "submitted" && (
-                        <Tag color="processing" className="!rounded-full !font-bold">CHỜ DUYỆT CÂN BẰNG (SUBMITTED)</Tag>
+                        <Tag color="processing" className="!rounded-full !font-bold">
+                          CHỜ DUYỆT CÂN BẰNG (SUBMITTED)
+                        </Tag>
                       )}
                       {activeCheckSession.status === "completed" && (
-                        <Tag color="success" className="!rounded-full !font-bold">ĐÃ CÂN BẰNG KHO (COMPLETED)</Tag>
+                        <Tag color="success" className="!rounded-full !font-bold">
+                          ĐÃ CÂN BẰNG KHO (COMPLETED)
+                        </Tag>
                       )}
                     </div>
                     <p className="text-xs text-slate-400 mb-0 mt-0.5">
-                      Khởi tạo ngày {dayjs(activeCheckSession.createdAt).format("DD/MM/YYYY HH:mm")} bởi {activeCheckSession.createdBy?.name}
+                      Khởi tạo ngày {dayjs(activeCheckSession.createdAt).format("DD/MM/YYYY HH:mm")}{" "}
+                      bởi {activeCheckSession.createdBy?.name}
                     </p>
                   </div>
                 </div>
@@ -2641,10 +3038,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                     Khớp số sách
                   </span>
                   <div className="text-xl sm:text-2xl font-black text-slate-700 font-mono">
-                    {activeCheckSession.items.filter((it) => {
-                      const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
-                      return count === it.systemStock;
-                    }).length}
+                    {
+                      activeCheckSession.items.filter((it) => {
+                        const count =
+                          editingActualCounts[it.product]?.actualStock ??
+                          it.actualStock ??
+                          it.systemStock;
+                        return count === it.systemStock;
+                      }).length
+                    }
                   </div>
                   <span className="text-[11px] text-slate-400">Lệch = 0</span>
                 </div>
@@ -2654,10 +3056,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                     Thừa thực tế
                   </span>
                   <div className="text-xl sm:text-2xl font-black text-emerald-700 font-mono">
-                    {activeCheckSession.items.filter((it) => {
-                      const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
-                      return count > it.systemStock;
-                    }).length}
+                    {
+                      activeCheckSession.items.filter((it) => {
+                        const count =
+                          editingActualCounts[it.product]?.actualStock ??
+                          it.actualStock ??
+                          it.systemStock;
+                        return count > it.systemStock;
+                      }).length
+                    }
                   </div>
                   <span className="text-[11px] text-emerald-600/80">Thực tế &gt; Hệ thống</span>
                 </div>
@@ -2667,10 +3074,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                     Thiếu thực tế
                   </span>
                   <div className="text-xl sm:text-2xl font-black text-rose-700 font-mono">
-                    {activeCheckSession.items.filter((it) => {
-                      const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
-                      return count < it.systemStock;
-                    }).length}
+                    {
+                      activeCheckSession.items.filter((it) => {
+                        const count =
+                          editingActualCounts[it.product]?.actualStock ??
+                          it.actualStock ??
+                          it.systemStock;
+                        return count < it.systemStock;
+                      }).length
+                    }
                   </div>
                   <span className="text-[11px] text-rose-600/80">Thực tế &lt; Hệ thống</span>
                 </div>
@@ -2682,7 +3094,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <div className="text-xl sm:text-2xl font-black text-teal-800 font-mono tracking-tight">
                     {(() => {
                       const totalDiffVal = activeCheckSession.items.reduce((acc, it) => {
-                        const count = editingActualCounts[it.product]?.actualStock ?? it.actualStock ?? it.systemStock;
+                        const count =
+                          editingActualCounts[it.product]?.actualStock ??
+                          it.actualStock ??
+                          it.systemStock;
                         return acc + (count - it.systemStock) * it.costPrice;
                       }, 0);
                       return `${totalDiffVal > 0 ? "+" : ""}${totalDiffVal.toLocaleString("vi-VN")}đ`;
@@ -2731,8 +3146,12 @@ export const WarehouseInventoryPage: React.FC = () => {
 
                         return (
                           <tr key={item.product} className="hover:bg-slate-50/70 transition">
-                            <td className="py-3 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                            <td className="py-3 px-3 font-mono font-bold text-slate-700">{item.sku}</td>
+                            <td className="py-3 px-3 text-center text-slate-400 font-mono">
+                              {idx + 1}
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold text-slate-700">
+                              {item.sku}
+                            </td>
                             <td className="py-3 px-3">
                               <span className="font-bold text-slate-900 block">{item.name}</span>
                               <span className="text-[11px] text-slate-400">ĐVT: {item.unit}</span>
@@ -2777,11 +3196,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                                   variance === 0
                                     ? "bg-slate-100 text-slate-600"
                                     : variance > 0
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : "bg-rose-100 text-rose-800"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-rose-100 text-rose-800"
                                 }`}
                               >
-                                {variance === 0 ? "0 (Khớp)" : variance > 0 ? `+${variance}` : variance}
+                                {variance === 0
+                                  ? "0 (Khớp)"
+                                  : variance > 0
+                                    ? `+${variance}`
+                                    : variance}
                               </span>
                             </td>
                             <td className="py-3 px-3 text-right font-mono font-bold">
@@ -2790,8 +3213,8 @@ export const WarehouseInventoryPage: React.FC = () => {
                                   varianceVal === 0
                                     ? "text-slate-400"
                                     : varianceVal > 0
-                                    ? "text-emerald-700"
-                                    : "text-rose-700"
+                                      ? "text-emerald-700"
+                                      : "text-rose-700"
                                 }
                               >
                                 {varianceVal > 0 ? "+" : ""}
@@ -2810,7 +3233,8 @@ export const WarehouseInventoryPage: React.FC = () => {
                                       ...prev,
                                       [item.product]: {
                                         ...prev[item.product],
-                                        actualStock: prev[item.product]?.actualStock ?? item.systemStock,
+                                        actualStock:
+                                          prev[item.product]?.actualStock ?? item.systemStock,
                                         note: val,
                                       },
                                     }));
@@ -2838,103 +3262,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       {/* ── TAB 5: BÁO CÁO XUẤT – NHẬP – TỒN ─────────────────────────────── */}
       {activeTab === "report" && (
         <div className="space-y-4">
-          {/* Filter Toolbar (Matching Image 4: THỜI GIAN: [ Hôm nay | 7 ngày qua | Tháng này ]) */}
-          <div className="bg-white p-4 rounded-3xl border border-slate-200 flex flex-col xl:flex-row xl:items-center justify-between gap-4 shadow-xs">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                THỜI GIAN:
-              </span>
-              <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50 gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("today")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "today"
-                      ? "bg-white shadow-xs text-emerald-700 font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Hôm nay
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("7days")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "7days"
-                      ? "bg-white shadow-xs text-emerald-700 font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  7 ngày qua
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPresetRange("thisMonth")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                    reportPreset === "thisMonth"
-                      ? "bg-white shadow-xs text-emerald-700 font-bold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Tháng này
-                </button>
-              </div>
-
-              <RangePicker
-                value={reportRange}
-                onChange={handleRangePickerChange}
-                format="DD/MM/YYYY"
-                allowClear={false}
-                className="w-60 rounded-xl"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <Select
-                value={reportCategory}
-                onChange={(val) => {
-                  setReportCategory(val);
-                  setReportPage(1);
-                }}
-                className="!w-44 !rounded-xl !text-xs"
-                options={[
-                  { label: "Tất cả loại hàng", value: "all" },
-                  { label: "Phụ kiện bida", value: "accessory" },
-                  { label: "Vật tư bàn bida", value: "table_supplies" },
-                  { label: "Đồ uống lưu kho", value: "drink" },
-                  { label: "Thức ăn & đồ ăn nhẹ", value: "food" },
-                  { label: "Nguyên liệu pha chế", value: "ingredient" },
-                  { label: "Bảo dưỡng & Vệ sinh", value: "maintenance" },
-                ]}
-              />
-
-              <Input
-                placeholder="Tìm theo tên hoặc mã hàng..."
-                prefix={<SearchOutlined className="text-slate-400" />}
-                value={reportSearch}
-                onChange={(e) => {
-                  setReportSearch(e.target.value);
-                  setReportPage(1);
-                }}
-                className="!w-56 !rounded-xl !h-10 text-xs"
-                allowClear
-              />
-
-              <Button
-                variant="primary"
-                leftIcon={<FileExcelOutlined />}
-                onClick={handleExportExcel}
-                loading={reportExporting}
-                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-white shadow-xs"
-              >
-                Excel
-              </Button>
-            </div>
-          </div>
-
-          {/* 6 Harmonized KPI Cards */}
+          {/* 6 Harmonized KPI Cards - Đặt ở TRÊN CÙNG đồng bộ toàn hệ thống */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                   Mặt hàng
@@ -2947,9 +3277,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                 {filteredReportItems.length}
               </div>
               <div className="text-[11px] text-slate-400 mt-1">Trong danh mục</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-indigo-500" />
             </div>
 
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                   Tồn đầu kỳ
@@ -2959,12 +3290,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-2xl font-black text-slate-800 font-mono">
-                {filteredReportItems.reduce((acc, cur) => acc + (cur.openingStock || 0), 0).toLocaleString("vi-VN")}
+                {filteredReportItems
+                  .reduce((acc, cur) => acc + (cur.openingStock || 0), 0)
+                  .toLocaleString("vi-VN")}
               </div>
               <div className="text-[11px] text-slate-400 mt-1">Số lượng đầu kỳ</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-slate-400" />
             </div>
 
-            <div className="bg-white rounded-2xl p-4 border border-emerald-200/70 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
                   Nhập trong kỳ
@@ -2974,12 +3308,16 @@ export const WarehouseInventoryPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-2xl font-black text-emerald-600 font-mono">
-                +{filteredReportItems.reduce((acc, cur) => acc + (cur.inStock || 0), 0).toLocaleString("vi-VN")}
+                +
+                {filteredReportItems
+                  .reduce((acc, cur) => acc + (cur.inStock || 0), 0)
+                  .toLocaleString("vi-VN")}
               </div>
               <div className="text-[11px] text-emerald-600/80 mt-1">Qua phiếu nhập</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
             </div>
 
-            <div className="bg-white rounded-2xl p-4 border border-blue-200/70 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">
                   Xuất bán POS
@@ -2989,12 +3327,16 @@ export const WarehouseInventoryPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-2xl font-black text-blue-600 font-mono">
-                -{filteredReportItems.reduce((acc, cur) => acc + (cur.outStock || 0), 0).toLocaleString("vi-VN")}
+                -
+                {filteredReportItems
+                  .reduce((acc, cur) => acc + (cur.outStock || 0), 0)
+                  .toLocaleString("vi-VN")}
               </div>
               <div className="text-[11px] text-blue-600/80 mt-1">Theo hóa đơn bán lẻ</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
             </div>
 
-            <div className="bg-white rounded-2xl p-4 border border-rose-200/70 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-rose-700 uppercase tracking-wide">
                   Xuất hủy / Hao
@@ -3004,12 +3346,16 @@ export const WarehouseInventoryPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-2xl font-black text-rose-600 font-mono">
-                -{filteredReportItems.reduce((acc, cur) => acc + (cur.wasteStock || 0), 0).toLocaleString("vi-VN")}
+                -
+                {filteredReportItems
+                  .reduce((acc, cur) => acc + (cur.wasteStock || 0), 0)
+                  .toLocaleString("vi-VN")}
               </div>
               <div className="text-[11px] text-rose-600/80 mt-1">Hao mòn, cơ lơ hỏng</div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-rose-500" />
             </div>
 
-            <div className="bg-white rounded-2xl p-4 border border-teal-200/70 shadow-xs">
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-teal-700 uppercase tracking-wide">
                   Giá trị tồn cuối
@@ -3019,28 +3365,135 @@ export const WarehouseInventoryPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-xl sm:text-2xl font-black text-teal-700 font-mono tracking-tight">
-                {(filteredReportItems.reduce((acc, cur) => acc + (cur.closingValue || 0), 0) / 1000000).toFixed(2)}M đ
+                {(
+                  filteredReportItems.reduce((acc, cur) => acc + (cur.closingValue || 0), 0) /
+                  1000000
+                ).toFixed(2)}
+                M đ
               </div>
               <div className="text-[11px] text-slate-500 font-mono mt-1">
-                {filteredReportItems.reduce((acc, cur) => acc + (cur.closingStock || 0), 0).toLocaleString("vi-VN")} đơn vị tồn
+                {filteredReportItems
+                  .reduce((acc, cur) => acc + (cur.closingStock || 0), 0)
+                  .toLocaleString("vi-VN")}{" "}
+                đơn vị tồn
               </div>
+              <div className="absolute top-0 right-0 left-0 h-1 bg-teal-500" />
             </div>
           </div>
 
-          {/* Report Table */}
+          {/* Card Báo cáo Xuất - Nhập - Tồn chứa Header + Toolbar + Bảng */}
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChartOutlined className="text-emerald-600" />
-                <h4 className="font-bold text-slate-900 text-sm mb-0">
-                  Bảng tổng hợp cân đối kho theo mã hàng
-                </h4>
+            {/* Header nằm trong Card dưới KPI */}
+            <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <BarChartOutlined className="text-emerald-600 text-lg" />
+                  <h3 className="text-lg font-black text-slate-900 mb-0">
+                    Báo cáo tổng hợp Xuất – Nhập – Tồn kho
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mb-0">
+                  Đối soát luân chuyển hàng hóa, tỷ lệ tiêu hao và giá trị lưu kho thực tế theo từng
+                  mặt hàng.
+                </p>
               </div>
-              <span className="text-xs text-slate-400">
-                Sắp xếp theo thứ tự mã tăng dần
-              </span>
+
+              <Button
+                variant="primary"
+                leftIcon={<FileExcelOutlined />}
+                onClick={handleExportExcel}
+                loading={reportExporting}
+                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-white shadow-xs self-start sm:self-auto"
+              >
+                Xuất file Excel
+              </Button>
             </div>
 
+            {/* Filter Toolbar */}
+            <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/60 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  THỜI GIAN:
+                </span>
+                <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-white gap-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("today")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "today"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("7days")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "7days"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    7 ngày qua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPresetRange("thisMonth")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      reportPreset === "thisMonth"
+                        ? "bg-emerald-50 text-emerald-700 font-bold border border-emerald-200"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Tháng này
+                  </button>
+                </div>
+
+                <RangePicker
+                  value={reportRange}
+                  onChange={handleRangePickerChange}
+                  format="DD/MM/YYYY"
+                  allowClear={false}
+                  className="w-60 rounded-xl"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Select
+                  value={reportCategory}
+                  onChange={(val) => {
+                    setReportCategory(val);
+                    setReportPage(1);
+                  }}
+                  className="!w-44 !rounded-xl !text-xs"
+                  options={[
+                    { label: "Tất cả loại hàng", value: "all" },
+                    { label: "Phụ kiện bida", value: "accessory" },
+                    { label: "Vật tư bàn bida", value: "table_supplies" },
+                    { label: "Đồ uống lưu kho", value: "drink" },
+                    { label: "Thức ăn & đồ ăn nhẹ", value: "food" },
+                    { label: "Nguyên liệu pha chế", value: "ingredient" },
+                    { label: "Bảo dưỡng & Vệ sinh", value: "maintenance" },
+                  ]}
+                />
+
+                <Input
+                  placeholder="Tìm theo tên hoặc mã hàng..."
+                  prefix={<SearchOutlined className="text-slate-400" />}
+                  value={reportSearch}
+                  onChange={(e) => {
+                    setReportSearch(e.target.value);
+                    setReportPage(1);
+                  }}
+                  className="!w-56 !rounded-xl !h-10 text-xs"
+                  allowClear
+                />
+              </div>
+            </div>
+
+            {/* Bảng Dữ Liệu Báo Cáo */}
             <Table<InventoryReportItem>
               columns={reportColumns}
               dataSource={paginatedReport}
@@ -3050,22 +3503,28 @@ export const WarehouseInventoryPage: React.FC = () => {
               bordered
               scroll={{ x: 1050 }}
             />
-            <Pagination current={reportPage} pageSize={pageSize} total={filteredReportItems.length} unit="mặt hàng" onChange={(p) => setReportPage(p)} />
+            <Pagination
+              current={reportPage}
+              pageSize={pageSize}
+              total={filteredReportItems.length}
+              unit="mặt hàng"
+              onChange={(p) => setReportPage(p)}
+            />
           </div>
         </div>
       )}
 
       {/* ── TAB 6: DANH MỤC & PHỤ KIỆN BIDA (CHỈ DÀNH CHO ADMIN) ── */}
       {isAdmin && activeTab === "catalog" && (
-        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
-          <CatalogManagementPage />
+        <div className="space-y-4">
+          <CatalogManagementPage embedded={true} />
         </div>
       )}
 
       {/* ── TAB 7: QUẢN LÝ NHÀ CUNG CẤP (CHỈ DÀNH CHO ADMIN) ── */}
       {isAdmin && activeTab === "suppliers" && (
-        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
-          <SupplierManagementPage />
+        <div className="space-y-4">
+          <SupplierManagementPage embedded={true} />
         </div>
       )}
 
@@ -3130,7 +3589,8 @@ export const WarehouseInventoryPage: React.FC = () => {
 
           <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
             <span className="font-bold block mb-1">Cơ chế Snapshot Tồn Kho:</span>
-            Khi tạo đợt kiểm kê, hệ thống sẽ tự động chụp snapshot số lượng tồn kho hiện tại của toàn bộ sản phẩm được chọn để đối soát với số lượng kiểm đếm thực tế.
+            Khi tạo đợt kiểm kê, hệ thống sẽ tự động chụp snapshot số lượng tồn kho hiện tại của
+            toàn bộ sản phẩm được chọn để đối soát với số lượng kiểm đếm thực tế.
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -3213,9 +3673,7 @@ export const WarehouseInventoryPage: React.FC = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Đơn giá vốn nhập (VNĐ):
-                </label>
+                <label className="text-xs font-bold text-slate-700">Đơn giá vốn nhập (VNĐ):</label>
                 <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5">
                   <LockOutlined /> Cố định
                 </span>
@@ -3333,7 +3791,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                 const target = stockList.find((i) => i.sku === transferForm.sku);
                 return (
                   <span className="text-[11px] text-slate-500">
-                    Tổng trong kho: <strong>{target?.stockQty || 0} {target?.unit}</strong>
+                    Tổng trong kho:{" "}
+                    <strong>
+                      {target?.stockQty || 0} {target?.unit}
+                    </strong>
                   </span>
                 );
               })()}
@@ -3382,9 +3843,7 @@ export const WarehouseInventoryPage: React.FC = () => {
           </div>
 
           <div className="p-3 rounded-2xl border flex justify-between items-center text-xs bg-emerald-50 border-emerald-200">
-            <span className="font-semibold text-emerald-800">
-              Tổng giá trị xuất kho:
-            </span>
+            <span className="font-semibold text-emerald-800">Tổng giá trị xuất kho:</span>
             <span className="font-black text-base font-mono text-emerald-900">
               {(() => {
                 const target = stockList.find((i) => i.sku === transferForm.sku);
@@ -3448,14 +3907,15 @@ export const WarehouseInventoryPage: React.FC = () => {
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-slate-700">
-                Số lượng phụ kiện bị hỏng:
-              </label>
+              <label className="text-xs font-bold text-slate-700">Số lượng phụ kiện bị hỏng:</label>
               {(() => {
                 const target = stockList.find((i) => i.sku === wasteForm.sku);
                 return (
                   <span className="text-[11px] text-slate-500">
-                    Tổng trong kho: <strong>{target?.stockQty || 0} {target?.unit}</strong>
+                    Tổng trong kho:{" "}
+                    <strong>
+                      {target?.stockQty || 0} {target?.unit}
+                    </strong>
                   </span>
                 );
               })()}
@@ -3474,7 +3934,8 @@ export const WarehouseInventoryPage: React.FC = () => {
               className="!h-10 !rounded-xl text-xs font-mono font-bold"
             />
             <span className="text-[11px] text-rose-600 mt-1 block">
-              * Lưu ý: Nếu có 8 cây gậy mà hỏng 1 cây, chỉ nhập đúng 1 cây để trừ tồn và báo cáo đúng số lượng hỏng.
+              * Lưu ý: Nếu có 8 cây gậy mà hỏng 1 cây, chỉ nhập đúng 1 cây để trừ tồn và báo cáo
+              đúng số lượng hỏng.
             </span>
           </div>
 
@@ -3511,9 +3972,7 @@ export const WarehouseInventoryPage: React.FC = () => {
           </div>
 
           <div className="p-3 rounded-2xl border flex justify-between items-center text-xs bg-rose-50 border-rose-200">
-            <span className="font-semibold text-rose-800">
-              Giá trị tổn thất hao mòn:
-            </span>
+            <span className="font-semibold text-rose-800">Giá trị tổn thất hao mòn:</span>
             <span className="font-black text-base font-mono text-rose-900">
               {(() => {
                 const target = stockList.find((i) => i.sku === wasteForm.sku);
@@ -3572,16 +4031,16 @@ export const WarehouseInventoryPage: React.FC = () => {
                     alertTargetItem.stockQty === 0
                       ? "error"
                       : alertTargetItem.stockQty <= alertTargetItem.minThreshold
-                      ? "warning"
-                      : "green"
+                        ? "warning"
+                        : "green"
                   }
                   className="!rounded-full !px-2 !py-0 !text-[10px] !font-bold"
                 >
                   {alertTargetItem.stockQty === 0
                     ? "HẾT HÀNG"
                     : alertTargetItem.stockQty <= alertTargetItem.minThreshold
-                    ? "SẮP HẾT"
-                    : "ĐỦ HÀNG"}
+                      ? "SẮP HẾT"
+                      : "ĐỦ HÀNG"}
                 </Tag>
               </div>
 
@@ -3590,7 +4049,8 @@ export const WarehouseInventoryPage: React.FC = () => {
                   {alertTargetItem.name}
                 </span>
                 <span className="text-[11px] text-slate-500">
-                  {alertTargetItem.categoryName} • Vị trí: <strong>{alertTargetItem.location}</strong>
+                  {alertTargetItem.categoryName} • Vị trí:{" "}
+                  <strong>{alertTargetItem.location}</strong>
                 </span>
               </div>
 
@@ -3659,7 +4119,8 @@ export const WarehouseInventoryPage: React.FC = () => {
 
             <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-900">
               <span className="font-bold block mb-0.5">Thông báo tức thì tới Quản lý kho:</span>
-              Yêu cầu của bạn sẽ được gửi tới Ban quản trị và Quản lý kho để xem xét tạo phiếu nhập hoặc điều chuyển phụ kiện kịp thời.
+              Yêu cầu của bạn sẽ được gửi tới Ban quản trị và Quản lý kho để xem xét tạo phiếu nhập
+              hoặc điều chuyển phụ kiện kịp thời.
             </div>
 
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -3709,15 +4170,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                     selectedSlip.type === "inward"
                       ? "text-emerald-700"
                       : selectedSlip.type === "waste"
-                      ? "text-rose-700"
-                      : "text-blue-700"
+                        ? "text-rose-700"
+                        : "text-blue-700"
                   }
                 >
                   {selectedSlip.type === "inward"
                     ? "PHIẾU NHẬP KHO"
                     : selectedSlip.type === "waste"
-                    ? "PHIẾU XUẤT HỦY HAO MÒN"
-                    : "PHIẾU XUẤT KHO CẤP PHÁT"}
+                      ? "PHIẾU XUẤT HỦY HAO MÒN"
+                      : "PHIẾU XUẤT KHO CẤP PHÁT"}
                 </strong>
               </div>
               <div>
@@ -3768,7 +4229,16 @@ export const WarehouseInventoryPage: React.FC = () => {
                         <td className="py-2.5 px-3 text-right font-mono">
                           {d.price.toLocaleString("vi-VN")}đ
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                        <td
+                          className={`py-2.5 px-3 text-right font-mono font-bold ${
+                            selectedSlip.type === "inward"
+                              ? "text-emerald-700"
+                              : selectedSlip.type === "waste"
+                                ? "text-rose-700"
+                                : "text-blue-700"
+                          }`}
+                        >
+                          {selectedSlip.type !== "inward" ? "-" : "+"}
                           {d.subtotal.toLocaleString("vi-VN")}đ
                         </td>
                       </tr>
@@ -3779,8 +4249,23 @@ export const WarehouseInventoryPage: React.FC = () => {
             </div>
 
             <div className="flex justify-between items-center pt-3 border-t border-slate-100">
-              <span className="font-bold text-slate-700">Tổng thanh toán chứng từ:</span>
-              <span className="font-black text-emerald-800 text-lg font-mono">
+              <span className="font-bold text-slate-700">
+                {selectedSlip.type === "waste"
+                  ? "Tổng giá trị tổn thất / hao mòn:"
+                  : selectedSlip.type === "outward"
+                    ? "Tổng giá trị cấp phát:"
+                    : "Tổng thanh toán chứng từ:"}
+              </span>
+              <span
+                className={`font-black text-lg font-mono ${
+                  selectedSlip.type === "inward"
+                    ? "text-emerald-800"
+                    : selectedSlip.type === "waste"
+                      ? "text-rose-700"
+                      : "text-blue-700"
+                }`}
+              >
+                {selectedSlip.type !== "inward" ? "-" : "+"}
                 {selectedSlip.totalValue.toLocaleString("vi-VN")}đ
               </span>
             </div>
