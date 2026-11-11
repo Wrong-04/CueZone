@@ -55,6 +55,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const name = normalizeString(req.body?.name);
     const code = normalizeString(req.body?.code).toLowerCase();
+    const scope = req.body?.scope === "warehouse" ? "warehouse" : "fnb";
     const description = normalizeString(req.body?.description);
 
     if (!name || !code) {
@@ -70,6 +71,7 @@ router.post(
     const category = await Category.create({
       name,
       code,
+      scope,
       description,
       isActive: true,
     });
@@ -102,6 +104,10 @@ router.put(
       }
 
       updates.name = name;
+    }
+
+    if (req.body?.scope !== undefined) {
+      updates.scope = req.body.scope === "warehouse" ? "warehouse" : "fnb";
     }
 
     if (req.body?.description !== undefined) {

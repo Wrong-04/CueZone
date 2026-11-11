@@ -1,15 +1,23 @@
 import api from "./api";
 
+export interface AccessoryWasteProduct {
+  _id: string;
+  sku?: string;
+  name?: string;
+  unit?: string;
+  costPrice?: number;
+  salePrice?: number;
+}
+
 export interface AccessoryWasteItem {
   _id: string;
   disposalNumber: string;
-  product: {
-    _id: string;
-    sku: string;
-    name: string;
-    unit: string;
-    costPrice?: number;
-  };
+  product: AccessoryWasteProduct;
+  productName?: string;
+  sku?: string;
+  unit?: string;
+  costPrice?: number;
+  totalValue?: number;
   quantity: number;
   previousStock: number;
   newStock: number;
@@ -20,6 +28,7 @@ export interface AccessoryWasteItem {
     _id: string;
     name: string;
     email: string;
+    role?: string;
   };
   createdAt: string;
 }

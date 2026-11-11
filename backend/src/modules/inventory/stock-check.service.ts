@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { StockCheck, IStockCheck, StockCheckStatus } from "./stock-check.model";
 import { Product } from "../product/product.model";
 import InventoryTransaction from "../product/inventory.model";
+import "../user/user.model";
 
 export interface CreateStockCheckInput {
   title: string;

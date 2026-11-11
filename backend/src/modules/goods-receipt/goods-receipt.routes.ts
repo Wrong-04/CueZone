@@ -6,6 +6,7 @@ import GoodsReceipt from "./goods-receipt.model";
 import Product from "../product/product.model";
 import Supplier from "../supplier/supplier.model";
 import InventoryTransaction from "../product/inventory.model";
+import { User } from "../user/user.model";
 
 const router = Router();
 

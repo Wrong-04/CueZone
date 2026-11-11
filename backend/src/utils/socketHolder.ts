@@ -103,6 +103,8 @@ export const emitWaitlistUpdated = (entry?: any) => {
 export const emitMenuUpdated = () => {
   io?.emit("menu:updated");
   io?.emit("fnb:updated");
+};
+
 export const emitTournamentScoreUpdated = (payload: {
   tournamentId: string;
   matchId: string;
