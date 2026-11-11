@@ -44,7 +44,7 @@ export function CustomerFnbMenuModal({
   const [selectedCategory, setSelectedCategory] = useState("all");
 
   const validFnbItems = useMemo(() => {
-    return items.filter((item) => !isFnbWarehouseItem(item.name, item.category));
+    return items.filter((item) => !isFnbWarehouseItem(item.name, item.category, item.productType));
   }, [items]);
 
   const categoryOptions = useMemo(() => {

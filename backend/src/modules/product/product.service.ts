@@ -58,8 +58,22 @@ export class ProductService {
     });
   }
 
-  async getAll(): Promise<IProduct[]> {
-    return Product.find().sort({ name: 1 });
+  async getAll(): Promise<any[]> {
+    const products = await Product.find().sort({ name: 1 }).lean();
+    const allCategories = await Category.find().lean();
+    const catMap = new Map<string, string>();
+    allCategories.forEach((c) => {
+      catMap.set(c._id.toString(), c.name || c.code);
+    });
+
+    return products.map((p) => {
+      const rawCat = String(p.category || "").trim();
+      const resolvedCatName = catMap.get(rawCat) || rawCat;
+      return {
+        ...p,
+        categoryName: resolvedCatName,
+      };
+    });
   }
 
   async getById(id: string): Promise<IProduct> {

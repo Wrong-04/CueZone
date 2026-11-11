@@ -23,27 +23,45 @@ export const getFnbCategoryLabel = (category?: string): string => {
   return FNB_CATEGORY_LABELS[normalizedCategory] || category;
 };
 
-export const getCustomerFnbCategoryLabel = (category: string): string =>
-  CUSTOMER_FNB_CATEGORY_LABELS[category] || FNB_CATEGORY_LABELS[category.toLowerCase()] || category;
+export const getCustomerFnbCategoryLabel = (category: string): string => {
+  if (!category || /^[0-9a-fA-F]{24}$/.test(category.trim())) {
+    return "Món ăn & Đồ uống";
+  }
+  return CUSTOMER_FNB_CATEGORY_LABELS[category] || FNB_CATEGORY_LABELS[category.toLowerCase()] || category;
+};
 
 export const isFnbWarehouseItem = (
-  _name?: string,
+  name?: string,
   rawCategory?: string,
   productType?: string,
 ): boolean => {
-  if (productType === "ingredient" || productType === "accessory") return true;
-  if (productType === "fnb") return false;
-
+  // 1. Phụ kiện bida hoặc nguyên liệu kho nhận diện qua tên hoặc category ưu tiên hàng đầu
   const category = (rawCategory || "").toLowerCase().trim();
   if (
     category === "accessory" ||
     category === "equipment" ||
     category === "ingredient" ||
+    category === "table_supplies" ||
+    category === "maintenance" ||
     category.includes("nguyên liệu") ||
-    category.includes("phụ kiện")
+    category.includes("phụ kiện") ||
+    category.includes("vật tư")
   ) {
     return true;
   }
+  const n = String(name || "").toLowerCase();
+  if (
+    /bóng|cơ\b|lơ\b|đầu cơ|găng|bao tay|khăn lau|nỉ bàn|hạt robusta|sữa đặc|kem béo|rich's|bột pha/i.test(
+      n,
+    )
+  ) {
+    return true;
+  }
+
+  // 2. Kiểm tra theo trường productType
+  if (productType === "ingredient" || productType === "accessory") return true;
+  if (productType === "fnb") return false;
+
   return false;
 };
 
@@ -88,10 +106,11 @@ export const resolveFnbCategory = (name: string, rawCategory?: string): string =
   }
   if (category === "juice" || category === "drink") return "juice";
 
-  // 3. Nếu là danh mục ẩm thực tùy chỉnh từ F&B (không phải nguyên liệu, không phải phụ kiện)
+  // 3. Nếu là danh mục ẩm thực tùy chỉnh từ F&B (không phải nguyên liệu, không phải phụ kiện, không phải mã ObjectId hex)
   if (
     rawCategory &&
     rawCategory.trim() &&
+    !/^[0-9a-fA-F]{24}$/.test(rawCategory.trim()) &&
     !["drink", "nguyên liệu", "ingredient", "accessory", "equipment", "phụ kiện"].includes(category)
   ) {
     return rawCategory.trim();

@@ -64,7 +64,15 @@ export class StockCheckService {
     // Query snapshot danh sách sản phẩm
     const productQuery: Record<string, any> = { isActive: { $ne: false } };
     if (input.category && input.category !== "all") {
-      productQuery.category = input.category;
+      if (input.category === "equipment") {
+        productQuery.$or = [{ productType: "accessory" }, { category: "accessory" }];
+      } else if (input.category === "ingredients") {
+        productQuery.$or = [{ productType: "ingredient" }, { category: "ingredient" }];
+      } else if (input.category === "beverage") {
+        productQuery.$or = [{ productType: "fnb" }, { category: { $in: ["drink", "food", "snack"] } }];
+      } else {
+        productQuery.category = input.category;
+      }
     }
 
     const products = await Product.find(productQuery).sort({ sku: 1 }).lean();

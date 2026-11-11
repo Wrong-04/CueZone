@@ -157,7 +157,7 @@ export const CustomerBooking = () => {
         .getFnbMenu()
         .then((items) => {
           if (active) {
-            setMenuItems(items.filter((item) => !isFnbWarehouseItem(item.name, item.category)));
+            setMenuItems(items.filter((item) => !isFnbWarehouseItem(item.name, item.category, item.productType)));
           }
         })
         .catch((error) =>
@@ -338,7 +338,7 @@ export const CustomerBooking = () => {
       if (err.response?.data?.code === "FNB_MENU_CHANGED") {
         try {
           const currentMenu = (await productService.getFnbMenu()).filter(
-            (item) => !isFnbWarehouseItem(item.name, item.category),
+            (item) => !isFnbWarehouseItem(item.name, item.category, item.productType),
           );
           const currentProductIds = new Set(currentMenu.map((item) => item._id));
           setMenuItems(currentMenu);

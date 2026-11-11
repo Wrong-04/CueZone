@@ -190,7 +190,7 @@ export const CustomerFnB: React.FC = () => {
   }, [recentOrder]);
 
   const validMenuItems = useMemo(() => {
-    return menuItems.filter((item) => !isFnbWarehouseItem(item.name, item.category));
+    return menuItems.filter((item) => !isFnbWarehouseItem(item.name, item.category, item.productType));
   }, [menuItems]);
 
   const filteredItems = validMenuItems.filter((item) => {
