@@ -30,6 +30,7 @@ export const DEFAULT_CANCEL_REASONS = [
   "Pha nhầm / Bưng nhầm bàn",
   "Món lỗi / Hỏng / Đổ vỡ",
   "Quán hết món / Thiếu đồ",
+  "Quán ngừng kinh doanh món này",
   "Khác",
 ];
 

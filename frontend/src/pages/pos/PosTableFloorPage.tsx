@@ -907,6 +907,7 @@ export const PosTableFloorPage: React.FC = () => {
         onRemoveWaitlist={waitlistHook.handleRemoveWaitlist}
         getTableOptionsForGuest={getTableOptionsForGuest}
       />
+
     </div>
   );
 };

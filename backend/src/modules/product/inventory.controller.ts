@@ -239,7 +239,7 @@ export async function createInventoryTransaction(req: Request, res: Response) {
       });
     }
 
-    if (!["in", "out", "adjustment"].includes(type)) {
+    if (!["in", "out", "adjustment", "waste"].includes(type)) {
       return res.status(400).json({
         success: false,
         message: "Loại biến động kho không hợp lệ.",
@@ -279,7 +279,7 @@ export async function createInventoryTransaction(req: Request, res: Response) {
         newStock = previousStock + parsedQuantity;
       }
 
-      if (type === "out") {
+      if (type === "out" || type === "waste") {
         newStock = previousStock - parsedQuantity;
 
         if (newStock < 0) {
@@ -355,3 +355,33 @@ export async function createInventoryTransaction(req: Request, res: Response) {
     await session.endSession();
   }
 }
+
+export async function getInventoryTransactions(req: Request, res: Response) {
+  try {
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const type = req.query.type as string | undefined;
+    const filter: Record<string, unknown> = {};
+    if (type && ["in", "out", "adjustment", "waste"].includes(type)) {
+      filter.type = type;
+    }
+
+    const transactions = await InventoryTransaction.find(filter)
+      .populate("product", "name sku unit costPrice salePrice category")
+      .populate("performedBy", "name email role")
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.json({
+      success: true,
+      data: transactions,
+    });
+  } catch (error) {
+    console.error("GET INVENTORY TRANSACTIONS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải danh sách biến động kho.",
+    });
+  }
+}
+

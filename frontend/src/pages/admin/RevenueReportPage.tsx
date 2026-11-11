@@ -138,7 +138,6 @@ export const RevenueReportPage: React.FC = () => {
         backgroundColor: "rgba(16, 185, 129, 0.85)", // Emerald 500
         hoverBackgroundColor: "rgba(5, 150, 105, 1)",
         borderRadius: 6,
-        stack: "Stack 0",
       },
       {
         label: "Doanh thu F&B",
@@ -146,7 +145,6 @@ export const RevenueReportPage: React.FC = () => {
         backgroundColor: "rgba(59, 130, 246, 0.85)", // Blue 500
         hoverBackgroundColor: "rgba(37, 99, 235, 1)",
         borderRadius: 6,
-        stack: "Stack 0",
       },
     ],
   };
@@ -173,7 +171,20 @@ export const RevenueReportPage: React.FC = () => {
         callbacks: {
           label: (context: any) => {
             const val = context.raw || 0;
-            return `${context.dataset.label}: ${val.toLocaleString("vi-VN")} đ`;
+            const dataIndex = context.dataIndex;
+            const tableVal = tableRevenues[dataIndex] || 0;
+            const fnbVal = fnbRevenues[dataIndex] || 0;
+            const grossVal = tableVal + fnbVal;
+            const pct = grossVal > 0 ? ((val / grossVal) * 100).toFixed(1) : "0";
+            return ` ${context.dataset.label}: ${val.toLocaleString("vi-VN")} đ (${pct}% doanh thu gộp)`;
+          },
+          afterBody: (items: any[]) => {
+            if (!items || items.length === 0) return "";
+            const dataIndex = items[0].dataIndex;
+            const tableVal = tableRevenues[dataIndex] || 0;
+            const fnbVal = fnbRevenues[dataIndex] || 0;
+            const grossVal = tableVal + fnbVal;
+            return `Tổng doanh thu gộp mốc này: ${grossVal.toLocaleString("vi-VN")} đ`;
           },
         },
       },
@@ -199,23 +210,52 @@ export const RevenueReportPage: React.FC = () => {
   };
 
   // ── Prepare Doughnut Data (Payment Methods) ─────────────────────────────────
-  const pmLabels = data?.paymentMethods.map((pm) => pm.label) || [];
-  const pmAmounts = data?.paymentMethods.map((pm) => pm.amount) || [];
-  const pmColors = [
-    "#10B981", // Emerald
-    "#3B82F6", // Blue
-    "#8B5CF6", // Purple
-    "#F59E0B", // Amber
-    "#EC4899", // Pink
-    "#6B7280", // Gray
-  ];
+  const PAYMENT_LABEL_MAP: Record<string, string> = {
+    cash: "Tiền mặt",
+    transfer: "Chuyển khoản",
+    banking: "Chuyển khoản",
+    bank: "Chuyển khoản",
+    vietqr: "Chuyển khoản VietQR",
+    member_balance: "Ví hội viên",
+    wallet: "Ví hội viên",
+    cuezone_pay: "Ví hội viên",
+    momo: "MoMo",
+    vnpay: "VNPay",
+    card: "Thẻ ngân hàng",
+  };
+
+  const COLOR_MAP: Record<string, string> = {
+    cash: "#10B981", // Emerald
+    "Tiền mặt": "#10B981",
+    transfer: "#3B82F6", // Blue
+    "Chuyển khoản": "#3B82F6",
+    member_balance: "#8B5CF6", // Purple
+    "Ví hội viên": "#8B5CF6",
+  };
+
+  const rawPaymentMethods =
+    data?.paymentMethods && data.paymentMethods.length > 0
+      ? data.paymentMethods
+      : [
+          { method: "cash", label: "Tiền mặt", amount: 0, count: 0, percentage: 0 },
+          { method: "transfer", label: "Chuyển khoản", amount: 0, count: 0, percentage: 0 },
+          { method: "member_balance", label: "Ví hội viên", amount: 0, count: 0, percentage: 0 },
+        ];
+
+  const pmLabels = rawPaymentMethods.map(
+    (pm) => PAYMENT_LABEL_MAP[pm.method] || PAYMENT_LABEL_MAP[pm.label] || pm.label || "Khác"
+  );
+  const pmAmounts = rawPaymentMethods.map((pm) => pm.amount);
+  const pmColors = rawPaymentMethods.map(
+    (pm) => COLOR_MAP[pm.method] || COLOR_MAP[pm.label] || "#6B7280"
+  );
 
   const doughnutData = {
     labels: pmLabels,
     datasets: [
       {
         data: pmAmounts,
-        backgroundColor: pmColors.slice(0, pmLabels.length),
+        backgroundColor: pmColors,
         borderWidth: 2,
         borderColor: "#FFFFFF",
       },
@@ -232,6 +272,22 @@ export const RevenueReportPage: React.FC = () => {
           font: { size: 11, weight: 600 as any },
           padding: 12,
           boxWidth: 12,
+          generateLabels: (chart: any) => {
+            const datasets = chart.data.datasets;
+            return chart.data.labels.map((label: string, i: number) => {
+              const val = datasets[0]?.data?.[i] || 0;
+              const total = datasets[0]?.data?.reduce((a: number, b: number) => a + b, 0) || 0;
+              const pct = total > 0 ? ((val / total) * 100).toFixed(0) : "0";
+              return {
+                text: `${label} (${pct}%)`,
+                fillStyle: datasets[0]?.backgroundColor?.[i] || "#10B981",
+                strokeStyle: "#FFFFFF",
+                lineWidth: 1,
+                hidden: false,
+                index: i,
+              };
+            });
+          },
         },
       },
       tooltip: {
@@ -312,6 +368,7 @@ export const RevenueReportPage: React.FC = () => {
 
   const kpis = data?.kpis;
   const isZeroRevenue = (kpis?.totalRevenue || 0) === 0;
+  const grossRevenue = (kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0);
 
   return (
     <div className="space-y-6 p-2 sm:p-4 max-w-[1400px] mx-auto">
@@ -496,10 +553,10 @@ export const RevenueReportPage: React.FC = () => {
           </div>
           <div className="text-xs text-slate-400 mt-2">
             Chiếm{" "}
-            {((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0)) > 0
-              ? `${(((kpis?.tableRevenue || 0) / ((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0))) * 100).toFixed(1)}%`
+            {grossRevenue > 0
+              ? `${(((kpis?.tableRevenue || 0) / grossRevenue) * 100).toFixed(1)}%`
               : "0%"}{" "}
-            cơ cấu phát sinh
+            cơ cấu doanh thu gộp
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
         </div>
@@ -519,10 +576,10 @@ export const RevenueReportPage: React.FC = () => {
           </div>
           <div className="text-xs text-slate-400 mt-2">
             Chiếm{" "}
-            {((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0)) > 0
-              ? `${(((kpis?.fnbRevenue || 0) / ((kpis?.tableRevenue || 0) + (kpis?.fnbRevenue || 0))) * 100).toFixed(1)}%`
+            {grossRevenue > 0
+              ? `${(((kpis?.fnbRevenue || 0) / grossRevenue) * 100).toFixed(1)}%`
               : "0%"}{" "}
-            cơ cấu phát sinh
+            cơ cấu doanh thu gộp
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
         </div>
@@ -541,7 +598,11 @@ export const RevenueReportPage: React.FC = () => {
             {loading ? "..." : `${(kpis?.discountAmount || 0).toLocaleString("vi-VN")} đ`}
           </div>
           <div className="text-xs text-slate-400 mt-2">
-            Khuyến mãi & chiết khấu thành viên
+            Khuyến mãi & chiết khấu thành viên (Giảm trừ{" "}
+            {grossRevenue > 0
+              ? `${(((kpis?.discountAmount || 0) / grossRevenue) * 100).toFixed(1)}%`
+              : "0%"}
+            )
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
         </div>

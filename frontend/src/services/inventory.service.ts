@@ -92,7 +92,7 @@ export async function fetchInventory(
 
 export async function createInventoryTransaction(payload: {
   product: string;
-  type: "in" | "out" | "adjustment";
+  type: "in" | "out" | "adjustment" | "waste";
   quantity: number;
   reason: string;
 }) {
@@ -104,4 +104,16 @@ export async function createInventoryTransaction(payload: {
 
 export async function fetchInventoryHistory(productId: string) {
   return request(`/inventory/${productId}/history`);
+}
+
+export async function fetchInventoryTransactions(
+  params: {
+    type?: "in" | "out" | "adjustment" | "waste";
+    limit?: number;
+  } = {},
+) {
+  const query = new URLSearchParams();
+  if (params.type) query.set("type", params.type);
+  if (params.limit) query.set("limit", String(params.limit));
+  return request<{ success: boolean; data: any[] }>(`/inventory/transactions?${query.toString()}`);
 }

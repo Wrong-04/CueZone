@@ -4,11 +4,12 @@ import {
   TagsOutlined,
   CloseOutlined,
   SaveOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
+import { Button, Modal } from "../../shared/ui";
 import {
   AlertCircle,
   Check,
-  CirclePlus,
   LoaderCircle,
   Package,
   Pencil,
@@ -457,14 +458,15 @@ export default function CatalogManagementPage() {
             </div>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={<PlusOutlined />}
             onClick={tab === "products" ? openCreateProduct : openCreateCategory}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all"
           >
-            <CirclePlus className="h-5 w-5" />
             {tab === "products" ? "Thêm hàng hóa" : "Thêm danh mục"}
-          </button>
+          </Button>
         </header>
 
         {(error || success) && (
@@ -769,23 +771,24 @@ export default function CatalogManagementPage() {
         </section>
       </div>
 
-      {productModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-md animate-in fade-in duration-200"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !saving) {
-              setProductModal(false);
-            }
-          }}
-        >
-          <div className="relative my-auto w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
+      <Modal
+        open={productModal}
+        onCancel={() => !saving && setProductModal(false)}
+        footer={null}
+        closable={false}
+        width={700}
+        centered
+        destroyOnClose
+        styles={{ body: { padding: 0 } }}
+      >
+        <div className="relative my-auto w-full rounded-3xl bg-white border border-slate-100 overflow-hidden">
             {/* Top accent gradient bar */}
             <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
 
-            <form onSubmit={handleProductSubmit} className="p-6 sm:p-7 space-y-6">
+            <form onSubmit={handleProductSubmit} className="p-6 sm:p-7 space-y-5">
               {/* Modal Header */}
               <div className="flex items-start justify-between pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3.5">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl shadow-xs">
                     <ShoppingOutlined />
                   </div>
@@ -794,7 +797,7 @@ export default function CatalogManagementPage() {
                       {editingProduct ? "Cập Nhật Thông Tin Hàng Hóa" : "Thêm Hàng Hóa Mới"}
                     </h2>
                     <p className="text-xs text-slate-500 mb-0">
-                      Quản lý mã SKU, danh mục, đơn giá vốn và giá niêm yết bán tại quầy POS.
+                      Quản lý mã hàng, danh mục, đơn giá vốn và giá niêm yết bán tại quầy POS.
                     </p>
                   </div>
                 </div>
@@ -811,10 +814,10 @@ export default function CatalogManagementPage() {
               </div>
 
               {/* Section 1: Thông tin cơ bản */}
-              <div className="space-y-3">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-3.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                    1. Thông tin cơ bản
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    1. Thông tin mặt hàng
                   </span>
                 </div>
 
@@ -828,23 +831,36 @@ export default function CatalogManagementPage() {
                       value={productForm.name}
                       onChange={(e) => setProductForm((f) => ({ ...f, name: e.target.value }))}
                       placeholder="Ví dụ: Bia Heineken Silver, Đầu cơ Kamui..."
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                      Mã SKU <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        required
-                        value={productForm.sku}
-                        onChange={(e) => setProductForm((f) => ({ ...f, sku: e.target.value }))}
-                        placeholder="Ví dụ: DRK-001, ACC-002..."
-                        className="w-full font-mono uppercase rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
-                      />
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                        Mã SKU <span className="text-rose-500">*</span>
+                      </label>
+                      {!productForm.sku.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const prefix = (productForm.category || "PRD").toUpperCase().slice(0, 3);
+                            const rand = Math.floor(100 + Math.random() * 900);
+                            setProductForm((f) => ({ ...f, sku: `${prefix}-${rand}` }));
+                          }}
+                          className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer"
+                        >
+                          + Tạo mã tự động
+                        </button>
+                      )}
                     </div>
+                    <input
+                      required
+                      value={productForm.sku}
+                      onChange={(e) => setProductForm((f) => ({ ...f, sku: e.target.value.toUpperCase() }))}
+                      placeholder="Ví dụ: DRK-001, ACC-002..."
+                      className="w-full font-mono uppercase rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -877,16 +893,32 @@ export default function CatalogManagementPage() {
                       value={productForm.unit}
                       onChange={(e) => setProductForm((f) => ({ ...f, unit: e.target.value }))}
                       placeholder="Ví dụ: lon, chai, cái, hộp, gói..."
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                     />
+                    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                      {["lon", "chai", "ly", "cái", "cây", "bộ", "hộp", "gói"].map((u) => (
+                        <button
+                          key={u}
+                          type="button"
+                          onClick={() => setProductForm((f) => ({ ...f, unit: u }))}
+                          className={`text-[11px] rounded-md px-1.5 py-0.5 transition-colors cursor-pointer ${
+                            productForm.unit.toLowerCase() === u
+                              ? "bg-emerald-600 text-white font-bold"
+                              : "bg-white border border-slate-200 text-slate-600 hover:border-emerald-300"
+                          }`}
+                        >
+                          {u}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Section 2: Giá cả & Quản lý tồn kho */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-3.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
                     2. Giá bán & Quản lý kho
                   </span>
                 </div>
@@ -901,16 +933,14 @@ export default function CatalogManagementPage() {
                         {formatMoney(Number(productForm.costPrice) || 0)}
                       </span>
                     </div>
-                    <div className="relative">
-                      <input
-                        required
-                        min="0"
-                        type="number"
-                        value={productForm.costPrice}
-                        onChange={(e) => setProductForm((f) => ({ ...f, costPrice: e.target.value }))}
-                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                      />
-                    </div>
+                    <input
+                      required
+                      min="0"
+                      type="number"
+                      value={productForm.costPrice}
+                      onChange={(e) => setProductForm((f) => ({ ...f, costPrice: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -922,17 +952,32 @@ export default function CatalogManagementPage() {
                         {formatMoney(Number(productForm.salePrice) || 0)}
                       </span>
                     </div>
-                    <div className="relative">
-                      <input
-                        required
-                        min="0"
-                        type="number"
-                        value={productForm.salePrice}
-                        onChange={(e) => setProductForm((f) => ({ ...f, salePrice: e.target.value }))}
-                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                      />
-                    </div>
+                    <input
+                      required
+                      min="0"
+                      type="number"
+                      value={productForm.salePrice}
+                      onChange={(e) => setProductForm((f) => ({ ...f, salePrice: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                    />
                   </div>
+
+                  {/* Profit estimate badge */}
+                  {Number(productForm.salePrice) > 0 && Number(productForm.costPrice) > 0 && (
+                    <div className="sm:col-span-2 rounded-xl p-2.5 border text-xs flex items-center justify-between bg-white border-slate-200">
+                      <span className="text-slate-600 font-medium">Lãi dự kiến / đơn vị:</span>
+                      {Number(productForm.salePrice) >= Number(productForm.costPrice) ? (
+                        <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                          +{(Number(productForm.salePrice) - Number(productForm.costPrice)).toLocaleString("vi-VN")}đ
+                          {" "}({Math.round(((Number(productForm.salePrice) - Number(productForm.costPrice)) / Number(productForm.salePrice)) * 100)}% biên lãi)
+                        </span>
+                      ) : (
+                        <span className="font-mono font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
+                          Cảnh báo: Bán dưới giá vốn {(Number(productForm.costPrice) - Number(productForm.salePrice)).toLocaleString("vi-VN")}đ
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700">
@@ -944,7 +989,7 @@ export default function CatalogManagementPage() {
                       value={productForm.minStock}
                       onChange={(e) => setProductForm((f) => ({ ...f, minStock: e.target.value }))}
                       placeholder="Mặc định: 0"
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-mono text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                     />
                   </div>
 
@@ -970,16 +1015,16 @@ export default function CatalogManagementPage() {
               </div>
 
               {/* Section 3: Mô tả */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">
-                  Mô tả & Ghi chú sản phẩm
+                  Mô tả & Vị trí lưu kho
                 </label>
                 <textarea
                   rows={2}
                   value={productForm.description}
                   onChange={(e) => setProductForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="Quy cách đóng gói, hương vị, vị trí bảo quản..."
-                  className="w-full resize-none rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  placeholder="Quy cách đóng gói, vị trí kệ lưu trữ tại quán bi-a..."
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                 />
               </div>
 
@@ -995,7 +1040,7 @@ export default function CatalogManagementPage() {
                   type="button"
                   disabled={saving}
                   onClick={() => setProductModal(false)}
-                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
@@ -1009,24 +1054,24 @@ export default function CatalogManagementPage() {
                   ) : (
                     <SaveOutlined />
                   )}
-                  {editingProduct ? "Lưu thay đổi" : "Thêm hàng hóa"}
+                  {editingProduct ? "Lưu thay đổi" : "Lưu hàng hóa"}
                 </button>
               </div>
             </form>
-          </div>
         </div>
-      )}
+      </Modal>
 
-      {categoryModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-md animate-in fade-in duration-200"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !saving) {
-              setCategoryModal(false);
-            }
-          }}
-        >
-          <div className="relative my-auto w-full max-w-lg rounded-3xl bg-white shadow-2xl border border-slate-100 overflow-hidden">
+      <Modal
+        open={categoryModal}
+        onCancel={() => !saving && setCategoryModal(false)}
+        footer={null}
+        closable={false}
+        width={540}
+        centered
+        destroyOnClose
+        styles={{ body: { padding: 0 } }}
+      >
+        <div className="relative my-auto w-full rounded-3xl bg-white border border-slate-100 overflow-hidden">
             {/* Top accent gradient bar */}
             <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
 
@@ -1140,9 +1185,8 @@ export default function CatalogManagementPage() {
                 </button>
               </div>
             </form>
-          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

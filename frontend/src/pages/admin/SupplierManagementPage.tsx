@@ -1,8 +1,9 @@
+import { PlusOutlined } from "@ant-design/icons";
+import { Button, Modal } from "../../shared/ui";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import {
   Truck,
-  Plus,
   Search,
   Pencil,
   Power,
@@ -51,8 +52,6 @@ type SupplierStatusInfo = {
 
 const inputClass =
   "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-50";
-
-const labelClass = "mb-2 block text-sm font-semibold text-slate-700";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -288,15 +287,15 @@ export default function SupplierManagementPage() {
           </div>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="md"
+          leftIcon={<PlusOutlined />}
           onClick={openCreateModal}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
-          style={{ background: "var(--brand)" }}
+          className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all"
         >
-          <Plus size={19} />
           Thêm nhà cung cấp
-        </button>
+        </Button>
       </section>
 
       {/* Error banner */}
@@ -720,15 +719,15 @@ export default function SupplierManagementPage() {
                           Xóa từ khóa tìm kiếm
                         </button>
                       ) : (
-                        <button
-                          type="button"
+                        <Button
+                          variant="primary"
+                          size="md"
+                          leftIcon={<PlusOutlined />}
                           onClick={openCreateModal}
-                          className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                          style={{ background: "var(--brand)" }}
+                          className="mt-4 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
                         >
-                          <Plus size={17} />
                           Thêm nhà cung cấp
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -854,39 +853,44 @@ function SupplierModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-[3px] sm:p-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saving) {
-          onClose();
-        }
-      }}
+    <Modal
+      open
+      onCancel={() => !saving && onClose()}
+      footer={null}
+      closable={false}
+      width={680}
+      centered
+      destroyOnClose
+      styles={{ body: { padding: 0 } }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="supplier-modal-title"
-        className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-white/50 bg-white shadow-2xl"
+        className="relative my-auto w-full overflow-hidden rounded-3xl bg-white border border-slate-100"
       >
+        {/* Top accent gradient bar */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
+
         {/* Modal header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 via-white to-white px-5 py-5 sm:px-7 sm:py-6">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-              {supplier ? <Pencil size={21} /> : <Building2 size={22} />}
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7 sm:py-6">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 shadow-xs">
+              {supplier ? <Pencil size={22} /> : <Truck size={24} />}
             </div>
 
             <div className="min-w-0">
               <h2
                 id="supplier-modal-title"
-                className="text-xl font-bold tracking-tight text-slate-800"
+                className="text-xl font-black tracking-tight text-slate-900 mb-0.5"
               >
-                {supplier ? "Chỉnh sửa nhà cung cấp" : "Thêm nhà cung cấp"}
+                {supplier ? "Cập Nhật Thông Tin Nhà Cung Cấp" : "Thêm Nhà Cung Cấp Mới"}
               </h2>
 
-              <p className="mt-1 text-sm leading-5 text-slate-500">
+              <p className="text-xs text-slate-500 mb-0">
                 {supplier
-                  ? "Cập nhật thông tin liên hệ và hồ sơ đối tác."
-                  : "Nhập thông tin để tạo hồ sơ nhà cung cấp mới."}
+                  ? "Cập nhật thông tin đối tác phân phối thiết bị, phụ kiện bida & F&B."
+                  : "Lưu thông tin nhà phân phối thiết bị bida, phụ kiện hoặc đồ uống F&B."}
               </p>
             </div>
           </div>
@@ -895,193 +899,191 @@ function SupplierModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            aria-label="Đóng biểu mẫu"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+            aria-label="Đóng"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         <form onSubmit={submit}>
-          <div className="max-h-[65vh] space-y-6 overflow-y-auto px-5 py-6 sm:px-7">
+          <div className="max-h-[68vh] space-y-5 overflow-y-auto px-6 py-5 sm:px-7">
             {error && (
               <div
                 role="alert"
-                className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-sm text-rose-700"
+                className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-700 font-medium"
               >
-                <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
                 <span className="break-words">{error}</span>
               </div>
             )}
 
-            <section>
-              <div className="mb-4 flex items-center gap-2">
-                <div className="h-5 w-1 rounded-full bg-emerald-500" />
-                <h3 className="font-bold text-slate-800">Thông tin cơ bản</h3>
+            {/* Section 1: Thông tin đối tác */}
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-3.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  1. Thông tin đối tác
+                </span>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="sm:col-span-2">
-                  <span className={labelClass}>
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
                     Tên nhà cung cấp <span className="text-rose-500">*</span>
-                  </span>
-
-                  <input
-                    autoFocus
-                    required
-                    maxLength={150}
-                    className={inputClass}
-                    value={form.name}
-                    onChange={(event) => changeField("name", event.target.value)}
-                    placeholder="Ví dụ: Công ty phân phối..."
-                    disabled={saving}
-                  />
-                </label>
-
-                <label>
-                  <span className={labelClass}>Người liên hệ</span>
-
-                  <span className="relative block">
-                    <Users
-                      size={17}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-
+                  </label>
+                  <div className="relative">
+                    <Building2 size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
-                      maxLength={100}
-                      className={`${inputClass} pl-10`}
-                      value={form.contactPerson}
-                      onChange={(event) => changeField("contactPerson", event.target.value)}
-                      placeholder="Họ và tên"
+                      autoFocus
+                      required
+                      maxLength={150}
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                      value={form.name}
+                      onChange={(event) => changeField("name", event.target.value)}
+                      placeholder="Ví dụ: Đại lý Phụ kiện Bida Thành Công, Nước ngọt Tân Hiệp..."
                       disabled={saving}
                     />
-                  </span>
-                </label>
+                  </div>
+                </div>
 
-                <label>
-                  <span className={labelClass}>Số điện thoại</span>
-
-                  <span className="relative block">
-                    <Phone
-                      size={17}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Người liên hệ đại diện</label>
+                  <div className="relative">
+                    <Users size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      maxLength={100}
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                      value={form.contactPerson}
+                      onChange={(event) => changeField("contactPerson", event.target.value)}
+                      placeholder="Họ và tên người đại diện"
+                      disabled={saving}
                     />
+                  </div>
+                </div>
 
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Số điện thoại liên hệ</label>
+                  <div className="relative">
+                    <Phone size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="tel"
                       maxLength={30}
-                      className={`${inputClass} pl-10`}
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3.5 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                       value={form.phone}
                       onChange={(event) => changeField("phone", event.target.value)}
-                      placeholder="Nhập số điện thoại"
+                      placeholder="Ví dụ: 0912 345 678"
                       disabled={saving}
                     />
-                  </span>
-                </label>
+                  </div>
+                </div>
 
-                <label className="sm:col-span-2">
-                  <span className={labelClass}>Email</span>
-
-                  <span className="relative block">
-                    <Mail
-                      size={17}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Địa chỉ Email</label>
+                  <div className="relative">
+                    <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="email"
                       maxLength={150}
-                      className={`${inputClass} pl-10`}
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                       value={form.email}
                       onChange={(event) => changeField("email", event.target.value)}
-                      placeholder="email@congty.com"
+                      placeholder="email@doitac-bida.vn"
                       disabled={saving}
                     />
-                  </span>
-                </label>
+                  </div>
+                </div>
               </div>
-            </section>
+            </div>
 
-            <section>
-              <div className="mb-4 flex items-center gap-2">
-                <div className="h-5 w-1 rounded-full bg-emerald-500" />
-                <h3 className="font-bold text-slate-800">Địa chỉ và ghi chú</h3>
+            {/* Section 2: Địa chỉ & Ghi chú hợp tác */}
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-3.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  2. Địa chỉ & Ghi chú hợp tác
+                </span>
               </div>
 
-              <div className="space-y-4">
-                <label className="block">
-                  <span className={labelClass}>Địa chỉ</span>
-
-                  <span className="relative block">
-                    <MapPin
-                      size={17}
-                      className="pointer-events-none absolute left-3.5 top-3.5 text-slate-400"
-                    />
-
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Địa chỉ kho / trụ sở giao hàng</label>
+                  <div className="relative">
+                    <MapPin size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       maxLength={300}
-                      className={`${inputClass} pl-10`}
+                      className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                       value={form.address}
                       onChange={(event) => changeField("address", event.target.value)}
-                      placeholder="Số nhà, đường, phường/xã, tỉnh/thành phố"
+                      placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
                       disabled={saving}
                     />
-                  </span>
-                </label>
+                  </div>
+                </div>
 
-                <label className="block">
-                  <span className={labelClass}>Ghi chú</span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Ghi chú & Mặt hàng phân phối</label>
+                    <span className="text-[11px] text-slate-400">{form.note.length}/1000</span>
+                  </div>
 
-                  <span className="relative block">
-                    <FileText
-                      size={17}
-                      className="pointer-events-none absolute left-3.5 top-3.5 text-slate-400"
-                    />
+                  {/* Quick tag suggestions for Billiards suppliers */}
+                  <div className="flex flex-wrap items-center gap-1.5 pb-1">
+                    <span className="text-[11px] text-slate-500 font-medium">Gợi ý phân loại:</span>
+                    {["Cơ & Phụ kiện bida", "Vải nỉ & Bi bida", "Bia & Đồ uống F&B", "Linh kiện & Bảo trì bàn"].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          const separator = form.note.trim() ? " • " : "";
+                          if (!form.note.includes(tag)) {
+                            changeField("note", `${form.note}${separator}${tag}`);
+                          }
+                        }}
+                        className="text-[11px] rounded-lg border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-600 hover:border-emerald-400 hover:text-emerald-700 transition-colors cursor-pointer"
+                      >
+                        +{tag}
+                      </button>
+                    ))}
+                  </div>
 
+                  <div className="relative">
+                    <FileText size={16} className="pointer-events-none absolute left-3.5 top-3 text-slate-400" />
                     <textarea
                       rows={3}
                       maxLength={1000}
-                      className={`${inputClass} resize-y pl-10`}
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-white pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
                       value={form.note}
                       onChange={(event) => changeField("note", event.target.value)}
-                      placeholder="Thông tin bổ sung về nhà cung cấp..."
+                      placeholder="Chính sách chiết khấu, thời gian giao hàng, người phụ trách..."
                       disabled={saving}
                     />
-                  </span>
-
-                  <span className="mt-1.5 block text-right text-xs text-slate-400">
-                    {form.note.length}/1000 ký tự
-                  </span>
-                </label>
+                  </div>
+                </div>
               </div>
-            </section>
+            </div>
           </div>
 
           {/* Modal footer */}
-          <div className="flex flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-7">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <X size={16} />
-              Hủy
+              Hủy bỏ
             </button>
 
             <button
               type="submit"
               disabled={saving || !form.name.trim()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: "var(--brand)" }}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-60 transition-all cursor-pointer"
             >
-              {saving ? <Loader2 size={17} className="animate-spin" /> : <Save size={17} />}
-
-              {saving ? "Đang lưu..." : supplier ? "Lưu thay đổi" : "Tạo nhà cung cấp"}
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {supplier ? "Lưu thay đổi" : "Lưu nhà cung cấp"}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 }
