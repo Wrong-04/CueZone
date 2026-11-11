@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
 import {
   DashboardOutlined,
+  ReadOutlined,
   AppstoreOutlined,
   TrophyOutlined,
   CoffeeOutlined,
@@ -101,6 +102,12 @@ const menuGroups: MenuGroupConfig[] = [
         label: "Giải Đấu & Trọng Tài",
         icon: <TrophyOutlined />,
         permission: "tournaments.manage",
+      },
+      {
+        path: "/news",
+        label: "Tin Tức & Sự Kiện",
+        icon: <ReadOutlined />,
+        permission: "news.manage",
       },
       {
         path: "/vouchers",

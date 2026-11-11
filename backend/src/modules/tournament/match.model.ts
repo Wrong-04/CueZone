@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, HydratedDocument } from "mongoose";
 import { applyErdDefaults } from "../../config/erd-fields";
 
 const integer = {
@@ -6,6 +6,50 @@ const integer = {
   min: 0,
   validate: (value: number | null) => value == null || Number.isSafeInteger(value),
 };
+
+export interface IMatchParticipant {
+  _id?: mongoose.Types.ObjectId;
+  matchId?: mongoose.Types.ObjectId;
+  registrationId: mongoose.Types.ObjectId;
+  slot: 1 | 2;
+  score: number;
+  isWinner: boolean | null;
+}
+
+export type MatchStatus = "scheduled" | "in_progress" | "completed" | "walkover" | "bye" | "cancelled";
+
+export interface IMatch {
+  _id: mongoose.Types.ObjectId;
+  tournament: mongoose.Types.ObjectId;
+  roundId: mongoose.Types.ObjectId;
+  groupId?: mongoose.Types.ObjectId;
+  round: number;
+  matchNumber: number;
+  code?: string;
+  table?: mongoose.Types.ObjectId;
+  referee?: mongoose.Types.ObjectId;
+  winnerRegistrationId?: mongoose.Types.ObjectId;
+  nextMatchId?: mongoose.Types.ObjectId;
+  nextMatchSlot?: 1 | 2;
+  participants: IMatchParticipant[];
+  scheduledAt?: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  status: MatchStatus;
+  eloApplied: boolean;
+  updatedBy?: mongoose.Types.ObjectId;
+  note?: string;
+  player1?: mongoose.Types.ObjectId;
+  player2?: mongoose.Types.ObjectId;
+  score1?: number;
+  score2?: number;
+  winner?: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type MatchDocument = HydratedDocument<IMatch>;
+
 const participantSchema = new Schema(
   {
     matchId: { type: Schema.Types.ObjectId, ref: "Match" },
@@ -50,6 +94,7 @@ const matchSchema = new Schema(
       enum: ["scheduled", "in_progress", "completed", "walkover", "bye", "cancelled"],
       default: "scheduled",
     },
+    eloApplied: { type: Boolean, default: false },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
     note: String,
 

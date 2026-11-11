@@ -35,8 +35,8 @@
 
 - Subagents are authorized for read-only independent review. Before completing each
   implementation task, launch a different reviewer using the code-reviewer skill
-  in a fresh context/session with model `zuu/gpt-6.1-sol`. Select it explicitly;
-  for Pi pass model: "zuu/gpt-6.1-sol". Do not reuse the implementer, inherit/fork
+  in a fresh context/session with model `cliproxy/gemini-3.8-flash-high`. Select it explicitly;
+  for Pi pass model: "cliproxy/gemini-3.8-flash-high". Do not reuse the implementer, inherit/fork
   the parent transcript or pass its implementation narrative.
 - Give requirements/acceptance criteria, workspace/baseline when available, changed
   paths and read-only authority. Reviewer inspects actual files/diff and relevant
