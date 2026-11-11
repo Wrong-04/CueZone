@@ -132,9 +132,10 @@ export class TablePerformanceService {
     const tableMap = new Map<string, any>();
     tables.forEach((t) => tableMap.set(t._id.toString(), t));
 
-    // 2. Query hóa đơn trong khoảng thời gian [startDate, endDate]
+    // 2. Query hóa đơn trong khoảng thời gian [startDate, endDate] (chỉ tính hóa đơn thành công, loại trừ hóa đơn hủy)
     const invoices = await Invoice.find({
       createdAt: { $gte: startDate, $lte: endDate },
+      status: { $ne: "cancelled" },
     }).lean();
 
     // 3. Gom dữ liệu theo từng bàn

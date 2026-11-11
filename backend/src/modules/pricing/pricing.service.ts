@@ -97,12 +97,16 @@ export class PricingTierService {
       standard: dto.standardPrice,
       vip: dto.vipPrice,
     };
+    const resolvedDays =
+      Array.isArray(dto.daysOfWeek) && dto.daysOfWeek.length > 0
+        ? dto.daysOfWeek
+        : resolveDays(dto.dayType, dto.daysOfWeek);
     const tier = await PricingTier.create({
       name: dto.name,
-      dayType: dto.dayType,
+      dayType: dto.dayType || "all",
       startTime: dto.startTime,
       endTime: dto.endTime,
-      daysOfWeek: dto.daysOfWeek || [],
+      daysOfWeek: resolvedDays,
       prices,
     });
     notificationService
@@ -119,12 +123,19 @@ export class PricingTierService {
     const existing = await PricingTier.findById(id);
     if (!existing) throw new Error("Không tìm thấy khung giờ");
 
+    const resolvedDays =
+      Array.isArray(dto.daysOfWeek) && dto.daysOfWeek.length > 0
+        ? dto.daysOfWeek
+        : dto.dayType
+          ? resolveDays(dto.dayType)
+          : existing.daysOfWeek;
+
     const merged = {
       name: dto.name ?? existing.name,
       dayType: dto.dayType ?? existing.dayType,
       startTime: dto.startTime ?? existing.startTime,
       endTime: dto.endTime ?? existing.endTime,
-      daysOfWeek: dto.daysOfWeek ?? existing.daysOfWeek,
+      daysOfWeek: resolvedDays,
       prices: {
         standard: dto.standardPrice ?? dto.prices?.standard ?? existing.prices.standard,
         vip: dto.vipPrice ?? dto.prices?.vip ?? existing.prices.vip,
@@ -136,7 +147,7 @@ export class PricingTierService {
       await validatePricingTier(merged, id);
     }
 
-    const updateData: any = { ...dto };
+    const updateData: any = { ...dto, daysOfWeek: resolvedDays };
     if (dto.standardPrice !== undefined || dto.vipPrice !== undefined) {
       updateData.prices = {
         standard: dto.standardPrice ?? existing.prices.standard,

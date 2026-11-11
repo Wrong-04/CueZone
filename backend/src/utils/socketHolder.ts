@@ -19,37 +19,50 @@ export const emitTableStatusChanged = (payload: {
   status?: string;
   table?: any;
 }) => {
-  io?.emit("table:status_changed", payload);
+  const resolvedTableId =
+    payload.tableId ||
+    (payload.table ? String(payload.table._id || payload.table.id) : undefined);
+
+  io?.emit("table:status_changed", { ...payload, tableId: resolvedTableId });
+  io?.emit("table:status-changed", { ...payload, tableId: resolvedTableId });
+
+  const tableData = payload.table
+    ? {
+        _id: payload.table._id,
+        id: String(payload.table._id || resolvedTableId),
+        code: payload.table.code,
+        name: payload.table.name,
+        type: payload.table.type,
+        area: payload.table.area,
+        floor: payload.table.floor,
+        pricePerHour: payload.table.pricePerHour,
+        status: payload.table.status || payload.status,
+        sessionStart:
+          payload.table.currentSession?.sessionStart ||
+          (payload.table.currentSession?.startedAt
+            ? new Date(payload.table.currentSession.startedAt).toLocaleTimeString("vi-VN", {
+                timeZone: "Asia/Ho_Chi_Minh",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : undefined),
+        isPaused: Boolean(
+          payload.table.currentSession?.isPaused || payload.table.status === "paused",
+        ),
+        bookedTime: payload.table.bookedInfo?.time,
+      }
+    : resolvedTableId
+      ? {
+          _id: resolvedTableId,
+          id: String(resolvedTableId),
+          status: payload.status,
+        }
+      : undefined;
 
   const publicPayload = {
-    tableId: payload.tableId,
+    tableId: resolvedTableId,
     status: payload.status,
-    table: payload.table
-      ? {
-          _id: payload.table._id,
-          id: String(payload.table._id || payload.tableId),
-          code: payload.table.code,
-          name: payload.table.name,
-          type: payload.table.type,
-          area: payload.table.area,
-          floor: payload.table.floor,
-          pricePerHour: payload.table.pricePerHour,
-          status: payload.table.status,
-          sessionStart:
-            payload.table.currentSession?.sessionStart ||
-            (payload.table.currentSession?.startedAt
-              ? new Date(payload.table.currentSession.startedAt).toLocaleTimeString("vi-VN", {
-                  timeZone: "Asia/Ho_Chi_Minh",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : undefined),
-          isPaused: Boolean(
-            payload.table.currentSession?.isPaused || payload.table.status === "paused",
-          ),
-          bookedTime: payload.table.bookedInfo?.time,
-        }
-      : undefined,
+    table: tableData,
   };
   io?.emit("table:public_status_changed", publicPayload);
   io?.emit("table:guest_status_changed", publicPayload);
@@ -87,6 +100,9 @@ export const emitWaitlistUpdated = (entry?: any) => {
   io?.emit("waitlist:updated", entry);
 };
 
+export const emitMenuUpdated = () => {
+  io?.emit("menu:updated");
+  io?.emit("fnb:updated");
 export const emitTournamentScoreUpdated = (payload: {
   tournamentId: string;
   matchId: string;

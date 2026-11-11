@@ -53,10 +53,7 @@ export async function getInventory(req: Request, res: Response) {
     };
 
     if (user.role === "staff") {
-      filter.category = {
-        $in: ["drink", "food", "snack"],
-      };
-
+      filter.productType = "fnb";
       filter.isForSale = true;
     }
 
@@ -145,6 +142,7 @@ export async function getInventory(req: Request, res: Response) {
         sku: product.sku,
         name: product.name,
         category: product.category,
+        productType: product.productType,
         unit: product.unit,
         stock: product.stock,
         minStock: product.minStock,

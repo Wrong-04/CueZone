@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -37,6 +37,7 @@ import {
   getCustomerFnbCategoryLabel,
   getFnbImageUrl,
   isFnbItemOutOfStock,
+  isFnbWarehouseItem,
   resolveFnbCategory,
 } from "../../utils/fnb";
 import { CustomerFnbCategoryPills } from "../../components/customer/CustomerFnbCategoryPills";
@@ -76,20 +77,34 @@ export const CustomerFnB: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  useEffect(() => {
-    const fetchMenu = async () => {
-      try {
-        setIsLoading(true);
-        const response = await productService.getFnbMenu();
-        setMenuItems(response);
-      } catch (error: any) {
-        message.error(error.message || "Đã xảy ra lỗi khi tải thực đơn");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchMenu();
+  const fetchMenu = useCallback(async (silent = false) => {
+    try {
+      if (!silent) setIsLoading(true);
+      const response = await productService.getFnbMenu();
+      setMenuItems(response);
+    } catch (error: any) {
+      message.error(error.message || "Đã xảy ra lỗi khi tải thực đơn");
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void fetchMenu();
+
+    const socket = getSocket();
+    const handleMenuUpdated = () => {
+      void fetchMenu(true);
+    };
+
+    socket.on("menu:updated", handleMenuUpdated);
+    socket.on("fnb:updated", handleMenuUpdated);
+
+    return () => {
+      socket.off("menu:updated", handleMenuUpdated);
+      socket.off("fnb:updated", handleMenuUpdated);
+    };
+  }, [fetchMenu]);
 
   useEffect(() => {
     let active = true;
@@ -174,7 +189,11 @@ export const CustomerFnB: React.FC = () => {
     };
   }, [recentOrder]);
 
-  const filteredItems = menuItems.filter((item) => {
+  const validMenuItems = useMemo(() => {
+    return menuItems.filter((item) => !isFnbWarehouseItem(item.name, item.category, item.productType));
+  }, [menuItems]);
+
+  const filteredItems = validMenuItems.filter((item) => {
     const category = resolveFnbCategory(item.name, item.category);
     const matchesCategory = selectedCategory === "all" || category === selectedCategory;
     const matchesSearch =
@@ -184,19 +203,22 @@ export const CustomerFnB: React.FC = () => {
   });
 
   const categoryOptions = useMemo(() => {
-    const categories = menuItems.map((item) => resolveFnbCategory(item.name, item.category));
-    const categoryOrder = ["coffee", "tea", "juice", "beer", "food", "snack", "equipment"];
+    const categories = validMenuItems.map((item) => resolveFnbCategory(item.name, item.category));
+    const allCategoriesInItems = Array.from(new Set(categories));
+    const standardOrder = ["coffee", "tea", "juice", "beer", "food", "snack"];
+    const standardPresent = standardOrder.filter((cat) => allCategoriesInItems.includes(cat));
+    const dynamicCategories = allCategoriesInItems.filter((cat) => !standardOrder.includes(cat));
+    const finalCategories = [...standardPresent, ...dynamicCategories];
+
     return [
-      { key: "all", label: "Tất cả thực đơn", badge: menuItems.length },
-      ...categoryOrder
-        .filter((category) => categories.includes(category))
-        .map((category) => ({
+      { key: "all", label: "Tất cả thực đơn", badge: validMenuItems.length },
+      ...finalCategories.map((category) => ({
         key: category,
         label: getCustomerFnbCategoryLabel(category),
         badge: categories.filter((itemCategory) => itemCategory === category).length,
       })),
     ];
-  }, [menuItems]);
+  }, [validMenuItems]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);

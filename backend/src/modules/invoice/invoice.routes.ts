@@ -3,6 +3,9 @@ import mongoose from "mongoose";
 import { Invoice } from "./invoice.model";
 import { Table, TableStatus } from "../table/table.model";
 import { requirePermission } from "../../middlewares/auth.middleware";
+import { Voucher, VoucherUsage } from "../voucher/voucher.model";
+import { Wallet } from "../wallet/wallet.model";
+import { User } from "../user/user.model";
 
 const router = Router();
 const invoicesRead = requirePermission("invoices", "read");
@@ -195,6 +198,9 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
         paymentMethodText: methodMap[pMethod] || "Tiền Mặt",
         status: inv.status === "cancelled" ? "cancelled" : "paid",
         statusText: inv.status === "cancelled" ? "Đã Hủy" : "Đã Thanh Toán",
+        cancelledAt: inv.cancelledAt,
+        cancelledBy: inv.cancelledBy,
+        cancelReason: inv.cancelReason,
         date: dateStr,
         createdAt: inv.createdAt,
         items,
@@ -267,6 +273,7 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
         metrics: {
           totalCount: allCombined.length,
           paidCount: paidList.length,
+          cancelledCount: mappedInvoices.filter((i) => i.status === "cancelled").length,
           totalRevenue,
           totalTableFee,
           totalFnbFee,
@@ -303,9 +310,140 @@ router.get("/:id", invoicesRead, async (req: Request, res: Response, next: NextF
       }
     }
 
+    if (invoice.cancelledBy) {
+      const canceller = await User.findById(invoice.cancelledBy).select("fullName name phone role").lean();
+      if (canceller) {
+        invoice.cancellerName = (canceller as any).fullName || (canceller as any).name || "Quản trị viên";
+      }
+    }
+
     return res.json({ success: true, data: invoice });
   } catch (error: any) {
     next(error);
+  }
+});
+
+// ── POST /api/v1/invoices/:id/cancel (Hủy hóa đơn & hoàn tác điểm/voucher) ───────
+router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: Request, res: Response, next: NextFunction) => {
+  let session: mongoose.ClientSession | null = null;
+  let useSession = true;
+
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: "Mã hóa đơn không hợp lệ" });
+    }
+
+    const reason = normalizeString(req.body?.reason);
+    if (!reason) {
+      return res.status(400).json({ success: false, message: "Vui lòng nhập lý do hủy hóa đơn" });
+    }
+
+    const currentInvoice = await Invoice.findById(id);
+    if (!currentInvoice) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy hóa đơn" });
+    }
+
+    if (currentInvoice.status === "cancelled") {
+      return res.status(400).json({ success: false, message: "Hóa đơn này đã được hủy trước đó" });
+    }
+
+    const userId = (req as any).user?.userId;
+
+    try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+    } catch {
+      // Môi trường standalone Mongo không hỗ trợ transaction, fallback thực hiện không session
+      useSession = false;
+      if (session) {
+        await session.endSession();
+        session = null;
+      }
+    }
+
+    const sessionOpts = useSession && session ? { session } : {};
+
+    currentInvoice.status = "cancelled";
+    currentInvoice.cancelledAt = new Date();
+    currentInvoice.cancelReason = reason;
+    if (userId && mongoose.isValidObjectId(userId)) {
+      currentInvoice.cancelledBy = new mongoose.Types.ObjectId(userId);
+    }
+    await currentInvoice.save(sessionOpts);
+
+    // 1. Hoàn lại số lượt voucher nếu hóa đơn có áp dụng voucher
+    const voucherCode = currentInvoice.receipt?.voucherCode;
+    const invoiceCode = currentInvoice.receipt?.invoiceCode;
+    if (voucherCode) {
+      await Voucher.updateOne(
+        { code: voucherCode.toUpperCase(), usageCount: { $gt: 0 } },
+        { $inc: { usageCount: -1 } },
+        sessionOpts
+      );
+      if (invoiceCode) {
+        await VoucherUsage.deleteOne({ code: voucherCode.toUpperCase(), invoiceCode }, sessionOpts);
+      } else {
+        await VoucherUsage.deleteOne({ code: voucherCode.toUpperCase(), sessionId: currentInvoice.sessionId }, sessionOpts);
+      }
+    }
+
+    // 2. Thu hồi điểm tích lũy & hoàn lại số dư ví nếu thanh toán bằng ví
+    const pointsAwarded = Number(currentInvoice.receipt?.pointsAwarded || currentInvoice.receipt?.earnedPoints) || 0;
+    const memberId = currentInvoice.receipt?.memberId;
+    const customerPhone = currentInvoice.receipt?.customerPhone;
+    const rawMethod = String(currentInvoice.receipt?.paymentMethod || "").toLowerCase();
+    const isWalletPayment = ["wallet", "member_balance", "cuezone_pay"].includes(rawMethod);
+    const finalAmount = Number(currentInvoice.receipt?.finalAmount) || 0;
+
+    let targetUserId: any = null;
+    if (memberId && mongoose.isValidObjectId(memberId)) {
+      targetUserId = memberId;
+    } else if (customerPhone) {
+      const foundUser = await User.findOne({ phone: customerPhone }, null, sessionOpts).select("_id");
+      if (foundUser) {
+        targetUserId = foundUser._id;
+      }
+    }
+
+    if (targetUserId) {
+      const wallet = await Wallet.findOne({ userId: targetUserId }, null, sessionOpts);
+      if (wallet) {
+        // Thu hồi điểm thưởng
+        if (pointsAwarded > 0) {
+          wallet.points = Math.max(0, (wallet.points || 0) - pointsAwarded);
+        }
+        // Hoàn tiền ví nếu khách thanh toán bằng ví hội viên
+        if (isWalletPayment && finalAmount > 0) {
+          wallet.balance = (wallet.balance || 0) + finalAmount;
+        }
+        await wallet.save(sessionOpts);
+      }
+    }
+
+    if (useSession && session) {
+      await session.commitTransaction();
+    }
+
+    return res.json({
+      success: true,
+      message: "Hủy hóa đơn thành công",
+      data: {
+        id: String(currentInvoice._id),
+        status: currentInvoice.status,
+        cancelledAt: currentInvoice.cancelledAt,
+        cancelReason: currentInvoice.cancelReason,
+      },
+    });
+  } catch (error: any) {
+    if (useSession && session) {
+      await session.abortTransaction();
+    }
+    next(error);
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
   }
 });
 

@@ -7,7 +7,7 @@ import { uploadProductImage } from "../../config/cloudinary.config";
 export class ProductService {
   async getFnbMenu(): Promise<any[]> {
     const products = await Product.find({
-      category: { $ne: "ingredient" },
+      productType: "fnb",
       isForSale: true,
       isActive: true,
     }).sort({ category: 1, name: 1 });
@@ -29,19 +29,14 @@ export class ProductService {
 
     return products.map((p) => {
       const rawCat = String(p.category || "").trim();
-      let resolvedCategory = rawCat;
-
-      if (catMap.has(rawCat)) {
-        resolvedCategory = catMap.get(rawCat)!;
-      } else if (mongoose.Types.ObjectId.isValid(rawCat)) {
-        resolvedCategory = /kem|bánh|snack|khô/i.test(p.name) ? "snack" : "accessory";
-      }
+      const resolvedCategory = catMap.get(rawCat) || rawCat;
 
       return {
         _id: p._id,
         name: p.name,
         sku: p.sku,
         category: resolvedCategory,
+        productType: p.productType,
         unit: p.unit || "Phần",
         salePrice: p.salePrice,
         imageUrl: p.imageUrl,
@@ -63,8 +58,22 @@ export class ProductService {
     });
   }
 
-  async getAll(): Promise<IProduct[]> {
-    return Product.find().sort({ name: 1 });
+  async getAll(): Promise<any[]> {
+    const products = await Product.find().sort({ name: 1 }).lean();
+    const allCategories = await Category.find().lean();
+    const catMap = new Map<string, string>();
+    allCategories.forEach((c) => {
+      catMap.set(c._id.toString(), c.name || c.code);
+    });
+
+    return products.map((p) => {
+      const rawCat = String(p.category || "").trim();
+      const resolvedCatName = catMap.get(rawCat) || rawCat;
+      return {
+        ...p,
+        categoryName: resolvedCatName,
+      };
+    });
   }
 
   async getById(id: string): Promise<IProduct> {
@@ -90,7 +99,13 @@ export class ProductService {
   }
 
   async create(dto: CreateProductDTO): Promise<IProduct> {
-    return Product.create(dto);
+    let productType = dto.productType;
+    if (!productType) {
+      if (dto.category === "accessory") productType = "accessory";
+      else if (dto.category === "ingredient") productType = "ingredient";
+      else productType = "fnb";
+    }
+    return Product.create({ ...dto, productType });
   }
 
   async update(id: string, dto: UpdateProductDTO): Promise<IProduct> {

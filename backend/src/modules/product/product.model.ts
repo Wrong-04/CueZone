@@ -1,10 +1,13 @@
 import mongoose, { type Document } from "mongoose";
 
+export type ProductType = "fnb" | "ingredient" | "accessory";
+
 export interface IProduct extends Document {
   name: string;
 
   sku: string;
   category: "accessory" | "drink" | "food" | "snack" | "ingredient" | string;
+  productType: ProductType;
   unit: string;
 
   costPrice: number;
@@ -43,6 +46,13 @@ const ProductSchema = new mongoose.Schema<IProduct>(
       type: String,
       required: true,
       trim: true,
+    },
+    productType: {
+      type: String,
+      enum: ["fnb", "ingredient", "accessory"],
+      default: "fnb",
+      required: true,
+      index: true,
     },
 
     unit: { type: String, required: true },

@@ -439,24 +439,10 @@ export const PosTableFloorPage: React.FC = () => {
     let totalTempRevenue = 0;
 
     tables.forEach((t) => {
-      const isBookedItem = t.status === "booked";
-      const upMinItem = isBookedItem ? getBookingUpcomingMinutes(t.bookedInfo?.time) : -1;
-      const overMinItem = isBookedItem ? getBookingOverdueMinutes(t.bookedInfo?.time) : 0;
-      const isHoldingItem =
-        isBookedItem &&
-        ((upMinItem >= 0 && upMinItem <= 45) || (overMinItem > 0 && overMinItem <= 15));
-
       if (t.status === "playing") playing++;
       else if (t.status === "paused") paused++;
-      else if (t.status === "booked") {
-        if (isHoldingItem) booked++;
-        else {
-          available++;
-          booked++;
-        }
-      } else if (t.status === "available") {
-        available++;
-      }
+      else if (t.status === "booked") booked++;
+      else if (t.status === "available") available++;
 
       if (t.status === "playing" || t.status === "paused" || t.currentSession) {
         const { cost } = calculatePlayingDetails(t);
@@ -584,18 +570,10 @@ export const PosTableFloorPage: React.FC = () => {
       if (filterArea !== "all" && table.area !== filterArea) return false;
       if (filterType !== "all" && table.type !== filterType) return false;
 
-      const isBookedTable = table.status === "booked";
-      const upMinTable = isBookedTable ? getBookingUpcomingMinutes(table.bookedInfo?.time) : -1;
-      const overMinTable = isBookedTable ? getBookingOverdueMinutes(table.bookedInfo?.time) : 0;
-      const isHoldingTable =
-        isBookedTable &&
-        ((upMinTable >= 0 && upMinTable <= 45) || (overMinTable > 0 && overMinTable <= 15));
-
       if (filterStatus === "playing" && table.status !== "playing") return false;
       if (filterStatus === "paused" && table.status !== "paused") return false;
-      if (filterStatus === "booked" && !isHoldingTable) return false;
-      if (filterStatus === "available" && table.status !== "available" && isHoldingTable)
-        return false;
+      if (filterStatus === "booked" && table.status !== "booked" && !table.bookedInfo) return false;
+      if (filterStatus === "available" && table.status !== "available") return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();

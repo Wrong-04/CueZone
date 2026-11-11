@@ -56,4 +56,12 @@ export const invoiceService = {
     );
     return res.data;
   },
+
+  async cancelInvoice(id: string, reason: string) {
+    const res = await api.post<{ success: boolean; data: any; message?: string }>(
+      `/invoices/${id}/cancel`,
+      { reason },
+    );
+    return res.data;
+  },
 };

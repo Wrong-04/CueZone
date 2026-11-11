@@ -46,7 +46,12 @@ export class AccessoryWasteService {
 
         // Validate category: phụ kiện
         const category = String(product.category).toLowerCase();
-        if (category !== "accessory" && !category.includes("phụ kiện") && !category.includes("phu kien")) {
+        const isAccessory =
+          product.productType === "accessory" ||
+          category === "accessory" ||
+          category.includes("phụ kiện") ||
+          category.includes("phu kien");
+        if (!isAccessory) {
           throw new Error("Mặt hàng này không phải là phụ kiện. Chỉ được xuất hủy hao mòn cho nhóm phụ kiện bida.");
         }
 

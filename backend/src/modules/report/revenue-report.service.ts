@@ -108,6 +108,7 @@ export class RevenueReportService {
         $gte: startDate,
         $lte: endDate,
       },
+      status: { $ne: "cancelled" },
     };
 
     // Aggregation 1: Tổng hợp KPIs và Payment Methods

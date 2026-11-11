@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { Product } from "./product.model";
 import Category from "./category.model";
 import { requireProductManager } from "../../middlewares/product-admin.middleware";
+import { emitMenuUpdated } from "../../utils/socketHolder";
 
 const router = Router();
 router.use(requireProductManager);
@@ -288,20 +289,22 @@ router.post(
       return sendError(res, 409, "SKU đã tồn tại.");
     }
 
-    const categoryExists = validId(category)
-      ? await Category.exists({ _id: category })
-      : await Category.exists({ code: category });
+    const categoryDoc = validId(category)
+      ? await Category.findById(category)
+      : await Category.findOne({ code: category });
 
-    if (!categoryExists) {
+    if (!categoryDoc) {
       return sendError(res, 400, "Danh mục không tồn tại.");
     }
 
-    const categoryId = validId(category)
-      ? new mongoose.Types.ObjectId(category)
-      : (await Category.findOne({ code: category }))?._id;
+    const categoryId = categoryDoc._id;
 
-    if (!categoryId) {
-      return sendError(res, 400, "Không xác định được danh mục.");
+    let productType = body.productType;
+    if (!productType) {
+      const code = String(categoryDoc.code || "").toLowerCase();
+      if (code === "ingredient") productType = "ingredient";
+      else if (code === "accessory" || code === "equipment") productType = "accessory";
+      else productType = "fnb";
     }
 
     const supplierId =
@@ -321,6 +324,7 @@ router.post(
       name,
       sku,
       category: categoryId,
+      productType,
       unit,
       costPrice,
       salePrice,
@@ -333,6 +337,8 @@ router.post(
       isthemaketoorder: isMakeToOrder,
       isActive: true,
     });
+
+    emitMenuUpdated();
 
     return res.status(201).json({
       success: true,
@@ -412,6 +418,19 @@ router.put(
       }
 
       updates.category = foundCategory._id;
+
+      if (!body.productType) {
+        const code = String(foundCategory.code || "").toLowerCase();
+        if (code === "ingredient") updates.productType = "ingredient";
+        else if (code === "accessory" || code === "equipment") updates.productType = "accessory";
+        else updates.productType = "fnb";
+      }
+    }
+
+    if (body.productType !== undefined) {
+      if (["fnb", "ingredient", "accessory"].includes(body.productType)) {
+        updates.productType = body.productType;
+      }
     }
 
     if (body.supplierId !== undefined) {
@@ -454,6 +473,8 @@ router.put(
       },
     );
 
+    emitMenuUpdated();
+
     return res.json({
       success: true,
       data: updated,
@@ -490,6 +511,8 @@ router.patch(
       return sendError(res, 404, "Không tìm thấy hàng hóa.");
     }
 
+    emitMenuUpdated();
+
     return res.json({
       success: true,
       data: product,
@@ -515,6 +538,8 @@ router.delete(
     }
 
     await Product.deleteOne({ _id: id });
+
+    emitMenuUpdated();
 
     return res.json({
       success: true,

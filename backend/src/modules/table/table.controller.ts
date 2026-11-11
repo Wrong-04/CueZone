@@ -86,6 +86,9 @@ export const findAvailable = async (req: Request, res: Response) => {
 
 export const getPublicTables = async (req: Request, res: Response) => {
   try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     const tables = await tableService.getPublicTables(req.query);
     return res.json({ success: true, data: tables });
   } catch (error: any) {
