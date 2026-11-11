@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { ProductService } from "./product.service";
+import { emitMenuUpdated } from "../../utils/socketHolder";
 
 const productService = new ProductService();
 
@@ -57,6 +58,7 @@ export const uploadImage = async (req: Request, res: Response) => {
 
   try {
     const product = await productService.replaceImage(req.params.id, req.file.buffer);
+    emitMenuUpdated();
     return res.json({
       success: true,
       message: "Đã tải ảnh lên Cloudinary và cập nhật sản phẩm",
@@ -73,6 +75,7 @@ export const uploadImage = async (req: Request, res: Response) => {
 export const create = async (req: Request, res: Response) => {
   try {
     const product = await productService.create(req.body);
+    emitMenuUpdated();
     return res.json({ success: true, message: "Tạo sản phẩm thành công", data: product });
   } catch (error: any) {
     return res.json({ success: false, message: error.message });
@@ -82,6 +85,7 @@ export const create = async (req: Request, res: Response) => {
 export const update = async (req: Request, res: Response) => {
   try {
     const product = await productService.update(req.params.id, req.body);
+    emitMenuUpdated();
     return res.json({ success: true, message: "Cập nhật sản phẩm thành công", data: product });
   } catch (error: any) {
     return res.json({ success: false, message: error.message });
@@ -91,6 +95,7 @@ export const update = async (req: Request, res: Response) => {
 export const delete_ = async (req: Request, res: Response) => {
   try {
     await productService.delete(req.params.id);
+    emitMenuUpdated();
     return res.json({ success: true, message: "Xóa sản phẩm thành công" });
   } catch (error: any) {
     return res.json({ success: false, message: error.message });

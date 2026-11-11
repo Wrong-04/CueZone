@@ -32,6 +32,7 @@ import {
   normalizeVietnameseMobilePhone,
 } from "../../utils/phone";
 import { CustomerFnbMenuModal } from "../../components/customer/CustomerFnbMenuModal";
+import { isFnbWarehouseItem } from "../../utils/fnb";
 
 const { Title, Paragraph } = Typography;
 
@@ -151,30 +152,57 @@ export const CustomerBooking = () => {
 
   useEffect(() => {
     let active = true;
-    productService
-      .getFnbMenu()
-      .then((items) => {
-        if (active) setMenuItems(items);
-      })
-      .catch((error) =>
-        message.error(error instanceof Error ? error.message : "Không thể tải thực đơn đồ uống"),
-      )
-      .finally(() => {
-        if (active) setLoadingMenu(false);
-      });
+    const loadMenu = () => {
+      productService
+        .getFnbMenu()
+        .then((items) => {
+          if (active) {
+            setMenuItems(items.filter((item) => !isFnbWarehouseItem(item.name, item.category)));
+          }
+        })
+        .catch((error) =>
+          message.error(error instanceof Error ? error.message : "Không thể tải thực đơn đồ uống"),
+        )
+        .finally(() => {
+          if (active) setLoadingMenu(false);
+        });
+    };
+
+    loadMenu();
+
+    const socket = getSocket();
+    socket.on("menu:updated", loadMenu);
+    socket.on("fnb:updated", loadMenu);
+
     return () => {
       active = false;
+      socket.off("menu:updated", loadMenu);
+      socket.off("fnb:updated", loadMenu);
     };
   }, []);
 
   useEffect(() => {
     const socket = getSocket();
     const refreshAvailability = () => setAvailabilityVersion((version) => version + 1);
+    socket.on("connect", refreshAvailability);
     socket.on("table:public_status_changed", refreshAvailability);
     socket.on("table:guest_status_changed", refreshAvailability);
+    socket.on("table:status_changed", refreshAvailability);
+    socket.on("table:status-changed", refreshAvailability);
+    socket.on("table:timer_started", refreshAvailability);
+    socket.on("booking:created", refreshAvailability);
+    socket.on("booking:updated", refreshAvailability);
+    socket.on("booking:cancelled", refreshAvailability);
     return () => {
+      socket.off("connect", refreshAvailability);
       socket.off("table:public_status_changed", refreshAvailability);
       socket.off("table:guest_status_changed", refreshAvailability);
+      socket.off("table:status_changed", refreshAvailability);
+      socket.off("table:status-changed", refreshAvailability);
+      socket.off("table:timer_started", refreshAvailability);
+      socket.off("booking:created", refreshAvailability);
+      socket.off("booking:updated", refreshAvailability);
+      socket.off("booking:cancelled", refreshAvailability);
     };
   }, []);
 
@@ -309,7 +337,9 @@ export const CustomerBooking = () => {
       }
       if (err.response?.data?.code === "FNB_MENU_CHANGED") {
         try {
-          const currentMenu = await productService.getFnbMenu();
+          const currentMenu = (await productService.getFnbMenu()).filter(
+            (item) => !isFnbWarehouseItem(item.name, item.category),
+          );
           const currentProductIds = new Set(currentMenu.map((item) => item._id));
           setMenuItems(currentMenu);
           setLoadingMenu(false);

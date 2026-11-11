@@ -25,7 +25,10 @@ export const PERMISSION_CATALOG = [
   {
     module: "invoices",
     label: "Hóa đơn",
-    actions: [{ key: "read", label: "Xem danh sách và chi tiết hóa đơn" }],
+    actions: [
+      { key: "read", label: "Xem danh sách và chi tiết hóa đơn" },
+      { key: "manage", label: "Hủy hóa đơn và quản lý hóa đơn" },
+    ],
   },
   {
     module: "fnb_orders",
@@ -92,7 +95,7 @@ const POS_STAFF_DEFAULTS: IPermission[] = [
   { module: "pos", actions: ["read", "operate"] },
   { module: "tables", actions: ["manage"] },
   { module: "bookings", actions: ["manage"] },
-  { module: "invoices", actions: ["read"] },
+  { module: "invoices", actions: ["read", "manage"] },
   { module: "fnb_orders", actions: ["manage"] },
   { module: "products", actions: ["manage"] },
   { module: "tournaments", actions: ["manage"] },

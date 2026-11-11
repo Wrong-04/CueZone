@@ -13,6 +13,7 @@ import {
   getFnbImageUrl,
   isFnbItemOutOfStock,
   isFnbItemPrepared,
+  isFnbWarehouseItem,
   resolveFnbCategory,
 } from "../../utils/fnb";
 
@@ -42,41 +43,47 @@ export function CustomerFnbMenuModal({
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const categoryOptions = useMemo(() => {
-    const categories = Array.from(
-      new Set(items.map((item) => resolveFnbCategory(item.name, item.category))),
-    );
-    const categoryOrder = ["coffee", "tea", "juice", "beer", "food", "snack", "equipment"];
-    return [
-      { key: "all", label: "Tất cả thực đơn", badge: items.length },
-      ...categoryOrder
-        .filter((category) => categories.includes(category))
-        .map((category) => ({
-          key: category,
-          label: getCustomerFnbCategoryLabel(category),
-          badge: items.filter((item) => resolveFnbCategory(item.name, item.category) === category)
-            .length,
-        })),
-    ];
+  const validFnbItems = useMemo(() => {
+    return items.filter((item) => !isFnbWarehouseItem(item.name, item.category));
   }, [items]);
+
+  const categoryOptions = useMemo(() => {
+    const allCategoriesInItems = Array.from(
+      new Set(validFnbItems.map((item) => resolveFnbCategory(item.name, item.category))),
+    );
+    const standardOrder = ["coffee", "tea", "juice", "beer", "food", "snack"];
+    const standardPresent = standardOrder.filter((cat) => allCategoriesInItems.includes(cat));
+    const dynamicCategories = allCategoriesInItems.filter((cat) => !standardOrder.includes(cat));
+    const finalCategories = [...standardPresent, ...dynamicCategories];
+
+    return [
+      { key: "all", label: "Tất cả thực đơn", badge: validFnbItems.length },
+      ...finalCategories.map((category) => ({
+        key: category,
+        label: getCustomerFnbCategoryLabel(category),
+        badge: validFnbItems.filter((item) => resolveFnbCategory(item.name, item.category) === category)
+          .length,
+      })),
+    ];
+  }, [validFnbItems]);
 
   const filteredItems = useMemo(() => {
     const query = searchText.trim().toLocaleLowerCase("vi-VN");
-    return items.filter((item) => {
+    return validFnbItems.filter((item) => {
       const matchesCategory =
         selectedCategory === "all" ||
         resolveFnbCategory(item.name, item.category) === selectedCategory;
       const matchesSearch = !query || item.name.toLocaleLowerCase("vi-VN").includes(query);
       return matchesCategory && matchesSearch;
     });
-  }, [items, searchText, selectedCategory]);
+  }, [validFnbItems, searchText, selectedCategory]);
 
   const totalItems = Object.values(selectedQuantities).reduce((sum, quantity) => sum + quantity, 0);
-  const totalPrice = items.reduce(
+  const totalPrice = validFnbItems.reduce(
     (sum, item) => sum + item.salePrice * (selectedQuantities[item._id] || 0),
     0,
   );
-  const exceedsStock = items.some(
+  const exceedsStock = validFnbItems.some(
     (item) => (selectedQuantities[item._id] || 0) > Math.max(0, item.stock ?? 0),
   );
 

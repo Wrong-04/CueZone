@@ -22,7 +22,7 @@ import { invoiceService } from "../../services/invoice.service";
 import { tournamentService, type TournamentItem } from "../../services/tournament.service";
 import type { PosTable, BookingRequest } from "../../types/pos";
 import type { ClubInvoice } from "./InvoicesManagementPage";
-import type { FnbStockItem } from "../../mock/posData";
+import type { FnbStockItem } from "../../types";
 
 const { Title, Text } = Typography;
 

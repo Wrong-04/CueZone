@@ -1,12 +1,11 @@
 export const FNB_CATEGORY_LABELS: Record<string, string> = {
   drink: "Đồ uống",
   coffee: "Cà phê",
-  tea: "Trà & Nước ngọt",
+  tea: "Trà trái cây",
+  juice: "Nước giải khát",
   beer: "Bia & Đồ có cồn",
-  food: "Đồ ăn chính",
+  food: "Món ăn nóng",
   snack: "Đồ ăn vặt",
-  accessory: "Bao tay & Tiện ích",
-  equipment: "Bao tay & Tiện ích",
 };
 
 export const CUSTOMER_FNB_CATEGORY_LABELS: Record<string, string> = {
@@ -16,7 +15,6 @@ export const CUSTOMER_FNB_CATEGORY_LABELS: Record<string, string> = {
   beer: "Bia & Đồ có cồn",
   food: "Món ăn nóng",
   snack: "Ăn vặt",
-  equipment: "Phụ kiện bida",
 };
 
 export const getFnbCategoryLabel = (category?: string): string => {
@@ -26,20 +24,34 @@ export const getFnbCategoryLabel = (category?: string): string => {
 };
 
 export const getCustomerFnbCategoryLabel = (category: string): string =>
-  CUSTOMER_FNB_CATEGORY_LABELS[category] || getFnbCategoryLabel(category);
+  CUSTOMER_FNB_CATEGORY_LABELS[category] || FNB_CATEGORY_LABELS[category.toLowerCase()] || category;
+
+export const isFnbWarehouseItem = (
+  _name?: string,
+  rawCategory?: string,
+  productType?: string,
+): boolean => {
+  if (productType === "ingredient" || productType === "accessory") return true;
+  if (productType === "fnb") return false;
+
+  const category = (rawCategory || "").toLowerCase().trim();
+  if (
+    category === "accessory" ||
+    category === "equipment" ||
+    category === "ingredient" ||
+    category.includes("nguyên liệu") ||
+    category.includes("phụ kiện")
+  ) {
+    return true;
+  }
+  return false;
+};
 
 export const resolveFnbCategory = (name: string, rawCategory?: string): string => {
   const normalizedName = name.toLocaleLowerCase("vi-VN");
   const category = rawCategory?.toLocaleLowerCase("vi-VN").trim() || "";
 
-  if (category === "food" || category.includes("ăn") || category.includes("món")) return "food";
-  if (category === "snack" || category.includes("vặt")) return "snack";
-  if (category === "accessory" || category.includes("phụ kiện")) return "equipment";
-  if (category === "equipment") return category;
-  if (normalizedName.includes("cà phê") || normalizedName.includes("cafe") || normalizedName.includes("coffee")) {
-    return "coffee";
-  }
-  if (normalizedName.includes("trà") || normalizedName.includes("tea")) return "tea";
+  // 1. Nhận diện các nhóm đồ uống / món ăn theo tên món ưu tiên cao nhất
   if (
     normalizedName.includes("bia") ||
     normalizedName.includes("beer") ||
@@ -48,6 +60,43 @@ export const resolveFnbCategory = (name: string, rawCategory?: string): string =
   ) {
     return "beer";
   }
+  if (normalizedName.includes("cà phê") || normalizedName.includes("cafe") || normalizedName.includes("coffee")) {
+    return "coffee";
+  }
+  if (normalizedName.includes("trà") || normalizedName.includes("tea")) {
+    return "tea";
+  }
+
+  // 2. Nhận diện theo nhóm danh mục
+  if (category === "beer") return "beer";
+  if (category === "coffee") return "coffee";
+  if (category === "tea") return "tea";
+  if (
+    category === "food" ||
+    category.includes("ăn") ||
+    category.includes("món") ||
+    /mì|phở|bún|bánh|cơm/i.test(normalizedName)
+  ) {
+    return "food";
+  }
+  if (
+    category === "snack" ||
+    category.includes("vặt") ||
+    /hạt|khoai|chiên|khô|snack/i.test(normalizedName)
+  ) {
+    return "snack";
+  }
+  if (category === "juice" || category === "drink") return "juice";
+
+  // 3. Nếu là danh mục ẩm thực tùy chỉnh từ F&B (không phải nguyên liệu, không phải phụ kiện)
+  if (
+    rawCategory &&
+    rawCategory.trim() &&
+    !["drink", "nguyên liệu", "ingredient", "accessory", "equipment", "phụ kiện"].includes(category)
+  ) {
+    return rawCategory.trim();
+  }
+
   return "juice";
 };
 

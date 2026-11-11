@@ -8,6 +8,7 @@ const preOrderItemSchema = new Schema(
     category: { type: String, required: true, trim: true },
     unitPrice: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1, max: 50 },
+    isMadeToOrder: { type: Boolean, default: false },
   },
   { _id: false },
 );

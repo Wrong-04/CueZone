@@ -14,6 +14,7 @@ import {
   ClearOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -31,6 +32,7 @@ import {
   Tooltip,
   message,
 } from "../../shared/ui";
+import { InputNumber } from "antd";
 import type { BilliardTable, PricingTier, TableType } from "../../types";
 import { tableAdminService, pricingAdminService } from "../../services/pos.service";
 
@@ -82,17 +84,26 @@ export function getActivePricingTier(
   }
 
   const activeOnly = pricingTiers.filter((t) => t.isActive !== false);
-  return activeOnly.find((t) => t.isCurrentlyActive) || activeOnly[0] || pricingTiers[0] || null;
+  return activeOnly.find((t) => t.isCurrentlyActive) || null;
 }
 
 export function formatActivePricingLabel(tier: PricingTier | null): string {
-  if (!tier) return "Biểu giá chuẩn";
+  if (!tier) return "Biểu giá chuẩn bàn";
   const cleanName = tier.name.replace(/\s*\([^)]*\)\s*/g, " ").trim();
   return `${cleanName} (${tier.startTime} – ${tier.endTime})`;
 }
 
+export function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  if (timeStr === "24:00") return 1440;
+  const parts = timeStr.trim().split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1] || "0", 10) || 0;
+  return h * 60 + m;
+}
+
 export function formatDaysOfWeek(tier: PricingTier): string {
-  if (tier.daysOfWeek && tier.daysOfWeek.length === 7) {
+  if (tier.dayType === "all" || (tier.daysOfWeek && tier.daysOfWeek.length === 7)) {
     return "Áp dụng: Tất cả các ngày trong tuần";
   }
   if (
@@ -141,6 +152,148 @@ export const TablesManagementPage: React.FC = () => {
   const activePricingTier = useMemo(() => {
     return getActivePricingTier(pricingTiers, currentTime);
   }, [pricingTiers, currentTime]);
+
+  const [timelineDayFilter, setTimelineDayFilter] = useState<"today" | "weekday" | "weekend">("today");
+
+  const timelineSegments = useMemo(() => {
+    const todayDay = new Date(currentTime).getDay(); // 0: CN, 1: T2, ..., 6: T7
+    const targetDays =
+      timelineDayFilter === "today"
+        ? [todayDay]
+        : timelineDayFilter === "weekday"
+          ? [1, 2, 3, 4, 5]
+          : [0, 6];
+
+    // Lọc các tier active và áp dụng cho ngày được chọn
+    const activeTiersForDay = pricingTiers
+      .filter((t) => {
+        if (t.isActive === false) return false;
+        if (!t.daysOfWeek || t.daysOfWeek.length === 0) return true;
+        return t.daysOfWeek.some((d) => targetDays.includes(d));
+      })
+      .map((t) => {
+        const startM = parseTimeToMinutes(t.startTime);
+        let endM = parseTimeToMinutes(t.endTime);
+        if (endM <= startM) endM = 1440;
+        return {
+          tier: t,
+          startM,
+          endM,
+        };
+      })
+      .sort((a, b) => a.startM - b.startM);
+
+    const nowM = (() => {
+      const date = new Date(currentTime);
+      const vnTimeStr = date.toLocaleTimeString("en-GB", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const [h, m] = vnTimeStr.split(":").map(Number);
+      return (h || 0) * 60 + (m || 0);
+    })();
+
+    if (activeTiersForDay.length === 0) {
+      return [
+        {
+          name: "Biểu giá chuẩn bàn",
+          startTime: "00:00",
+          endTime: "24:00",
+          widthPercent: 100,
+          isCurrent: timelineDayFilter === "today",
+          isFallback: true,
+          bgColor: "bg-slate-400",
+        },
+      ];
+    }
+
+    const segments: Array<{
+      name: string;
+      startTime: string;
+      endTime: string;
+      widthPercent: number;
+      isCurrent: boolean;
+      isFallback: boolean;
+      bgColor: string;
+      tier?: PricingTier;
+    }> = [];
+
+    let currentPointer = 0;
+
+    activeTiersForDay.forEach(({ tier, startM, endM }) => {
+      // Nếu có khoảng trống trước tier
+      if (startM > currentPointer) {
+        const gapM = startM - currentPointer;
+        const startStr = `${String(Math.floor(currentPointer / 60)).padStart(2, "0")}:${String(currentPointer % 60).padStart(2, "0")}`;
+        const endStr = `${String(Math.floor(startM / 60)).padStart(2, "0")}:${String(startM % 60).padStart(2, "0")}`;
+        const isCurrentGap =
+          timelineDayFilter === "today" &&
+          !activePricingTier &&
+          nowM >= currentPointer &&
+          nowM < startM;
+        segments.push({
+          name: "Biểu giá chuẩn bàn",
+          startTime: startStr,
+          endTime: endStr,
+          widthPercent: (gapM / 1440) * 100,
+          isCurrent: isCurrentGap,
+          isFallback: true,
+          bgColor: isCurrentGap ? "bg-slate-400 text-slate-800" : "bg-slate-300 text-slate-700",
+        });
+        currentPointer = startM;
+      }
+
+      // Khung giờ chính thức
+      const durationM = Math.max(0, endM - currentPointer);
+      if (durationM > 0) {
+        const isCurrent = tier._id === activePricingTier?._id && timelineDayFilter === "today";
+        let bg = "bg-teal-600/90";
+        if (startM < 480) {
+          bg = "bg-indigo-600/90"; // Đêm khuya
+        } else if (startM >= 1020) {
+          bg = "bg-amber-600/90"; // Chiều tối / cao điểm
+        } else {
+          bg = "bg-emerald-600/90"; // Ban ngày
+        }
+
+        segments.push({
+          name: tier.name,
+          startTime: tier.startTime,
+          endTime: tier.endTime,
+          widthPercent: (durationM / 1440) * 100,
+          isCurrent,
+          isFallback: false,
+          bgColor: bg,
+          tier,
+        });
+        currentPointer = endM;
+      }
+    });
+
+    // Khoảng trống sau tier cuối cùng đến 24:00 (1440 phút)
+    if (currentPointer < 1440) {
+      const gapM = 1440 - currentPointer;
+      const startStr = `${String(Math.floor(currentPointer / 60)).padStart(2, "0")}:${String(currentPointer % 60).padStart(2, "0")}`;
+      const isCurrentGap =
+        timelineDayFilter === "today" &&
+        !activePricingTier &&
+        nowM >= currentPointer &&
+        nowM < 1440;
+      segments.push({
+        name: "Biểu giá chuẩn bàn",
+        startTime: startStr,
+        endTime: "24:00",
+        widthPercent: (gapM / 1440) * 100,
+        isCurrent: isCurrentGap,
+        isFallback: true,
+        bgColor: isCurrentGap ? "bg-slate-400 text-slate-800" : "bg-slate-300 text-slate-700",
+      });
+    }
+
+    return segments;
+  }, [pricingTiers, currentTime, timelineDayFilter, activePricingTier]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -407,7 +560,7 @@ export const TablesManagementPage: React.FC = () => {
   const handleOpenAddPricing = () => {
     setEditingPricing(null);
     setPricingName("");
-    setPricingDayType("weekday");
+    setPricingDayType("all");
     setPricingStartTime("08:00");
     setPricingEndTime("17:00");
     setPricingStandardPrice(60000);
@@ -420,7 +573,10 @@ export const TablesManagementPage: React.FC = () => {
   const handleOpenEditPricing = (tier: PricingTier) => {
     setEditingPricing(tier);
     setPricingName(tier.name);
-    setPricingDayType(tier.dayType);
+    let dType = tier.dayType || "weekday";
+    if (dType === "peak") dType = "weekday";
+    if (tier.daysOfWeek && tier.daysOfWeek.length === 7) dType = "all";
+    setPricingDayType(dType);
     setPricingStartTime(tier.startTime);
     setPricingEndTime(tier.endTime);
     setPricingStandardPrice(tier.prices.standard);
@@ -463,6 +619,13 @@ export const TablesManagementPage: React.FC = () => {
       return;
     }
 
+    const resolvedDays =
+      pricingDayType === "weekday"
+        ? [1, 2, 3, 4, 5]
+        : pricingDayType === "weekend"
+          ? [0, 6]
+          : [0, 1, 2, 3, 4, 5, 6];
+
     setSaving(true);
     try {
       if (editingPricing) {
@@ -471,7 +634,7 @@ export const TablesManagementPage: React.FC = () => {
           dayType: pricingDayType as any,
           startTime: pricingStartTime,
           endTime: pricingEndTime,
-          daysOfWeek: editingPricing.daysOfWeek,
+          daysOfWeek: resolvedDays,
           isActive: pricingIsActive,
           prices: {
             standard: Number(pricingStandardPrice),
@@ -486,6 +649,7 @@ export const TablesManagementPage: React.FC = () => {
           dayType: pricingDayType as any,
           startTime: pricingStartTime,
           endTime: pricingEndTime,
+          daysOfWeek: resolvedDays,
           isActive: pricingIsActive,
           prices: {
             standard: Number(pricingStandardPrice),
@@ -1320,12 +1484,50 @@ export const TablesManagementPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
+          <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                <ClockCircleOutlined className="text-emerald-600" />
-                Sơ Đồ Phân Bổ 24 Giờ Trong Ngày
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <ClockCircleOutlined className="text-emerald-600" />
+                  Sơ Đồ Phân Bổ 24 Giờ Trong Ngày (Dữ Liệu Thực Tế)
+                </span>
+                <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setTimelineDayFilter("today")}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                      timelineDayFilter === "today"
+                        ? "bg-white text-emerald-700 font-bold shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimelineDayFilter("weekday")}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                      timelineDayFilter === "weekday"
+                        ? "bg-white text-emerald-700 font-bold shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Ngày thường (T2–T6)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimelineDayFilter("weekend")}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                      timelineDayFilter === "weekend"
+                        ? "bg-white text-emerald-700 font-bold shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Cuối tuần (T7–CN)
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 text-[11px]">
                   Thời gian:{" "}
@@ -1343,29 +1545,27 @@ export const TablesManagementPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Thanh Timeline 24H */}
-            <div className="h-6 w-full rounded-lg overflow-hidden flex text-[10px] font-bold text-white shadow-inner">
-              <div
-                style={{ width: "33.33%" }}
-                className="bg-indigo-600/90 flex items-center justify-center truncate px-1 transition-all"
-                title="Khung Giờ Đêm (00:00 - 08:00)"
-              >
-                00:00 – 08:00 (Đêm)
-              </div>
-              <div
-                style={{ width: "37.5%" }}
-                className="bg-emerald-600/90 flex items-center justify-center truncate px-1 transition-all"
-                title="Khung Giờ Tiêu Chuẩn (08:00 - 17:00)"
-              >
-                08:00 – 17:00 (Ngày)
-              </div>
-              <div
-                style={{ width: "29.17%" }}
-                className="bg-amber-600/90 flex items-center justify-center truncate px-1 transition-all"
-                title="Khung Giờ Cao Điểm (17:00 - 24:00)"
-              >
-                17:00 – 24:00 (Tối)
-              </div>
+            {/* Thanh Timeline 24H ĐỘNG từ Database */}
+            <div className="h-7 w-full rounded-lg overflow-hidden flex text-[10px] font-bold text-white shadow-inner bg-slate-100">
+              {timelineSegments.map((seg, idx) => (
+                <Tooltip
+                  key={idx}
+                  title={`${seg.name}: ${seg.startTime} – ${seg.endTime} (${seg.isFallback ? "Tính theo đơn giá chuẩn bàn" : "Áp dụng biểu giá khung giờ"})`}
+                >
+                  <div
+                    style={{ width: `${seg.widthPercent}%` }}
+                    className={`${seg.bgColor} flex items-center justify-center truncate px-1 transition-all cursor-pointer relative ${
+                      seg.isCurrent ? "ring-2 ring-white ring-inset font-black" : ""
+                    }`}
+                  >
+                    {seg.widthPercent > 10 && (
+                      <span className="truncate">
+                        {seg.startTime}–{seg.endTime} {seg.widthPercent > 18 ? `(${seg.name.replace(/Khung Giờ\s*/gi, "")})` : ""}
+                      </span>
+                    )}
+                  </div>
+                </Tooltip>
+              ))}
             </div>
 
             <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
@@ -1443,7 +1643,7 @@ export const TablesManagementPage: React.FC = () => {
                           color="blue"
                           className="!rounded-full !px-3 !py-1 !font-bold inline-flex items-center gap-1.5 shadow-2xs"
                         >
-                          LÊN LỊCH SẴN
+                          THEO LỊCH
                         </Tag>
                       )}
                       {tier.dayType === "peak" && (
@@ -1463,37 +1663,37 @@ export const TablesManagementPage: React.FC = () => {
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
                         <span className="text-[11px] text-slate-700 font-bold block mb-1">
-                          Bàn Bida Lỗ (Pool)
+                          Bàn Tiêu Chuẩn
                         </span>
                         <strong className="text-sm font-black text-slate-900 font-mono">
                           {tier.prices.standard.toLocaleString("vi-VN")}đ
                         </strong>
                         <span className="text-[10px] text-slate-400 block mt-0.5">
-                          Tiêu chuẩn 9FT
+                          Khu thường (Pool / Carom)
                         </span>
                       </div>
 
                       <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
                         <span className="text-[11px] text-amber-900 font-bold block mb-1">
-                          Bàn Bida Carom (Phăng)
+                          Bàn Khu VIP
                         </span>
                         <strong className="text-sm font-black text-amber-900 font-mono">
                           {tier.prices.vip.toLocaleString("vi-VN")}đ
                         </strong>
                         <span className="text-[10px] text-amber-700/80 block mt-0.5">
-                          Khu VIP / 3 Băng
+                          Pool VIP / Carom VIP
                         </span>
                       </div>
 
                       <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200/80">
                         <span className="text-[11px] text-purple-900 font-bold block mb-1">
-                          Bàn Bida Snooker
+                          Bàn Thi Đấu / Snooker
                         </span>
                         <strong className="text-sm font-black text-purple-900 font-mono">
                           {(tier.prices.match ?? tier.prices.vip + 10000).toLocaleString("vi-VN")}đ
                         </strong>
                         <span className="text-[10px] text-purple-700/80 block mt-0.5">
-                          Thi đấu 12FT
+                          Bàn Match / 12FT
                         </span>
                       </div>
                     </div>
@@ -1693,11 +1893,14 @@ export const TablesManagementPage: React.FC = () => {
               <label className="text-slate-700 font-semibold">Giá giờ chuẩn (VNĐ/h):</label>
               <span className="text-[11px] text-slate-400">Chọn nhanh mức giá:</span>
             </div>
-            <Input
-              type="number"
+            <InputNumber
+              min={0}
+              step={500}
               value={tablePrice}
-              onChange={(e) => setTablePrice(Number(e.target.value))}
-              className="!h-9 !rounded-xl font-mono text-emerald-800 font-bold mb-2"
+              onChange={(val) => setTablePrice(Number(val) || 0)}
+              formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+              parser={(val) => Number(val?.replace(/\$\s?|(,*)/g, "") || 0)}
+              className="!w-full !h-9 !rounded-xl font-mono text-emerald-800 font-bold mb-2"
             />
             <div className="flex flex-wrap items-center gap-1.5">
               {QUICK_PRICE_PRESETS.map((preset) => (
@@ -1768,15 +1971,15 @@ export const TablesManagementPage: React.FC = () => {
 
           <div className="grid grid-cols-4 gap-2.5">
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Loại ngày:</label>
+              <label className="block text-slate-700 font-semibold mb-1">Ngày áp dụng:</label>
               <Select
                 value={pricingDayType}
                 onChange={(val) => setPricingDayType(val)}
                 className="!w-full !rounded-xl"
                 options={[
-                  { value: "weekday", label: "Ngày Thường" },
-                  { value: "peak", label: "Giờ Cao Điểm" },
-                  { value: "weekend", label: "Cuối Tuần" },
+                  { value: "all", label: "Cả tuần (T2–CN)" },
+                  { value: "weekday", label: "Ngày thường (T2–T6)" },
+                  { value: "weekend", label: "Cuối tuần (T7 & CN)" },
                 ]}
               />
             </div>
@@ -1815,37 +2018,54 @@ export const TablesManagementPage: React.FC = () => {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
-                Bàn Lỗ - Pool (đ/h):
+                Bàn Tiêu Chuẩn (đ/h):
               </label>
-              <Input
-                type="number"
+              <InputNumber
+                min={0}
+                step={500}
                 value={pricingStandardPrice}
-                onChange={(e) => setPricingStandardPrice(Number(e.target.value))}
-                className="!h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
+                onChange={(val) => setPricingStandardPrice(Number(val) || 0)}
+                formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                parser={(val) => Number(val?.replace(/\$\s?|(,*)/g, "") || 0)}
+                className="!w-full !h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
               />
             </div>
             <div>
               <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
-                Bàn Carom - Phăng (đ/h):
+                Bàn Khu VIP (đ/h):
               </label>
-              <Input
-                type="number"
+              <InputNumber
+                min={0}
+                step={500}
                 value={pricingVipPrice}
-                onChange={(e) => setPricingVipPrice(Number(e.target.value))}
-                className="!h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
+                onChange={(val) => setPricingVipPrice(Number(val) || 0)}
+                formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                parser={(val) => Number(val?.replace(/\$\s?|(,*)/g, "") || 0)}
+                className="!w-full !h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
               />
             </div>
             <div>
               <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
-                Bàn Snooker (đ/h):
+                Bàn Thi Đấu / Snooker (đ/h):
               </label>
-              <Input
-                type="number"
+              <InputNumber
+                min={0}
+                step={500}
                 value={pricingMatchPrice}
-                onChange={(e) => setPricingMatchPrice(Number(e.target.value))}
-                className="!h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
+                onChange={(val) => setPricingMatchPrice(Number(val) || 0)}
+                formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                parser={(val) => Number(val?.replace(/\$\s?|(,*)/g, "") || 0)}
+                className="!w-full !h-9 !rounded-xl font-mono text-center font-bold text-slate-800"
               />
             </div>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-blue-50/80 border border-blue-200/80 text-[11px] text-blue-800 flex items-start gap-2">
+            <InfoCircleOutlined className="text-blue-600 mt-0.5 shrink-0" />
+            <span>
+              <strong>Lưu ý nghiệp vụ:</strong> Mức giá mới sẽ áp dụng cho các lượt mở bàn tiếp theo.
+              Các bàn đang có khách chơi vẫn được giữ nguyên đơn giá niêm yết tại thời điểm mở bàn.
+            </span>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
