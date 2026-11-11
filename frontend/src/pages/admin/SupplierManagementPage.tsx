@@ -166,7 +166,7 @@ function IconButton({
   );
 }
 
-export default function SupplierManagementPage() {
+export default function SupplierManagementPage({ embedded = false }: { embedded?: boolean }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
@@ -260,44 +260,7 @@ export default function SupplierManagementPage() {
   const inactiveCount = suppliers.length - activeCount;
 
   return (
-    <div className="min-h-full space-y-6 pb-8" style={{ color: "var(--text-main)" }}>
-      {/* Header */}
-      <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 items-start gap-4">
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-            style={{
-              background: "var(--brand)",
-              color: "#ffffff",
-              boxShadow: "0 8px 20px rgba(0, 155, 114, 0.18)",
-            }}
-          >
-            <Truck size={25} strokeWidth={2.1} />
-          </div>
-
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
-              Quản lý nhà cung cấp
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Quản lý đối tác, thông tin liên hệ và tình trạng hợp tác của quán trên một giao diện
-              thống nhất.
-            </p>
-          </div>
-        </div>
-
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={<PlusOutlined />}
-          onClick={openCreateModal}
-          className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all"
-        >
-          Thêm nhà cung cấp
-        </Button>
-      </section>
-
+    <div className={embedded ? "space-y-4" : "min-h-full space-y-6 pb-8"} style={{ color: "var(--text-main)" }}>
       {/* Error banner */}
       {loadError && (
         <div
@@ -323,191 +286,209 @@ export default function SupplierManagementPage() {
         </div>
       )}
 
-      {/* Summary cards */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Kết quả hiển thị</p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-800">
-                {loading ? "—" : suppliers.length}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">Tối đa 100 nhà cung cấp</p>
-            </div>
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <Building2 size={24} />
+      {/* Summary cards - 4 Cards KPI luôn đặt ở TRÊN CÙNG đồng bộ toàn hệ thống */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Tổng nhà cung cấp
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+              <Building2 size={20} />
             </div>
           </div>
+          <div className="text-3xl font-black text-emerald-600 font-mono">
+            {loading ? "—" : `${suppliers.length} đối tác`}
+          </div>
+          <div className="text-xs text-slate-400 mt-2">Toàn bộ nhà cung ứng trong hệ thống</div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Đang hợp tác trong kết quả</p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-emerald-700">
-                {loading ? "—" : activeCount}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">Theo dữ liệu hiện đang hiển thị</p>
-            </div>
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <CheckCircle2 size={24} />
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Đang hợp tác
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
+              <CheckCircle2 size={20} />
             </div>
           </div>
+          <div className="text-3xl font-black text-cyan-600 font-mono">
+            {loading ? "—" : `${activeCount} đối tác`}
+          </div>
+          <div className="text-xs text-slate-400 mt-2">Đang liên kết cung cấp thường xuyên</div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Ngừng hợp tác trong kết quả</p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-rose-600">
-                {loading ? "—" : inactiveCount}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">Theo dữ liệu hiện đang hiển thị</p>
-            </div>
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
-              <Power size={24} />
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Tạm ngừng hợp tác
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg">
+              <Power size={20} />
             </div>
           </div>
+          <div className="text-3xl font-black text-rose-600 font-mono">
+            {loading ? "—" : `${inactiveCount} đối tác`}
+          </div>
+          <div className="text-xs text-slate-400 mt-2">Tạm ngưng nhập hàng hoặc đã đóng</div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-rose-500" />
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Ngành hàng cung ứng
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg">
+              <PackageOpen size={20} />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-purple-600 font-mono">
+            Vật Tư &amp; F&amp;B
+          </div>
+          <div className="text-xs text-slate-400 mt-2">Bida, thiết bị &amp; nguyên liệu</div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-purple-500" />
         </div>
       </section>
 
-      {/* Search and filters */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Main Table Card - Chứa Header và Nút tạo nằm DƯỚI KPI đồng bộ */}
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
+        {/* Header nằm trong Card dưới KPI */}
+        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-slate-800">Danh sách đối tác</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Tìm kiếm và quản lý thông tin nhà cung cấp.
+            <h3 className="text-lg font-black text-slate-900 mb-0.5">
+              {embedded ? "Đối tác & Nhà cung cấp vật tư bida" : "Quản lý đối tác & nhà cung cấp"}
+            </h3>
+            <p className="text-xs text-slate-500 mb-0">
+              Quản lý danh sách các nhà cung cấp phụ kiện, bóng, cơ, nỉ và đồ uống F&amp;B.
             </p>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setReloadKey((value) => value + 1)}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={<PlusOutlined />}
+            onClick={openCreateModal}
+            className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Làm mới
-          </button>
+            Thêm nhà cung cấp
+          </Button>
         </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative min-w-0 flex-1">
-            <Search
-              size={19}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-            />
+        {/* Search and filters toolbar */}
+        <div className="border-b border-slate-100 bg-slate-50/60 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={19}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              />
 
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tìm tên, người liên hệ, số điện thoại, email..."
-              aria-label="Tìm kiếm nhà cung cấp"
-              className={`${inputClass} pl-11 pr-10`}
-            />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm tên, người liên hệ, số điện thoại, email..."
+                aria-label="Tìm kiếm nhà cung cấp"
+                className={`${inputClass} pl-11 pr-10`}
+              />
 
-            {search && (
-              <button
-                type="button"
-                aria-label="Xóa nội dung tìm kiếm"
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-
-          <div className="relative w-full lg:w-56">
-            <Users
-              size={17}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-              aria-label="Lọc trạng thái nhà cung cấp"
-              className={`${inputClass} cursor-pointer appearance-none pl-10 pr-10`}
-            >
-              <option value="active">Đang hợp tác</option>
-              <option value="inactive">Ngừng hợp tác</option>
-              <option value="all">Tất cả trạng thái</option>
-            </select>
-
-            <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </span>
-          </div>
-        </div>
-
-        {(search.trim() || status !== "active") && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>Bộ lọc:</span>
-
-            {search.trim() && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-                Từ khóa: {search.trim()}
+              {search && (
                 <button
                   type="button"
-                  aria-label="Xóa từ khóa"
+                  aria-label="Xóa nội dung tìm kiếm"
                   onClick={() => setSearch("")}
-                  className="hover:text-rose-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 >
-                  <X size={13} />
+                  <X size={16} />
                 </button>
-              </span>
-            )}
+              )}
+            </div>
 
-            {status !== "active" && (
-              <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-                {status === "inactive" ? "Ngừng hợp tác" : "Tất cả trạng thái"}
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-56">
+                <Users
+                  size={17}
+                  className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                />
 
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setStatus("all");
-              }}
-              className="font-semibold text-emerald-700 hover:underline"
-            >
-              Xóa từ khóa
-            </button>
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                  aria-label="Lọc trạng thái nhà cung cấp"
+                  className={`${inputClass} cursor-pointer appearance-none pl-10 pr-10`}
+                >
+                  <option value="active">Đang hợp tác</option>
+                  <option value="inactive">Ngừng hợp tác</option>
+                  <option value="all">Tất cả trạng thái</option>
+                </select>
+
+                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setReloadKey((value) => value + 1)}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                Làm mới
+              </button>
+            </div>
           </div>
-        )}
-      </section>
 
-      {/* Supplier table */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div>
-            <h2 className="font-bold text-slate-800">Nhà cung cấp</h2>
-            <p className="mt-1 text-xs text-slate-500">Thông tin liên hệ và trạng thái hợp tác</p>
-          </div>
+          {(search.trim() || status !== "active") && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>Bộ lọc:</span>
 
-          <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            {loading ? "Đang cập nhật" : `${suppliers.length} kết quả`}
-          </span>
+              {search.trim() && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
+                  Từ khóa: {search.trim()}
+                  <button
+                    type="button"
+                    aria-label="Xóa từ khóa"
+                    onClick={() => setSearch("")}
+                    className="hover:text-rose-600"
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+
+              {status !== "active" && (
+                <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
+                  {status === "inactive" ? "Ngừng hợp tác" : "Tất cả trạng thái"}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatus("all");
+                }}
+                className="font-semibold text-emerald-700 hover:underline"
+              >
+                Xóa từ khóa
+              </button>
+            </div>
+          )}
         </div>
 
         {actionError && (
@@ -530,14 +511,14 @@ export default function SupplierManagementPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1050px] border-collapse text-left text-sm">
             <thead>
-              <tr className="bg-slate-50/90 text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-5 py-4 font-bold">Nhà cung cấp</th>
-                <th className="px-4 py-4 font-bold">Người liên hệ</th>
-                <th className="px-4 py-4 font-bold">Điện thoại</th>
-                <th className="px-4 py-4 font-bold">Email</th>
-                <th className="px-4 py-4 font-bold">Địa chỉ</th>
-                <th className="px-4 py-4 font-bold">Trạng thái</th>
-                <th className="px-5 py-4 text-center font-bold">Thao tác</th>
+              <tr className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                <th className="px-5 py-4">Nhà cung cấp</th>
+                <th className="px-4 py-4">Người liên hệ</th>
+                <th className="px-4 py-4">Điện thoại</th>
+                <th className="px-4 py-4">Email</th>
+                <th className="px-4 py-4">Địa chỉ</th>
+                <th className="px-4 py-4">Trạng thái</th>
+                <th className="px-5 py-4 text-center">Thao tác</th>
               </tr>
             </thead>
 
