@@ -315,7 +315,6 @@ export class AuthService {
         );
       }
 
-      console.log(`📧 Verification code for ${validated.email}: ${code}`);
       return { message: "Mã xác minh đã được gửi" };
     } finally {
       this.sendingLocks.delete(lockKey);
@@ -466,7 +465,6 @@ export class AuthService {
         );
       }
 
-      console.log(`📧 Password reset OTP for ${email}: ${code}`);
       return { message: "Mã OTP đặt lại mật khẩu đã được gửi đến email của bạn" };
     } finally {
       this.sendingLocks.delete(lockKey);
