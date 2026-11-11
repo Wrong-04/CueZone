@@ -78,6 +78,11 @@ export const PERMISSION_CATALOG = [
     label: "Báo cáo",
     actions: [{ key: "read", label: "Xem báo cáo doanh thu, hiệu suất bàn" }],
   },
+  {
+    module: "news",
+    label: "Tin tức & Sự kiện",
+    actions: [{ key: "manage", label: "Tạo, sửa, xuất bản và xóa bài viết tin tức" }],
+  },
 ] as const;
 
 export type PermissionModule = (typeof PERMISSION_CATALOG)[number]["module"];

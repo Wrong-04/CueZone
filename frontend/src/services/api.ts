@@ -94,8 +94,11 @@ api.interceptors.response.use(
       }
     }
 
-    if (error.response?.data?.message && typeof error.response.data.message === "string") {
-      error.message = error.response.data.message;
+    // Axios ném lỗi chung "Request failed with status code ..." cho mọi phản hồi non-2xx;
+    // dùng message từ envelope backend để giao diện hiển thị đúng lý do.
+    const serverMessage = error.response?.data?.message;
+    if (typeof serverMessage === "string" && serverMessage.trim()) {
+      error.message = serverMessage;
     }
 
     return Promise.reject(error);

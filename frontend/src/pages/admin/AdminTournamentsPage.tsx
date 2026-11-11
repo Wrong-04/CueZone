@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   TeamOutlined,
-  ThunderboltOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
 import {
@@ -14,7 +13,11 @@ import {
   tournamentService,
   type TournamentItem,
   type LeaderboardItem,
+  type BracketStructure,
 } from "../../services/tournament.service";
+import { InteractiveBracketTree } from "../../components/tournament/InteractiveBracketTree";
+import { RefereeLivePanel } from "../../components/tournament/RefereeLivePanel";
+import { getSocket } from "../../services/socket.service";
 import { TournamentHero } from "../../components/tournament/TournamentHero";
 import { TournamentListTab } from "../../components/tournament/TournamentListTab";
 import { TournamentLeaderboardTab } from "../../components/tournament/TournamentLeaderboardTab";
@@ -103,6 +106,11 @@ export const AdminTournamentsPage: React.FC = () => {
   const [selectedTourneyForParticipants, setSelectedTourneyForParticipants] =
     useState<TournamentItem | null>(null);
 
+  const [selectedTourneyForBracket, setSelectedTourneyForBracket] = useState<TournamentItem | null>(null);
+  const [bracketData, setBracketData] = useState<BracketStructure | null>(null);
+  const [loadingBracket, setLoadingBracket] = useState<boolean>(false);
+  const [generatingBracket, setGeneratingBracket] = useState<boolean>(false);
+
   const fetchTournaments = useCallback(async () => {
     setLoadingTournaments(true);
     try {
@@ -133,6 +141,152 @@ export const AdminTournamentsPage: React.FC = () => {
       setLoadingBoard(false);
     }
   }, []);
+
+  const fetchBracket = useCallback(async (tourneyId: string, silent = false) => {
+    if (!silent) setLoadingBracket(true);
+    try {
+      const data = await tournamentService.getBracket(tourneyId);
+      setBracketData(data);
+    } catch (err: any) {
+      if (!silent) setBracketData(null);
+    } finally {
+      if (!silent) setLoadingBracket(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const handleScoreUpdated = (payload: any) => {
+      if (
+        activeMainTab === "brackets" &&
+        selectedTourneyForBracket &&
+        payload?.tournamentId === selectedTourneyForBracket._id
+      ) {
+        if (payload.matchId && payload.score1 !== undefined && payload.score2 !== undefined) {
+          setBracketData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              rounds: prev.rounds.map((round) => ({
+                ...round,
+                matches: round.matches.map((m) => {
+                  if (m._id !== payload.matchId) return m;
+                  return {
+                    ...m,
+                    status: payload.status || m.status,
+                    winnerRegistrationId: payload.winnerRegistrationId ?? m.winnerRegistrationId,
+                    participants: m.participants.map((p) => {
+                      if (p.slot === 1) return { ...p, score: payload.score1, isWinner: payload.winnerRegistrationId ? String(payload.winnerRegistrationId) === String(p.registrationId) : p.isWinner };
+                      if (p.slot === 2) return { ...p, score: payload.score2, isWinner: payload.winnerRegistrationId ? String(payload.winnerRegistrationId) === String(p.registrationId) : p.isWinner };
+                      return p;
+                    }),
+                  };
+                }),
+              })),
+            };
+          });
+        }
+      }
+    };
+
+    const handleMatchCompleted = (payload: any) => {
+      if (
+        activeMainTab === "brackets" &&
+        selectedTourneyForBracket &&
+        payload?.tournamentId === selectedTourneyForBracket._id
+      ) {
+        setBracketData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            rounds: prev.rounds.map((round) => ({
+              ...round,
+              matches: round.matches.map((m) => {
+                if (m._id === payload.matchId) {
+                  return {
+                    ...m,
+                    status: "completed",
+                    winnerRegistrationId: payload.winnerRegistrationId,
+                  };
+                }
+                if (payload.nextMatchId && m._id === payload.nextMatchId && payload.nextMatchSlot && payload.winnerUser) {
+                  const remaining = m.participants.filter((p) => p.slot !== payload.nextMatchSlot);
+                  return {
+                    ...m,
+                    participants: [
+                      ...remaining,
+                      {
+                        slot: payload.nextMatchSlot,
+                        registrationId: payload.winnerRegistrationId,
+                        user: payload.winnerUser,
+                        score: 0,
+                        isWinner: null,
+                      },
+                    ],
+                  };
+                }
+                return m;
+              }),
+            })),
+          };
+        });
+      }
+    };
+
+    const handleBracketUpdated = (payload: any) => {
+      if (
+        activeMainTab === "brackets" &&
+        selectedTourneyForBracket &&
+        payload?.tournamentId === selectedTourneyForBracket._id
+      ) {
+        void fetchBracket(selectedTourneyForBracket._id, true);
+      }
+    };
+
+    socket.on("tournament:score_updated", handleScoreUpdated);
+    socket.on("tournament:match_completed", handleMatchCompleted);
+    socket.on("tournament:bracket_updated", handleBracketUpdated);
+
+    return () => {
+      socket.off("tournament:score_updated", handleScoreUpdated);
+      socket.off("tournament:match_completed", handleMatchCompleted);
+      socket.off("tournament:bracket_updated", handleBracketUpdated);
+    };
+  }, [activeMainTab, selectedTourneyForBracket, fetchBracket]);
+
+  const handleGenerateBracket = async () => {
+    if (!selectedTourneyForBracket) return;
+    setGeneratingBracket(true);
+    try {
+      const data = await tournamentService.generateBracket(selectedTourneyForBracket._id);
+      setBracketData(data);
+      message.success("Đã sinh cây nhánh đấu Single Elimination thành công!");
+      void fetchTournaments();
+    } catch (err: any) {
+      message.error(err?.message || "Không thể sinh cây nhánh đấu");
+    } finally {
+      setGeneratingBracket(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeMainTab === "brackets" && !selectedTourneyForBracket && apiTournaments.length > 0) {
+      const defaultT =
+        apiTournaments.find(
+          (t) =>
+            t.status === "bracket_generated" ||
+            t.status === "in_progress" ||
+            t.status === "registration_closed",
+        ) || apiTournaments[0];
+      setSelectedTourneyForBracket(defaultT);
+    }
+  }, [activeMainTab, selectedTourneyForBracket, apiTournaments]);
+
+  useEffect(() => {
+    if (activeMainTab === "brackets" && selectedTourneyForBracket) {
+      void fetchBracket(selectedTourneyForBracket._id);
+    }
+  }, [activeMainTab, selectedTourneyForBracket, fetchBracket]);
 
   useEffect(() => {
     if (activeMainTab !== "leaderboard") return;
@@ -410,19 +564,102 @@ export const AdminTournamentsPage: React.FC = () => {
         />
       )}
 
-      {(activeMainTab === "referee_live" || activeMainTab === "brackets") && (
-        <div className="rounded-2xl bg-gradient-to-b from-[#064e3b] to-[#042f24] border-2 border-slate-800 p-8 sm:p-12 text-center text-white shadow-md">
-          <div className="w-14 h-14 rounded-2xl bg-amber-400/15 border border-amber-300/30 text-amber-300 flex items-center justify-center mx-auto mb-3 text-2xl">
-            {activeMainTab === "brackets" ? <TeamOutlined /> : <ThunderboltOutlined />}
+      {activeMainTab === "brackets" && (
+        <div className="space-y-4">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
+              <span className="text-sm font-semibold text-slate-300">Chọn giải đấu:</span>
+              <select
+                className="bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-sm w-full sm:w-auto min-w-[240px]"
+                value={selectedTourneyForBracket?._id || ""}
+                onChange={(e) => {
+                  const t = apiTournaments.find((item) => item._id === e.target.value) || null;
+                  setSelectedTourneyForBracket(t);
+                }}
+              >
+                {apiTournaments.map((t) => (
+                  <option key={t._id} value={t._id}>
+                    {t.name} ({t.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+              <Button
+                onClick={() => selectedTourneyForBracket && fetchBracket(selectedTourneyForBracket._id)}
+                loading={loadingBracket}
+                size="middle"
+              >
+                Tải lại
+              </Button>
+
+              {selectedTourneyForBracket && (
+                <Button
+                  type="primary"
+                  onClick={handleGenerateBracket}
+                  loading={generatingBracket}
+                  className="!bg-emerald-600 hover:!bg-emerald-500 font-semibold"
+                >
+                  {bracketData && bracketData.rounds.length > 0 ? "Sinh lại nhánh đấu" : "Tạo nhánh đấu"}
+                </Button>
+              )}
+            </div>
           </div>
-          <h4 className="text-white font-black text-base mb-1">
-            {activeMainTab === "brackets" ? "Chưa có nhánh đấu" : "Chưa có trận đấu để chấm điểm"}
-          </h4>
-          <p className="text-emerald-100/75 text-xs max-w-md mx-auto leading-relaxed">
-            Dữ liệu trận đấu chưa được lưu trong hệ thống nên chưa có gì để hiển thị. Màn này sẽ
-            hiển thị khi backend cung cấp API tạo nhánh đấu và ghi nhận điểm từng trận.
-          </p>
+
+          {loadingBracket ? (
+            <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-12 text-center text-slate-400">
+              <span className="inline-block animate-spin mr-2">⚡</span> Đang tải cây nhánh đấu...
+            </div>
+          ) : bracketData && bracketData.rounds.length > 0 ? (
+            <div className="rounded-2xl bg-slate-900/40 border border-slate-800 p-4 sm:p-6 shadow-md">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-white font-bold text-lg">{bracketData.tournament.name}</h3>
+                  <p className="text-slate-400 text-xs">
+                    Quy mô: {bracketData.tournament.bracketSize} cơ thủ • {bracketData.tournament.totalRounds} vòng đấu • {bracketData.tournament.totalMatches} trận
+                  </p>
+                </div>
+              </div>
+              <InteractiveBracketTree
+                bracket={bracketData}
+                onRefresh={() => selectedTourneyForBracket && fetchBracket(selectedTourneyForBracket._id)}
+              />
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-gradient-to-b from-[#064e3b] to-[#042f24] border-2 border-slate-800 p-8 sm:p-12 text-center text-white shadow-md">
+              <div className="w-14 h-14 rounded-2xl bg-amber-400/15 border border-amber-300/30 text-amber-300 flex items-center justify-center mx-auto mb-3 text-2xl">
+                <TeamOutlined />
+              </div>
+              <h4 className="text-white font-black text-base mb-1">Chưa có cây nhánh đấu</h4>
+              <p className="text-emerald-100/75 text-xs max-w-md mx-auto leading-relaxed mb-4">
+                Giải đấu này chưa được tạo nhánh đấu hoặc chưa có dữ liệu trận đấu. Bấm nút bên dưới để tạo nhánh Single Elimination tự động.
+              </p>
+              {selectedTourneyForBracket && (
+                <Button
+                  type="primary"
+                  onClick={handleGenerateBracket}
+                  loading={generatingBracket}
+                  className="!bg-emerald-500 !text-slate-950 font-bold hover:!bg-emerald-400"
+                >
+                  Sinh Nhánh Đấu Ngay
+                </Button>
+              )}
+            </div>
+          )}
         </div>
+      )}
+
+      {activeMainTab === "referee_live" && (
+        <RefereeLivePanel
+          tournaments={apiTournaments}
+          selectedTournamentId={selectedTourneyForBracket?._id}
+          onSelectTournament={(id) => {
+            const t = apiTournaments.find((item) => item._id === id) || null;
+            setSelectedTourneyForBracket(t);
+          }}
+          onScoreUpdated={() => void fetchLeaderboard()}
+        />
       )}
 
       {activeMainTab === "leaderboard" && (

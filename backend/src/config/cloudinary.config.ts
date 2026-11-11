@@ -84,3 +84,35 @@ export const uploadProductImage = (buffer: Buffer): Promise<UploadApiResponse> =
     stream.end(buffer);
   });
 };
+
+export const uploadNewsImage = (buffer: Buffer): Promise<UploadApiResponse> => {
+  const client = getCloudinaryClient();
+
+  return new Promise((resolve, reject) => {
+    const stream = client.uploader.upload_stream(
+      {
+        folder: "cuezone/news",
+        resource_type: "image",
+        allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        transformation: [
+          { width: 1920, height: 1080, crop: "limit" },
+          { quality: "auto:good", fetch_format: "auto" },
+        ],
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!result) {
+          reject(new Error("Cloudinary không trả về kết quả tải ảnh bài viết"));
+          return;
+        }
+
+        resolve(result);
+      },
+    );
+
+    stream.end(buffer);
+  });
+};

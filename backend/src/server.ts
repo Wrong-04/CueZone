@@ -13,17 +13,22 @@ import { Voucher, VoucherUsage } from "./modules/voucher/voucher.model";
 import { CustomerOrder } from "./modules/customer-order/customer-order.model";
 import { PasswordResetOtp } from "./modules/auth/passwordResetOtp.model";
 import { corsOptions } from "./config/cors.config";
-import { TournamentPaymentIntent, TournamentPaymentReceipt } from "./modules/tournament/tournament-payment.model";
+import {
+  TournamentPaymentIntent,
+  TournamentPaymentReceipt,
+} from "./modules/tournament/tournament-payment.model";
 import { TableService } from "./modules/table/table.service";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
 
 export const httpServer = createServer((req, res) => {
-  void ready.then(() => appInstance.app(req, res)).catch(() => {
-    res.writeHead(503, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: false, message: "Máy chủ chưa sẵn sàng" }));
-  });
+  void ready
+    .then(() => appInstance.app(req, res))
+    .catch(() => {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, message: "Máy chủ chưa sẵn sàng" }));
+    });
 });
 
 export const io = new Server(httpServer, {
@@ -56,10 +61,10 @@ async function initialize() {
       CustomerOrder.init(),
       PasswordResetOtp.init(),
     ]);
-    console.log("✅ Database indexes verified");
+    console.log("Database indexes verified");
   } catch (err: any) {
     console.warn(
-      "⚠️ Cảnh báo khởi tạo index (bỏ qua để tiếp tục khởi động server):",
+      "Cảnh báo khởi tạo index (bỏ qua để tiếp tục khởi động server):",
       err?.message || err,
     );
   }
@@ -68,23 +73,25 @@ async function initialize() {
 const ready = initialize();
 
 if (!process.env.VERCEL) {
-  void ready.then(() => {
-    httpServer.listen(PORT, () => {
-      console.log(`🚀 API Server is running on http://localhost:${PORT}`);
-      console.log(`📡 Socket.io is ready`);
+  void ready
+    .then(() => {
+      httpServer.listen(PORT, () => {
+        console.log(`API Server is running on http://localhost:${PORT}`);
+        console.log(`Socket.io is ready`);
 
-      // Quét và tự động giải phóng các bàn giữ chỗ quá hẹn 15 phút mỗi 15 giây
-      const tableService = new TableService();
-      setInterval(() => {
-        void tableService.autoReleaseExpiredBookings().catch((err) => {
-          console.error("Lỗi tự động hủy đặt bàn quá hẹn 15p:", err);
-        });
-      }, 15000);
+        // Quét và tự động giải phóng các bàn giữ chỗ quá hẹn 15 phút mỗi 15 giây
+        const tableService = new TableService();
+        setInterval(() => {
+          void tableService.autoReleaseExpiredBookings().catch((err) => {
+            console.error("Lỗi tự động hủy đặt bàn quá hẹn 15p:", err);
+          });
+        }, 15000);
+      });
+    })
+    .catch((err) => {
+      console.error("Không thể khởi động API Server:", err);
+      process.exit(1);
     });
-  }).catch((err) => {
-    console.error("Không thể khởi động API Server:", err);
-    process.exit(1);
-  });
 } else {
   void ready.catch(() => console.error("Không thể khởi tạo API Server"));
 }

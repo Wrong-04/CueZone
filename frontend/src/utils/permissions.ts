@@ -16,7 +16,8 @@ export type PermissionKey =
   | "wallet.operate"
   | "vouchers.manage"
   | "pricing.manage"
-  | "reports.read";
+  | "reports.read"
+  | "news.manage";
 
 export const STAFF_ROLES = ["admin", "staff", "cashier", "warehouse", "referee"];
 
@@ -41,6 +42,7 @@ const LANDING_PAGES: { path: string; permission: PermissionKey }[] = [
   { path: "/suppliers", permission: "suppliers.manage" },
   { path: "/vouchers", permission: "vouchers.manage" },
   { path: "/reports", permission: "reports.read" },
+  { path: "/news", permission: "news.manage" },
 ];
 
 export const getHomePath = (user: User | null | undefined): string => {

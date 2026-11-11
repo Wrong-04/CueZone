@@ -5,6 +5,8 @@ import {
   CheckCircleOutlined,
   CopyOutlined,
   DollarOutlined,
+  DownloadOutlined,
+  ExclamationCircleOutlined,
   PhoneOutlined,
   QrcodeOutlined,
   ReloadOutlined,
@@ -19,7 +21,11 @@ import {
   type TournamentPayment,
 } from "../../services/tournament.service";
 import { getSocket } from "../../services/socket.service";
-import { TournamentEPassModal } from "./TournamentEPassModal";
+import {
+  TournamentAthletePassCard,
+  type TournamentEPassData,
+} from "./TournamentEPassModal";
+import { TournamentPaymentReceipt } from "./TournamentPaymentReceipt";
 
 interface TournamentRegistrationModalProps {
   tournament: {
@@ -46,7 +52,6 @@ export function TournamentPaymentModal({
   const [error, setError] = useState("");
   const [deadlinePassed, setDeadlinePassed] = useState(false);
   const [view, setView] = useState<"confirm" | "payment">("confirm");
-  const [openPassModal, setOpenPassModal] = useState(false);
 
   const isFree = tournament.feeAmount === 0;
 
@@ -97,9 +102,9 @@ export function TournamentPaymentModal({
     const socket = getSocket();
     const tourneyChannel = `tournament:${tournament.id}:payment`;
 
-    const handleSocketUpdate = (payload: any) => {
+    const handleSocketUpdate = (eventData: any) => {
       if (!isMounted) return;
-      if (payload && (payload.userId === user?._id || !payload.userId)) {
+      if (eventData && (eventData.userId === user?._id || !eventData.userId)) {
         tournamentService
           .getPayment(tournament.id)
           .then((latest) => {
@@ -201,8 +206,42 @@ export function TournamentPaymentModal({
   const isAwaiting = payment?.state === "awaiting_payment";
   const isPaidPending = payment?.state === "paid_pending";
   const isConfirmed = payment?.state === "confirmed";
-  const isRefund = payment?.state === "refund_required" || Boolean(payment?.extraPayment);
+  const isRefund =
+    payment?.state === "refund_required" ||
+    payment?.state === "reconciliation_required" ||
+    Boolean(payment?.extraPayment);
   const showQr = isAwaiting && Boolean(payment?.qrUrl) && !deadlinePassed;
+
+  const modalWidth =
+    view === "confirm"
+      ? 520
+      : isConfirmed
+        ? 560
+        : isPaidPending
+          ? 620
+          : 740;
+
+  const modalTitle =
+    view === "confirm"
+      ? "Xác nhận đăng ký giải đấu"
+      : isConfirmed
+        ? "Thẻ Cơ Thủ & Xác Nhận Thi Đấu"
+        : isPaidPending
+          ? "Biên Nhận Ghi Danh — Chờ Chốt Suất"
+          : isRefund
+            ? "Xử Lý Hoàn Tiền Giao Dịch"
+            : "Chuyển khoản tham gia giải đấu";
+
+  const passData: TournamentEPassData = {
+    tournamentId: tournament.id,
+    tournamentName: tournament.title,
+    format: tournament.format,
+    startDate: tournament.date || new Date().toISOString(),
+    athleteName: user?.name || "Cơ thủ CueZone",
+    athletePhone: user?.phone || "---",
+    athleteCode: `CZ-${tournament.id.slice(-4).toUpperCase()}-${(user?.phone || user?._id || "").replace(/\D/g, "").slice(-4) || "VĐV"}`,
+    feeAmount: feeAmount,
+  };
 
   return (
     <Modal
@@ -211,13 +250,19 @@ export function TournamentPaymentModal({
         if (!submitting && !refreshing) onClose();
       }}
       footer={null}
-      width={view === "payment" ? 740 : 520}
+      width={modalWidth}
       title={
         <div className="flex items-center gap-2 text-slate-900">
-          <TrophyOutlined className="text-amber-500" />
-          <span className="font-bold text-base">
-            {view === "payment" ? "Chuyển khoản qua SePay" : "Xác nhận đăng ký giải đấu"}
-          </span>
+          {isConfirmed ? (
+            <TrophyOutlined className="text-amber-500" />
+          ) : isPaidPending ? (
+            <CheckCircleOutlined className="text-emerald-600" />
+          ) : isRefund ? (
+            <ExclamationCircleOutlined className="text-rose-500" />
+          ) : (
+            <TrophyOutlined className="text-amber-500" />
+          )}
+          <span className="font-bold text-base">{modalTitle}</span>
         </div>
       }
     >
@@ -247,7 +292,7 @@ export function TournamentPaymentModal({
           {payment && payment.state !== "not_started" && (
             <Alert
               type="info"
-              title="Bạn đã có thông tin thanh toán cho giải đấu này. Bấm nút bên dưới để xem trực tiếp mã chuyển khoản."
+              title="Bạn đã có thông tin thanh toán cho giải đấu này. Bấm nút bên dưới để xem trực tiếp trạng thái ghi danh."
             />
           )}
 
@@ -319,10 +364,98 @@ export function TournamentPaymentModal({
               className="!bg-[#064e3b] hover:!bg-[#047857] !border-[#064e3b] text-white font-bold !rounded-xl"
             >
               {payment && payment.state !== "not_started"
-                ? "Xem mã chuyển khoản"
+                ? "Xem trạng thái ghi danh"
                 : isFree
                   ? "Ghi danh tham gia"
                   : "Tạo mã chuyển khoản"}
+            </Button>
+          </div>
+        </div>
+      ) : isConfirmed ? (
+        <div className="space-y-4 py-1 text-slate-800">
+          <div className="rounded-2xl bg-gradient-to-r from-emerald-950 via-[#064e3b] to-slate-950 p-4 text-white flex items-center justify-between gap-3 shadow-md border border-emerald-500/30">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 text-amber-300 text-xs font-bold uppercase tracking-wider">
+                <TrophyOutlined /> Xác Nhận Thi Đấu Chính Thức
+              </div>
+              <p className="text-xs text-emerald-100/90 leading-snug mb-0">
+                Chúc mừng <strong>{user?.name || "Cơ thủ"}</strong>! Bạn đã có tên trong danh sách thi đấu giải đấu.
+              </p>
+            </div>
+            <Tag color="green" className="!font-bold !text-xs !rounded-full !px-3 !py-1 !m-0 shrink-0">
+              <CheckCircleOutlined /> Đã Xác Nhận
+            </Tag>
+          </div>
+
+          <TournamentAthletePassCard
+            data={passData}
+            renderActions={(handleDownload) => (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  leftIcon={<DownloadOutlined />}
+                  className="!rounded-xl border-emerald-500 text-emerald-800 hover:!bg-emerald-50 font-bold text-xs"
+                >
+                  Tải Thẻ Thi Đấu (PNG)
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={onClose}
+                  className="!rounded-xl !bg-[#064e3b] hover:!bg-[#047857] text-white font-bold text-xs"
+                >
+                  Đóng & Xem Lịch Thi Đấu
+                </Button>
+              </div>
+            )}
+          />
+        </div>
+      ) : isPaidPending && payment ? (
+        <TournamentPaymentReceipt
+          tournament={tournament}
+          payment={payment}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+          onClose={onClose}
+        />
+      ) : isRefund ? (
+        <div className="space-y-4 py-2 text-slate-800">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-5 space-y-3">
+            <div className="flex items-center gap-2 text-rose-800 font-bold text-sm">
+              <ExclamationCircleOutlined className="text-rose-600 text-lg" />
+              <span>Khoản thanh toán cần xử lý đối soát hoặc hoàn tiền</span>
+            </div>
+            <p className="text-xs text-rose-900/90 leading-relaxed mb-0">
+              Giải đấu có thể đã đủ số lượng cơ thủ tối đa trước thời điểm ngân hàng khớp lệnh, hoặc giao dịch chuyển khoản phát sinh chênh lệch cần hoàn trả lại cho bạn.
+            </p>
+            <div className="p-3 bg-white rounded-xl border border-rose-100 text-xs space-y-1.5 font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Số tiền đã chuyển:</span>
+                <strong className="text-slate-900">{feeAmount.toLocaleString("vi-VN")} VNĐ</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Mã tham chiếu:</span>
+                <strong className="text-rose-700">{payment?.reference || "---"}</strong>
+              </div>
+            </div>
+            {payment?.zaloUrl && (
+              <div className="pt-2">
+                <a
+                  href={payment.zaloUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
+                >
+                  Liên hệ Zalo Quản Lý CLB (Hỗ Trợ Hoàn Tiền) &rarr;
+                </a>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={onClose} className="!rounded-xl">
+              Đóng
             </Button>
           </div>
         </div>
@@ -338,23 +471,9 @@ export function TournamentPaymentModal({
               </span>
             </div>
             <div>
-              {isConfirmed ? (
-                <Tag color="green" className="!font-bold !text-xs !rounded-full !m-0 !px-2.5 !py-0.5">
-                  <CheckCircleOutlined /> Đã xác nhận tham gia
-                </Tag>
-              ) : isPaidPending ? (
-                <Tag color="blue" className="!font-bold !text-xs !rounded-full !m-0 !px-2.5 !py-0.5">
-                  Đã nhận tiền — chờ chốt
-                </Tag>
-              ) : isAwaiting ? (
-                <Tag color="gold" className="!font-bold !text-xs !rounded-full !m-0 !px-2.5 !py-0.5">
-                  Chờ chuyển khoản
-                </Tag>
-              ) : isRefund ? (
-                <Tag color="red" className="!font-bold !text-xs !rounded-full !m-0 !px-2.5 !py-0.5">
-                  Cần hoàn tiền
-                </Tag>
-              ) : null}
+              <Tag color="gold" className="!font-bold !text-xs !rounded-full !m-0 !px-2.5 !py-0.5">
+                Chờ chuyển khoản
+              </Tag>
             </div>
           </div>
 
@@ -378,12 +497,6 @@ export function TournamentPaymentModal({
                   <span className="block text-[11px] text-slate-500">
                     Quét mã để tự động điền thông tin
                   </span>
-                </div>
-              ) : isPaidPending || isConfirmed ? (
-                <div className="py-8 space-y-2 text-center">
-                  <CheckCircleOutlined className="text-4xl text-emerald-600 block mx-auto" />
-                  <span className="font-bold text-xs text-emerald-950 block">Đã ghi nhận thanh toán</span>
-                  <span className="text-[11px] text-emerald-800/80 block">Không cần chuyển khoản thêm</span>
                 </div>
               ) : isAwaiting && deadlinePassed ? (
                 <div className="py-8 space-y-1.5 text-center text-amber-900">
@@ -467,79 +580,32 @@ export function TournamentPaymentModal({
                   </div>
                 )}
               </div>
-
-              {isRefund && payment?.zaloUrl && payment.zaloUrl.startsWith("https://zalo.me/") && (
-                <div className="rounded-lg bg-rose-50 border border-rose-200 p-2 text-[11px] text-rose-900 flex items-center justify-between">
-                  <span>Cần đối soát hoặc hoàn tiền:</span>
-                  <a
-                    href={payment.zaloUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold text-brand hover:underline"
-                  >
-                    Liên hệ Zalo nhân viên &rarr;
-                  </a>
-                </div>
-              )}
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
-            <div>
-              {isConfirmed && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setOpenPassModal(true)}
-                  leftIcon={<QrcodeOutlined />}
-                  className="!rounded-xl !bg-emerald-700 hover:!bg-emerald-800 text-white font-bold"
-                >
-                  Xem thẻ VĐV thi đấu
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={refreshing}
+              onClick={onClose}
+              className="!rounded-xl"
+            >
+              Đóng
+            </Button>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={refreshing}
-                onClick={onClose}
-                className="!rounded-xl"
-              >
-                Đóng
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                loading={refreshing}
-                onClick={() => void handleRefresh()}
-                leftIcon={<ReloadOutlined />}
-                className="!rounded-xl"
-              >
-                Cập nhật trạng thái
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              loading={refreshing}
+              onClick={() => void handleRefresh()}
+              leftIcon={<ReloadOutlined />}
+              className="!rounded-xl"
+            >
+              Cập nhật trạng thái
+            </Button>
           </div>
         </div>
-      )}
-
-      {openPassModal && (
-        <TournamentEPassModal
-          open={openPassModal}
-          onClose={() => setOpenPassModal(false)}
-          data={{
-            tournamentId: tournament.id,
-            tournamentName: tournament.title,
-            format: tournament.format,
-            startDate: tournament.date || new Date().toISOString(),
-            athleteName: user?.name || "Cơ thủ CueZone",
-            athletePhone: user?.phone || "---",
-            athleteCode: `CZ-${tournament.id.slice(-4).toUpperCase()}-${(user?.phone || user?._id || "").replace(/\D/g, "").slice(-4) || "VĐV"}`,
-            feeAmount: feeAmount,
-          }}
-        />
       )}
     </Modal>
   );

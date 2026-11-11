@@ -26,6 +26,7 @@ import CustomerTournaments from "./pages/customer/CustomerTournaments";
 import CustomerPaymentPage from "./pages/customer/CustomerPaymentPage";
 import CustomerRules from "./pages/customer/CustomerRules";
 import CustomerNews from "./pages/customer/CustomerNews";
+import CustomerNewsDetail from "./pages/customer/CustomerNewsDetail";
 import CustomerFnB from "./pages/customer/CustomerFnB";
 import CustomerPlaySession from "./pages/customer/CustomerPlaySession";
 import CustomerHistory from "./pages/customer/CustomerHistory";
@@ -342,7 +343,7 @@ const AppRoutes = () => {
         <Route
           path="/news"
           element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute permission="news.manage">
               <NewsPage />
             </ProtectedRoute>
           }
@@ -418,6 +419,7 @@ const AppRoutes = () => {
         />
         <Route path="rules" element={<CustomerRules />} />
         <Route path="news" element={<CustomerNews />} />
+        <Route path="news/:slug" element={<CustomerNewsDetail />} />
       </Route>
 
       {/* Default redirect */}
