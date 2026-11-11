@@ -1,14 +1,17 @@
 import { Router, Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import multer from "multer";
 import { TournamentService } from "./tournament.service";
 import { requirePermission } from "../../middlewares/auth.middleware";
 import { TournamentStatus, Tournament } from "./tournament.model";
 import { uploadReceiptImage } from "../../config/cloudinary.config";
 import { TournamentPaymentService } from "./tournament-payment.service";
+import { TournamentBracketService } from "./bracket.service";
 import { sepayConfig } from "./sepay";
 
 const router = Router();
 const tournamentService = new TournamentService();
+const bracketService = new TournamentBracketService();
 
 const receiptUpload = multer({
   storage: multer.memoryStorage(),
@@ -288,6 +291,94 @@ router.patch(
         success: true,
         message: `Chuyển trạng thái giải đấu sang "${status}" thành công`,
         data: tournament,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get("/:id/bracket", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const bracket = await bracketService.getBracketStructure(req.params.id);
+    res.json({
+      success: true,
+      message: "Lấy cây nhánh đấu thành công",
+      data: bracket,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post(
+  "/:id/bracket/generate",
+  requireTournamentOperator,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const bracket = await bracketService.generateSingleEliminationBracket(req.params.id);
+      res.status(201).json({
+        success: true,
+        message: "Sinh cây nhánh đấu trực tiếp thành công",
+        data: bracket,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.patch(
+  "/matches/:matchId/score",
+  requireTournamentOperator,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { matchId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(matchId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Mã trận đấu không hợp lệ",
+        });
+      }
+
+      const { score1, score2, tableId, status, winnerRegistrationId } = req.body;
+      if (score1 !== undefined && (!Number.isInteger(Number(score1)) || Number(score1) < 0)) {
+        return res.status(400).json({
+          success: false,
+          message: "Điểm số 1 phải là số nguyên không âm",
+        });
+      }
+      if (score2 !== undefined && (!Number.isInteger(Number(score2)) || Number(score2) < 0)) {
+        return res.status(400).json({
+          success: false,
+          message: "Điểm số 2 phải là số nguyên không âm",
+        });
+      }
+      if (tableId && !mongoose.Types.ObjectId.isValid(tableId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Mã bàn thi đấu không hợp lệ",
+        });
+      }
+      if (winnerRegistrationId && !mongoose.Types.ObjectId.isValid(winnerRegistrationId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Mã người thắng không hợp lệ",
+        });
+      }
+
+      const match = await bracketService.updateMatchScore(matchId, {
+        score1: score1 !== undefined ? Number(score1) : undefined,
+        score2: score2 !== undefined ? Number(score2) : undefined,
+        tableId: tableId || undefined,
+        status,
+        winnerRegistrationId,
+      });
+
+      res.json({
+        success: true,
+        message: "Cập nhật kết quả trận đấu thành công",
+        data: match,
       });
     } catch (err) {
       next(err);

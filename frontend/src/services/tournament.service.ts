@@ -128,6 +128,61 @@ export interface TournamentPayment {
   revision: number;
 }
 
+export interface BracketParticipant {
+  slot: 1 | 2;
+  registrationId?: string;
+  user?: {
+    _id: string;
+    name: string;
+    avatar?: string;
+    phone?: string;
+  };
+  seed?: number;
+  score: number;
+  isWinner: boolean | null;
+}
+
+export interface BracketMatch {
+  _id: string;
+  tournamentId: string;
+  round: number;
+  roundName: string;
+  matchNumber: number;
+  code: string;
+  status: "scheduled" | "in_progress" | "completed" | "walkover" | "bye" | "cancelled";
+  table?: {
+    _id: string;
+    name: string;
+    code?: string;
+  };
+  winnerRegistrationId?: string;
+  nextMatchId?: string;
+  nextMatchSlot?: 1 | 2;
+  scheduledAt?: string;
+  participants: BracketParticipant[];
+}
+
+export interface BracketRound {
+  round: number;
+  roundName: string;
+  raceTo: number;
+  matches: BracketMatch[];
+}
+
+export interface BracketStructure {
+  tournament: {
+    _id: string;
+    name: string;
+    status: TournamentStatus;
+    format: string;
+    raceToScore: number;
+    bracketSize: number;
+    totalRounds: number;
+    totalMatches: number;
+  };
+  rounds: BracketRound[];
+}
+
 export interface TournamentPaymentSnapshot {
   revision: number;
   finalizedAt: string | null;
@@ -295,6 +350,38 @@ export const tournamentService = {
       paymentMethod: "bank_transfer",
     }).catch(error => { throw new Error(error.response?.data?.message || "Không thể tạo mã chuyển khoản. Vui lòng thử lại."); });
     if (!data.success || !data.data) throw new Error(data.message || "Không thể ghi danh giải đấu");
+    return data.data;
+  },
+
+  async getBracket(tournamentId: string): Promise<BracketStructure> {
+    const { data } = await api.get<ApiResponse<BracketStructure>>(`/public/tournaments/${tournamentId}/bracket`);
+    if (!data.success || !data.data) throw new Error(data.message || "Không thể tải cây nhánh đấu");
+    return data.data;
+  },
+
+  async generateBracket(tournamentId: string): Promise<BracketStructure> {
+    const { data } = await api.post<ApiResponse<BracketStructure>>(
+      `/tournaments/${tournamentId}/bracket/generate`,
+    );
+    if (!data.success || !data.data) throw new Error(data.message || "Không thể sinh cây nhánh đấu");
+    return data.data;
+  },
+
+  async updateMatchScore(
+    matchId: string,
+    payload: {
+      score1?: number;
+      score2?: number;
+      winnerRegistrationId?: string;
+      status?: "in_progress" | "completed" | "walkover";
+      tableId?: string;
+    },
+  ): Promise<BracketMatch> {
+    const { data } = await api.patch<ApiResponse<BracketMatch>>(
+      `/tournaments/matches/${matchId}/score`,
+      payload,
+    );
+    if (!data.success || !data.data) throw new Error(data.message || "Không thể cập nhật kết quả trận đấu");
     return data.data;
   },
 };

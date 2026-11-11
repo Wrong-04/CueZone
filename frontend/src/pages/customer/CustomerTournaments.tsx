@@ -22,7 +22,10 @@ import {
   tournamentService,
   type TournamentItem as ApiTournament,
   type MyTournamentHistoryItem,
+  type BracketStructure,
 } from "../../services/tournament.service";
+import { InteractiveBracketTree } from "../../components/tournament/InteractiveBracketTree";
+import { getSocket } from "../../services/socket.service";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -119,7 +122,116 @@ const CustomerTournaments = () => {
   const [tournaments, setTournaments] = useState<TournamentItem[]>([]);
   const [loadingTournaments, setLoadingTournaments] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [activeMainTab, setActiveMainTab] = useState<"tournaments" | "history">("tournaments");
+  const [activeMainTab, setActiveMainTab] = useState<"tournaments" | "history" | "bracket">("tournaments");
+  const [selectedTourneyForBracket, setSelectedTourneyForBracket] = useState<TournamentItem | null>(null);
+  const [bracketData, setBracketData] = useState<BracketStructure | null>(null);
+  const [loadingBracket, setLoadingBracket] = useState<boolean>(false);
+
+  const loadBracket = useCallback(async (tourneyId: string, silent = false) => {
+    if (!silent) setLoadingBracket(true);
+    try {
+      const data = await tournamentService.getBracket(tourneyId);
+      setBracketData(data);
+    } catch {
+      setBracketData(null);
+    } finally {
+      if (!silent) setLoadingBracket(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeMainTab === "bracket" && selectedTourneyForBracket) {
+      void loadBracket(selectedTourneyForBracket.id, false);
+    }
+  }, [activeMainTab, selectedTourneyForBracket, loadBracket]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const handleScoreUpdated = (payload: any) => {
+      if (selectedTourneyForBracket && payload?.tournamentId === selectedTourneyForBracket.id) {
+        if (payload.matchId && payload.score1 !== undefined && payload.score2 !== undefined) {
+          setBracketData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              rounds: prev.rounds.map((round) => ({
+                ...round,
+                matches: round.matches.map((m) => {
+                  if (m._id !== payload.matchId) return m;
+                  return {
+                    ...m,
+                    status: payload.status || m.status,
+                    winnerRegistrationId: payload.winnerRegistrationId ?? m.winnerRegistrationId,
+                    participants: m.participants.map((p) => {
+                      if (p.slot === 1) return { ...p, score: payload.score1, isWinner: payload.winnerRegistrationId ? String(payload.winnerRegistrationId) === String(p.registrationId) : p.isWinner };
+                      if (p.slot === 2) return { ...p, score: payload.score2, isWinner: payload.winnerRegistrationId ? String(payload.winnerRegistrationId) === String(p.registrationId) : p.isWinner };
+                      return p;
+                    }),
+                  };
+                }),
+              })),
+            };
+          });
+        }
+      }
+    };
+
+    const handleMatchCompleted = (payload: any) => {
+      if (selectedTourneyForBracket && payload?.tournamentId === selectedTourneyForBracket.id) {
+        setBracketData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            rounds: prev.rounds.map((round) => ({
+              ...round,
+              matches: round.matches.map((m) => {
+                if (m._id === payload.matchId) {
+                  return {
+                    ...m,
+                    status: "completed",
+                    winnerRegistrationId: payload.winnerRegistrationId,
+                  };
+                }
+                if (payload.nextMatchId && m._id === payload.nextMatchId && payload.nextMatchSlot && payload.winnerUser) {
+                  const remaining = m.participants.filter((p) => p.slot !== payload.nextMatchSlot);
+                  return {
+                    ...m,
+                    participants: [
+                      ...remaining,
+                      {
+                        slot: payload.nextMatchSlot,
+                        registrationId: payload.winnerRegistrationId,
+                        user: payload.winnerUser,
+                        score: 0,
+                        isWinner: null,
+                      },
+                    ],
+                  };
+                }
+                return m;
+              }),
+            })),
+          };
+        });
+      }
+    };
+
+    const handleBracketUpdated = (payload: any) => {
+      if (selectedTourneyForBracket && payload?.tournamentId === selectedTourneyForBracket.id) {
+        void loadBracket(selectedTourneyForBracket.id, true);
+      }
+    };
+
+    socket.on("tournament:score_updated", handleScoreUpdated);
+    socket.on("tournament:match_completed", handleMatchCompleted);
+    socket.on("tournament:bracket_updated", handleBracketUpdated);
+
+    return () => {
+      socket.off("tournament:score_updated", handleScoreUpdated);
+      socket.off("tournament:match_completed", handleMatchCompleted);
+      socket.off("tournament:bracket_updated", handleBracketUpdated);
+    };
+  }, [selectedTourneyForBracket, loadBracket]);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedTournament, setSelectedTournament] = useState<TournamentItem | null>(null);
 
@@ -303,6 +415,25 @@ const CustomerTournaments = () => {
           >
             <HistoryOutlined className={activeMainTab === "history" ? "text-emerald-600" : "text-slate-400"} />
             <span>Lịch Sử Thi Đấu Của Tôi {user && myHistory.length > 0 ? `(${myHistory.length})` : ""}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveMainTab("bracket");
+              if (!selectedTourneyForBracket && tournaments.length > 0) {
+                const target = tournaments.find((t) => t.status === "upcoming" || t.status === "open") || tournaments[0];
+                setSelectedTourneyForBracket(target);
+              }
+            }}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeMainTab === "bracket"
+                ? "bg-white text-emerald-800 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <TeamOutlined className={activeMainTab === "bracket" ? "text-emerald-600" : "text-slate-400"} />
+            <span>Xem Cây Nhánh Đấu</span>
           </button>
         </div>
 
@@ -706,6 +837,71 @@ const CustomerTournaments = () => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeMainTab === "bracket" && (
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <span className="text-xs font-bold text-slate-700">Giải đấu:</span>
+              <select
+                className="bg-slate-50 border border-slate-300 text-slate-900 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-emerald-500 w-full sm:w-auto min-w-[220px]"
+                value={selectedTourneyForBracket?.id || ""}
+                onChange={(e) => {
+                  const t = tournaments.find((item) => item.id === e.target.value) || null;
+                  setSelectedTourneyForBracket(t);
+                }}
+              >
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title} ({t.badge})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => selectedTourneyForBracket && void loadBracket(selectedTourneyForBracket.id)}
+              loading={loadingBracket}
+              className="!text-xs"
+            >
+              Làm Mới Nhánh Đấu
+            </Button>
+          </div>
+
+          {loadingBracket ? (
+            <div className="py-20 text-center text-sm text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+              <div className="inline-block animate-spin w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full" />
+              <div>Đang tải sơ đồ nhánh thi đấu...</div>
+            </div>
+          ) : bracketData && bracketData.rounds.length > 0 ? (
+            <div className="rounded-2xl bg-[#0b1329] border border-slate-800 p-4 sm:p-6 shadow-md text-white">
+              <div className="mb-4">
+                <h3 className="text-white font-bold text-base mb-1">{bracketData.tournament.name}</h3>
+                <p className="text-slate-400 text-xs">
+                  Cây nhánh đấu loại trực tiếp • {bracketData.tournament.totalRounds} vòng đấu • Chạm {bracketData.tournament.raceToScore} ván thắng
+                </p>
+              </div>
+              <InteractiveBracketTree bracket={bracketData} readOnly={true} />
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white border border-slate-200 p-12 text-center space-y-4 shadow-2xs">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto text-3xl border border-emerald-200">
+                <TeamOutlined />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 mb-0">
+                  Chưa có nhánh thi đấu
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                  Giải đấu này đang mở ghi danh hoặc chưa được ban tổ chức bốc thăm chia nhánh. Vui lòng quay lại sau khi ban tổ chức công bố nhánh đấu chính thức.
+                </p>
               </div>
             </div>
           )}

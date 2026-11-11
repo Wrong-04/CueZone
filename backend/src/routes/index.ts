@@ -15,6 +15,7 @@ import memberCenterRouter from "../modules/member/member-center.routes";
 import waitlistRouter from "../modules/waitlist/waitlist.routes";
 import { WaitlistService } from "../modules/waitlist/waitlist.service";
 import { TournamentService } from "../modules/tournament/tournament.service";
+import { TournamentBracketService } from "../modules/tournament/bracket.service";
 import { TournamentPaymentService } from "../modules/tournament/tournament-payment.service";
 import { getPublicTables } from "../modules/table/table.controller";
 import { BookingService } from "../modules/booking/booking.service";
@@ -29,6 +30,7 @@ import supplierRouter from "../modules/supplier/supplier.routes";
 import goodsReceiptRouter from "../modules/goods-receipt/goods-receipt.routes";
 import reportRouter from "../modules/report/revenue-report.routes";
 import invoiceRouter from "../modules/invoice/invoice.routes";
+import { publicNewsRouter, adminNewsRouter } from "../modules/news/news.routes";
 
 import { BANK_POOL_RULES_DATA } from "../modules/rule/bankPoolRules.data";
 import * as pricingController from "../modules/pricing/pricing.controller";
@@ -36,10 +38,12 @@ import * as pricingController from "../modules/pricing/pricing.controller";
 const bookingService = new BookingService();
 const walletService = new WalletService();
 const tournamentService = new TournamentService();
+const tournamentBracketService = new TournamentBracketService();
 const waitlistService = new WaitlistService();
 
 // Public routes (no auth middleware)
 export const publicRouter = Router();
+publicRouter.use("/public/news", publicNewsRouter);
 publicRouter.post("/public/sepay/webhook", async (req, res, next) => {
   try {
     await new TournamentPaymentService().webhook(req.get("Authorization"), req.body);
@@ -87,6 +91,14 @@ publicRouter.get("/public/tournaments", async (req, res, next) => {
   try {
     const result = await tournamentService.getPublicTournaments(req.query);
     res.json({ success: true, message: "Lấy danh sách giải đấu thành công", data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+publicRouter.get("/public/tournaments/:id/bracket", async (req, res, next) => {
+  try {
+    const result = await tournamentBracketService.getBracketStructure(req.params.id);
+    res.json({ success: true, message: "Lấy cây nhánh đấu thành công", data: result });
   } catch (error) {
     next(error);
   }
@@ -145,4 +157,5 @@ protectedRouter.use("/goods-receipts", goodsReceiptRouter);
 protectedRouter.use("/reports", reportRouter);
 protectedRouter.use("/invoices", invoiceRouter);
 protectedRouter.use("/waitlist", waitlistRouter);
+protectedRouter.use("/news", adminNewsRouter);
 // ponytail: auth profile is on publicRouter but needs auth — kept on authRouter at /auth/profile

@@ -12,7 +12,8 @@
     "check:pos": "pnpm build && node scripts/check-pos.cjs",
     "check:vouchers": "pnpm build && node scripts/check-vouchers.cjs",
     "check:customer-orders": "pnpm build && node scripts/check-customer-orders.cjs",
-    "check:tournament-reg": "pnpm build && node scripts/check-tournament-registration.cjs"
+    "check:tournament-reg": "pnpm build && node scripts/check-tournament-registration.cjs",
+    "check:news": "pnpm build && node scripts/check-news.cjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",

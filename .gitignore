@@ -67,3 +67,5 @@ openspec/
 # Local Agent Scripts
 /scripts/
 AGENT_SETUP.md
+.vercel
+.env*

@@ -86,3 +86,42 @@ export const emitCustomerOrderStatusChanged = (order: any) => {
 export const emitWaitlistUpdated = (entry?: any) => {
   io?.emit("waitlist:updated", entry);
 };
+
+export const emitTournamentScoreUpdated = (payload: {
+  tournamentId: string;
+  matchId: string;
+  score1?: number;
+  score2?: number;
+  status?: string;
+  winnerRegistrationId?: string;
+}) => {
+  io?.emit("tournament:score_updated", payload);
+  io?.emit(`tournament:${payload.tournamentId}:score`, payload);
+};
+
+export const emitTournamentMatchCompleted = (payload: {
+  tournamentId: string;
+  matchId: string;
+  winnerRegistrationId?: string;
+  nextMatchId?: string;
+  nextMatchSlot?: number;
+  winnerUser?: {
+    _id: string;
+    name: string;
+    avatar?: string;
+    phone?: string;
+    seed?: number;
+  };
+}) => {
+  io?.emit("tournament:match_completed", payload);
+  io?.emit(`tournament:${payload.tournamentId}:completed`, payload);
+};
+
+export const emitTournamentBracketUpdated = (payload: {
+  tournamentId: string;
+  bracketSize?: number;
+  totalMatches?: number;
+}) => {
+  io?.emit("tournament:bracket_updated", payload);
+  io?.emit(`tournament:${payload.tournamentId}:bracket`, payload);
+};
