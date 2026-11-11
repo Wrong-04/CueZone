@@ -1,7 +1,8 @@
 export interface CreateProductDTO {
   name: string;
   sku: string;
-  category: "accessory" | "drink" | "food" | "snack" | "ingredient";
+  category: "accessory" | "drink" | "food" | "snack" | "ingredient" | string;
+  productType?: "fnb" | "ingredient" | "accessory";
   unit: string;
   costPrice?: number;
   salePrice?: number;

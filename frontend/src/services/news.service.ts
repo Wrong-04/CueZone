@@ -100,6 +100,7 @@ export const newsService = {
     const response = await api.post<{ success: boolean; data: { url: string } }>(
       "/news/upload-banner",
       formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
     );
     return response.data.data.url;
   },

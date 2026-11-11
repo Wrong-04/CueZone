@@ -14,7 +14,7 @@ export class CreatePricingTierDTO {
   name!: string;
 
   @IsNotEmpty()
-  @IsEnum(["weekday", "weekend", "peak"])
+  @IsEnum(["weekday", "weekend", "peak", "all"])
   dayType!: string;
 
   @IsNotEmpty()
@@ -45,7 +45,7 @@ export class UpdatePricingTierDTO {
   name?: string;
 
   @IsOptional()
-  @IsEnum(["weekday", "weekend", "peak"])
+  @IsEnum(["weekday", "weekend", "peak", "all"])
   dayType?: string;
 
   @IsOptional()

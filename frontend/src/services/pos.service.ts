@@ -77,7 +77,9 @@ export const posService = {
       durationFormatted?: string;
     }>
   > {
-    const { data } = await api.get<ApiResponse<any[]>>("/public/tables", { params });
+    const { data } = await api.get<ApiResponse<any[]>>("/public/tables", {
+      params: { ...params, _t: Date.now() },
+    });
     return result(data);
   },
   async getPricingTiers(): Promise<PricingTier[]> {

@@ -92,3 +92,22 @@ export interface PricingTier {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface FnbStockItem {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  category: "coffee" | "tea" | "juice" | "beer" | "food" | "snack" | "equipment" | (string & {});
+  categoryName: string;
+  price: number;
+  priceFormatted: string;
+  stockQuantity: number;
+  minThreshold: number;
+  unit: string;
+  image: string;
+  isMadeToOrder?: boolean;
+  costPrice?: number;
+  isForSale?: boolean;
+  productType?: "fnb" | "ingredient" | "accessory";
+}

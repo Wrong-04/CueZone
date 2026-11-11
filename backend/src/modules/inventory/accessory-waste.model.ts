@@ -7,6 +7,8 @@ export interface IAccessoryWaste extends Document {
   sku: string;
   unit: string;
   quantity: number;
+  costPrice?: number;
+  totalValue?: number;
   previousStock: number;
   newStock: number;
   reason: string;
@@ -55,6 +57,18 @@ const accessoryWasteSchema = new Schema<IAccessoryWaste>(
       type: Number,
       required: true,
       min: 1,
+    },
+
+    costPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    totalValue: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
 
     previousStock: {

@@ -16,18 +16,10 @@ const categories = [
   { value: "event", label: "Sự kiện CLB" },
   { value: "announcement", label: "Thông báo" },
 ];
-const covers = [
-  { url: "/news/news-promo-goldhour.jpg", label: "Giờ vàng" },
-  { url: "/news/news-tournament-trophy.jpg", label: "Cúp vô địch" },
-  { url: "/news/news-bankpool-tourney.jpg", label: "Giải đấu" },
-  { url: "/news/news-maintenance-simonis.jpg", label: "Bảo trì" },
-  { url: "/news/news-cue-technique.jpg", label: "Kỹ thuật" },
-  { url: "/news/news-club-hero.jpg", label: "Không gian CLB" },
-];
 const emptyForm = (): NewsInput => ({
-  title: "", category: "promo", status: "draft", isFeatured: false,
+  title: "", category: "promo", status: "published", isFeatured: false,
   author: "Ban Quản Lý CueZone", authorRole: "Điều hành CLB", readTime: "3 phút đọc",
-  image: covers[0].url, excerpt: "", content: [],
+  image: "", excerpt: "", content: [],
 });
 const errorMessage = (error: unknown, fallback: string) => {
   const response = error as { response?: { data?: { message?: string } } };
@@ -97,15 +89,20 @@ export default function NewsManagementPage() {
     setContentText(article?.content.join("\n\n") || "");
     setEditorOpen(true);
   };
-  const save = async () => {
+  const save = async (overrideStatus?: NewsInput["status"]) => {
     if (saving || uploading) return;
     if (!form.title.trim() || !form.excerpt.trim() || !contentText.trim()) {
       message.warning("Vui lòng nhập tiêu đề, tóm tắt và nội dung bài viết.");
       return;
     }
+    const finalStatus = overrideStatus || form.status;
     setSaving(true);
     try {
-      const input = { ...form, content: contentText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean) };
+      const input = {
+        ...form,
+        status: finalStatus,
+        content: contentText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean),
+      };
       if (editingId) await newsService.updateArticle(editingId, input);
       else await newsService.createArticle(input);
       setEditorOpen(false);
@@ -128,8 +125,19 @@ export default function NewsManagementPage() {
       if (version === uploadVersion.current) setForm((value) => ({ ...value, image }));
       message.success("Đã tải ảnh bìa. Bấm lưu để gắn ảnh vào bài viết.");
     } catch (error) {
-      message.error(errorMessage(error, "Không thể tải ảnh. Bạn vẫn có thể chọn ảnh bìa có sẵn."));
+      message.error(errorMessage(error, "Không thể tải ảnh. Vui lòng thử lại."));
     } finally { setUploading(false); }
+  };
+  const togglePublish = async (article: NewsArticleItem) => {
+    if (busyId) return;
+    setBusyId(article._id);
+    const nextStatus = article.status === "published" ? "draft" : "published";
+    try {
+      await newsService.updateArticle(article._id, { status: nextStatus });
+      setReload((value) => value + 1);
+      message.success(nextStatus === "published" ? "Đã xuất bản bài viết lên trang khách hàng." : "Đã chuyển bài viết về bản nháp.");
+    } catch (error) { message.error(errorMessage(error, "Không thể cập nhật trạng thái xuất bản.")); }
+    finally { setBusyId(null); }
   };
   const pin = async (article: NewsArticleItem) => {
     if (busyId) return;
@@ -159,6 +167,10 @@ export default function NewsManagementPage() {
     <div className="flex flex-wrap gap-2">
       <Button size="sm" variant="outline" leftIcon={<EyeOutlined />} onClick={() => setPreview(article)}>Xem trước</Button>
       <Button size="sm" variant="outline" leftIcon={<EditOutlined />} onClick={() => openEditor(article)}>Sửa</Button>
+      <Button size="sm" variant={article.status === "published" ? "outline" : "primary"}
+        disabled={!!busyId} loading={busyId === article._id} onClick={() => void togglePublish(article)}>
+        {article.status === "published" ? "Gỡ xuất bản" : "Xuất bản ngay"}
+      </Button>
       <Button size="sm" variant={article.isFeatured ? "primary" : "outline"} leftIcon={<PushpinOutlined />}
         disabled={!!busyId} loading={busyId === article._id} onClick={() => void pin(article)}>
         {article.isFeatured ? "Bỏ ghim" : "Ghim"}
@@ -213,8 +225,14 @@ export default function NewsManagementPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {articles.map((article) => (
             <article key={article._id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
-              <img src={article.image || covers[0].url} alt={article.title} className="aspect-video w-full object-cover"
-                onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = covers[5].url; }} />
+              {article.image ? (
+                <img src={article.image} alt={article.title} className="aspect-video w-full object-cover"
+                  onError={(event) => { event.currentTarget.style.display = "none"; }} />
+              ) : (
+                <div className="aspect-video w-full bg-slate-100 flex items-center justify-center text-slate-400">
+                  <ReadOutlined className="text-3xl" />
+                </div>
+              )}
               <div className="p-5 space-y-3 flex-1">
                 <div className="flex flex-wrap gap-2"><Tag color={article.tagColor}>{article.categoryLabel}</Tag>
                   <Tag color={article.status === "published" ? "green" : "orange"}>
@@ -235,8 +253,11 @@ export default function NewsManagementPage() {
         onCancel={closeEditor} maskClosable={false} closable={!saving && !uploading}
         footer={<div className="flex justify-end gap-2">
           <Button variant="outline" disabled={saving || uploading} onClick={closeEditor}>Hủy</Button>
-          <Button loading={saving} disabled={uploading} onClick={() => void save()}>
-            {form.status === "published" ? "Lưu và xuất bản" : "Lưu bản nháp"}
+          <Button variant="outline" disabled={saving || uploading} onClick={() => void save("draft")}>
+            Lưu bản nháp
+          </Button>
+          <Button loading={saving} disabled={uploading} onClick={() => void save("published")}>
+            Xuất bản ngay
           </Button>
         </div>}>
         <div className="space-y-4 py-2">
@@ -249,21 +270,29 @@ export default function NewsManagementPage() {
               options={[{ value: "draft", label: "Bản nháp (chưa công khai)" }, { value: "published", label: "Xuất bản ngay" }]}
               onChange={(value) => setForm({ ...form, status: value as NewsInput["status"] })} /></label>
           </div>
-          <fieldset disabled={uploading || saving}>
-            <legend className="text-sm">Ảnh bìa</legend>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
-              {covers.map((cover) => <button key={cover.url} type="button" aria-label={cover.label}
-                aria-pressed={form.image === cover.url} onClick={() => setForm({ ...form, image: cover.url })}
-                className={`rounded-lg overflow-hidden border-2 ${form.image === cover.url ? "border-brand" : "border-slate-200"}`}>
-                <img src={cover.url} alt={cover.label} className="aspect-video object-cover w-full" />
-              </button>)}
+          <fieldset disabled={uploading || saving} className="space-y-3">
+            <legend className="text-sm font-medium text-slate-700">Ảnh bìa</legend>
+            {form.image ? (
+              <div className="relative rounded-xl overflow-hidden border border-slate-200 aspect-video max-h-56 bg-slate-50 flex items-center justify-center">
+                <img src={form.image} alt="Xem trước ảnh bìa" className="w-full h-full object-cover" />
+                <Button size="sm" variant="danger-outline" className="!absolute top-2 right-2 bg-white/90 backdrop-blur"
+                  onClick={() => setForm({ ...form, image: "" })}>
+                  Gỡ ảnh
+                </Button>
+              </div>
+            ) : null}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block text-sm">
+                Tải ảnh từ máy (JPG, PNG, WEBP, tối đa 5 MB)
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="block w-full mt-1 text-sm file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                  onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
+              </label>
+              <label className="block text-sm">
+                Hoặc nhập URL ảnh HTTPS
+                <Input className="mt-1" placeholder="https://..." value={form.image}
+                  onChange={(event) => setForm({ ...form, image: event.target.value })} />
+              </label>
             </div>
-            <label className="block text-sm mb-2">Tải ảnh từ thiết bị (JPG, PNG, WEBP, tối đa 5 MB)
-              <input type="file" accept="image/jpeg,image/png,image/webp" className="block w-full mt-1"
-                onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
-            </label>
-            <label className="block text-sm">Đường dẫn ảnh HTTPS<Input value={form.image}
-              onChange={(event) => setForm({ ...form, image: event.target.value })} /></label>
           </fieldset>
           {uploading && <p role="status">Đang tải ảnh bìa...</p>}
           <label className="block">Tóm tắt *<Input.TextArea rows={2} maxLength={2000} value={form.excerpt}
@@ -281,7 +310,7 @@ export default function NewsManagementPage() {
       </Modal>
       <Modal title="Xem trước bài viết" open={!!preview} onCancel={() => setPreview(null)} footer={null} width={760}>
         {preview && <article className="space-y-4">
-          <img src={preview.image} alt={preview.title} className="aspect-video object-cover w-full rounded-xl" />
+          {preview.image && <img src={preview.image} alt={preview.title} className="aspect-video object-cover w-full rounded-xl" />}
           <h2 className="text-2xl font-bold">{preview.title}</h2>
           <p className="text-sm text-slate-500">{preview.author} · {preview.date}</p>
           <p className="font-semibold">{preview.excerpt}</p>

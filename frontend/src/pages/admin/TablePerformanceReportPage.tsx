@@ -29,7 +29,6 @@ import {
   DatePicker,
   Alert,
   Table,
-  Select,
   type TableColumnsType,
 } from "../../shared/ui";
 import {
@@ -510,17 +509,25 @@ export const TablePerformanceReportPage: React.FC = () => {
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Loại bàn:
             </span>
-            <Select
-              value={tableType}
-              onChange={setTableType}
-              className="w-44"
-              options={[
-                { label: "Tất cả 3 loại bàn", value: "all" },
-                { label: "Bida Lỗ (Pool)", value: "pool" },
-                { label: "Bida Phăng (Carom)", value: "carom" },
-                { label: "Bida Thi Đấu (Snooker)", value: "snooker" },
-              ]}
-            />
+            <div className="relative inline-flex items-center">
+              <select
+                id="table-type-select"
+                aria-label="Chọn loại bàn bida"
+                value={tableType}
+                onChange={(e) => setTableType(e.target.value)}
+                className="appearance-none bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded-xl pl-3.5 pr-8 py-2 shadow-2xs outline-none hover:border-slate-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 transition cursor-pointer min-w-44"
+              >
+                <option value="all">Tất cả 3 loại bàn</option>
+                <option value="pool">Bida Lỗ (Pool)</option>
+                <option value="carom">Bida Phăng (Carom)</option>
+                <option value="snooker">Bida Thi Đấu (Snooker)</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
       </Card>

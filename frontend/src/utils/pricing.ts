@@ -131,7 +131,11 @@ export function calculateSplitPlayingDetails(
   const secs = Math.floor((totalElapsedMs % 60000) / 1000);
   const formattedTime = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 
-  const activeTiers = pricingTiers && pricingTiers.length > 0 ? pricingTiers : defaultPricingTiers;
+  const rawTiers =
+    Array.isArray((session as any)?.pricingSnapshot) && (session as any).pricingSnapshot.length > 0
+      ? (session as any).pricingSnapshot
+      : pricingTiers;
+  const activeTiers = rawTiers && rawTiers.length > 0 ? rawTiers : defaultPricingTiers;
   const isVip = Boolean(table.code?.startsWith("VIP") || table.area?.toLowerCase().includes("vip"));
   const isMatch = Boolean(
     table.code?.startsWith("MTCH") || table.area?.toLowerCase().includes("thi đấu"),
@@ -194,7 +198,7 @@ export function calculateSplitPlayingDetails(
       }
     }
 
-    const tierName = matchedTier ? matchedTier.name : "Khung Giờ Tiêu Chuẩn";
+    const tierName = matchedTier ? matchedTier.name : "Đơn giá gốc bàn";
     let tierPrice = session.pricePerHour ?? table.pricePerHour;
     if (matchedTier) {
       if (isVip) {

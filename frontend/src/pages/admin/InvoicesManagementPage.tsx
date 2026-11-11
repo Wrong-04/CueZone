@@ -74,6 +74,10 @@ export interface ClubInvoice {
   paymentMethodText: string;
   status: "paid" | "pending" | "cancelled";
   statusText: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
+  cancellerName?: string;
   date: string;
   createdAt?: string;
   items: InvoiceItemOrder[];
@@ -177,6 +181,50 @@ export const InvoicesManagementPage: React.FC = () => {
   // Invoice Detail Modal & Print Preview
   const [selectedInvoice, setSelectedInvoice] = useState<ClubInvoice | null>(null);
 
+  // Cancel Invoice Modal & States
+  const [cancelModalOpen, setCancelModalOpen] = useState<boolean>(false);
+  const [cancellingInvoice, setCancellingInvoice] = useState<ClubInvoice | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>("");
+  const [cancelLoading, setCancelLoading] = useState<boolean>(false);
+
+  const handleOpenCancelModal = (inv: ClubInvoice) => {
+    setCancellingInvoice(inv);
+    setCancelReason("");
+    setCancelModalOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancellingInvoice) return;
+    const trimmedReason = cancelReason.trim();
+    if (!trimmedReason) {
+      message.warning("Vui lòng nhập hoặc chọn lý do hủy hóa đơn");
+      return;
+    }
+    setCancelLoading(true);
+    try {
+      await invoiceService.cancelInvoice(cancellingInvoice.id, trimmedReason);
+      message.success(`Đã hủy hóa đơn ${cancellingInvoice.code} thành công`);
+      setCancelModalOpen(false);
+      setCancellingInvoice(null);
+      setCancelReason("");
+      if (selectedInvoice && selectedInvoice.id === cancellingInvoice.id) {
+        setSelectedInvoice({
+          ...selectedInvoice,
+          status: "cancelled",
+          statusText: "Đã Hủy",
+          cancelReason: trimmedReason,
+          cancelledAt: new Date().toISOString(),
+        });
+      }
+      await fetchInvoices();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Không thể hủy hóa đơn";
+      message.error(msg);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
@@ -264,6 +312,11 @@ export const InvoicesManagementPage: React.FC = () => {
           <div class="double-dashed"></div>
           <div class="text-center bold" style="font-size: 13px;">PHIẾU THANH TOÁN</div>
           <div class="text-center" style="font-size: 10px;">(In nhiệt chuẩn khổ 80mm)</div>
+          ${
+            selectedInvoice.status === "cancelled"
+              ? `<div class="text-center bold" style="color: red; font-size: 13px; margin-top: 4px; border: 1px solid red; padding: 2px;">*** HÓA ĐƠN ĐÃ HỦY ***<br/><span style="font-size: 9.5px; font-weight: normal; color: #000;">Lý do: ${selectedInvoice.cancelReason || "Hủy bỏ"}</span></div>`
+              : ""
+          }
           <div class="dashed"></div>
           <div class="row"><span>Mã HĐ:</span><span class="bold">${selectedInvoice.code}</span></div>
           <div class="row"><span>Bàn:</span><span class="bold">${selectedInvoice.tableName}</span></div>
@@ -716,18 +769,31 @@ export const InvoicesManagementPage: React.FC = () => {
     {
       title: "Thao Tác",
       key: "actions",
-      width: 125,
+      width: 155,
       align: "right",
       render: (_: unknown, record: ClubInvoice) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSelectedInvoice(record)}
-          leftIcon={<EyeOutlined />}
-          className="!rounded-xl !text-xs !h-8 !border-slate-300 !text-slate-700 hover:!bg-emerald-50 hover:!text-emerald-700 hover:!border-emerald-300 font-bold"
-        >
-          Xem & In Bill
-        </Button>
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedInvoice(record)}
+            leftIcon={<EyeOutlined />}
+            className="!rounded-xl !text-xs !h-8 !border-slate-300 !text-slate-700 hover:!bg-emerald-50 hover:!text-emerald-700 hover:!border-emerald-300 font-bold"
+          >
+            Xem & In
+          </Button>
+          {record.status === "paid" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenCancelModal(record)}
+              className="!rounded-xl !text-xs !h-8 !border-rose-200 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-400 font-bold px-2.5"
+              title="Hủy hóa đơn này"
+            >
+              Hủy
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -1046,6 +1112,24 @@ export const InvoicesManagementPage: React.FC = () => {
       >
         {selectedInvoice && (
           <div className="py-4 space-y-4 text-xs font-sans">
+            {/* Banner nếu hóa đơn đã bị hủy */}
+            {selectedInvoice.status === "cancelled" && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-sm text-rose-700">
+                  <CloseCircleOutlined className="text-base" /> HÓA ĐƠN NÀY ĐÃ ĐƯỢC HỦY
+                </div>
+                <div className="text-xs">
+                  <strong>Lý do hủy:</strong> {selectedInvoice.cancelReason || "Không có lý do cụ thể"}
+                </div>
+                {selectedInvoice.cancelledAt && (
+                  <div className="text-[11px] text-rose-600">
+                    Thời gian hủy: {new Date(selectedInvoice.cancelledAt).toLocaleString("vi-VN")}
+                    {selectedInvoice.cancellerName ? ` • Người thực hiện: ${selectedInvoice.cancellerName}` : ""}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Bill Receipt Card */}
             <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5 text-slate-800">
               {/* Receipt Header */}
@@ -1195,23 +1279,147 @@ export const InvoicesManagementPage: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <div>
+                {selectedInvoice.status === "paid" && (
+                  <Button
+                    variant="outline"
+                    size="md"
+                    leftIcon={<CloseCircleOutlined />}
+                    onClick={() => handleOpenCancelModal(selectedInvoice)}
+                    className="!border-rose-300 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-400 !rounded-xl !font-bold text-xs"
+                  >
+                    Hủy Hóa Đơn
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() => setSelectedInvoice(null)}
+                  className="!rounded-xl !text-xs"
+                >
+                  Đóng
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  leftIcon={<PrinterOutlined />}
+                  onClick={handlePrintBill}
+                  className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-xs px-6"
+                >
+                  In Hóa Đơn
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── MODAL XÁC NHẬN HỦY HÓA ĐƠN ──────────────────────────────────── */}
+      <Modal
+        open={cancelModalOpen}
+        onCancel={() => {
+          if (!cancelLoading) {
+            setCancelModalOpen(false);
+            setCancellingInvoice(null);
+            setCancelReason("");
+          }
+        }}
+        footer={null}
+        width={500}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-rose-100 text-rose-700 font-black text-base">
+            <CloseCircleOutlined className="text-rose-600 text-lg" />
+            <span>Xác Nhận Hủy Hóa Đơn</span>
+          </div>
+        }
+      >
+        {cancellingInvoice && (
+          <div className="py-3 space-y-4 text-xs font-sans">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2">
+              <div className="font-bold text-sm text-rose-900">
+                Hóa đơn: {cancellingInvoice.code} ({cancellingInvoice.tableName})
+              </div>
+              <div className="flex justify-between text-xs text-rose-700">
+                <span>
+                  Tổng tiền: <strong>{cancellingInvoice.finalTotal.toLocaleString("vi-VN")}đ</strong>
+                </span>
+                <span>
+                  Khách: <strong>{cancellingInvoice.customerName}</strong>
+                </span>
+              </div>
+              <div className="text-[11px] text-rose-600 leading-relaxed pt-1 border-t border-rose-200/60">
+                ⚠️ <strong>Cảnh báo nghiệp vụ:</strong> Khi hủy hóa đơn, số tiền này sẽ bị loại trừ khỏi tổng doanh thu báo cáo ca & ngày. Nếu khách có áp dụng mã voucher hoặc được tích điểm hội viên, hệ thống sẽ tự động hoàn lại lượt voucher và thu hồi số điểm tích lũy. Thao tác không thể hoàn tác!
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="font-bold text-slate-800 block">
+                Chọn nhanh lý do hủy hóa đơn:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  "Nhập nhầm hình thức thanh toán",
+                  "Thu ngân tính nhầm tiền giờ / món",
+                  "Khách khiếu nại dịch vụ / đổi ý",
+                  "Chốt nhầm sang bàn bida khác",
+                  "Quên áp dụng voucher / hạng thẻ",
+                  "Khách quẹt thẻ / chuyển khoản lỗi",
+                ].map((reasonItem) => (
+                  <button
+                    key={reasonItem}
+                    type="button"
+                    onClick={() => setCancelReason(reasonItem)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                      cancelReason === reasonItem
+                        ? "bg-rose-100 text-rose-800 border-rose-300 font-bold"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {reasonItem}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                Lý do chi tiết <span className="text-rose-500">*</span>:
+              </label>
+              <Input.TextArea
+                rows={3}
+                placeholder="Nhập lý do cụ thể hủy hóa đơn này để lưu vết kiểm toán..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="!rounded-xl text-xs !border-slate-300 focus:!border-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <Button
                 variant="outline"
                 size="md"
-                onClick={() => setSelectedInvoice(null)}
+                onClick={() => {
+                  setCancelModalOpen(false);
+                  setCancellingInvoice(null);
+                  setCancelReason("");
+                }}
+                disabled={cancelLoading}
                 className="!rounded-xl !text-xs"
               >
-                Đóng
+                Bỏ qua
               </Button>
               <Button
                 variant="primary"
                 size="md"
-                leftIcon={<PrinterOutlined />}
-                onClick={handlePrintBill}
-                className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold text-xs px-6"
+                leftIcon={<CloseCircleOutlined />}
+                onClick={handleConfirmCancel}
+                loading={cancelLoading}
+                className="!bg-rose-600 hover:!bg-rose-700 !border-rose-600 !rounded-xl !font-bold text-xs px-5"
               >
-                In Hóa Đơn
+                Xác Nhận Hủy HĐ
               </Button>
             </div>
           </div>

@@ -38,10 +38,6 @@ export default function CustomerNews() {
   }, [category, page, reload]);
   const featured = articles.find((article) => article.isFeatured);
   const articleLink = (article: NewsArticleItem) => `/customer/news/${encodeURIComponent(article.slug || article._id)}`;
-  const coverError = (event: React.SyntheticEvent<HTMLImageElement>) => {
-    event.currentTarget.onerror = null;
-    event.currentTarget.src = "/news/news-club-hero.jpg";
-  };
 
   return (
     <div className="space-y-8">
@@ -68,7 +64,14 @@ export default function CustomerNews() {
       ) : <>
         {featured && page === 1 && category === "all" && (
           <article className="grid grid-cols-1 lg:grid-cols-2 bg-white border border-slate-200 rounded-3xl overflow-hidden">
-            <img src={featured.image} alt={featured.title} onError={coverError} className="w-full h-72 object-cover" />
+            {featured.image ? (
+              <img src={featured.image} alt={featured.title} className="w-full h-72 object-cover"
+                onError={(e) => { e.currentTarget.style.display = "none"; }} />
+            ) : (
+              <div className="w-full h-72 bg-slate-100 flex items-center justify-center text-slate-400">
+                <ReadOutlined className="text-4xl" />
+              </div>
+            )}
             <div className="p-8 space-y-4">
               <Tag color="gold">TIN TIÊU ĐIỂM</Tag>
               <h2 className="text-2xl font-bold">{featured.title}</h2>
@@ -81,7 +84,14 @@ export default function CustomerNews() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {articles.map((article) => <article key={article._id}
             className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
-            <img src={article.image} alt={article.title} onError={coverError} className="w-full aspect-video object-cover" />
+            {article.image ? (
+              <img src={article.image} alt={article.title} className="w-full aspect-video object-cover"
+                onError={(e) => { e.currentTarget.style.display = "none"; }} />
+            ) : (
+              <div className="w-full aspect-video bg-slate-100 flex items-center justify-center text-slate-400">
+                <ReadOutlined className="text-3xl" />
+              </div>
+            )}
             <div className="p-5 space-y-3 flex-1">
               <Tag color={article.tagColor}>{article.categoryLabel}</Tag>
               <p className="text-xs text-slate-500"><CalendarOutlined /> {article.date} · {article.author}</p>

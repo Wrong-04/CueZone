@@ -108,11 +108,25 @@ export async function fetchGoodsReceipts(
   query.set("page", String(params.page || 1));
   query.set("limit", String(params.limit || 20));
 
-  const envelope = await request<GoodsReceipt[]>(`/goods-receipts?${query.toString()}`);
+  const envelope = await request<any>(`/goods-receipts?${query.toString()}`);
+
+  const rawData = envelope.data;
+  const items: GoodsReceipt[] = Array.isArray(rawData)
+    ? rawData
+    : Array.isArray(rawData?.items)
+      ? rawData.items
+      : [];
+
+  const pagination = envelope.pagination || {
+    page: rawData?.page || 1,
+    limit: rawData?.limit || 20,
+    total: rawData?.total ?? items.length,
+    pages: rawData?.pages || 1,
+  };
 
   return {
-    data: Array.isArray(envelope.data) ? envelope.data : [],
-    pagination: envelope.pagination ?? { page: 1, limit: 20, total: 0, pages: 1 },
+    data: items,
+    pagination,
   };
 }
 

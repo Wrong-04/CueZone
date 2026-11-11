@@ -11,6 +11,7 @@ export type Category = {
   _id: string;
   name: string;
   code: string;
+  scope?: "fnb" | "warehouse";
   description?: string;
   isActive: boolean;
 };
@@ -29,16 +30,21 @@ export type Product = {
   description?: string;
   isForSale: boolean;
   isActive: boolean;
+  isMadeToOrder?: boolean;
+  isTheMakeToOrder?: boolean;
+  isthemaketoorder?: boolean;
 };
 
 type CategoryPayload = {
   name: string;
   code: string;
+  scope?: "fnb" | "warehouse";
   description?: string;
 };
 
 type CategoryUpdatePayload = {
   name: string;
+  scope?: "fnb" | "warehouse";
   description?: string;
 };
 
@@ -53,6 +59,9 @@ type ProductPayload = {
   supplierId?: string | null;
   description?: string;
   isForSale: boolean;
+  isMadeToOrder?: boolean;
+  isTheMakeToOrder?: boolean;
+  isthemaketoorder?: boolean;
 };
 
 async function request<T>(

@@ -138,10 +138,10 @@ export const AccessoryWastePage: React.FC = () => {
       title: "Phụ kiện",
       dataIndex: "product",
       key: "product",
-      render: (p: any) => (
+      render: (p: any, record) => (
         <div>
-          <div className="font-semibold text-slate-900">{p?.name || "Phụ kiện"}</div>
-          <div className="text-xs text-slate-400 font-mono">SKU: {p?.sku}</div>
+          <div className="font-semibold text-slate-900">{record.productName || p?.name || "Phụ kiện"}</div>
+          <div className="text-xs text-slate-400 font-mono">SKU: {record.sku || p?.sku}</div>
         </div>
       ),
     },
@@ -153,7 +153,7 @@ export const AccessoryWastePage: React.FC = () => {
       width: 110,
       render: (qty: number, record) => (
         <span className="font-bold text-rose-600 font-mono">
-          -{qty} {record.product?.unit || "cái"}
+          -{qty} {record.unit || record.product?.unit || "cái"}
         </span>
       ),
     },

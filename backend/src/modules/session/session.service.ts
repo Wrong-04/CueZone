@@ -214,7 +214,7 @@ export function calculateSplitPlayingDetails(
       }
     }
 
-    const tierName = matchedTier ? matchedTier.name : "Khung Giờ Tiêu Chuẩn";
+    const tierName = matchedTier ? matchedTier.name : "Đơn giá gốc bàn";
     let tierPrice = session.pricePerHour ?? table.pricePerHour;
     if (matchedTier) {
       if (isVip) tierPrice = matchedTier.prices.vip;
@@ -273,8 +273,13 @@ export function playingDetails(
   table?: any,
   pricingTiers: IPricingTier[] = [],
 ) {
-  if (table && pricingTiers && pricingTiers.length > 0) {
-    return calculateSplitPlayingDetails(session, table, pricingTiers, now);
+  const effectiveTiers =
+    Array.isArray(session?.pricingSnapshot) && session.pricingSnapshot.length > 0
+      ? (session.pricingSnapshot as IPricingTier[])
+      : pricingTiers;
+
+  if (table && effectiveTiers && effectiveTiers.length > 0) {
+    return calculateSplitPlayingDetails(session, table, effectiveTiers, now);
   }
   const elapsed = Math.max(
     0,
@@ -343,28 +348,35 @@ export class SessionService {
       );
 
       if (isBookingCheckIn) {
-        const booking = await Booking.findOne({
-          _id: table.bookedInfo!.bookingId,
-          status: "approved",
-        }).session(session);
-        if (!booking) {
-          throw Object.assign(new Error("Không tìm thấy lịch đặt bàn hợp lệ"), { httpCode: 409 });
+        const bId = table.bookedInfo!.bookingId;
+        if (bId && mongoose.isValidObjectId(bId)) {
+          const booking = await Booking.findOne({
+            _id: bId,
+            status: "approved",
+          }).session(session);
+          if (!booking) {
+            throw Object.assign(new Error("Không tìm thấy lịch đặt bàn hợp lệ"), { httpCode: 409 });
+          }
+          booking.status = "checked_in";
+          deposit = booking.deposit || 0;
+          name = booking.customerName || name;
+          phone = booking.phone || phone;
+          preOrderedItems = (booking.preOrderItems || []).map((item: any) => ({
+            id: `booking-${booking.id}-${String(item.productId)}`,
+            name: item.name,
+            price: item.unitPrice,
+            quantity: item.quantity,
+            category: item.category,
+            orderTime: "Đặt trước",
+            status: "pending",
+          }));
+          booking.inventoryReserved = false;
+          await booking.save({ session });
+        } else {
+          // Xử lý dữ liệu mock/demo an toàn nếu bookingId không phải ObjectId hợp lệ
+          name = table.bookedInfo!.customerName || name;
+          phone = table.bookedInfo!.phone || phone;
         }
-        booking.status = "checked_in";
-        deposit = booking.deposit;
-        name = booking.customerName;
-        phone = booking.phone;
-        preOrderedItems = booking.preOrderItems.map((item: any) => ({
-          id: `booking-${booking.id}-${String(item.productId)}`,
-          name: item.name,
-          price: item.unitPrice,
-          quantity: item.quantity,
-          category: item.category,
-          orderTime: "Đặt trước",
-          status: "pending",
-        }));
-        booking.inventoryReserved = false;
-        await booking.save({ session });
       } else if (input.bookingId) {
         throw Object.assign(new Error("Lịch đặt bàn đã thay đổi, vui lòng tải lại"), {
           httpCode: 409,
@@ -416,6 +428,7 @@ export class SessionService {
         orders: preOrderedItems,
         note: input.note,
         deposit,
+        pricingSnapshot: pricingTiers.map((t: any) => (t.toObject ? t.toObject() : t)),
       };
       // Chỉ xoá bookedInfo nếu đây là lượt nhận bàn thật sự của khách đặt trước
       // Nếu mở bàn cho khách vãng lai chơi tạm trong lúc chờ, giữ nguyên bookedInfo để POS cảnh báo khi sắp đến giờ đón khách
@@ -1191,7 +1204,11 @@ export class SessionService {
 
   private customerQuote(table: any, points: number, pricingTiers: IPricingTier[]) {
     const current = table.currentSession as TableSession;
-    const playing = calculateSplitPlayingDetails(current, table, pricingTiers);
+    const effectiveTiers =
+      Array.isArray(current?.pricingSnapshot) && current.pricingSnapshot.length > 0
+        ? (current.pricingSnapshot as IPricingTier[])
+        : pricingTiers;
+    const playing = calculateSplitPlayingDetails(current, table, effectiveTiers);
     const fnbTotal = current.orders.reduce((sum, item) => {
       if (item.status === "cancelled" || item.quantity <= 0) return sum;
       return sum + item.price * item.quantity;
@@ -1324,7 +1341,10 @@ export class SessionService {
           { httpCode: 409 },
         );
       }
-      const pricingTiers = await PricingTier.find({ isActive: true }).session(session);
+      const pricingTiers =
+        Array.isArray(current?.pricingSnapshot) && current.pricingSnapshot.length > 0
+          ? (current.pricingSnapshot as IPricingTier[])
+          : await PricingTier.find({ isActive: true }).session(session);
       const { minutes, cost, formattedTime, timeSlots } = calculateSplitPlayingDetails(
         current,
         table,

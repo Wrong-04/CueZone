@@ -19,6 +19,7 @@ import {
   CoffeeOutlined,
   PictureOutlined,
   SortAscendingOutlined,
+  ShopOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -35,8 +36,10 @@ import {
   Upload,
   type TableColumnsType,
 } from "../../shared/ui";
-import { INITIAL_FNB_STOCK, type FnbStockItem } from "../../mock/posData";
+import { Spin } from "antd";
+import type { FnbStockItem } from "../../types";
 import { productService } from "../../services/product.service";
+import { isFnbWarehouseItem } from "../../utils/fnb";
 
 const { Title, Text } = Typography;
 
@@ -55,7 +58,6 @@ const getItemLocationName = (category: string) => {
   if (category === "coffee" || category === "tea") return "Quầy Pha Chế";
   if (category === "food") return "Bếp Nóng";
   if (category === "beer" || category === "juice") return "Tủ Mát Đồ Uống";
-  if (category === "equipment") return "Quầy Phụ Kiện";
   return "Kệ Quầy Bar";
 };
 
@@ -82,7 +84,6 @@ export const generateSkuForCategory = (category: string, currentCount: number) =
     beer: "BEER",
     food: "FOOD",
     snack: "SNK",
-    equipment: "EQ",
   };
   const prefix = prefixMap[category] || "FNB";
   const num = String(currentCount + 1).padStart(3, "0");
@@ -131,8 +132,8 @@ export const FnBInventoryPage: React.FC = () => {
   const { user } = useAuth();
   const canManageInventory = hasPermission(user, "inventory.manage") || user?.role === "admin";
   // ── 1. STATE & LIVE DATABASE INTEGRATION ──────────────────────────────────
-  const [stockList, setStockList] = useState<FnbStockItem[]>(INITIAL_FNB_STOCK);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [stockList, setStockList] = useState<FnbStockItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const fetchProductsFromDb = useCallback(async () => {
     setLoading(true);
@@ -143,13 +144,20 @@ export const FnBInventoryPage: React.FC = () => {
           const n = name.toLowerCase();
           const c = String(rawCat || "").toLowerCase();
           if (c === "food" || c.includes("ăn") || c.includes("món")) return "food";
-          if (c === "snack" || c.includes("vặt")) return "snack";
-          if (c === "accessory" || c.includes("phụ kiện")) return "equipment";
-          // If drink:
-          if (n.includes("cà phê") || n.includes("cafe")) return "coffee";
-          if (n.includes("trà")) return "tea";
-          if (n.includes("bia") || n.includes("beer")) return "beer";
-          return "juice"; // giải khát (pepsi, 7up, redbull, aquafina, kem)
+          if (c === "snack" || c.includes("vặt") || n.includes("kem")) return "snack";
+          if (n.includes("cà phê") || n.includes("cafe") || c === "coffee") return "coffee";
+          if (n.includes("trà") || c === "tea") return "tea";
+          if (n.includes("bia") || n.includes("beer") || c === "beer") return "beer";
+          if (c === "drink" || c === "juice") return "juice";
+          if (
+            rawCat &&
+            String(rawCat).trim() &&
+            !/^[0-9a-fA-F]{24}$/.test(String(rawCat).trim()) &&
+            !["drink", "nguyên liệu", "phụ kiện"].includes(String(rawCat).toLowerCase())
+          ) {
+            return String(rawCat).trim();
+          }
+          return "juice";
         };
 
         const categoryNameMap: Record<string, string> = {
@@ -159,11 +167,10 @@ export const FnBInventoryPage: React.FC = () => {
           beer: "Bia & Đồ Có Cồn",
           food: "Món Ăn Nóng",
           snack: "Ăn Vặt",
-          equipment: "Phụ Kiện Bida",
         };
 
         const mapped: FnbStockItem[] = dbProducts
-          .filter((p: any) => p.category !== "ingredient")
+          .filter((p: any) => !isFnbWarehouseItem(p.name, p.category, p.productType))
           .map((p: any) => {
             const cat = resolveCat(p.name, p.category);
             const isMadeToOrder =
@@ -175,7 +182,9 @@ export const FnBInventoryPage: React.FC = () => {
               code: p.sku || `MN-${String(p._id).slice(-4)}`,
               name: p.name,
               category: cat,
-              categoryName: categoryNameMap[cat] || "Khác",
+              categoryName:
+                categoryNameMap[cat] ||
+                (p.categoryName && !/^[0-9a-fA-F]{24}$/.test(p.categoryName) ? p.categoryName : "Món Ăn & Đồ Uống"),
               price: Number(p.salePrice) || 0,
               priceFormatted: `${Number(p.salePrice || 0).toLocaleString("vi-VN")}đ`,
               stockQuantity: isMadeToOrder
@@ -192,12 +201,13 @@ export const FnBInventoryPage: React.FC = () => {
               isMadeToOrder,
             };
           });
-        if (mapped.length > 0) {
-          setStockList(mapped);
-        }
+        setStockList(mapped);
+      } else {
+        setStockList([]);
       }
     } catch (err) {
       console.warn("Lỗi đồng bộ sản phẩm từ DB:", err);
+      message.error("Không thể tải danh sách thực đơn từ hệ thống. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -339,10 +349,10 @@ export const FnBInventoryPage: React.FC = () => {
       beer: "Bia & Đồ Có Cồn",
       food: "Món Ăn Nóng",
       snack: "Ăn Vặt",
-      equipment: "Phụ Kiện",
     };
 
-    const finalCategoryName = categoryMap[editingItemData.category || "coffee"] || "Khác";
+    const finalCategoryName =
+      categoryMap[editingItemData.category || "coffee"] || editingItemData.category || "Khác";
     const isMadeToOrder =
       editingItemData.isMadeToOrder !== undefined
         ? Boolean(editingItemData.isMadeToOrder)
@@ -370,6 +380,7 @@ export const FnBInventoryPage: React.FC = () => {
           name: itemToSave.name,
           sku: itemToSave.code,
           category: itemToSave.category,
+          productType: "fnb",
           unit: itemToSave.unit,
           costPrice: Math.round(itemToSave.price * 0.6),
           salePrice: itemToSave.price,
@@ -468,44 +479,43 @@ export const FnBInventoryPage: React.FC = () => {
   }, [stockList, selectedCategory, stockStatusFilter, serviceTypeFilter, photoStatusFilter, searchQuery, sortOption]);
 
   // Pill filter items
-  const categoryPillItems = [
-    { key: "all", label: "Tất cả thực đơn", badge: stockList.length },
-    {
-      key: "coffee",
-      label: "Cà phê",
-      badge: stockList.filter((i) => i.category === "coffee").length,
-    },
-    {
-      key: "tea",
-      label: "Trà trái cây",
-      badge: stockList.filter((i) => i.category === "tea").length,
-    },
-    {
-      key: "juice",
-      label: "Nước giải khát",
-      badge: stockList.filter((i) => i.category === "juice").length,
-    },
-    {
-      key: "beer",
-      label: "Bia & Đồ có cồn",
-      badge: stockList.filter((i) => i.category === "beer").length,
-    },
-    {
-      key: "food",
-      label: "Món ăn nóng",
-      badge: stockList.filter((i) => i.category === "food").length,
-    },
-    {
-      key: "snack",
-      label: "Ăn vặt",
-      badge: stockList.filter((i) => i.category === "snack").length,
-    },
-    {
-      key: "equipment",
-      label: "Phụ kiện bida",
-      badge: stockList.filter((i) => i.category === "equipment").length,
-    },
-  ];
+  const categoryPillItems = useMemo(() => {
+    const standardCategories: Array<{ key: string; label: string }> = [
+      { key: "coffee", label: "Cà phê" },
+      { key: "tea", label: "Trà trái cây" },
+      { key: "juice", label: "Nước giải khát" },
+      { key: "beer", label: "Bia & Đồ có cồn" },
+      { key: "food", label: "Món ăn nóng" },
+      { key: "snack", label: "Ăn vặt" },
+    ];
+    const presentCategories = Array.from(new Set(stockList.map((i) => i.category)));
+    const standardPills = standardCategories
+      .filter((cat) => presentCategories.includes(cat.key as any))
+      .map((cat) => ({
+        key: cat.key,
+        label: cat.label,
+        badge: stockList.filter((i) => i.category === cat.key).length,
+      }));
+    const dynamicCategories = presentCategories.filter(
+      (cat) => !standardCategories.some((sc) => sc.key === cat) && !/^[0-9a-fA-F]{24}$/.test(cat),
+    );
+    const dynamicPills = dynamicCategories.map((cat) => {
+      const sampleItem = stockList.find((i) => i.category === cat);
+      const rawLabel = sampleItem?.categoryName || cat;
+      const displayLabel = /^[0-9a-fA-F]{24}$/.test(rawLabel) ? "Món khác" : rawLabel;
+      return {
+        key: cat,
+        label: displayLabel,
+        badge: stockList.filter((i) => i.category === cat).length,
+      };
+    });
+
+    return [
+      { key: "all", label: "Tất cả thực đơn", badge: stockList.length },
+      ...standardPills,
+      ...dynamicPills,
+    ];
+  }, [stockList]);
 
   // ── 4. TABLE COLUMNS CONFIGURATION ─────────────────────────────────────────
   const tableColumns: TableColumnsType<FnbStockItem> = [
@@ -716,9 +726,25 @@ export const FnBInventoryPage: React.FC = () => {
     },
   ];
 
+  const fnbMetrics = useMemo(() => {
+    const totalItems = stockList.length;
+    const availableCount = stockList.filter((i) => i.stockQuantity > 0).length;
+    const lowOrOutCount = stockList.filter((i) => i.stockQuantity <= i.minThreshold).length;
+    const madeToOrderCount = stockList.filter(
+      (i) => (i.isMadeToOrder !== undefined ? i.isMadeToOrder : isFreshPreparedCategory(i.category)),
+    ).length;
+
+    return {
+      totalItems,
+      availableCount,
+      lowOrOutCount,
+      madeToOrderCount,
+    };
+  }, [stockList]);
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* ── COMMAND BAR & SUMMARY CARDS ────────────────────────────────────── */}
+    <div className="space-y-6 pb-12 max-w-[1440px] mx-auto">
+      {/* ── COMMAND BAR (HEADER) ────────────────────────────────────────────── */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
@@ -777,6 +803,85 @@ export const FnBInventoryPage: React.FC = () => {
               </Button>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* ── 4 THẺ KPI SUMMARY CARDS (ĐỒNG BỘ GIAO DIỆN VỚI KHO) ──────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Tổng số món thực đơn */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Tổng món thực đơn
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+              <ShopOutlined />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-emerald-600 font-mono">
+            {fnbMetrics.totalItems} món
+          </div>
+          <div className="text-xs text-slate-400 mt-2">
+            Đồ uống, món ăn & ăn vặt đang quản lý
+          </div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
+        </div>
+
+        {/* Card 2: Đang sẵn sàng phục vụ */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Đang sẵn sàng bán
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
+              <CheckCircleOutlined />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-cyan-600 font-mono">
+            {fnbMetrics.availableCount} món
+          </div>
+          <div className="text-xs text-slate-400 mt-2">
+            Sẵn sàng nhận order và phục vụ tại bàn
+          </div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
+        </div>
+
+        {/* Card 3: Cảnh báo hết / sắp hết */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Tạm ngưng / Cần nhập
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+              <WarningOutlined />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-amber-600 font-mono">
+            {fnbMetrics.lowOrOutCount} món
+          </div>
+          <div className="text-xs text-slate-400 mt-2">
+            Mặt hàng hết kho hoặc dưới mức tối thiểu
+          </div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
+        </div>
+
+        {/* Card 4: Món pha chế tại chỗ */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Pha chế tại chỗ
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
+              <CoffeeOutlined />
+            </div>
+          </div>
+          <div className="text-3xl font-black text-blue-600 font-mono">
+            {fnbMetrics.madeToOrderCount} món
+          </div>
+          <div className="text-xs text-slate-400 mt-2">
+            Món order trực tiếp không quản lý theo lon/chai
+          </div>
+          <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
         </div>
       </div>
 
@@ -933,8 +1038,15 @@ export const FnBInventoryPage: React.FC = () => {
         </div>
       </div>
 
-      {viewMode === "grid" && (
-        <div>
+      {loading && stockList.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center shadow-xs">
+          <Spin size="large" />
+          <div className="mt-3 text-slate-500 font-semibold text-sm">Đang tải thực đơn từ hệ thống...</div>
+        </div>
+      ) : (
+        <>
+          {viewMode === "grid" && (
+            <div>
           {filteredItems.length === 0 ? (
             <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center">
               <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-2xl">
@@ -1215,6 +1327,8 @@ export const FnBInventoryPage: React.FC = () => {
           />
         </div>
       )}
+        </>
+      )}
 
       <Modal
         open={editItemModalVisible}
@@ -1400,7 +1514,6 @@ export const FnBInventoryPage: React.FC = () => {
                             { value: "juice", label: "Nước Giải Khát (Lon/Chai)" },
                             { value: "beer", label: "Bia & Đồ Có Cồn (Lon/Chai)" },
                             { value: "snack", label: "Ăn Vặt & Bánh Kẹo (Đóng gói)" },
-                            { value: "equipment", label: "Phụ Kiện Bida" },
                           ]
                     }
                   />

@@ -6,6 +6,7 @@ import GoodsReceipt from "./goods-receipt.model";
 import Product from "../product/product.model";
 import Supplier from "../supplier/supplier.model";
 import InventoryTransaction from "../product/inventory.model";
+import { User } from "../user/user.model";
 
 const router = Router();
 
@@ -152,6 +153,19 @@ router.post("/", async (req: Request, res: Response) => {
           .status(400)
           .json({ success: false, message: `Mục ${i + 1}: hàng hóa không còn hoạt động.` });
       }
+      const isMakeToOrder = Boolean(
+        (product as any).isthemaketoorder ??
+        (product as any).isTheMakeToOrder ??
+        (product as any).isMadeToOrder
+      );
+      if (isMakeToOrder) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: `Mục ${i + 1}: ${(product as any).name} là món chế biến tại quán (không nhập kho).`,
+          });
+      }
       const quantity = Number(item.quantity);
       if (!Number.isFinite(quantity) || quantity <= 0) {
         return res
@@ -268,6 +282,19 @@ router.put("/:id", async (req: Request, res: Response) => {
           return res
             .status(400)
             .json({ success: false, message: `Mục ${i + 1}: hàng hóa không còn hoạt động.` });
+        }
+        const isMakeToOrder = Boolean(
+          (product as any).isthemaketoorder ??
+          (product as any).isTheMakeToOrder ??
+          (product as any).isMadeToOrder
+        );
+        if (isMakeToOrder) {
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message: `Mục ${i + 1}: ${(product as any).name} là món chế biến tại quán (không nhập kho).`,
+            });
         }
         const quantity = Number(item.quantity);
         if (!Number.isFinite(quantity) || quantity <= 0) {

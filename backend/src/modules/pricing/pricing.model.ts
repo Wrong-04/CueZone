@@ -9,7 +9,7 @@ export interface IPricingTier extends Document {
   priceType?: string | null;
   note?: string | null;
 
-  dayType: "weekday" | "weekend" | "peak";
+  dayType: "weekday" | "weekend" | "peak" | "all";
 
   startTime: string;
 
@@ -44,7 +44,7 @@ const pricingTierSchema = new Schema<IPricingTier>(
     priceType: { type: String, default: null },
     note: { type: String, default: null },
 
-    dayType: { type: String, enum: ["weekday", "weekend", "peak"], required: true },
+    dayType: { type: String, enum: ["weekday", "weekend", "peak", "all"], required: true },
 
     startTime: { type: String, required: true },
 

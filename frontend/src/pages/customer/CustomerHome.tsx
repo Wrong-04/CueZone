@@ -156,10 +156,43 @@ const CustomerHome = () => {
 
     const socket = getSocket();
     setSocketConnected(socket.connected);
-    const onConnect = () => setSocketConnected(true);
-    const onDisconnect = () => setSocketConnected(false);
-    const handleUpdate = () => {
+    const onConnect = () => {
+      setSocketConnected(true);
       fetchTables();
+    };
+    const onDisconnect = () => setSocketConnected(false);
+    let debounceTimer: NodeJS.Timeout | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchTables();
+      }, 250);
+    };
+
+    const handleUpdate = (payload?: any) => {
+      if (payload?.tableId) {
+        setTables((currentTables) =>
+          currentTables.map((t) => {
+            if (t.id === payload.tableId || t._id === payload.tableId) {
+              const updatedStatus = payload.status || payload.table?.status || t.status;
+              const isPaused =
+                payload.table?.isPaused !== undefined
+                  ? payload.table.isPaused
+                  : updatedStatus === "paused";
+              return {
+                ...t,
+                status: updatedStatus,
+                isPaused,
+                ...(payload.table || {}),
+                id: t.id,
+                _id: t._id,
+              };
+            }
+            return t;
+          }),
+        );
+      }
+      debouncedFetch();
     };
 
     socket.on("connect", onConnect);
@@ -167,9 +200,10 @@ const CustomerHome = () => {
     socket.on("table:public_status_changed", handleUpdate);
     socket.on("table:guest_status_changed", handleUpdate);
     socket.on("table:status_changed", handleUpdate);
+    socket.on("table:status-changed", handleUpdate);
     socket.on("table:timer_started", handleUpdate);
 
-    const interval = setInterval(fetchTables, 15000);
+    const interval = setInterval(fetchTables, 10000);
 
     return () => {
       socket.off("connect", onConnect);
@@ -177,8 +211,10 @@ const CustomerHome = () => {
       socket.off("table:public_status_changed", handleUpdate);
       socket.off("table:guest_status_changed", handleUpdate);
       socket.off("table:status_changed", handleUpdate);
+      socket.off("table:status-changed", handleUpdate);
       socket.off("table:timer_started", handleUpdate);
       clearInterval(interval);
+      if (debounceTimer) clearTimeout(debounceTimer);
     };
   }, [fetchTables]);
 

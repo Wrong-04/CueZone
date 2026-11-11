@@ -5,7 +5,10 @@ export interface IInvoice extends Document {
 
   tableId: Types.ObjectId;
   transactionId?: Types.ObjectId;
-  status: "paid";
+  status: "paid" | "cancelled";
+  cancelledAt?: Date;
+  cancelledBy?: Types.ObjectId;
+  cancelReason?: string;
 
   receipt: Record<string, any>;
 
@@ -27,7 +30,10 @@ const invoiceSchema = new Schema<IInvoice>(
 
     tableId: { type: Schema.Types.ObjectId, ref: "Table", required: true },
     transactionId: { type: Schema.Types.ObjectId, ref: "Transaction" },
-    status: { type: String, enum: ["paid"], required: true, default: "paid" },
+    status: { type: String, enum: ["paid", "cancelled"], required: true, default: "paid" },
+    cancelledAt: { type: Date },
+    cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
+    cancelReason: { type: String, trim: true },
 
     receipt: { type: Schema.Types.Mixed, required: true },
   },

@@ -47,13 +47,13 @@ export async function getInventory(req: Request, res: Response) {
       isActive: {
         $ne: false,
       },
+      isMadeToOrder: { $ne: true },
+      isTheMakeToOrder: { $ne: true },
+      isthemaketoorder: { $ne: true },
     };
 
     if (user.role === "staff") {
-      filter.category = {
-        $in: ["drink", "food", "snack"],
-      };
-
+      filter.productType = "fnb";
       filter.isForSale = true;
     }
 
@@ -108,6 +108,15 @@ export async function getInventory(req: Request, res: Response) {
         };
       })
       .filter((product: any) => {
+        const isMakeToOrder = Boolean(
+          product.isthemaketoorder === true ||
+          product.isTheMakeToOrder === true ||
+          product.isMadeToOrder === true
+        );
+        if (isMakeToOrder) {
+          return false;
+        }
+
         if (status !== "all" && product.stockStatus !== status) {
           return false;
         }
@@ -133,6 +142,7 @@ export async function getInventory(req: Request, res: Response) {
         sku: product.sku,
         name: product.name,
         category: product.category,
+        productType: product.productType,
         unit: product.unit,
         stock: product.stock,
         minStock: product.minStock,
@@ -239,7 +249,7 @@ export async function createInventoryTransaction(req: Request, res: Response) {
       });
     }
 
-    if (!["in", "out", "adjustment"].includes(type)) {
+    if (!["in", "out", "adjustment", "waste"].includes(type)) {
       return res.status(400).json({
         success: false,
         message: "Loại biến động kho không hợp lệ.",
@@ -271,6 +281,15 @@ export async function createInventoryTransaction(req: Request, res: Response) {
         throw new Error("PRODUCT_NOT_FOUND");
       }
 
+      const isMakeToOrder = Boolean(
+        (currentProduct as any).isthemaketoorder ??
+        (currentProduct as any).isTheMakeToOrder ??
+        (currentProduct as any).isMadeToOrder
+      );
+      if (isMakeToOrder) {
+        throw new Error("MAKE_TO_ORDER_CANNOT_HAVE_INVENTORY");
+      }
+
       const previousStock = Number((currentProduct as any).stock) || 0;
 
       let newStock = previousStock;
@@ -279,7 +298,7 @@ export async function createInventoryTransaction(req: Request, res: Response) {
         newStock = previousStock + parsedQuantity;
       }
 
-      if (type === "out") {
+      if (type === "out" || type === "waste") {
         newStock = previousStock - parsedQuantity;
 
         if (newStock < 0) {
@@ -338,6 +357,13 @@ export async function createInventoryTransaction(req: Request, res: Response) {
       });
     }
 
+    if (error instanceof Error && error.message === "MAKE_TO_ORDER_CANNOT_HAVE_INVENTORY") {
+      return res.status(400).json({
+        success: false,
+        message: "Món này được chế biến tại quán (make-to-order), không quản lý tồn kho vật lý.",
+      });
+    }
+
     if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
       return res.status(400).json({
         success: false,
@@ -355,3 +381,33 @@ export async function createInventoryTransaction(req: Request, res: Response) {
     await session.endSession();
   }
 }
+
+export async function getInventoryTransactions(req: Request, res: Response) {
+  try {
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const type = req.query.type as string | undefined;
+    const filter: Record<string, unknown> = {};
+    if (type && ["in", "out", "adjustment", "waste"].includes(type)) {
+      filter.type = type;
+    }
+
+    const transactions = await InventoryTransaction.find(filter)
+      .populate("product", "name sku unit costPrice salePrice category")
+      .populate("performedBy", "name email role")
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.json({
+      success: true,
+      data: transactions,
+    });
+  } catch (error) {
+    console.error("GET INVENTORY TRANSACTIONS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải danh sách biến động kho.",
+    });
+  }
+}
+

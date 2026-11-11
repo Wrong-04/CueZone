@@ -1,4 +1,6 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
+import "../user/user.model";
+import "../product/product.model";
 
 export type StockCheckStatus = "draft" | "submitted" | "completed" | "cancelled";
 

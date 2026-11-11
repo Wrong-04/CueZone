@@ -115,6 +115,8 @@ export interface TableSession {
   deposit: number;
 
   transfers?: SessionTransferRecord[];
+
+  pricingSnapshot?: any[];
 }
 
 export interface ITable extends Document {
@@ -279,6 +281,8 @@ const tableSchema = new Schema<ITable>(
           note: String,
 
           deposit: { type: Number, default: 0, min: 0 },
+
+          pricingSnapshot: { type: Schema.Types.Mixed, default: undefined },
         },
         { _id: false },
       ),

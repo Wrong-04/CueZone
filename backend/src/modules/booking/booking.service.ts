@@ -205,10 +205,20 @@ export class BookingService {
     if (startDate.getTime() <= Date.now()) return [];
     const tableFilter: Record<string, any> = {
       isActive: true,
+      status: { $ne: TableStatus.MAINTENANCE },
     };
     if (input.type) tableFilter.type = input.type;
     const tables = await Table.find(tableFilter).sort({ code: 1 });
     if (tables.length === 0) return [];
+
+    const now = Date.now();
+    const isToday =
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(now)) === input.date;
 
     const tableIds = tables.map((t) => t._id);
     const activeBookings = await Booking.find({
@@ -226,6 +236,19 @@ export class BookingService {
         interval.endDate > startDate
       ) {
         conflictingTableIds.add(String(booking.table));
+      }
+    }
+
+    // Nếu khách đặt lịch hôm nay và giờ bắt đầu trong vòng 60 phút tới, bàn đang có khách chơi trực tiếp không thể nhận đặt
+    if (isToday && startDate.getTime() <= now + 60 * 60 * 1000) {
+      for (const table of tables) {
+        if (
+          table.status === TableStatus.PLAYING ||
+          table.status === TableStatus.PAUSED ||
+          Boolean(table.currentSession)
+        ) {
+          conflictingTableIds.add(String(table._id));
+        }
       }
     }
 
@@ -326,15 +349,16 @@ export class BookingService {
         category: string;
         unitPrice: number;
         quantity: number;
+        isMadeToOrder?: boolean;
       }> = [];
       if (dto.preOrderItems.length > 0) {
         const products = await Product.find({
           _id: { $in: dto.preOrderItems.map((item) => item.productId) },
-          category: { $in: ["drink", "food", "snack"] },
+          productType: "fnb",
           isForSale: true,
           isActive: true,
         })
-          .select("_id name category salePrice")
+          .select("_id name category salePrice stock isMadeToOrder isTheMakeToOrder isthemaketoorder")
           .session(session);
         if (products.length !== dto.preOrderItems.length) {
           throw new Error("Một hoặc nhiều món F&B không còn được bán");
@@ -342,28 +366,37 @@ export class BookingService {
         const productById = new Map(products.map((product) => [String(product._id), product]));
         preOrderItems = dto.preOrderItems.map(({ productId, quantity }) => {
           const product = productById.get(String(productId))!;
+          const isMadeToOrder = Boolean(
+            (product as any).isthemaketoorder ??
+            (product as any).isTheMakeToOrder ??
+            product.isMadeToOrder
+          );
           return {
             productId,
             name: product.name,
-            category: product.category,
+            category: String(product.category),
             unitPrice: product.salePrice,
             quantity,
+            isMadeToOrder,
           };
         });
         for (const item of preOrderItems) {
-          const reserved = await Product.findOneAndUpdate(
-            {
-              _id: item.productId,
-              isActive: true,
-              isForSale: true,
-              stock: { $gte: item.quantity },
-            },
-            { $inc: { stock: -item.quantity } },
-            { new: true, session },
-          );
-          if (!reserved) throw new Error(`Món ${item.name} không đủ tồn kho`);
+          if (!item.isMadeToOrder) {
+            const reserved = await Product.findOneAndUpdate(
+              {
+                _id: item.productId,
+                isActive: true,
+                isForSale: true,
+                stock: { $gte: item.quantity },
+              },
+              { $inc: { stock: -item.quantity } },
+              { new: true, session },
+            );
+            if (!reserved) throw new Error(`Món ${item.name} không đủ tồn kho`);
+          }
         }
       }
+      const hasInventoryReserved = preOrderItems.some((item) => !item.isMadeToOrder);
       const [booking] = await Booking.create(
         [
           {
@@ -374,7 +407,7 @@ export class BookingService {
             estimatedCost: table.pricePerHour * dto.duration,
             status: initialStatus,
             preOrderItems,
-            inventoryReserved: preOrderItems.length > 0,
+            inventoryReserved: hasInventoryReserved,
             qrTokenHash: this.hashQrToken(qrToken),
           },
         ],
@@ -471,11 +504,13 @@ export class BookingService {
       }
       if (booking.inventoryReserved) {
         for (const item of booking.preOrderItems) {
-          await Product.updateOne(
-            { _id: item.productId },
-            { $inc: { stock: item.quantity } },
-            { session },
-          );
+          if (!(item as any).isMadeToOrder) {
+            await Product.updateOne(
+              { _id: item.productId },
+              { $inc: { stock: item.quantity } },
+              { session },
+            );
+          }
         }
         booking.inventoryReserved = false;
         await booking.save({ session });
@@ -602,11 +637,13 @@ export class BookingService {
       }
       if (input.status === "rejected" && booking.inventoryReserved) {
         for (const item of booking.preOrderItems) {
-          await Product.updateOne(
-            { _id: item.productId },
-            { $inc: { stock: item.quantity } },
-            { session },
-          );
+          if (!(item as any).isMadeToOrder) {
+            await Product.updateOne(
+              { _id: item.productId },
+              { $inc: { stock: item.quantity } },
+              { session },
+            );
+          }
         }
         booking.inventoryReserved = false;
       }

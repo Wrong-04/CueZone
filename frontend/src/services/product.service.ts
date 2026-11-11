@@ -13,6 +13,7 @@ export interface ProductMenu {
   stock: number;
   isOutOfStock: boolean;
   isMadeToOrder?: boolean;
+  productType?: "fnb" | "ingredient" | "accessory";
 }
 
 export interface ProductImageTarget {

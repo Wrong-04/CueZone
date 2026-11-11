@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Table, ITable, TableStatus } from "./table.model";
 import { User, UserRole } from "../user/user.model";
 import { Voucher, VoucherDiscountType, VoucherUsage } from "../voucher/voucher.model";
@@ -354,7 +355,7 @@ export class TableService {
       await table.save();
     }
 
-    if (bId) {
+    if (bId && mongoose.isValidObjectId(bId)) {
       await Booking.updateOne(
         { _id: bId, status: { $in: ["pending", "approved", "confirmed"] } },
         {
@@ -414,7 +415,7 @@ export class TableService {
         await t.save();
         releasedCount++;
 
-        if (bId) {
+        if (bId && mongoose.isValidObjectId(bId)) {
           await Booking.updateOne(
             { _id: bId, status: { $in: ["pending", "approved", "confirmed"] } },
             {

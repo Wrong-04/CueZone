@@ -86,19 +86,51 @@ export const PosOpenTableModal: React.FC<PosOpenTableModalProps> = ({
         </div>
 
         {/* Box xác nhận nhận bàn nếu khách hẹn đến */}
-        {isCheckInMode && selectedTable?.bookedInfo && (
-          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 space-y-1.5 shadow-2xs">
-            <div className="flex items-center gap-2 font-bold text-xs text-blue-900">
-              <CheckCircleOutlined className="text-blue-600 text-sm shrink-0" />
-              <span>XÁC NHẬN KHÁCH HẸN ĐẾN NHẬN BÀN</span>
+        {isCheckInMode && selectedTable?.bookedInfo && (() => {
+          const upcomingMin = getBookingUpcomingMinutes(selectedTable.bookedInfo.time);
+          const isEarly = upcomingMin > 30;
+
+          return (
+            <div
+              className={`p-3.5 rounded-xl border space-y-2 shadow-2xs ${
+                isEarly
+                  ? "bg-amber-50/90 border-amber-300 text-amber-950"
+                  : "bg-blue-50 border-blue-200 text-blue-950"
+              }`}
+            >
+              <div
+                className={`flex items-center gap-2 font-bold text-xs ${
+                  isEarly ? "text-amber-900" : "text-blue-900"
+                }`}
+              >
+                {isEarly ? (
+                  <AlertOutlined className="text-amber-600 text-sm shrink-0 animate-bounce" />
+                ) : (
+                  <CheckCircleOutlined className="text-blue-600 text-sm shrink-0" />
+                )}
+                <span>
+                  {isEarly
+                    ? `CHƯA ĐẾN GIỜ HẸN NHẬN BÀN (Còn ${
+                        Math.floor(upcomingMin / 60) > 0
+                          ? `${Math.floor(upcomingMin / 60)} giờ `
+                          : ""
+                      }${upcomingMin % 60} phút)`
+                    : "XÁC NHẬN KHÁCH HẸN ĐẾN NHẬN BÀN"}
+                </span>
+              </div>
+              <div className="text-xs leading-relaxed">
+                Khách đặt: <strong>{selectedTable.bookedInfo.customerName}</strong>
+                {selectedTable.bookedInfo.phone ? ` (${selectedTable.bookedInfo.phone})` : ""} · Giờ hẹn:{" "}
+                <strong className="text-blue-700">{selectedTable.bookedInfo.time.split(" ")[0]}</strong>.
+              </div>
+              {isEarly && (
+                <div className="text-[11px] text-amber-800 bg-amber-100/70 p-2 rounded-lg border border-amber-200/80 leading-relaxed">
+                  ⚠️ <strong>Nhắc nhở thu ngân:</strong> Hiện tại chưa tới giờ hẹn của khách (khách đến sớm hoặc chọn nhầm bàn). Vui lòng xác thực đúng khách đã có mặt trước khi bấm <strong>"Xác Nhận Mở Bàn"</strong>.
+                </div>
+              )}
             </div>
-            <div className="text-xs text-blue-800 leading-relaxed">
-              Khách đặt: <strong>{selectedTable.bookedInfo.customerName}</strong>
-              {selectedTable.bookedInfo.phone ? ` (${selectedTable.bookedInfo.phone})` : ""} · Giờ hẹn:{" "}
-              <strong>{selectedTable.bookedInfo.time.split(" ")[0]}</strong>.
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Cảnh báo bàn có lịch đặt trước khi mở cho khách vãng lai */}
         {!isCheckInMode && selectedTable?.bookedInfo && (() => {

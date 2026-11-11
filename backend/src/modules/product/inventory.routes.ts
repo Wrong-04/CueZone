@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   getInventory,
   getInventoryHistory,
+  getInventoryTransactions,
   createInventoryTransaction,
 } from "./inventory.controller";
 
@@ -22,6 +23,8 @@ router.use("/report", inventoryReportRouter);
 router.use("/stock-checks", stockCheckRouter);
 
 router.get("/", requireInventoryRead, getInventory);
+
+router.get("/transactions", requireInventoryRead, getInventoryTransactions);
 
 router.get("/:productId/history", requireInventoryRead, getInventoryHistory);
 

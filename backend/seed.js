@@ -35,6 +35,47 @@ async function runSeed() {
     const docs = EJSON.deserialize(raw);
     if (name === "users") docs.forEach((u) => (u.password = passwordHash));
 
+    if (name === "products") {
+      docs.forEach((p) => {
+        const cat = String(p.category || "").toLowerCase();
+        const n = String(p.name || "").toLowerCase();
+        if (
+          cat === "ingredient" ||
+          n.includes("sữa đặc") ||
+          n.includes("kem béo") ||
+          n.includes("robusta")
+        ) {
+          p.productType = "ingredient";
+          p.isForSale = false;
+        } else if (
+          cat === "accessory" ||
+          n.includes("bóng") ||
+          n.includes("lơ") ||
+          n.includes("đầu cơ") ||
+          n.includes("khăn lau") ||
+          n.includes("bao tay")
+        ) {
+          p.productType = "accessory";
+        } else {
+          p.productType = "fnb";
+        }
+        if (p._id?.toString() === "6af4206eb880f82b7f1df3c7" || n === "bia") {
+          p.productType = "fnb";
+          p.category = "drink";
+          p.sku = "BEER-003";
+          p.costPrice = 15000;
+          p.unit = "lon";
+        }
+        if (p._id?.toString() === "6ae7571bb137122942f86421" || n === "kem") {
+          p.productType = "fnb";
+          p.category = "snack";
+          p.sku = "SNK-003";
+          p.costPrice = 3000;
+          p.unit = "cái";
+        }
+      });
+    }
+
     // Dynamic clean & realistic table sessions
     if (name === "pool_tables") {
       for (const tbl of docs) {
@@ -8323,15 +8364,35 @@ const SEED_DATA = {
     {
       _id: { $oid: "6ae7571bb137122942f86421" },
       name: "Kem",
-      sku: "KM01",
-      category: "6ada1ce31d2cd9fa58faa683",
+      sku: "SNK-003",
+      category: "snack",
+      productType: "fnb",
       unit: "cái",
-      costPrice: { $numberInt: "3000000" },
+      costPrice: { $numberInt: "3000" },
       salePrice: { $numberInt: "5000" },
-      stock: { $numberInt: "15" },
+      stock: { $numberInt: "185" },
       minStock: { $numberInt: "20" },
       supplierId: null,
       description: "Kem Lạnh",
+      isForSale: true,
+      isActive: true,
+      createdAt: { $date: { $numberLong: "1793546011758" } },
+      updatedAt: { $date: { $numberLong: "1794246379304" } },
+      __v: { $numberInt: "0" },
+    },
+    {
+      _id: { $oid: "6af4206eb880f82b7f1df3c7" },
+      name: "Bia",
+      sku: "BEER-003",
+      category: "drink",
+      productType: "fnb",
+      unit: "lon",
+      costPrice: { $numberInt: "15000" },
+      salePrice: { $numberInt: "100000" },
+      stock: { $numberInt: "27" },
+      minStock: { $numberInt: "5" },
+      supplierId: null,
+      description: "Bia ướp lạnh",
       isForSale: true,
       isActive: true,
       createdAt: { $date: { $numberLong: "1793546011758" } },
