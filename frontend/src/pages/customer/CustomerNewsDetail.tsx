@@ -116,21 +116,23 @@ const CustomerNewsDetail = () => {
       </div>
 
       <article className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-xs">
-        <div className="w-full h-80 sm:h-96 relative overflow-hidden">
-          <img
-            src={article.image || "/news/news-promo-goldhour.jpg"}
-            alt={article.title}
-            onError={(e) => {
-              e.currentTarget.src = "/news/news-club-hero.jpg";
-            }}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute top-5 left-5">
-            <Tag color="red" className="!text-xs !font-bold !px-3 !py-1 !rounded-md uppercase">
-              {article.categoryLabel || "Tin tức CLB"}
-            </Tag>
+        {article.image && (
+          <div className="w-full h-80 sm:h-96 relative overflow-hidden">
+            <img
+              src={article.image}
+              alt={article.title}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute top-5 left-5">
+              <Tag color="red" className="!text-xs !font-bold !px-3 !py-1 !rounded-md uppercase">
+                {article.categoryLabel || "Tin tức CLB"}
+              </Tag>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="p-8 sm:p-12 space-y-6">
           <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-500 border-b border-slate-100 pb-4">
@@ -208,16 +210,18 @@ const CustomerNewsDetail = () => {
                 to={`/customer/news/${encodeURIComponent(rel.slug || rel._id)}`}
                 className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:border-emerald-300 transition-all flex flex-col justify-between"
               >
-                <div className="h-32 overflow-hidden relative">
-                  <img
-                    src={rel.image || "/news/news-promo-goldhour.jpg"}
-                    alt={rel.title}
-                    onError={(e) => {
-                      e.currentTarget.src = "/news/news-club-hero.jpg";
-                    }}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
+                {rel.image && (
+                  <div className="h-32 overflow-hidden relative">
+                    <img
+                      src={rel.image}
+                      alt={rel.title}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                )}
                 <div className="p-4 space-y-1">
                   <div className="text-[11px] text-slate-400 font-semibold">{rel.date}</div>
                   <h4 className="text-xs font-bold text-slate-800 line-clamp-2 group-hover:text-emerald-700 transition-colors">

@@ -51,7 +51,7 @@ const NewsArticleSchema = new Schema<INewsArticle>(
     date: { type: String, required: true },
     readTime: { type: String, default: "3 phút đọc" },
     viewCount: { type: Number, default: 0, min: 0 },
-    image: { type: String, default: "/news/news-promo-goldhour.jpg" },
+    image: { type: String, default: "" },
     excerpt: { type: String, default: "" },
     content: { type: [String], default: [] },
     publishedAt: { type: Date },
