@@ -261,12 +261,32 @@ export async function setCategoryActiveStatus(
 export async function setProductSaleStatus(
   id: string,
   isForSale: boolean,
+  isActive?: boolean,
+): Promise<ApiResult<unknown>> {
+  const body: { isForSale: boolean; isActive?: boolean } = { isForSale };
+  if (typeof isActive === "boolean") {
+    body.isActive = isActive;
+  }
+  const response = await request<unknown>(
+    `/catalog-management/products/${encodeURIComponent(id)}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  );
+
+  return normalizeMutation(response);
+}
+
+export async function setProductActiveStatus(
+  id: string,
+  isActive: boolean,
 ): Promise<ApiResult<unknown>> {
   const response = await request<unknown>(
     `/catalog-management/products/${encodeURIComponent(id)}/status`,
     {
       method: "PATCH",
-      body: JSON.stringify({ isForSale }),
+      body: JSON.stringify({ isActive }),
     },
   );
 

@@ -28,6 +28,9 @@ import {
   RollbackOutlined,
   AlertOutlined,
   CheckOutlined,
+  StopOutlined,
+  CheckCircleFilled,
+  ExclamationCircleFilled,
 } from "@ant-design/icons";
 import {
   Button,
@@ -48,7 +51,12 @@ import {
   type InventoryReportItem,
 } from "../../services/inventory-report.service";
 import { stockCheckService, type StockCheckSession } from "../../services/stock-check.service";
-import { fetchProducts } from "../../services/catalog-management.service";
+import {
+  fetchProducts,
+  fetchCategories,
+  setProductActiveStatus,
+  type Category,
+} from "../../services/catalog-management.service";
 import {
   createInventoryTransaction,
   fetchInventoryTransactions,
@@ -92,6 +100,7 @@ export interface WarehouseItem {
   location: string;
   supplier: string;
   isMakeToOrder?: boolean;
+  isActive?: boolean;
 }
 
 export function isMakeToOrderProduct(p: any): boolean {
@@ -154,6 +163,7 @@ export function mapProductToWarehouseItem(p: any): WarehouseItem {
     location: p.storageLocation || "Kho CLB CueZone",
     supplier: p.supplier?.name || "Nhà phân phối CueZone",
     isMakeToOrder: isMakeToOrderProduct(p),
+    isActive: p.isActive !== false,
   };
 }
 
@@ -281,27 +291,6 @@ export const WarehouseInventoryPage: React.FC = () => {
   useEffect(() => {
     localStorage.setItem("cuezone_inventory_slips", JSON.stringify(slipsList));
   }, [slipsList]);
-
-  // Load real products from MongoDB / Backend (Ẩn các món chế biến tại quán không lưu kho)
-  useEffect(() => {
-    let isMounted = true;
-    const loadRealProducts = async () => {
-      try {
-        const res = await fetchProducts();
-        if (isMounted && res && Array.isArray(res.data)) {
-          const warehouseProducts = res.data.filter((p: any) => !isMakeToOrderProduct(p));
-          setStockList(warehouseProducts.map(mapProductToWarehouseItem));
-        }
-      } catch (err) {
-        console.warn("Using local warehouse stock cache:", err);
-      }
-    };
-
-    loadRealProducts();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Load real suppliers and real receipts/wastes from Backend
   useEffect(() => {
@@ -539,6 +528,64 @@ export const WarehouseInventoryPage: React.FC = () => {
   const setActiveTab = (tab: string) => {
     setSearchParams(tab === "stock" ? {} : { tab });
   };
+
+  // Load real products from MongoDB / Backend (Ẩn các món chế biến tại quán không lưu kho, đồng bộ trạng thái danh mục)
+  useEffect(() => {
+    let isMounted = true;
+    const loadRealProducts = async () => {
+      try {
+        const [res, catRes] = await Promise.allSettled([
+          fetchProducts(),
+          fetchCategories(),
+        ]);
+
+        if (isMounted && res.status === "fulfilled" && res.value && Array.isArray(res.value.data)) {
+          const inactiveCategorySet = new Set<string>();
+          if (catRes.status === "fulfilled" && catRes.value && Array.isArray(catRes.value.data)) {
+            catRes.value.data.forEach((c: Category) => {
+              if (c.isActive === false) {
+                if (c._id) inactiveCategorySet.add(String(c._id));
+                if (c.code) inactiveCategorySet.add(c.code.toLowerCase());
+                if (c.name) inactiveCategorySet.add(c.name.toLowerCase());
+              }
+            });
+          }
+
+          const warehouseProducts = res.value.data.filter((p: any) => !isMakeToOrderProduct(p));
+          setStockList(
+            warehouseProducts.map((p: any) => {
+              const rawCatCode = String(p.category?.code || p.category || "").toLowerCase();
+              const rawCatName = String(p.category?.name || "").toLowerCase();
+              const isCatInactive =
+                inactiveCategorySet.has(String(p.category?._id || p.category)) ||
+                inactiveCategorySet.has(rawCatCode) ||
+                inactiveCategorySet.has(rawCatName);
+
+              const item = mapProductToWarehouseItem(p);
+              if (isCatInactive || p.isActive === false) {
+                item.isActive = false;
+              }
+              return item;
+            }),
+          );
+        }
+      } catch (err) {
+        console.warn("Using local warehouse stock cache:", err);
+      }
+    };
+
+    loadRealProducts();
+
+    const handleCatalogUpdated = () => {
+      loadRealProducts();
+    };
+    window.addEventListener("catalog-updated", handleCatalogUpdated);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("catalog-updated", handleCatalogUpdated);
+    };
+  }, [activeTab]);
 
   // Filters for Stock tab
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -1473,6 +1520,69 @@ export const WarehouseInventoryPage: React.FC = () => {
     }
   };
 
+  // Kích hoạt / Tạm ngưng hoạt động mặt hàng trực tiếp trong kho
+  const handleToggleProductStatus = (record: WarehouseItem) => {
+    const nextActive = record.isActive === false;
+
+    Modal.confirm({
+      title: (
+        <span className="font-black text-slate-900 text-base">
+          {nextActive ? "Kích hoạt lại mặt hàng" : "Tạm ngưng mặt hàng trong kho"}
+        </span>
+      ),
+      icon: nextActive ? (
+        <CheckCircleFilled className="text-emerald-500 !text-2xl" />
+      ) : (
+        <ExclamationCircleFilled className="text-amber-500 !text-2xl" />
+      ),
+      content: (
+        <div className="py-2 text-sm text-slate-600">
+          <p className="mb-2">
+            Bạn có chắc chắn muốn {nextActive ? "bật hoạt động lại" : "tạm ngưng lưu thông"} mặt hàng{" "}
+            <strong className="text-slate-900 font-bold">"{record.name}" ({record.sku})</strong>?
+          </p>
+          <p className="text-xs text-slate-500 mb-0">
+            {nextActive
+              ? "Mặt hàng này sẽ chuyển sang trạng thái hoạt động bình thường trong kho và sẵn sàng cho các phiếu xuất/nhập."
+              : "Mặt hàng này sẽ tạm ngưng hoạt động trong kho để dừng các thao tác xuất/nhập."}
+          </p>
+        </div>
+      ),
+      okText: nextActive ? "Kích hoạt lại" : "Tạm ngưng",
+      okType: nextActive ? "primary" : "danger",
+      cancelText: "Hủy bỏ",
+      centered: true,
+      maskClosable: true,
+      okButtonProps: {
+        className: nextActive
+          ? "!bg-emerald-600 hover:!bg-emerald-700 !rounded-xl !h-9 !px-5 !font-bold shadow-xs"
+          : "!bg-rose-600 hover:!bg-rose-700 !rounded-xl !h-9 !px-5 !font-bold shadow-xs",
+      },
+      cancelButtonProps: {
+        className: "!rounded-xl !h-9 !px-4 !border-slate-300 hover:!border-slate-400 !font-semibold text-slate-700",
+      },
+      onOk: async () => {
+        try {
+          await setProductActiveStatus(record.id, nextActive);
+          message.success(
+            nextActive
+              ? `Đã kích hoạt lại mặt hàng "${record.name}" trong kho thành công!`
+              : `Đã tạm ngưng mặt hàng "${record.name}" trong kho thành công!`,
+          );
+
+          // Cập nhật ngay trong state Tồn kho
+          setStockList((prev) =>
+            prev.map((item) => (item.id === record.id ? { ...item, isActive: nextActive } : item)),
+          );
+
+          window.dispatchEvent(new CustomEvent("catalog-updated"));
+        } catch (err: any) {
+          message.error(err.message || "Không thể cập nhật trạng thái mặt hàng.");
+        }
+      },
+    });
+  };
+
   // ── 4. FILTERED DATA & METRICS ────────────────────────────────────────────
   const CATEGORY_MAP: Record<string, string[]> = {
     accessory: ["accessory", "equipment"],
@@ -1496,9 +1606,10 @@ export const WarehouseInventoryPage: React.FC = () => {
       const isIn = item.stockQty > item.minThreshold;
 
       let matchStatus = true;
-      if (statusFilter === "in_stock") matchStatus = isIn;
-      if (statusFilter === "low_stock") matchStatus = isLow;
-      if (statusFilter === "out_of_stock") matchStatus = isOut;
+      if (statusFilter === "in_stock") matchStatus = item.isActive !== false && isIn;
+      if (statusFilter === "low_stock") matchStatus = item.isActive !== false && isLow;
+      if (statusFilter === "out_of_stock") matchStatus = item.isActive !== false && isOut;
+      if (statusFilter === "inactive") matchStatus = item.isActive === false;
 
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
@@ -1512,9 +1623,10 @@ export const WarehouseInventoryPage: React.FC = () => {
   }, [stockList, categoryFilter, statusFilter, searchQuery]);
 
   const metrics = useMemo(() => {
-    const totalItems = stockList.length;
-    const totalValue = stockList.reduce((acc, cur) => acc + cur.costPrice * cur.stockQty, 0);
-    const lowStockCount = stockList.filter(
+    const activeStock = stockList.filter((i) => i.isActive !== false);
+    const totalItems = activeStock.length;
+    const totalValue = activeStock.reduce((acc, cur) => acc + cur.costPrice * cur.stockQty, 0);
+    const lowStockCount = activeStock.filter(
       (i) => i.stockQty > 0 && i.stockQty <= i.minThreshold,
     ).length;
     const totalSlips = slipsList.length;
@@ -1524,6 +1636,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       totalValue,
       lowStockCount,
       totalSlips,
+      inactiveCount: stockList.length - activeStock.length,
     };
   }, [stockList, slipsList]);
 
@@ -1579,7 +1692,20 @@ export const WarehouseInventoryPage: React.FC = () => {
       key: "name",
       render: (name: string, record: WarehouseItem) => (
         <div>
-          <span className="font-bold text-slate-900 text-sm block">{name}</span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`font-bold text-sm block ${
+                record.isActive === false ? "text-slate-500 line-through" : "text-slate-900"
+              }`}
+            >
+              {name}
+            </span>
+            {record.isActive === false && (
+              <span className="text-[10px] bg-rose-50 text-rose-600 font-semibold px-1.5 py-0.5 rounded border border-rose-200">
+                Tạm ngưng
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2 mt-0.5">
             <Tag color="cyan" className="!rounded-md !px-1.5 !py-0 !text-[10px]">
               {record.categoryName}
@@ -1648,24 +1774,39 @@ export const WarehouseInventoryPage: React.FC = () => {
     {
       title: "Trạng thái",
       key: "status",
-      width: 130,
+      width: 140,
       align: "center",
       render: (_: unknown, record: WarehouseItem) => {
         const alert = stockAlerts[record.sku];
         let statusTag = (
           <Tag
             color="green"
-            className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+            className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => handleToggleProductStatus(record)}
+            title="Bấm để chuyển đổi trạng thái hoạt động của mặt hàng trong kho"
           >
             <CheckCircleOutlined /> ĐỦ HÀNG
           </Tag>
         );
 
-        if (record.stockQty === 0) {
+        if (record.isActive === false) {
+          statusTag = (
+            <Tag
+              color="default"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1 !bg-slate-100 !text-slate-500 !border-slate-300 cursor-pointer hover:!bg-emerald-50 hover:!text-emerald-700 hover:!border-emerald-300 transition-colors"
+              onClick={() => handleToggleProductStatus(record)}
+              title="Mặt hàng đang ngưng hoạt động. Bấm để kích hoạt lại!"
+            >
+              <StopOutlined /> NGƯNG HOẠT ĐỘNG
+            </Tag>
+          );
+        } else if (record.stockQty === 0) {
           statusTag = (
             <Tag
               color="error"
-              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => handleToggleProductStatus(record)}
+              title="Bấm để chuyển đổi trạng thái hoạt động của mặt hàng trong kho"
             >
               <CloseCircleOutlined /> HẾT HÀNG
             </Tag>
@@ -1674,7 +1815,9 @@ export const WarehouseInventoryPage: React.FC = () => {
           statusTag = (
             <Tag
               color="warning"
-              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+              className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => handleToggleProductStatus(record)}
+              title="Bấm để chuyển đổi trạng thái hoạt động của mặt hàng trong kho"
             >
               <WarningOutlined /> SẮP HẾT
             </Tag>
@@ -2172,7 +2315,11 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-cyan-600 font-mono truncate">
                 {metrics.totalItems} mặt hàng
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Tổng số mã SKU sản phẩm và phụ kiện</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                {metrics.inactiveCount > 0
+                  ? `Đang quản lý (${metrics.inactiveCount} ngưng hoạt động)`
+                  : "Tổng số mã SKU sản phẩm và phụ kiện"}
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
             </div>
 
@@ -2251,12 +2398,13 @@ export const WarehouseInventoryPage: React.FC = () => {
                     setStatusFilter(val);
                     setStockPage(1);
                   }}
-                  className="!w-36 !rounded-xl !text-xs"
+                  className="!w-40 !rounded-xl !text-xs"
                   options={[
                     { value: "all", label: "Tất cả trạng thái" },
                     { value: "in_stock", label: "Đủ hàng" },
                     { value: "low_stock", label: "Sắp hết hàng" },
                     { value: "out_of_stock", label: "Đã hết hàng" },
+                    { value: "inactive", label: "Ngưng hoạt động" },
                   ]}
                 />
               </div>
@@ -2283,6 +2431,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               pagination={false}
               bordered
               scroll={{ x: 950 }}
+              rowClassName={(record) => (record.isActive === false ? "!bg-slate-50/70" : "")}
             />
             <Pagination
               current={stockPage}
