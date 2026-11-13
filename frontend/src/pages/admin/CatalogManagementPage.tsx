@@ -5,11 +5,16 @@ import {
   CloseOutlined,
   SaveOutlined,
   PlusOutlined,
+  CheckCircleFilled,
+  ExclamationCircleFilled,
 } from "@ant-design/icons";
+import { message } from "antd";
 import { Button, Modal } from "../../shared/ui";
 import {
   AlertCircle,
+  AlertTriangle,
   Check,
+  Eye,
   LoaderCircle,
   Package,
   Pencil,
@@ -222,6 +227,9 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
 
   const [productModal, setProductModal] = useState(false);
   const [categoryModal, setCategoryModal] = useState(false);
+  const [categoryProductsModal, setCategoryProductsModal] = useState<Category | null>(null);
+  const [productModalSearch, setProductModalSearch] = useState("");
+  const [productModalStatus, setProductModalStatus] = useState<"all" | "active" | "inactive" | "outOfStock">("all");
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -300,6 +308,46 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
       return matchesSearch && matchesStatus && matchesScope;
     });
   }, [categories, search, statusFilter, scopeFilter]);
+
+  const selectedCategoryProducts = useMemo(() => {
+    if (!categoryProductsModal) return [];
+    const targetId = categoryProductsModal._id;
+    const targetCode = (categoryProductsModal.code || "").toLowerCase();
+    return products.filter((p) => {
+      const rawCat = p.category;
+      if (typeof rawCat === "object" && rawCat !== null) {
+        const cId = (rawCat as any)._id;
+        const cCode = String((rawCat as any).code || "").toLowerCase();
+        return cId === targetId || (cCode && cCode === targetCode);
+      }
+      if (typeof rawCat === "string") {
+        return rawCat === targetId || rawCat.toLowerCase() === targetCode;
+      }
+      return false;
+    });
+  }, [categoryProductsModal, products]);
+
+  const filteredSelectedCategoryProducts = useMemo(() => {
+    const keyword = productModalSearch.trim().toLowerCase();
+    return selectedCategoryProducts.filter((product) => {
+      const matchesSearch =
+        !keyword ||
+        product.name?.toLowerCase().includes(keyword) ||
+        product.sku?.toLowerCase().includes(keyword);
+
+      const isForSaleActive = product.isForSale !== false;
+      const isProductActive = product.isActive !== false;
+      const isOutOfStock = (product.stock ?? 0) <= 0;
+
+      const matchesStatus =
+        productModalStatus === "all" ||
+        (productModalStatus === "active" && isForSaleActive && isProductActive) ||
+        (productModalStatus === "inactive" && (!isForSaleActive || !isProductActive)) ||
+        (productModalStatus === "outOfStock" && isOutOfStock);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [selectedCategoryProducts, productModalSearch, productModalStatus]);
 
   function openCreateProduct() {
     setEditingProduct(null);
@@ -452,63 +500,210 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
   }
 
   async function toggleProduct(product: Product) {
-    const nextStatus = product.isForSale === false;
-    const confirmed = window.confirm(
-      nextStatus ? `Bật kinh doanh "${product.name}"?` : `Ngừng kinh doanh "${product.name}"?`,
-    );
+    const isCurrentlyActive = product.isActive !== false && (product.salePrice === 0 || product.isForSale !== false);
+    const nextStatus = !isCurrentlyActive;
 
-    if (!confirmed) return;
+    Modal.confirm({
+      title: (
+        <span className="font-black text-slate-900 text-base">
+          {nextStatus ? "Bật hoạt động mặt hàng" : "Tạm ngưng mặt hàng"}
+        </span>
+      ),
+      icon: nextStatus ? (
+        <CheckCircleFilled className="text-emerald-500 !text-2xl" />
+      ) : (
+        <ExclamationCircleFilled className="text-amber-500 !text-2xl" />
+      ),
+      content: (
+        <div className="py-2 text-sm text-slate-600">
+          <p className="mb-2">
+            Bạn có chắc chắn muốn {nextStatus ? "bật hoạt động lại" : "tạm ngưng"} mặt hàng{" "}
+            <strong className="text-slate-900 font-bold">"{product.name}" ({product.sku})</strong>?
+          </p>
+          <p className="text-xs text-slate-500 mb-0">
+            {nextStatus
+              ? "Mặt hàng này sẽ xuất hiện lại trong menu F&B và sẵn sàng phục vụ tại quầy POS & Kho."
+              : "Mặt hàng này sẽ tạm ngưng bán tại quầy/bàn và tạm ngưng lưu thông trong kho, không ảnh hưởng đến các mặt hàng khác cùng danh mục."}
+          </p>
+        </div>
+      ),
+      okText: nextStatus ? "Bật hoạt động" : "Tạm ngưng",
+      okType: nextStatus ? "primary" : "danger",
+      cancelText: "Hủy bỏ",
+      centered: true,
+      maskClosable: true,
+      okButtonProps: {
+        className: nextStatus
+          ? "!bg-emerald-600 hover:!bg-emerald-700 !rounded-xl !h-9 !px-5 !font-bold shadow-xs cursor-pointer"
+          : "!bg-rose-600 hover:!bg-rose-700 !rounded-xl !h-9 !px-5 !font-bold shadow-xs cursor-pointer",
+      },
+      cancelButtonProps: {
+        className: "!rounded-xl !h-9 !px-4 !border-slate-300 hover:!border-slate-400 !font-semibold text-slate-700 cursor-pointer",
+      },
+      onOk: async () => {
+        setBusyId(product._id);
+        setError("");
+        setSuccess("");
 
-    setBusyId(product._id);
-    setError("");
-    setSuccess("");
+        try {
+          const nextForSale = nextStatus ? product.salePrice > 0 : false;
+          const nextActive = nextStatus;
 
-    try {
-      await setProductSaleStatus(product._id, nextStatus);
+          await setProductSaleStatus(product._id, nextForSale, nextActive);
 
-      setProducts((current) =>
-        current.map((item) =>
-          item._id === product._id ? { ...item, isForSale: nextStatus } : item,
-        ),
-      );
+          setProducts((current) =>
+            current.map((item) =>
+              item._id === product._id ? { ...item, isForSale: nextForSale, isActive: nextActive } : item,
+            ),
+          );
 
-      setSuccess(nextStatus ? "Đã bật kinh doanh hàng hóa." : "Đã ngừng kinh doanh hàng hóa.");
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
+          // Phát sự kiện đồng bộ toàn hệ thống
+          window.dispatchEvent(new CustomEvent("catalog-updated"));
+
+          message.success(
+            nextStatus
+              ? `Đã kích hoạt hàng hóa "${product.name}".`
+              : `Đã tạm ngưng hàng hóa "${product.name}".`,
+          );
+        } catch (err) {
+          const msg = errorMessage(err);
+          setError(msg);
+          message.error(msg);
+        } finally {
+          setBusyId(null);
+        }
+      },
+    });
   }
 
   async function toggleCategory(category: Category) {
     const nextStatus = category.isActive === false;
-    const confirmed = window.confirm(
-      nextStatus
-        ? `Bật sử dụng danh mục "${category.name}"?`
-        : `Ngừng sử dụng danh mục "${category.name}"?`,
-    );
 
-    if (!confirmed) return;
+    // Tính toán số lượng sản phẩm liên kết và số mặt hàng còn tồn kho
+    const targetId = category._id;
+    const targetCode = (category.code || "").toLowerCase();
+    const linked = products.filter((p) => {
+      const rawCat = p.category;
+      if (typeof rawCat === "object" && rawCat !== null) {
+        const cId = (rawCat as any)._id;
+        const cCode = String((rawCat as any).code || "").toLowerCase();
+        return cId === targetId || (cCode && cCode === targetCode);
+      }
+      if (typeof rawCat === "string") {
+        return rawCat === targetId || rawCat.toLowerCase() === targetCode;
+      }
+      return false;
+    });
 
-    setBusyId(category._id);
-    setError("");
-    setSuccess("");
+    const inStockCount = linked.filter(
+      (p) => (p.stock ?? 0) > 0 && p.isActive !== false && (p.salePrice === 0 || p.isForSale !== false),
+    ).length;
 
-    try {
-      await setCategoryActiveStatus(category._id, nextStatus);
+    Modal.confirm({
+      title: (
+        <span className="font-black text-slate-900 text-base">
+          {nextStatus ? "Kích hoạt sử dụng danh mục" : "Ngừng sử dụng danh mục"}
+        </span>
+      ),
+      icon: nextStatus ? (
+        <CheckCircleFilled className="text-emerald-500 !text-2xl" />
+      ) : (
+        <ExclamationCircleFilled className="text-amber-500 !text-2xl" />
+      ),
+      content: (
+        <div className="py-2 text-sm text-slate-600 space-y-3">
+          <p className="mb-0">
+            Bạn có chắc chắn muốn {nextStatus ? "bật sử dụng" : "ngừng sử dụng"} danh mục{" "}
+            <strong className="text-slate-900 font-bold">"{category.name}"</strong>?
+          </p>
 
-      setCategories((current) =>
-        current.map((item) =>
-          item._id === category._id ? { ...item, isActive: nextStatus } : item,
-        ),
-      );
+          {!nextStatus && inStockCount > 0 ? (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs space-y-2">
+              <div className="font-bold text-amber-800 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Lưu ý: Danh mục đang có {inStockCount}/{linked.length} món còn tồn kho</span>
+              </div>
+              <p className="text-slate-600 mb-0 leading-relaxed">
+                Nếu chỉ có <strong>1 vài món hết hàng</strong>, bạn <strong>KHÔNG NÊN</strong> tắt cả danh mục (vì sẽ làm dừng bán tất cả {inStockCount} món còn hàng). Bạn nên tắt riêng từng món hết hàng.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  Modal.destroyAll();
+                  setProductModalSearch("");
+                  setProductModalStatus("all");
+                  setCategoryProductsModal(category);
+                }}
+                className="w-full mt-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <Package className="w-3.5 h-3.5" />
+                <span>Xem &amp; Quản lý riêng từng món (Khuyên dùng)</span>
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 mb-0">
+              {nextStatus
+                ? "Tất cả các sản phẩm và vật tư thuộc danh mục này sẽ được kích hoạt lại trong kho hàng & POS."
+                : "Tất cả các sản phẩm và vật tư thuộc danh mục này sẽ tạm ngưng hoạt động trong kho hàng & POS."}
+            </p>
+          )}
+        </div>
+      ),
+      okText: nextStatus ? "Bật danh mục" : (inStockCount > 0 ? "Vẫn tắt cả danh mục" : "Ngừng sử dụng"),
+      okType: nextStatus ? "primary" : "danger",
+      cancelText: "Hủy bỏ",
+      centered: true,
+      maskClosable: true,
+      okButtonProps: {
+        className: nextStatus
+          ? "!bg-emerald-600 hover:!bg-emerald-700 !rounded-xl !h-9 !px-5 !font-bold shadow-xs cursor-pointer"
+          : "!bg-rose-600 hover:!bg-rose-700 !rounded-xl !h-9 !px-5 !font-bold shadow-xs cursor-pointer",
+      },
+      cancelButtonProps: {
+        className: "!rounded-xl !h-9 !px-4 !border-slate-300 hover:!border-slate-400 !font-semibold text-slate-700 cursor-pointer",
+      },
+      onOk: async () => {
+        setBusyId(category._id);
+        setError("");
+        setSuccess("");
 
-      setSuccess(nextStatus ? "Đã bật sử dụng danh mục." : "Đã ngừng sử dụng danh mục.");
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusyId(null);
-    }
+        try {
+          await setCategoryActiveStatus(category._id, nextStatus);
+
+          setCategories((current) =>
+            current.map((item) =>
+              item._id === category._id ? { ...item, isActive: nextStatus } : item,
+            ),
+          );
+
+          // Đồng bộ luôn trạng thái các sản phẩm trong state Catalog
+          setProducts((current) =>
+            current.map((p) => {
+              const belongs =
+                p.category === category._id ||
+                p.category === category.code ||
+                p.category?.toLowerCase() === category.code?.toLowerCase();
+              return belongs ? { ...p, isActive: nextStatus, isForSale: nextStatus } : p;
+            }),
+          );
+
+          // Phát sự kiện đồng bộ toàn hệ thống
+          window.dispatchEvent(new CustomEvent("catalog-updated"));
+
+          message.success(
+            nextStatus
+              ? `Đã kích hoạt danh mục "${category.name}" và toàn bộ sản phẩm liên kết trong kho.`
+              : `Đã ngừng sử dụng danh mục "${category.name}" và tạm ngưng sản phẩm trong kho.`,
+          );
+        } catch (err) {
+          const msg = errorMessage(err);
+          setError(msg);
+          message.error(msg);
+        } finally {
+          setBusyId(null);
+        }
+      },
+    });
   }
 
   // Khi được nhúng vào Kho Hàng (embedded = true), ép buộc chế độ luôn là "categories" để triệt tiêu trùng lặp với màn Tồn kho vật tư
@@ -903,10 +1098,20 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                               )}
                             </td>
                             <td className="px-4 py-4">
-                              <span className="inline-flex items-center gap-1 font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 text-xs">
-                                <Package className="h-3.5 w-3.5 text-slate-500" />
-                                {linkedCount} mặt hàng
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProductModalSearch("");
+                                  setProductModalStatus("all");
+                                  setCategoryProductsModal(category);
+                                }}
+                                className="inline-flex items-center gap-1.5 font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-900 px-3 py-1.5 rounded-xl border border-emerald-200/80 text-xs transition cursor-pointer shadow-xs group"
+                                title="Xem &amp; quản lý chi tiết từng mặt hàng trong danh mục này"
+                              >
+                                <Package className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                <span>{linkedCount} mặt hàng</span>
+                                <Eye className="h-3.5 w-3.5 text-emerald-500 opacity-70 group-hover:opacity-100" />
+                              </button>
                             </td>
                             <td className="px-4 py-4 text-slate-500 text-xs max-w-xs truncate">
                               {category.description || "—"}
@@ -1576,6 +1781,260 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
               </div>
             </form>
         </div>
+      </Modal>
+
+      {/* Modal Quản Lý Chi Tiết Mặt Hàng Thuộc Danh Mục */}
+      <Modal
+        open={Boolean(categoryProductsModal)}
+        onCancel={() => setCategoryProductsModal(null)}
+        footer={null}
+        closable={false}
+        width={920}
+        centered
+        destroyOnClose
+        styles={{ body: { padding: 0 } }}
+      >
+        {categoryProductsModal && (
+          <div className="relative my-auto w-full rounded-3xl bg-white border border-slate-100 overflow-hidden flex flex-col max-h-[88vh]">
+            {/* Top accent gradient */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 shrink-0" />
+
+            {/* Header */}
+            <div className="p-5 sm:p-6 pb-4 border-b border-slate-100 flex items-start justify-between shrink-0">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl shadow-xs">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight mb-0">
+                      Mặt Hàng Thuộc Danh Mục: {categoryProductsModal.name}
+                    </h2>
+                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-xs font-bold text-slate-800 border border-slate-200">
+                      {categoryProductsModal.code}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-0 mt-0.5">
+                    Quản lý bật/tắt kinh doanh và kiểm soát tồn kho từng mặt hàng độc lập mà không cần tắt cả danh mục.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCategoryProductsModal(null)}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
+                title="Đóng"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Operational Banner */}
+            <div className="px-5 sm:px-6 pt-4 pb-2 shrink-0">
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl text-emerald-900 text-xs flex items-start gap-2.5">
+                <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong className="text-emerald-800">Quy tắc nghiệp vụ chuẩn:</strong> Khi quán chỉ hết hàng 1 vài món (ví dụ: hết <em>Pepsi lon</em> nhưng vẫn còn <em>Bia / Nước suối</em>), bạn chỉ cần gạt công tắc <strong>Tạm ngưng</strong> ở riêng món đó bên dưới. Danh mục <strong>"{categoryProductsModal.name}"</strong> vẫn tiếp tục hoạt động bình thường trên Menu POS để phục vụ các món còn hàng khác!
+                </div>
+              </div>
+            </div>
+
+            {/* Stats & Filters Bar */}
+            <div className="px-5 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setProductModalStatus("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    productModalStatus === "all"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Tất cả ({selectedCategoryProducts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductModalStatus("active")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    productModalStatus === "active"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  }`}
+                >
+                  Đang bán (
+                  {
+                    selectedCategoryProducts.filter(
+                      (p) =>
+                        p.isActive !== false && (p.salePrice === 0 || p.isForSale !== false),
+                    ).length
+                  }
+                  )
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductModalStatus("inactive")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    productModalStatus === "inactive"
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  }`}
+                >
+                  Tạm ngưng (
+                  {
+                    selectedCategoryProducts.filter(
+                      (p) =>
+                        p.isActive === false || (p.salePrice > 0 && p.isForSale === false),
+                    ).length
+                  }
+                  )
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductModalStatus("outOfStock")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    productModalStatus === "outOfStock"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  }`}
+                >
+                  Hết hàng ({selectedCategoryProducts.filter((p) => (p.stock ?? 0) <= 0).length})
+                </button>
+              </div>
+
+              {/* Search box inside modal */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={productModalSearch}
+                  onChange={(e) => setProductModalSearch(e.target.value)}
+                  placeholder="Tìm món, mã SKU..."
+                  className="w-full pl-9 pr-3.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                />
+                {productModalSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setProductModalSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Products Table (Scrollable) */}
+            <div className="overflow-y-auto px-5 sm:px-6 pb-2 flex-1">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead className="sticky top-0 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider z-10">
+                  <tr className="border-y border-slate-200">
+                    <th className="px-3.5 py-3 rounded-l-lg">Mã SKU</th>
+                    <th className="px-3.5 py-3">Tên Hàng Hóa</th>
+                    <th className="px-3.5 py-3">Tồn Kho Hiện Tại</th>
+                    <th className="px-3.5 py-3">Giá Bán</th>
+                    <th className="px-3.5 py-3 text-center">Trạng Thái</th>
+                    <th className="px-3.5 py-3 text-center rounded-r-lg">Gạt Bật / Tắt</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredSelectedCategoryProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                        <Package className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                        <p className="font-semibold text-slate-600 mb-0">
+                          Không tìm thấy mặt hàng nào phù hợp
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredSelectedCategoryProducts.map((product) => {
+                      const isActive =
+                        product.isActive !== false &&
+                        (product.salePrice === 0 || product.isForSale !== false);
+                      const isOutOfStock = (product.stock ?? 0) <= 0;
+                      const isMadeToOrder = Boolean(
+                        product.isthemaketoorder ??
+                          product.isTheMakeToOrder ??
+                          product.isMadeToOrder,
+                      );
+
+                      return (
+                        <tr
+                          key={product._id}
+                          className="hover:bg-slate-50/80 transition-colors"
+                        >
+                          <td className="px-3.5 py-3 font-mono font-bold text-xs text-slate-700">
+                            <span className="bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                              {product.sku}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3">
+                            <div className="font-bold text-slate-900 text-sm">{product.name}</div>
+                            {product.description && (
+                              <div className="text-xs text-slate-400 truncate max-w-xs">
+                                {product.description}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3.5 py-3">
+                            {isMadeToOrder ? (
+                              <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200/60">
+                                Chế biến tại quán
+                              </span>
+                            ) : isOutOfStock ? (
+                              <span className="inline-flex items-center gap-1 font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                                0 {product.unit} (HẾT HÀNG)
+                              </span>
+                            ) : (product.stock ?? 0) <= (product.minStock ?? 0) ? (
+                              <span className="inline-flex items-center gap-1 font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                                {product.stock} {product.unit} (Sắp hết)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-mono font-bold text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {product.stock} {product.unit}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3.5 py-3 font-mono font-semibold text-slate-800 text-xs">
+                            {product.salePrice > 0 ? formatMoney(product.salePrice) : "Nguyên liệu nội bộ"}
+                          </td>
+                          <td className="px-3.5 py-3 text-center">
+                            <StatusBadge active={isActive}>
+                              {isActive ? "Đang bán" : "Tạm ngưng"}
+                            </StatusBadge>
+                          </td>
+                          <td className="px-3.5 py-3 text-center">
+                            <ToggleButton
+                              active={isActive}
+                              loading={busyId === product._id}
+                              label={isActive ? "Tạm ngưng món này" : "Bật kinh doanh lại món này"}
+                              onClick={() => void toggleProduct(product)}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:px-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-500">
+                Hiển thị {filteredSelectedCategoryProducts.length} / {selectedCategoryProducts.length} mặt hàng trong danh mục
+              </span>
+              <button
+                type="button"
+                onClick={() => setCategoryProductsModal(null)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

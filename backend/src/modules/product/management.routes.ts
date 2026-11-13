@@ -163,10 +163,46 @@ router.patch(
       return sendError(res, 404, "Không tìm thấy danh mục.");
     }
 
+    // Đồng bộ trạng thái của toàn bộ sản phẩm thuộc danh mục này trong MongoDB
+    const categoryCriteria: any[] = [
+      { category: String(category._id) },
+      { category: category._id },
+    ];
+    if (category.code) {
+      categoryCriteria.push({ category: category.code });
+      categoryCriteria.push({ category: category.code.toLowerCase() });
+    }
+    if (category.name) {
+      categoryCriteria.push({ category: category.name });
+    }
+
+    if (isActive) {
+      // Khi bật danh mục: Kích hoạt lại isActive: true cho tất cả sản phẩm
+      await Product.updateMany(
+        { $or: categoryCriteria },
+        { $set: { isActive: true } },
+      );
+      // Chỉ bật isForSale: true cho các mặt hàng bán lẻ F&B (không ép bật bán lẻ cho nguyên liệu kho)
+      await Product.updateMany(
+        { $or: categoryCriteria, productType: { $ne: "ingredient" }, salePrice: { $gt: 0 } },
+        { $set: { isForSale: true } },
+      );
+    } else {
+      // Khi ngưng danh mục: Tạm ngưng toàn bộ sản phẩm thuộc danh mục
+      await Product.updateMany(
+        { $or: categoryCriteria },
+        { $set: { isActive: false, isForSale: false } },
+      );
+    }
+
+    emitMenuUpdated();
+
     return res.json({
       success: true,
       data: category,
-      message: "Cập nhật trạng thái danh mục thành công.",
+      message: isActive
+        ? "Đã kích hoạt danh mục và toàn bộ sản phẩm liên kết."
+        : "Đã ngừng hoạt động danh mục và toàn bộ sản phẩm liên kết.",
     });
   }),
 );
@@ -494,19 +530,27 @@ router.patch(
   "/products/:id/status",
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { isForSale } = req.body ?? {};
+    const { isForSale, isActive } = req.body ?? {};
 
     if (!validId(id)) {
       return sendError(res, 400, "ID hàng hóa không hợp lệ.");
     }
 
-    if (typeof isForSale !== "boolean") {
-      return sendError(res, 400, "isForSale phải là true hoặc false.");
+    const updates: Record<string, boolean> = {};
+    if (typeof isActive === "boolean") {
+      updates.isActive = isActive;
+    }
+    if (typeof isForSale === "boolean") {
+      updates.isForSale = isForSale;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return sendError(res, 400, "Phải cung cấp isActive hoặc isForSale là boolean.");
     }
 
     const product = await Product.findByIdAndUpdate(
       id,
-      { $set: { isForSale } },
+      { $set: updates },
       {
         new: true,
         runValidators: true,
