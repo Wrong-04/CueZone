@@ -363,6 +363,20 @@ export const bookingService = {
     });
     return result(data);
   },
+  async getPublicPaymentStatus(reference: string) {
+    const { data } = await api.get<ApiResponse<any>>(
+      `/public/bookings/payment/${encodeURIComponent(reference)}`,
+    );
+    return result(data);
+  },
+  async cancelPublicPayment(
+    reference: string,
+  ): Promise<{ reference: string; status: "cancelled" | "expired" }> {
+    const { data } = await api.post<
+      ApiResponse<{ reference: string; status: "cancelled" | "expired" }>
+    >(`/public/bookings/payment/${encodeURIComponent(reference)}/cancel`);
+    return result(data);
+  },
   async issueQr(id: string): Promise<{ qrToken: string }> {
     const { data } = await api.post<ApiResponse<{ qrToken: string }>>(`/bookings/${id}/qr`);
     return result(data);

@@ -617,7 +617,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                 )}
                 {depositAmount > 0 && (
                   <div className="flex justify-between text-amber-700 font-semibold">
-                    <span>Khấu trừ tiền cọc:</span>
+                    <span>Khách đã đặt cọc (trừ vào hóa đơn):</span>
                     <span className="font-mono">
                       -{depositAmount.toLocaleString("vi-VN")}đ
                     </span>
