@@ -77,6 +77,9 @@ export const RevenueReportPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<RevenueReportData | null>(null);
 
+  const [perfRefreshTrigger, setPerfRefreshTrigger] = useState<number>(0);
+  const [perfLoading, setPerfLoading] = useState<boolean>(false);
+
   const fetchRevenue = useCallback(async () => {
     try {
       setLoading(true);
@@ -101,6 +104,16 @@ export const RevenueReportPage: React.FC = () => {
       setLoading(false);
     }
   }, [period, dateRange]);
+
+  const handleRefresh = () => {
+    if (currentTab === "revenue") {
+      fetchRevenue();
+    } else {
+      setPerfRefreshTrigger((prev) => prev + 1);
+    }
+  };
+
+  const isRefreshing = currentTab === "revenue" ? loading : perfLoading;
 
   useEffect(() => {
     fetchRevenue();
@@ -397,23 +410,23 @@ export const RevenueReportPage: React.FC = () => {
 
       {/* ── NAVIGATION TAB BAR (BÁO CÁO DOANH THU & HIỆU SUẤT TỪNG BÀN) ── */}
       <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap sm:flex-nowrap p-1 bg-slate-100/90 rounded-xl gap-1.5 w-full sm:w-auto overflow-x-auto">
+        <div className="flex flex-wrap sm:flex-nowrap p-1 bg-slate-100/90 rounded-2xl gap-1.5 w-full sm:w-auto overflow-x-auto">
           <button
             type="button"
             onClick={() => handleTabChange("revenue")}
-            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2.5 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
               currentTab === "revenue"
-                ? "bg-white text-emerald-700 shadow-xs ring-1 ring-black/5"
+                ? "bg-white text-emerald-800 shadow-sm ring-1 ring-slate-200/60"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
-            <DollarOutlined className={currentTab === "revenue" ? "text-emerald-600" : "text-slate-400"} />
+            <DollarOutlined className={currentTab === "revenue" ? "text-emerald-600 text-sm sm:text-base" : "text-slate-400 text-sm sm:text-base"} />
             <span>Báo Cáo Doanh Thu CLB</span>
             <span
-              className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                 currentTab === "revenue"
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "bg-slate-200 text-slate-600"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                  : "bg-slate-200/80 text-slate-600"
               }`}
             >
               Tài chính & F&B
@@ -423,19 +436,19 @@ export const RevenueReportPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabChange("performance")}
-            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2.5 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
               currentTab === "performance"
-                ? "bg-white text-cyan-700 shadow-xs ring-1 ring-black/5"
+                ? "bg-white text-cyan-800 shadow-sm ring-1 ring-slate-200/60"
                 : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
             }`}
           >
-            <DashboardOutlined className={currentTab === "performance" ? "text-cyan-600" : "text-slate-400"} />
+            <DashboardOutlined className={currentTab === "performance" ? "text-cyan-600 text-sm sm:text-base" : "text-slate-400 text-sm sm:text-base"} />
             <span>Hiệu Suất & Công Suất Từng Bàn</span>
             <span
-              className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                 currentTab === "performance"
-                  ? "bg-cyan-100 text-cyan-800"
-                  : "bg-slate-200 text-slate-600"
+                  ? "bg-cyan-50 text-cyan-700 border border-cyan-200/60"
+                  : "bg-slate-200/80 text-slate-600"
               }`}
             >
               Khai thác bàn
@@ -443,23 +456,25 @@ export const RevenueReportPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500 self-end sm:self-auto px-2">
-          {currentTab === "revenue" && (
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={fetchRevenue}
-              loading={loading}
-              size="small"
-              className="!rounded-xl hover:!border-emerald-500 !font-semibold"
-            >
-              Làm mới dữ liệu
-            </Button>
-          )}
+        <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+          <Button
+            variant="primary"
+            size="md"
+            icon={<ReloadOutlined className={isRefreshing ? "animate-spin" : ""} />}
+            onClick={handleRefresh}
+            loading={isRefreshing}
+            className="!rounded-xl !font-bold px-5 !text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 shadow-2xs"
+          >
+            Làm mới dữ liệu
+          </Button>
         </div>
       </div>
 
       {currentTab === "performance" ? (
-        <TablePerformanceReportPage />
+        <TablePerformanceReportPage
+          refreshTrigger={perfRefreshTrigger}
+          onLoadingChange={setPerfLoading}
+        />
       ) : (
         <>
 
