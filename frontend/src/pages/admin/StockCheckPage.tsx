@@ -28,8 +28,12 @@ import {
   type StockCheckItem,
   type StockCheckStatus,
 } from "../../services/stock-check.service";
+import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission } from "../../utils/permissions";
 
 export const StockCheckPage: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = hasPermission(user, "inventory.manage");
   const [sessions, setSessions] = useState<StockCheckSession[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -489,6 +493,7 @@ export const StockCheckPage: React.FC = () => {
           loading={loading}
           pagination={{ pageSize: 10, showSizeChanger: true }}
           bordered
+          scroll={{ x: 900 }}
           className="border border-slate-100 rounded-xl"
         />
       </Card>
@@ -667,15 +672,21 @@ export const StockCheckPage: React.FC = () => {
                     >
                       Cập nhật lại số đếm
                     </Button>
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined />}
-                      onClick={handleApproveBalance}
-                      loading={approving}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-none shadow-sm"
-                    >
-                      Duyệt cân bằng kho
-                    </Button>
+                    {isAdmin ? (
+                      <Button
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={handleApproveBalance}
+                        loading={approving}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-none shadow-sm"
+                      >
+                        Duyệt cân bằng kho
+                      </Button>
+                    ) : (
+                      <Tag color="processing" className="!font-bold !py-1 !px-3 !rounded-md">
+                        ⏳ Đang chờ Quản lý duyệt cân bằng
+                      </Tag>
+                    )}
                   </>
                 )}
               </div>

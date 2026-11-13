@@ -9,6 +9,7 @@ import {
   TagOutlined,
   ReloadOutlined,
   BarChartOutlined,
+  DashboardOutlined,
 } from "@ant-design/icons";
 import {
   Chart as ChartJS,
@@ -32,7 +33,6 @@ import {
   Spin,
   Alert,
   Table,
-  SegmentedPillList,
   type TableColumnsType,
 } from "../../shared/ui";
 import {
@@ -66,11 +66,6 @@ export const RevenueReportPage: React.FC = () => {
   const handleTabChange = (key: string) => {
     setSearchParams(key === "revenue" ? {} : { tab: key });
   };
-
-  const reportPills = [
-    { key: "revenue", label: "Báo Cáo Doanh Thu CLB" },
-    { key: "performance", label: "Hiệu Suất & Công Suất Từng Bàn" },
-  ];
 
   const [period, setPeriod] = useState<PeriodType>("week");
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
@@ -372,48 +367,101 @@ export const RevenueReportPage: React.FC = () => {
 
   return (
     <div className="space-y-6 p-2 sm:p-4 max-w-[1400px] mx-auto">
-      {/* ── TOP LEVEL UNIFIED REPORT TABS SWITCHER ── */}
-      <div className="bg-white p-3.5 rounded-3xl border border-slate-200/90 shadow-xs flex items-center justify-between">
-        <SegmentedPillList
-          items={reportPills}
-          activeKey={currentTab}
-          onSelect={handleTabChange}
-        />
+      {/* ── TOP BANNER: BÁO CÁO & THỐNG KÊ HOẠT ĐỘNG CLB ── */}
+      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-2xl shrink-0 shadow-2xs border border-emerald-100">
+              <BarChartOutlined />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 mb-0 tracking-tight">
+                  Báo Cáo & Thống Kê Hoạt Động CLB
+                </h1>
+                <Tag color="green" className="!rounded-full !px-3 !py-0.5 !text-xs !font-black">
+                  CUEZONE ANALYTICS
+                </Tag>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-500 mb-0">
+                Phân tích doanh thu tiền giờ, dịch vụ F&B, voucher và hiệu suất khai thác từng bàn bida theo thời gian thực.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 bg-slate-50 px-3.5 py-1.5 rounded-2xl border border-slate-200 text-xs text-slate-600 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Dữ liệu thực tế từ MongoDB</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── NAVIGATION TAB BAR (BÁO CÁO DOANH THU & HIỆU SUẤT TỪNG BÀN) ── */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap p-1 bg-slate-100/90 rounded-xl gap-1.5 w-full sm:w-auto overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => handleTabChange("revenue")}
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
+              currentTab === "revenue"
+                ? "bg-white text-emerald-700 shadow-xs ring-1 ring-black/5"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
+          >
+            <DollarOutlined className={currentTab === "revenue" ? "text-emerald-600" : "text-slate-400"} />
+            <span>Báo Cáo Doanh Thu CLB</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
+                currentTab === "revenue"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              Tài chính & F&B
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange("performance")}
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer ${
+              currentTab === "performance"
+                ? "bg-white text-cyan-700 shadow-xs ring-1 ring-black/5"
+                : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
+          >
+            <DashboardOutlined className={currentTab === "performance" ? "text-cyan-600" : "text-slate-400"} />
+            <span>Hiệu Suất & Công Suất Từng Bàn</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
+                currentTab === "performance"
+                  ? "bg-cyan-100 text-cyan-800"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              Khai thác bàn
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-slate-500 self-end sm:self-auto px-2">
+          {currentTab === "revenue" && (
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchRevenue}
+              loading={loading}
+              size="small"
+              className="!rounded-xl hover:!border-emerald-500 !font-semibold"
+            >
+              Làm mới dữ liệu
+            </Button>
+          )}
+        </div>
       </div>
 
       {currentTab === "performance" ? (
         <TablePerformanceReportPage />
       ) : (
         <>
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700">
-              <BarChartOutlined className="text-2xl" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                Báo cáo & Phân tích Doanh thu Tổng hợp
-              </h1>
-              <p className="text-sm text-slate-500">
-                Đánh giá tổng quan hiệu quả kinh doanh CLB, doanh thu tiền giờ, dịch vụ F&B và voucher.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={fetchRevenue}
-            loading={loading}
-            className="hover:border-emerald-500"
-          >
-            Làm mới
-          </Button>
-        </div>
-      </div>
 
       {/* SCRUM-996: Error state with retry */}
       {error && (
@@ -517,7 +565,7 @@ export const RevenueReportPage: React.FC = () => {
       </Card>
 
       {/* SCRUM-991: 4 thẻ KPI tổng quan */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* KPI 1: Tổng doanh thu */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
@@ -528,10 +576,10 @@ export const RevenueReportPage: React.FC = () => {
               <DollarOutlined />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono truncate">
             {loading ? "..." : `${(kpis?.totalRevenue || 0).toLocaleString("vi-VN")} đ`}
           </div>
-          <div className="text-xs text-slate-400 mt-2 flex items-center justify-between">
+          <div className="text-xs text-slate-400 mt-2 flex flex-wrap items-center justify-between gap-1">
             <span>Tổng {kpis?.invoiceCount || 0} hóa đơn</span>
             <span>AOV: {(kpis?.averageBillValue || 0).toLocaleString("vi-VN")} đ</span>
           </div>
@@ -548,10 +596,10 @@ export const RevenueReportPage: React.FC = () => {
               <ClockCircleOutlined />
             </div>
           </div>
-          <div className="text-2xl font-black text-cyan-600 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-cyan-600 font-mono truncate">
             {loading ? "..." : `${(kpis?.tableRevenue || 0).toLocaleString("vi-VN")} đ`}
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-slate-400 mt-2 truncate">
             Chiếm{" "}
             {grossRevenue > 0
               ? `${(((kpis?.tableRevenue || 0) / grossRevenue) * 100).toFixed(1)}%`
@@ -571,10 +619,10 @@ export const RevenueReportPage: React.FC = () => {
               <CoffeeOutlined />
             </div>
           </div>
-          <div className="text-2xl font-black text-blue-600 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
             {loading ? "..." : `${(kpis?.fnbRevenue || 0).toLocaleString("vi-VN")} đ`}
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-slate-400 mt-2 truncate">
             Chiếm{" "}
             {grossRevenue > 0
               ? `${(((kpis?.fnbRevenue || 0) / grossRevenue) * 100).toFixed(1)}%`
@@ -594,10 +642,10 @@ export const RevenueReportPage: React.FC = () => {
               <TagOutlined />
             </div>
           </div>
-          <div className="text-2xl font-black text-amber-600 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono truncate">
             {loading ? "..." : `${(kpis?.discountAmount || 0).toLocaleString("vi-VN")} đ`}
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-slate-400 mt-2 truncate">
             Khuyến mãi & chiết khấu thành viên (Giảm trừ{" "}
             {grossRevenue > 0
               ? `${(((kpis?.discountAmount || 0) / grossRevenue) * 100).toFixed(1)}%`
@@ -609,9 +657,9 @@ export const RevenueReportPage: React.FC = () => {
       </div>
 
       {/* SCRUM-993: Chart.js Biểu đồ phân tích doanh thu */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Main Timeline Bar Chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
             <div>
               <h3 className="text-base font-black text-slate-900 mb-0.5">
@@ -701,6 +749,7 @@ export const RevenueReportPage: React.FC = () => {
           loading={loading}
           pagination={false}
           bordered
+          scroll={{ x: 850 }}
           className="border border-slate-100 rounded-xl"
         />
       </Card>

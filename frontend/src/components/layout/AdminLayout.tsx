@@ -651,12 +651,12 @@ const AdminLayout = () => {
 
           {/* Page content */}
           <main
-            className={`flex-1 overflow-y-auto overflow-x-hidden min-w-0 ${
+            className={`flex-1 overflow-y-auto overflow-x-auto min-w-0 ${
               location.pathname === "/tournaments"
                 ? "p-0"
                 : location.pathname === "/pos"
                   ? "p-3 sm:p-4 md:p-5"
-                  : "p-6"
+                  : "p-4 sm:p-6"
             }`}
           >
             <div key={location.pathname} className="animate-slide-up max-w-full min-w-0">

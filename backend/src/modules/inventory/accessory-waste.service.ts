@@ -13,8 +13,9 @@ export interface CreateAccessoryWasteInput {
 
 export class AccessoryWasteService {
   async createWaste(input: CreateAccessoryWasteInput, performedBy: string): Promise<IAccessoryWaste> {
-    if (!input.product || !mongoose.Types.ObjectId.isValid(input.product)) {
-      throw new Error("Mã phụ kiện không hợp lệ.");
+    const targetProductId = input.product || (input as any).productId;
+    if (!targetProductId || !mongoose.Types.ObjectId.isValid(targetProductId)) {
+      throw new Error("Mã mặt hàng/phụ kiện không hợp lệ.");
     }
 
     const quantity = Number(input.quantity);
@@ -36,7 +37,7 @@ export class AccessoryWasteService {
       let createdWaste: IAccessoryWaste | undefined;
 
       await session.withTransaction(async () => {
-        const product = await Product.findById(input.product).session(session);
+        const product = await Product.findById(targetProductId).session(session);
         if (!product) {
           throw new Error("Không tìm thấy phụ kiện trong hệ thống.");
         }
@@ -45,15 +46,14 @@ export class AccessoryWasteService {
           throw new Error("Phụ kiện này hiện đã bị ngừng hoạt động.");
         }
 
-        // Validate category: phụ kiện
-        const category = String(product.category).toLowerCase();
-        const isAccessory =
-          product.productType === "accessory" ||
-          category === "accessory" ||
-          category.includes("phụ kiện") ||
-          category.includes("phu kien");
-        if (!isAccessory) {
-          throw new Error("Mặt hàng này không phải là phụ kiện. Chỉ được xuất hủy hao mòn cho nhóm phụ kiện bida.");
+        // Kiểm tra loại trừ món chế biến tại quán (không lưu kho)
+        const isMakeToOrder = Boolean(
+          (product as any).isthemaketoorder ??
+          (product as any).isTheMakeToOrder ??
+          (product as any).isMadeToOrder
+        );
+        if (isMakeToOrder) {
+          throw new Error("Mặt hàng chế biến tại quán không có tồn kho để xuất hủy hao mòn.");
         }
 
         const previousStock = Number(product.stock) || 0;

@@ -389,27 +389,25 @@ export const TablePerformanceReportPage: React.FC = () => {
   const summary = activeSummary;
 
   return (
-    <div className="space-y-6 p-2 sm:p-4 max-w-[1400px] mx-auto">
-      {/* Header */}
+    <div className="space-y-6">
+      {/* Sub-Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center text-cyan-700">
-              <DashboardOutlined className="text-2xl" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                Báo cáo Tỷ lệ Khai thác & Hiệu suất Bàn chơi
-              </h1>
-              <p className="text-sm text-slate-500">
-                Theo dõi chỉ số Utilization Rate, so sánh hiệu quả giữa 3 loại bàn (Pool, Carom, Snooker) và tỷ lệ lấp đầy theo khung giờ.
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center text-cyan-700">
+            <DashboardOutlined className="text-xl" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-slate-900 tracking-tight mb-0.5">
+              Hiệu Suất & Công Suất Từng Bàn
+            </h2>
+            <p className="text-xs text-slate-500 mb-0">
+              Chỉ số tỷ lệ khai thác (Utilization Rate), so sánh 3 loại bàn (Pool, Carom, Snooker) và tỷ lệ lấp đầy theo khung giờ.
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button icon={<ReloadOutlined />} onClick={fetchReport} loading={loading}>
+          <Button icon={<ReloadOutlined />} onClick={fetchReport} loading={loading} size="small" className="!rounded-xl">
             Làm mới
           </Button>
         </div>
@@ -533,7 +531,7 @@ export const TablePerformanceReportPage: React.FC = () => {
       </Card>
 
       {/* 4 KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -543,10 +541,10 @@ export const TablePerformanceReportPage: React.FC = () => {
               <ClockCircleOutlined />
             </div>
           </div>
-          <div className="text-3xl font-black text-cyan-700 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-cyan-700 font-mono truncate">
             {summary?.averageUtilizationRate || 0}%
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-slate-400 mt-2 truncate">
             Tổng số phút chơi / Công suất mở cửa CLB
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
@@ -561,10 +559,10 @@ export const TablePerformanceReportPage: React.FC = () => {
               <TableOutlined />
             </div>
           </div>
-          <div className="text-3xl font-black text-emerald-600 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono truncate">
             {summary?.totalPlayHours || 0} giờ
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-slate-400 mt-2 truncate">
             {tableType === "all"
               ? `Trên tổng số ${summary?.totalTables || 0} bàn hoạt động`
               : `Trên tổng số ${summary?.totalTables || 0} bàn ${TYPE_LABEL_MAP[tableType]} hoạt động`}
@@ -581,10 +579,10 @@ export const TablePerformanceReportPage: React.FC = () => {
               <FireOutlined />
             </div>
           </div>
-          <div className="text-2xl font-black text-rose-600 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-rose-600 font-mono truncate">
             {summary?.peakHour || "19:00 - 20:00"}
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-slate-400 mt-2 truncate">
             Thời điểm tỷ lệ lấp đầy bàn đạt đỉnh
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-rose-500" />
@@ -599,10 +597,10 @@ export const TablePerformanceReportPage: React.FC = () => {
               <DollarOutlined />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 font-mono">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono truncate">
             {((summary?.totalRevenue || 0) / 1000000).toFixed(2)}M đ
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-slate-400 mt-2 truncate">
             Gồm tiền giờ và dịch vụ phát sinh tại bàn
           </div>
           <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
@@ -659,6 +657,7 @@ export const TablePerformanceReportPage: React.FC = () => {
           loading={loading}
           pagination={false}
           bordered
+          scroll={{ x: 750 }}
           className="border border-slate-100 rounded-xl"
         />
       </Card>
@@ -688,6 +687,7 @@ export const TablePerformanceReportPage: React.FC = () => {
           loading={loading}
           pagination={{ pageSize: 10, showSizeChanger: true }}
           bordered
+          scroll={{ x: 900 }}
           className="border border-slate-100 rounded-xl"
         />
       </Card>

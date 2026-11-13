@@ -54,7 +54,8 @@ export interface AccessoryWasteFilter {
 }
 
 export interface CreateAccessoryWasteInput {
-  productId: string;
+  productId?: string;
+  product?: string;
   quantity: number;
   reason: string;
   note?: string;
@@ -83,11 +84,16 @@ export const accessoryWasteService = {
   },
 
   async createWaste(input: CreateAccessoryWasteInput) {
+    const payload = {
+      ...input,
+      product: input.product || input.productId,
+      productId: input.productId || input.product,
+    };
     const res = await api.post<{
       success: boolean;
       message: string;
       data: AccessoryWasteItem;
-    }>("/inventory/waste", input);
+    }>("/inventory/waste", payload);
     return res.data;
   },
 };

@@ -5,21 +5,21 @@ import Product from "./product.model";
 import InventoryTransaction from "./inventory.model";
 
 function getUser(req: Request) {
-  return (
-    req as Request & {
-      user?: {
-        _id?: string;
-        id?: string;
-        role?: string;
-      };
-    }
-  ).user;
+  const reqAny = req as any;
+  return reqAny.user || reqAny.currentUser || null;
 }
 
-function getUserId(req: Request) {
-  const user = getUser(req);
-
-  return user?._id || user?.id || null;
+function getUserId(req: Request): string | null {
+  const user = (req as any).user;
+  const current = (req as any).currentUser;
+  return (
+    user?.userId ||
+    user?._id?.toString() ||
+    user?.id?.toString() ||
+    current?._id?.toString() ||
+    current?.id?.toString() ||
+    null
+  );
 }
 
 export async function getInventory(req: Request, res: Response) {
@@ -224,10 +224,12 @@ export async function createInventoryTransaction(req: Request, res: Response) {
       });
     }
 
-    if (user.role !== "admin" && user.role !== "warehouse") {
+    const userRole = user?.role || (req as any).currentUser?.role;
+
+    if (userRole !== "admin" && userRole !== "warehouse" && userRole !== "staff") {
       return res.status(403).json({
         success: false,
-        message: "Chỉ Admin hoặc Nhân viên kho được cập nhật tồn kho.",
+        message: "Chỉ Quản lý hoặc Nhân viên được cập nhật tồn kho.",
       });
     }
 
@@ -240,9 +242,10 @@ export async function createInventoryTransaction(req: Request, res: Response) {
       });
     }
 
-    const { product, type, quantity, reason } = req.body;
+    const { type, quantity, reason } = req.body;
+    const targetProduct = req.body.product || req.body.productId;
 
-    if (!product || !mongoose.Types.ObjectId.isValid(product)) {
+    if (!targetProduct || !mongoose.Types.ObjectId.isValid(targetProduct)) {
       return res.status(400).json({
         success: false,
         message: "Mã hàng hóa không hợp lệ.",
@@ -275,7 +278,7 @@ export async function createInventoryTransaction(req: Request, res: Response) {
     let newProduct;
 
     await session.withTransaction(async () => {
-      const currentProduct = await Product.findById(product).session(session);
+      const currentProduct = await Product.findById(targetProduct).session(session);
 
       if (!currentProduct) {
         throw new Error("PRODUCT_NOT_FOUND");
