@@ -363,6 +363,11 @@ export const AdminTournamentsPage: React.FC = () => {
       return;
     }
 
+    if (new Date(newTourneyForm.registrationDeadline) <= new Date()) {
+      message.error("Hạn chót đăng ký phải sau thời điểm hiện tại!");
+      return;
+    }
+
     const regDate = new Date(newTourneyForm.registrationDeadline);
     const sDate = new Date(newTourneyForm.startDate);
     const eDate = new Date(newTourneyForm.endDate);

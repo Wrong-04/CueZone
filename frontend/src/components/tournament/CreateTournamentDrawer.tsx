@@ -28,6 +28,8 @@ interface CreateTournamentDrawerProps {
   onClose: () => void;
 }
 
+const toDay = (v: string) => (v ? dayjs(v) : null);
+
 export const CreateTournamentDrawer: React.FC<CreateTournamentDrawerProps> = ({
   open,
   loading,
@@ -36,6 +38,17 @@ export const CreateTournamentDrawer: React.FC<CreateTournamentDrawerProps> = ({
   onSave,
   onClose,
 }) => {
+  // Lịch chỉ cho chọn: hạn đăng ký >= hôm nay; khai mạc >= hạn đăng ký; bế mạc >= khai mạc.
+  const regDay = toDay(formData.registrationDeadline);
+  const startDay = toDay(formData.startDate);
+  const today = dayjs().startOf("day");
+  const noPast = (d: dayjs.Dayjs) => d.isBefore(today);
+  const disableReg = (d: dayjs.Dayjs) => noPast(d) || (!!startDay && d.isAfter(startDay, "day"));
+  const disableStart = (d: dayjs.Dayjs) =>
+    noPast(d) || (!!regDay && d.isBefore(regDay, "day"));
+  const disableEnd = (d: dayjs.Dayjs) =>
+    noPast(d) || (!!startDay && d.isBefore(startDay, "day"));
+
   return (
     <Drawer
       open={open}
@@ -101,6 +114,7 @@ export const CreateTournamentDrawer: React.FC<CreateTournamentDrawerProps> = ({
               showTime={{ format: "HH:mm" }}
               format="DD/MM/YYYY HH:mm"
               value={formData.registrationDeadline ? dayjs(formData.registrationDeadline) : null}
+              disabledDate={disableReg}
               onChange={(date) =>
                 onChange((prev) => ({
                   ...prev,
@@ -137,6 +151,7 @@ export const CreateTournamentDrawer: React.FC<CreateTournamentDrawerProps> = ({
               showTime={{ format: "HH:mm" }}
               format="DD/MM/YYYY HH:mm"
               value={formData.startDate ? dayjs(formData.startDate) : null}
+              disabledDate={disableStart}
               onChange={(date) =>
                 onChange((prev) => ({
                   ...prev,
@@ -157,6 +172,7 @@ export const CreateTournamentDrawer: React.FC<CreateTournamentDrawerProps> = ({
               showTime={{ format: "HH:mm" }}
               format="DD/MM/YYYY HH:mm"
               value={formData.endDate ? dayjs(formData.endDate) : null}
+              disabledDate={disableEnd}
               onChange={(date) =>
                 onChange((prev) => ({
                   ...prev,
