@@ -188,7 +188,7 @@ const CustomerTournaments = () => {
                 if (m._id === payload.matchId) {
                   return {
                     ...m,
-                    status: "completed",
+                    status: payload.status ?? "completed",
                     winnerRegistrationId: payload.winnerRegistrationId,
                   };
                 }

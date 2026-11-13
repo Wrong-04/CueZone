@@ -120,6 +120,7 @@ export const emitTournamentScoreUpdated = (payload: {
 export const emitTournamentMatchCompleted = (payload: {
   tournamentId: string;
   matchId: string;
+  status?: string;
   winnerRegistrationId?: string;
   nextMatchId?: string;
   nextMatchSlot?: number;

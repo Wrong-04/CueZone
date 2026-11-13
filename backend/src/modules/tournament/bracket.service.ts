@@ -551,6 +551,10 @@ export class TournamentBracketService {
         } else {
           const tournamentDoc = await Tournament.findById(match.tournament).session(session);
           if (tournamentDoc) {
+            const totalRounds = tournamentDoc.rounds?.length || 0;
+            if (match.round !== totalRounds) {
+              throw new Error("Trận đấu không phải trận Chung kết, không thể chốt kết quả giải");
+            }
             const loserPart = match.participants.find(
               (p: any) => String(p.registrationId) !== String(data.winnerRegistrationId),
             );
@@ -581,7 +585,7 @@ export class TournamentBracketService {
             const semiFinalMatches = await Match.find({
               tournament: match.tournament,
               round: match.round - 1,
-              status: "completed",
+              status: { $in: ["completed", "walkover"] },
             }).session(session);
 
             for (const sfMatch of semiFinalMatches) {
@@ -623,7 +627,7 @@ export class TournamentBracketService {
     const p1Final = updatedMatch.participants.find((p: any) => p.slot === 1);
     const p2Final = updatedMatch.participants.find((p: any) => p.slot === 2);
 
-    if (updatedMatch.status === "completed" && updatedMatch.winnerRegistrationId) {
+    if ((updatedMatch.status === "completed" || updatedMatch.status === "walkover") && updatedMatch.winnerRegistrationId) {
       let winnerUserData: { _id: string; name: string; avatar?: string; phone?: string; seed?: number } | undefined;
       const winnerUserId = updatedMatch.winner;
       if (winnerUserId) {
@@ -641,6 +645,7 @@ export class TournamentBracketService {
       emitTournamentMatchCompleted({
         tournamentId: String(updatedMatch.tournament),
         matchId: String(updatedMatch._id),
+        status: updatedMatch.status,
         winnerRegistrationId: String(updatedMatch.winnerRegistrationId),
         nextMatchId: updatedMatch.nextMatchId ? String(updatedMatch.nextMatchId) : undefined,
         nextMatchSlot: updatedMatch.nextMatchSlot ?? undefined,
