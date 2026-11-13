@@ -213,7 +213,8 @@ export default function NewsManagementPage() {
           {view === "grid" ? "Xem danh sách" : "Xem thẻ ảnh"}
         </Button>
       </div>
-      {loadError ? <Alert type="error" showIcon title={loadError} /> : loading ? (
+      {loadError ? <Alert type="error" showIcon title={loadError}
+        action={<Button variant="outline" onClick={() => { setLoadError(""); setLoading(true); setReload((value) => value + 1); }}>Thử lại</Button>} /> : loading ? (
         <div role="status" className="py-16 text-center"><Spin /><p>Đang tải bài viết...</p></div>
       ) : articles.length === 0 ? (
         <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">

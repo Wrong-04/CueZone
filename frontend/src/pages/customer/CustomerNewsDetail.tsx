@@ -10,7 +10,7 @@ import {
   StarOutlined as Sparkles,
   ReadOutlined as Newspaper,
 } from "@ant-design/icons";
-import { Button, Tag, Typography, message } from "../../shared/ui";
+import { Alert, Button, Tag, Typography, message } from "../../shared/ui";
 import { newsService, type NewsArticleItem } from "../../services/news.service";
 
 const { Title, Paragraph } = Typography;
@@ -21,6 +21,8 @@ const CustomerNewsDetail = () => {
   const [article, setArticle] = useState<NewsArticleItem | null>(null);
   const [related, setRelated] = useState<NewsArticleItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<boolean>(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!slug) return;
@@ -28,6 +30,7 @@ const CustomerNewsDetail = () => {
     const fetchDetail = async () => {
       try {
         setLoading(true);
+        setLoadError(false);
         setArticle(null);
         setRelated([]);
         const data = await newsService.getPublicArticleDetail(slug);
@@ -35,11 +38,10 @@ const CustomerNewsDetail = () => {
           setArticle(data.article);
           setRelated(data.related || []);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Lỗi tải chi tiết bài viết:", err);
-        if (isMounted) {
-          message.error("Không tìm thấy bài viết hoặc bài viết chưa được xuất bản");
-        }
+        // 404 = bài không tồn tại/chưa xuất bản (màn "Không tìm thấy"); lỗi khác cho phép thử lại
+        if (isMounted && (err as { response?: { status?: number } })?.response?.status !== 404) setLoadError(true);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -50,7 +52,7 @@ const CustomerNewsDetail = () => {
     return () => {
       isMounted = false;
     };
-  }, [slug]);
+  }, [slug, reload]);
 
   const handleCopyLink = async () => {
     try {
@@ -66,6 +68,26 @@ const CustomerNewsDetail = () => {
       <div className="py-24 text-center">
         <div className="animate-spin w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4" />
         <p className="text-sm font-semibold text-slate-600">Đang tải nội dung bài viết...</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 space-y-4">
+        <Alert
+          type="error"
+          showIcon
+          title="Không thể tải bài viết. Vui lòng kiểm tra kết nối và thử lại."
+          action={
+            <Button variant="outline" onClick={() => setReload((value) => value + 1)}>
+              Thử lại
+            </Button>
+          }
+        />
+        <Link to="/customer/news" className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-emerald-700">
+          <ArrowLeft className="w-4 h-4" /> Quay lại danh sách tin tức
+        </Link>
       </div>
     );
   }
