@@ -35,7 +35,6 @@ const ROLE_LABELS: Record<string, string> = {
   [UserRole.ADMIN]: "Quản lý CLB",
   [UserRole.CASHIER]: "Thu ngân",
   [UserRole.STAFF]: "Nhân viên phục vụ",
-  [UserRole.REFEREE]: "Trọng tài",
   [UserRole.WAREHOUSE]: "Thủ kho",
 };
 
@@ -43,7 +42,6 @@ const ROLE_COLORS: Record<string, string> = {
   [UserRole.ADMIN]: "orange",
   [UserRole.CASHIER]: "green",
   [UserRole.STAFF]: "blue",
-  [UserRole.REFEREE]: "gold",
   [UserRole.WAREHOUSE]: "purple",
 };
 
