@@ -46,7 +46,9 @@ export const publicRouter = Router();
 publicRouter.use("/public/news", publicNewsRouter);
 publicRouter.post("/public/sepay/webhook", async (req, res, next) => {
   try {
-    await new TournamentPaymentService().webhook(req.get("Authorization"), req.body);
+    const header = req.get("Authorization");
+    const handled = await bookingService.handleSepayWebhook(header, req.body);
+    if (!handled) await new TournamentPaymentService().webhook(header, req.body);
     res.json({ success: true });
   } catch (error) { next(error); }
 });
@@ -112,15 +114,34 @@ publicRouter.post(
         req.body,
         (req as any).user?.userId,
         "approved",
+        true,
       );
-      res
-        .status(201)
-        .json({ success: true, message: "Đặt bàn đã được xác nhận tự động", data: booking });
+      res.status(201).json({
+        success: true,
+        message: "Đã tạo yêu cầu thanh toán cọc đặt bàn",
+        data: booking,
+      });
     } catch (error) {
       next(error);
     }
   },
 );
+publicRouter.get("/public/bookings/payment/:reference", async (req, res, next) => {
+  try {
+    const payment = await bookingService.getPublicPaymentStatus(req.params.reference);
+    res.json({ success: true, data: payment });
+  } catch (error) {
+    next(error);
+  }
+});
+publicRouter.post("/public/bookings/payment/:reference/cancel", async (req, res, next) => {
+  try {
+    const payment = await bookingService.cancelPublicPayment(req.params.reference);
+    res.json({ success: true, data: payment });
+  } catch (error) {
+    next(error);
+  }
+});
 
 publicRouter.post("/public/waitlist", async (req, res, next) => {
   try {

@@ -7,11 +7,20 @@ import { Product } from "../product/product.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
+import { BookingPaymentReceipt } from "./booking-payment.model";
+import {
+  paymentError,
+  sepayConfig,
+  sepayReceipt,
+  verifySepayAuthorization,
+} from "../tournament/sepay";
 
 const notificationService = new NotificationService();
 
 const ACTIVE_BOOKING_STATUSES = ["pending", "approved", "confirmed", "checked_in"];
 const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000;
+const PAYMENT_HOLD_MS = 5 * 60 * 1000;
+const PAYMENT_EXPIRY_REASON = "Hết hạn chờ thanh toán tiền cọc";
 
 function getBookingInterval(date: string, time: string, duration: number, allowPast = false) {
   const startDate = new Date(`${date}T${time}:00+07:00`);
@@ -164,10 +173,19 @@ export class BookingService {
       status: { $in: ACTIVE_BOOKING_STATUSES },
     };
     if (excludeBookingId) filter._id = { $ne: excludeBookingId };
-    let query = Booking.find(filter).select("date time duration startDate endDate");
+    let query = Booking.find(filter).select(
+      "date time duration startDate endDate paymentStatus paymentExpiresAt",
+    );
     if (session) query = query.session(session);
     const bookings = await query;
     return bookings.some((booking) => {
+      if (
+        booking.paymentStatus === "awaiting_payment" &&
+        booking.paymentExpiresAt &&
+        booking.paymentExpiresAt.getTime() <= Date.now()
+      ) {
+        return false;
+      }
       const interval = getStoredBookingInterval(booking);
       return (
         Number.isFinite(interval.startDate.getTime()) &&
@@ -196,6 +214,7 @@ export class BookingService {
     ) {
       throw new Error("Khung giờ tìm bàn không hợp lệ");
     }
+    await this.expirePendingPayments();
     const { startDate, endDate } = getBookingInterval(
       input.date,
       input.time,
@@ -229,6 +248,13 @@ export class BookingService {
     const conflictingTableIds = new Set<string>();
     for (const booking of activeBookings) {
       const interval = getStoredBookingInterval(booking);
+      if (
+        booking.paymentStatus === "awaiting_payment" &&
+        booking.paymentExpiresAt &&
+        booking.paymentExpiresAt.getTime() <= now
+      ) {
+        continue;
+      }
       if (
         Number.isFinite(interval.startDate.getTime()) &&
         Number.isFinite(interval.endDate.getTime()) &&
@@ -307,8 +333,17 @@ export class BookingService {
     input: any,
     customerId?: string,
     initialStatus: "pending" | "approved" = "approved",
+    requireDeposit = false,
   ) {
+    if (requireDeposit) await this.expirePendingPayments();
     const dto = bookingInput(input);
+    const paymentConfig = requireDeposit ? sepayConfig() : null;
+    const paymentReference = requireDeposit
+      ? `CB${randomBytes(12).toString("hex").toUpperCase()}`
+      : undefined;
+    const paymentExpiresAt = requireDeposit
+      ? new Date(Date.now() + PAYMENT_HOLD_MS)
+      : undefined;
     const associatedCustomer =
       customerId && mongoose.isValidObjectId(customerId)
         ? await User.findOne({
@@ -325,14 +360,14 @@ export class BookingService {
     if (initialStatus === "pending" && !associatedCustomerId) {
       throw new Error("Vui lòng đăng nhập tài khoản khách hàng để đặt bàn");
     }
-    const qrToken = this.createQrToken();
+    const qrToken = requireDeposit ? undefined : this.createQrToken();
     const result = await mongoose.connection.transaction(async (session) => {
       const table = await Table.findOneAndUpdate(
         {
           _id: dto.table,
           isActive: true,
           status:
-            initialStatus === "pending"
+            initialStatus === "pending" || requireDeposit
               ? { $ne: TableStatus.MAINTENANCE }
               : TableStatus.AVAILABLE,
         },
@@ -381,7 +416,7 @@ export class BookingService {
           };
         });
         for (const item of preOrderItems) {
-          if (!item.isMadeToOrder) {
+          if (!item.isMadeToOrder && !requireDeposit) {
             const reserved = await Product.findOneAndUpdate(
               {
                 _id: item.productId,
@@ -396,24 +431,42 @@ export class BookingService {
           }
         }
       }
-      const hasInventoryReserved = preOrderItems.some((item) => !item.isMadeToOrder);
+      const hasInventoryReserved =
+        !requireDeposit && preOrderItems.some((item) => !item.isMadeToOrder);
+      const estimatedCost = table.pricePerHour * dto.duration;
+      const depositAmount = Math.ceil(
+        (estimatedCost +
+          preOrderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)) /
+          2,
+      );
+      if (!Number.isSafeInteger(depositAmount) || depositAmount <= 0) {
+        throw new Error("Số tiền đặt cọc không hợp lệ");
+      }
       const [booking] = await Booking.create(
         [
           {
             ...dto,
+            deposit: requireDeposit ? depositAmount : dto.deposit,
             table: table._id,
             customer: associatedCustomerId,
             tableName: table.name,
-            estimatedCost: table.pricePerHour * dto.duration,
-            status: initialStatus,
+            estimatedCost,
+            status: requireDeposit ? "pending" : initialStatus,
+            ...(requireDeposit
+              ? {
+                  paymentStatus: "awaiting_payment",
+                  paymentReference,
+                  paymentExpiresAt,
+                }
+              : {}),
             preOrderItems,
             inventoryReserved: hasInventoryReserved,
-            qrTokenHash: this.hashQrToken(qrToken),
+            ...(qrToken ? { qrTokenHash: this.hashQrToken(qrToken) } : {}),
           },
         ],
         { session },
       );
-      if (initialStatus === "approved") {
+      if (!requireDeposit && initialStatus === "approved") {
         if (table.status === TableStatus.AVAILABLE) {
           table.status = TableStatus.BOOKED;
         }
@@ -427,14 +480,14 @@ export class BookingService {
       }
       return { booking, table };
     });
-    if (initialStatus === "approved") {
+    if (!requireDeposit && initialStatus === "approved") {
       emitTableStatusChanged({
         tableId: String(result.table._id),
         status: result.table.status,
         table: result.table,
       });
     }
-    if (associatedCustomerId) {
+    if (!requireDeposit && associatedCustomerId) {
       await notificationService
         .createForUser(associatedCustomerId, {
           title:
@@ -447,24 +500,470 @@ export class BookingService {
         })
         .catch((error) => console.error("Không thể gửi thông báo đặt bàn cho khách:", error));
     }
-    await notificationService
-      .create({
+    if (!requireDeposit) {
+      await notificationService
+        .create({
         title:
           initialStatus === "approved"
             ? "Lịch đặt bàn đã xác nhận tự động"
             : "Có lịch đặt bàn mới",
         content: `${result.booking.customerName} (${result.booking.phone}) đặt ${result.booking.tableName} ngày ${result.booking.date} lúc ${result.booking.time}, dự kiến ${result.booking.duration} giờ.${result.booking.preOrderItems.length ? ` Món đặt trước: ${result.booking.preOrderItems.map((item: any) => `${item.name} x${item.quantity}`).join(", ")}.` : ""} Vui lòng chuẩn bị và giữ bàn.`,
         type: NotificationType.TABLE,
-      })
-      .catch((error) => console.error("Không thể gửi thông báo lịch đặt bàn cho nhân viên:", error));
+        })
+        .catch((error) =>
+          console.error("Không thể gửi thông báo lịch đặt bàn cho nhân viên:", error),
+        );
+    }
     const bookingData = result.booking.toObject ? result.booking.toObject() : result.booking;
     delete bookingData.qrTokenHash;
+    const payment = requireDeposit && paymentConfig && paymentReference && paymentExpiresAt
+      ? {
+          reference: paymentReference,
+          amount: result.booking.deposit,
+          deadline: paymentExpiresAt,
+          bankCode: paymentConfig.bankCode,
+          accountNumber: paymentConfig.accountNumber,
+          accountName: paymentConfig.accountName,
+          qrUrl: this.buildPaymentQrUrl(
+            paymentConfig.bankCode,
+            paymentConfig.accountNumber,
+            result.booking.deposit,
+            paymentReference,
+          ),
+          status: "awaiting_payment",
+        }
+      : undefined;
     return {
       ...bookingData,
       tableId: String(result.table._id),
       tableCode: result.table.code,
-      qrToken,
+      ...(qrToken ? { qrToken } : {}),
+      ...(payment ? { payment } : {}),
     };
+  }
+
+  private buildPaymentQrUrl(
+    bankCode: string,
+    accountNumber: string,
+    amount: number,
+    reference: string,
+  ) {
+    const qr = new URL("https://vietqr.app/img");
+    for (const [key, value] of Object.entries({
+      acc: accountNumber,
+      bank: bankCode,
+      amount: String(amount),
+      des: reference,
+      template: "compact",
+    })) {
+      qr.searchParams.set(key, value);
+    }
+    return qr.toString();
+  }
+
+  async getPublicPaymentStatus(reference: string) {
+    if (!/^CB[A-F0-9]{24}$/.test(reference)) {
+      throw paymentError("Mã thanh toán đặt bàn không hợp lệ");
+    }
+    await this.expirePendingPayments();
+    const booking = await Booking.findOne({ paymentReference: reference }).populate("table");
+    if (!booking) throw paymentError("Không tìm thấy yêu cầu thanh toán đặt bàn", 404);
+    const status = booking.paymentStatus || "not_required";
+    const config = status === "awaiting_payment" ? sepayConfig() : null;
+    const table = booking.table as any;
+    return {
+      reference,
+      status,
+      amount: booking.deposit,
+      deadline: booking.paymentExpiresAt,
+      bankCode: config?.bankCode,
+      accountNumber: config?.accountNumber,
+      accountName: config?.accountName,
+      qrUrl:
+        config && status === "awaiting_payment"
+          ? this.buildPaymentQrUrl(config.bankCode, config.accountNumber, booking.deposit, reference)
+          : null,
+      booking:
+        status === "paid"
+          ? {
+              id: String(booking._id),
+              tableId: table ? String(table._id) : String(booking.table),
+              tableCode: table?.code,
+              tableName: booking.tableName,
+              date: booking.date,
+              time: booking.time,
+              duration: booking.duration,
+              estimatedCost: booking.estimatedCost,
+              deposit: booking.deposit,
+              phone: booking.phone,
+            }
+          : undefined,
+    };
+  }
+
+  async cancelPublicPayment(reference: string) {
+    if (!/^CB[A-F0-9]{24}$/.test(reference)) {
+      throw paymentError("Mã thanh toán đặt bàn không hợp lệ");
+    }
+
+    const result = await mongoose.connection.transaction(async (session) => {
+      const booking = await Booking.findOne({ paymentReference: reference }).session(session);
+      if (!booking) throw paymentError("Không tìm thấy yêu cầu thanh toán đặt bàn", 404);
+      if (booking.paymentStatus === "paid") {
+        throw paymentError("Đặt cọc đã được ghi nhận; không thể hủy yêu cầu này", 409);
+      }
+      if (booking.paymentStatus === "refund_required") {
+        throw paymentError("Giao dịch cần được nhân viên đối soát trước khi xử lý", 409);
+      }
+      if (booking.paymentStatus === "cancelled") {
+        return { status: "cancelled" as const, tableId: String(booking.table), changed: false };
+      }
+      if (booking.paymentStatus === "expired") {
+        return { status: "expired" as const, tableId: String(booking.table), changed: false };
+      }
+      if (booking.paymentStatus !== "awaiting_payment" || booking.status !== "pending") {
+        throw paymentError("Yêu cầu đặt cọc không còn ở trạng thái có thể hủy", 409);
+      }
+
+      const cancelledAt = new Date();
+      const cancelledBooking = await Booking.findOneAndUpdate(
+        {
+          _id: booking._id,
+          status: "pending",
+          paymentStatus: "awaiting_payment",
+        },
+        {
+          $set: {
+            status: "cancelled",
+            paymentStatus: "cancelled",
+            cancelledAt,
+            cancellationReason: "Khách hàng hủy yêu cầu đặt cọc",
+          },
+        },
+        { new: true, session },
+      );
+      if (!cancelledBooking) {
+        throw paymentError("Trạng thái thanh toán đã thay đổi; vui lòng kiểm tra lại", 409);
+      }
+
+      if (cancelledBooking.inventoryReserved) {
+        for (const item of cancelledBooking.preOrderItems) {
+          if (!(item as any).isMadeToOrder) {
+            await Product.updateOne(
+              { _id: item.productId },
+              { $inc: { stock: item.quantity } },
+              { session },
+            );
+          }
+        }
+        cancelledBooking.inventoryReserved = false;
+        await cancelledBooking.save({ session });
+      }
+
+      return {
+        status: "cancelled" as const,
+        tableId: String(cancelledBooking.table),
+        changed: true,
+      };
+    });
+
+    if (result.changed) emitTableStatusChanged({ tableId: result.tableId });
+    return { reference, status: result.status };
+  }
+
+  async handleSepayWebhook(header: string | undefined, body: unknown) {
+    verifySepayAuthorization(header);
+    const receipt = sepayReceipt(body);
+    if (!receipt.incoming || !receipt.reference?.startsWith("CB")) return false;
+    if (!(await Booking.exists({ paymentReference: receipt.reference }))) {
+      const previous = await BookingPaymentReceipt.findOne({ providerId: receipt.providerId });
+      if (previous) {
+        if (
+          previous.amount !== receipt.amount ||
+          previous.accountNumber !== receipt.accountNumber ||
+          previous.reference !== receipt.reference ||
+          previous.bankPaidAt.getTime() !== receipt.bankPaidAt.getTime()
+        ) {
+          throw paymentError("ID giao dịch SePay đã tồn tại với dữ liệu khác", 409);
+        }
+        return true;
+      }
+      try {
+        await BookingPaymentReceipt.create({
+          providerId: receipt.providerId,
+          reference: receipt.reference,
+          accountNumber: receipt.accountNumber,
+          amount: receipt.amount,
+          bankPaidAt: receipt.bankPaidAt,
+          status: "refund_required",
+        });
+        await notificationService
+          .create({
+            title: "Giao dịch cọc đặt bàn không tìm thấy yêu cầu",
+            message: `Giao dịch SePay ${receipt.reference} (${receipt.amount.toLocaleString("vi-VN")}đ, mã GD ${receipt.providerId}) cần đối soát.`,
+            type: NotificationType.TABLE,
+          })
+          .catch((error) =>
+            console.error("Không thể gửi thông báo giao dịch đặt bàn không khớp:", error),
+          );
+      } catch (error: any) {
+        if (error.code !== 11000) throw error;
+        const duplicate = await BookingPaymentReceipt.findOne({
+          providerId: receipt.providerId,
+        });
+        if (
+          !duplicate ||
+          duplicate.amount !== receipt.amount ||
+          duplicate.accountNumber !== receipt.accountNumber ||
+          duplicate.reference !== receipt.reference ||
+          duplicate.bankPaidAt.getTime() !== receipt.bankPaidAt.getTime()
+        ) {
+          throw paymentError("Giao dịch SePay trùng không khớp dữ liệu", 409);
+        }
+      }
+      return true;
+    }
+
+    let updatedTable: any = null;
+    let isNewReceipt = false;
+    let outcome: "confirmed" | "refund_required" = "refund_required";
+    try {
+      await mongoose.connection.transaction(async (session) => {
+        updatedTable = null;
+        isNewReceipt = false;
+        outcome = "refund_required";
+        const previous = await BookingPaymentReceipt.findOne({
+          providerId: receipt.providerId,
+        }).session(session);
+        if (previous) {
+          if (
+            previous.amount !== receipt.amount ||
+            previous.accountNumber !== receipt.accountNumber ||
+            previous.reference !== receipt.reference ||
+            previous.bankPaidAt.getTime() !== receipt.bankPaidAt.getTime()
+          ) {
+            throw paymentError("ID giao dịch SePay đã tồn tại với dữ liệu khác", 409);
+          }
+          outcome = previous.status;
+          return;
+        }
+
+        const booking = await Booking.findOne({
+          paymentReference: receipt.reference,
+        }).session(session);
+        if (!booking) return;
+
+        const withinPaymentWindow =
+          booking.paymentExpiresAt &&
+          receipt.bankPaidAt.getTime() <= booking.paymentExpiresAt.getTime() &&
+          receipt.bankPaidAt.getTime() >= booking.createdAt.getTime() - 60_000;
+        const paymentCanStillBeApplied =
+          (booking.paymentStatus === "awaiting_payment" && booking.status === "pending") ||
+          (booking.paymentStatus === "expired" &&
+            booking.status === "cancelled" &&
+            booking.cancellationReason === PAYMENT_EXPIRY_REASON);
+        const canConfirm =
+          paymentCanStillBeApplied &&
+          withinPaymentWindow &&
+          receipt.amount === booking.deposit;
+
+        if (canConfirm) {
+          const interval = getStoredBookingInterval(booking);
+          const conflict = await this.hasSlotConflict(
+            String(booking.table),
+            interval.startDate,
+            interval.endDate,
+            session,
+            String(booking._id),
+          );
+          const table = await Table.findOne({
+            _id: booking.table,
+            isActive: true,
+            status: { $ne: TableStatus.MAINTENANCE },
+          }).session(session);
+
+          let stockAvailable = true;
+          const reservedItems: Array<{
+            productId: mongoose.Types.ObjectId;
+            quantity: number;
+          }> = [];
+          if (table && !conflict) {
+            for (const item of booking.preOrderItems) {
+              if ((item as any).isMadeToOrder) continue;
+              const reserved = await Product.findOneAndUpdate(
+                {
+                  _id: item.productId,
+                  isActive: true,
+                  isForSale: true,
+                  stock: { $gte: item.quantity },
+                },
+                { $inc: { stock: -item.quantity } },
+                { new: true, session },
+              );
+              if (!reserved) {
+                stockAvailable = false;
+                break;
+              }
+              reservedItems.push({
+                productId: item.productId,
+                quantity: item.quantity,
+              });
+            }
+          }
+
+          if (!stockAvailable) {
+            for (const item of reservedItems) {
+              await Product.updateOne(
+                { _id: item.productId },
+                { $inc: { stock: item.quantity } },
+                { session },
+              );
+            }
+          }
+
+          if (table && !conflict && stockAvailable) {
+            booking.status = "approved";
+            booking.paymentStatus = "paid";
+            booking.paymentProviderId = receipt.providerId;
+            booking.paymentPaidAt = receipt.bankPaidAt;
+            booking.inventoryReserved = booking.preOrderItems.some(
+              (item) => !(item as any).isMadeToOrder,
+            );
+            if (table.status === TableStatus.AVAILABLE) {
+              table.status = TableStatus.BOOKED;
+            }
+            table.bookedInfo = {
+              customerName: booking.customerName || "Khách đặt trước",
+              phone: booking.phone || "",
+              time: `${booking.time} (${booking.date})`,
+              bookingId: String(booking._id),
+            };
+            await table.save({ session });
+            await booking.save({ session });
+            updatedTable = table;
+            outcome = "confirmed";
+          } else {
+            booking.status = "cancelled";
+            booking.paymentStatus = "refund_required";
+            booking.cancelledAt = new Date();
+            booking.cancellationReason =
+              "Không thể tự xác nhận sau khi nhận thanh toán; cần đối soát/hoàn tiền";
+            await booking.save({ session });
+          }
+        } else if (booking.paymentStatus !== "paid") {
+          booking.status = "cancelled";
+          booking.paymentStatus = "refund_required";
+          booking.cancelledAt = new Date();
+          booking.cancellationReason =
+            "Giao dịch đến trễ hoặc sai số tiền; cần đối soát/hoàn tiền";
+          await booking.save({ session });
+        }
+
+        await BookingPaymentReceipt.create(
+          [
+            {
+              providerId: receipt.providerId,
+              booking: booking._id,
+              reference: receipt.reference,
+              accountNumber: receipt.accountNumber,
+              amount: receipt.amount,
+              bankPaidAt: receipt.bankPaidAt,
+              status: outcome,
+            },
+          ],
+          { session },
+        );
+        isNewReceipt = true;
+      });
+    } catch (error: any) {
+      if (error.code !== 11000) throw error;
+      const previous = await BookingPaymentReceipt.findOne({
+        providerId: receipt.providerId,
+      });
+      if (
+        !previous ||
+        previous.amount !== receipt.amount ||
+        previous.accountNumber !== receipt.accountNumber ||
+        previous.reference !== receipt.reference ||
+        previous.bankPaidAt.getTime() !== receipt.bankPaidAt.getTime()
+      ) {
+        throw paymentError("Giao dịch SePay trùng không khớp dữ liệu", 409);
+      }
+      outcome = previous.status;
+    }
+
+    if (updatedTable) {
+      emitTableStatusChanged({
+        tableId: String(updatedTable._id),
+        status: updatedTable.status,
+        table: updatedTable,
+      });
+    }
+    if (isNewReceipt) {
+      await notificationService
+        .create({
+          title:
+            outcome === "confirmed"
+              ? "Đặt bàn đã được thanh toán"
+              : "Giao dịch đặt bàn cần đối soát/hoàn tiền",
+          message:
+            outcome === "confirmed"
+              ? `Đặt bàn ${receipt.reference} đã nhận cọc ${receipt.amount.toLocaleString("vi-VN")}đ và được xác nhận tự động.`
+              : `Giao dịch SePay ${receipt.reference} (${receipt.amount.toLocaleString("vi-VN")}đ) cần kiểm tra và xử lý hoàn tiền.`,
+          type: NotificationType.TABLE,
+        })
+        .catch((error) =>
+          console.error("Không thể gửi thông báo giao dịch đặt bàn:", error),
+        );
+    }
+    return true;
+  }
+
+  async expirePendingPayments() {
+    const expired = await Booking.find({
+      status: "pending",
+      paymentStatus: "awaiting_payment",
+      paymentExpiresAt: { $lte: new Date() },
+    }).select("_id table preOrderItems inventoryReserved");
+    let released = 0;
+    for (const candidate of expired) {
+      const didExpire = await mongoose.connection.transaction(async (session) => {
+        const booking = await Booking.findOneAndUpdate(
+          {
+            _id: candidate._id,
+            status: "pending",
+            paymentStatus: "awaiting_payment",
+            paymentExpiresAt: { $lte: new Date() },
+          },
+          {
+            $set: {
+              status: "cancelled",
+              paymentStatus: "expired",
+              cancelledAt: new Date(),
+              cancellationReason: PAYMENT_EXPIRY_REASON,
+            },
+          },
+          { new: true, session },
+        );
+        if (!booking) return false;
+        if (booking.inventoryReserved) {
+          for (const item of booking.preOrderItems) {
+            if (!(item as any).isMadeToOrder) {
+              await Product.updateOne(
+                { _id: item.productId },
+                { $inc: { stock: item.quantity } },
+                { session },
+              );
+            }
+          }
+          booking.inventoryReserved = false;
+          await booking.save({ session });
+        }
+        return true;
+      });
+      if (didExpire) released++;
+    }
+    return released;
   }
 
   async cancelCustomerBooking(customerId: string, id: string, reason?: string) {
@@ -520,6 +1019,9 @@ export class BookingService {
         {
           $set: {
             status: "cancelled",
+            ...(booking.paymentStatus === "awaiting_payment"
+              ? { paymentStatus: "expired" }
+              : {}),
             cancelledAt: new Date(),
             cancellationReason: reason?.trim() || undefined,
           },
@@ -558,6 +1060,9 @@ export class BookingService {
       const booking = await Booking.findById(id).session(session);
       if (!booking) throw new Error("Không tìm thấy đơn đặt bàn");
       const previousStatus = booking.status;
+      if (booking.paymentStatus === "awaiting_payment" && input.status === "approved") {
+        throw new Error("Chỉ xác nhận đặt bàn sau khi SePay ghi nhận thanh toán tiền cọc");
+      }
       const allowed: Record<string, string[]> = {
         pending: ["approved", "rejected"],
         approved: ["approved", "rejected"],
@@ -648,6 +1153,9 @@ export class BookingService {
         booking.inventoryReserved = false;
       }
       booking.status = input.status;
+      if (input.status === "rejected" && booking.paymentStatus === "awaiting_payment") {
+        booking.paymentStatus = "expired";
+      }
       booking.rejectionReason =
         input.status === "rejected" ? input.rejectionReason.trim() : undefined;
       await booking.save({ session });

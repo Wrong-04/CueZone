@@ -1,6 +1,8 @@
 // Run from backend: pnpm check:vouchers
 // Uses a disposable MongoDB database and requires transaction support.
 require("dotenv/config");
+const dns = require("node:dns");
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const mongoose = require("mongoose");

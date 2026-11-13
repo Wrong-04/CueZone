@@ -1,5 +1,11 @@
 import mongoose, { ClientSession, Types } from "mongoose";
-import { Voucher, VoucherDiscountType, VoucherUsage, IVoucher } from "./voucher.model";
+import {
+  Voucher,
+  VoucherDiscountType,
+  VoucherReservation,
+  VoucherUsage,
+  IVoucher,
+} from "./voucher.model";
 
 const httpError = (message: string, httpCode = 400, code?: string) =>
   Object.assign(new Error(message), { httpCode, code });
@@ -273,7 +279,11 @@ export class VoucherService {
           voucherId: voucher._id,
           customerPhone: { $regex: phonePattern },
         });
-        if (alreadyUsed) {
+        const alreadyReserved = await VoucherReservation.findOne({
+          voucherId: voucher._id,
+          customerPhone: { $regex: phonePattern },
+        });
+        if (alreadyUsed || alreadyReserved) {
           throw httpError(
             `Hội viên này đã sử dụng mã ${voucher.code} trước đó. Mỗi khách hàng chỉ được dùng 1 lần.`,
             422,
@@ -291,6 +301,145 @@ export class VoucherService {
       minOrderAmount: voucher.minOrderAmount,
       discountAmount: calculateVoucherDiscount(voucher, subtotal),
     };
+  }
+
+  async reserve(
+    codeValue: unknown,
+    subtotal: number,
+    data: {
+      sessionId: string;
+      customerPhone?: string;
+      customerId?: Types.ObjectId;
+    },
+    session: ClientSession,
+  ) {
+    const code = normalizedCode(codeValue);
+    if (!code) throw httpError("Mã voucher không hợp lệ", 422, "VOUCHER_REQUIRED");
+    const voucher = await Voucher.findOne({ code }).session(session);
+    if (!voucher) throw httpError("Không tìm thấy mã voucher", 404, "VOUCHER_NOT_FOUND");
+    assertValidAt(voucher, subtotal);
+
+    const customerConditions: Record<string, unknown>[] = [];
+    if (data.customerId) customerConditions.push({ customerId: data.customerId });
+    if (data.customerPhone) {
+      const digits = data.customerPhone.replace(/\D/g, "");
+      customerConditions.push({
+        customerPhone:
+          digits.length >= 8
+            ? { $regex: `^\\+?${digits.split("").join("[\\s().-]*")}$` }
+            : data.customerPhone,
+      });
+    }
+    if (customerConditions.length > 0) {
+      const condition = { voucherId: voucher._id, $or: customerConditions };
+      const [alreadyUsed, alreadyReserved] = await Promise.all([
+        VoucherUsage.findOne(condition).session(session),
+        VoucherReservation.findOne(condition).session(session),
+      ]);
+      if (alreadyUsed || alreadyReserved) {
+        throw httpError(
+          `Mỗi hội viên chỉ được sử dụng voucher ${voucher.code} một lần duy nhất`,
+          422,
+          "VOUCHER_ALREADY_USED",
+        );
+      }
+    }
+
+    const now = new Date();
+    const filter: Record<string, unknown> = {
+      _id: voucher._id,
+      isActive: true,
+      startsAt: { $lte: now },
+      $or: [
+        { expiresAt: { $exists: false } },
+        { expiresAt: null },
+        { expiresAt: { $gt: now } },
+      ],
+    };
+    if (voucher.maxUses !== undefined) filter.usageCount = { $lt: voucher.maxUses };
+    const reservedVoucher = await Voucher.findOneAndUpdate(
+      filter,
+      { $inc: { usageCount: 1 } },
+      { new: true, session },
+    );
+    if (!reservedVoucher) {
+      throw httpError("Voucher vừa hết lượt sử dụng hoặc đã hết hạn", 422, "VOUCHER_UNAVAILABLE");
+    }
+
+    const discountAmount = calculateVoucherDiscount(voucher, subtotal);
+    await VoucherReservation.create(
+      [
+        {
+          voucherId: voucher._id,
+          code: voucher.code,
+          ...data,
+          subtotal,
+          discountAmount,
+        },
+      ],
+      { session },
+    );
+    return { code: voucher.code, discountAmount };
+  }
+
+  async redeemReserved(
+    codeValue: unknown,
+    subtotal: number,
+    data: {
+      sessionId: string;
+      invoiceCode: string;
+      tableId: Types.ObjectId;
+      customerName: string;
+      customerPhone?: string;
+      customerId?: Types.ObjectId;
+    },
+    session: ClientSession,
+  ): Promise<{ code: string; discountAmount: number } | undefined> {
+    const code = normalizedCode(codeValue);
+    const reservation = await VoucherReservation.findOne({
+      sessionId: data.sessionId,
+      code,
+    }).session(session);
+    if (!reservation) return undefined;
+    if (reservation.subtotal !== subtotal) {
+      throw httpError("Giá trị voucher đã thay đổi, vui lòng kiểm tra lại hóa đơn", 409);
+    }
+
+    await VoucherUsage.create(
+      [
+        {
+          voucherId: reservation.voucherId,
+          code: reservation.code,
+          ...data,
+          subtotal,
+          discountAmount: reservation.discountAmount,
+          usedAt: new Date(),
+        },
+      ],
+      { session },
+    );
+    await VoucherReservation.deleteOne({ _id: reservation._id }, { session });
+    return { code: reservation.code, discountAmount: reservation.discountAmount };
+  }
+
+  async releaseReservation(
+    sessionId: string,
+    codeValue: unknown,
+    session: ClientSession,
+  ) {
+    const code = normalizedCode(codeValue);
+    const reservation = await VoucherReservation.findOne({ sessionId, code }).session(session);
+    if (!reservation) return false;
+    const voucher = await Voucher.findOneAndUpdate(
+      { _id: reservation.voucherId, usageCount: { $gt: 0 } },
+      { $inc: { usageCount: -1 } },
+      { new: true, session },
+    );
+    if (!voucher) {
+      throw httpError("Không thể giải phóng lượt sử dụng voucher đang giữ", 409);
+    }
+    await VoucherReservation.deleteOne({ _id: reservation._id }, { session });
+    return true;
   }
 
   async redeem(
@@ -329,8 +478,12 @@ export class VoucherService {
         voucherId: voucher._id,
         $or: condition,
       }).session(session);
+      const existingReservation = await VoucherReservation.findOne({
+        voucherId: voucher._id,
+        $or: condition,
+      }).session(session);
 
-      if (existingUsage) {
+      if (existingUsage || existingReservation) {
         throw httpError(
           `Mỗi hội viên chỉ được sử dụng voucher ${voucher.code} một lần duy nhất`,
           422,

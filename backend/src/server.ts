@@ -19,6 +19,8 @@ import {
 } from "./modules/tournament/tournament-payment.model";
 import { TableService } from "./modules/table/table.service";
 import { TournamentBracketService } from "./modules/tournament/bracket.service";
+import { BookingService } from "./modules/booking/booking.service";
+import { BookingPaymentReceipt } from "./modules/booking/booking-payment.model";
 
 const PORT = process.env.PORT || 5000;
 const appInstance = new App();
@@ -48,7 +50,11 @@ io.on("connection", (socket) => {
 
 async function initialize() {
   await connectDatabase();
-  await Promise.all([TournamentPaymentIntent.init(), TournamentPaymentReceipt.init()]);
+  await Promise.all([
+    TournamentPaymentIntent.init(),
+    TournamentPaymentReceipt.init(),
+    BookingPaymentReceipt.init(),
+  ]);
   try {
     await Promise.all([
       Booking.init(),
@@ -86,6 +92,22 @@ if (!process.env.VERCEL) {
           void tableService.autoReleaseExpiredBookings().catch((err) => {
             console.error("Lỗi tự động hủy đặt bàn quá hẹn 15p:", err);
           });
+        }, 15000);
+
+        const bookingService = new BookingService();
+        let expiringBookingPayments = false;
+        // ponytail: Bộ quét không chạy trên Vercel serverless; nâng cấp bằng cron có xác thực gọi expirePendingPayments.
+        setInterval(() => {
+          if (expiringBookingPayments) return;
+          expiringBookingPayments = true;
+          void bookingService
+            .expirePendingPayments()
+            .catch((err) => {
+              console.error("Lỗi giải phóng yêu cầu đặt bàn hết hạn thanh toán:", err);
+            })
+            .finally(() => {
+              expiringBookingPayments = false;
+            });
         }, 15000);
 
         // Tự sinh nhánh đấu (bốc thăm ngẫu nhiên) cho giải đã hết hạn ghi danh, quét mỗi 30 giây.

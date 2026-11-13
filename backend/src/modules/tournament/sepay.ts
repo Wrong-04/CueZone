@@ -35,7 +35,7 @@ export function sepayReceipt(body: any) {
   if (!Number.isSafeInteger(body.transferAmount) || body.transferAmount <= 0) throw paymentError("Số tiền SePay phải là số nguyên VND dương");
   const bankPaidAt = bankDate(body.transactionDate);
   const text = `${typeof body.code === "string" ? body.code : ""} ${typeof body.content === "string" ? body.content : ""}`.toUpperCase();
-  const references = [...new Set(Array.from(text.matchAll(/(?:^|[^A-Z0-9])(CZ[A-F0-9]{24})(?![A-Z0-9])/g), match => match[1]))];
+  const references = [...new Set(Array.from(text.matchAll(/(?:^|[^A-Z0-9])((?:CZ|CB)[A-F0-9]{24})(?![A-Z0-9])/g), match => match[1]))];
   if (references.length > 1) throw paymentError("Giao dịch có nhiều mã thanh toán, cần đối soát riêng");
   return { providerId: String(body.id), reference: references[0], accountNumber: body.accountNumber, amount: body.transferAmount, bankPaidAt, incoming: body.transferType === "in" };
 }

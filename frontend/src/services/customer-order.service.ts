@@ -51,6 +51,7 @@ export interface CheckoutRequest {
   tableId: string;
   tableCode: string;
   tableName: string;
+  tableType: string;
   sessionId: string;
   customerName: string;
   customerPhone?: string;
@@ -58,6 +59,23 @@ export interface CheckoutRequest {
   voucherCode?: string;
   requestedAt: string;
   totalDue: number;
+  sessionStart: string;
+  durationMinutes: number;
+  durationFormatted: string;
+  playingCost: number;
+  fnbTotal: number;
+  orders: {
+    id?: string;
+    name: string;
+    price: number;
+    quantity: number;
+    status: string;
+  }[];
+  subtotal: number;
+  deposit: number;
+  membershipTierName: string;
+  membershipDiscountAmount: number;
+  voucherDiscountAmount: number;
 }
 
 export interface CustomerCheckoutPreview {

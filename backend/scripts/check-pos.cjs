@@ -12,6 +12,7 @@ const { App } = require("../dist/app");
 const { User } = require("../dist/modules/user/user.model");
 const { Table } = require("../dist/modules/table/table.model");
 const { Booking } = require("../dist/modules/booking/booking.model");
+const { BookingPaymentReceipt } = require("../dist/modules/booking/booking-payment.model");
 const { Invoice } = require("../dist/modules/invoice/invoice.model");
 const { Wallet } = require("../dist/modules/wallet/wallet.model");
 const { Product } = require("../dist/modules/product/product.model");
@@ -40,6 +41,7 @@ async function main() {
       User.init(),
       Table.init(),
       Booking.init(),
+      BookingPaymentReceipt.init(),
       Invoice.init(),
       Wallet.init(),
       PlayReview.init(),
@@ -47,19 +49,20 @@ async function main() {
     server = new App().app.listen(0, "127.0.0.1");
     await new Promise((resolve) => server.once("listening", resolve));
     const base = `http://127.0.0.1:${server.address().port}/api/v1`;
-    async function request(path, method = "GET", body, token) {
+    async function request(path, method = "GET", body, token, extraHeaders = {}) {
       const response = await fetch(base + path, {
         method,
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...extraHeaders,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-      return response.json();
+      return { ...(await response.json()), httpStatus: response.status };
     }
-    async function ok(path, method, body, token) {
-      const result = await request(path, method, body, token);
+    async function ok(path, method, body, token, extraHeaders) {
+      const result = await request(path, method, body, token, extraHeaders);
       assert.equal(result.success, true, result.message);
       return result.data;
     }
@@ -236,6 +239,10 @@ async function main() {
       isForSale: true,
       isActive: true,
     });
+    process.env.SEPAY_WEBHOOK_KEY = "test-sepay-webhook-key-000000000";
+    process.env.SEPAY_BANK_CODE = "VCB";
+    process.env.SEPAY_ACCOUNT_NUMBER = "1234567890";
+    process.env.SEPAY_ACCOUNT_NAME = "CUEZONE TEST";
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const onlineDto = {
       customerName: "Check customer",
@@ -257,31 +264,56 @@ async function main() {
       "Concurrent online reservations must not claim the same slot",
     );
     const onlineBooking = onlineConcurrent.find((result) => result.success).data;
-    assert.equal(onlineBooking.status, "approved");
-    assert.match(onlineBooking.qrToken, /^[a-f0-9]{64}$/);
-    assert.equal((await Product.findById(preorderProduct._id)).stock, 8);
+    assert.equal(onlineBooking.status, "pending");
+    assert.equal(onlineBooking.paymentStatus, "awaiting_payment");
+    assert.match(onlineBooking.payment.reference, /^CB[A-F0-9]{24}$/);
+    assert.equal(onlineBooking.payment.amount, 130000);
+    assert.equal((await Product.findById(preorderProduct._id)).stock, 10);
+    assert.equal((await Table.findById(second._id)).status, "available");
+    const bankPaidAt = new Date(Date.now() + 7 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+    const sepayWebhook = {
+      id: "987654321",
+      transferType: "in",
+      accountNumber: "1234567890",
+      transferAmount: 130000,
+      transactionDate: bankPaidAt,
+      content: onlineBooking.payment.reference,
+    };
+    const sepayHeaders = {
+      Authorization: `Apikey ${process.env.SEPAY_WEBHOOK_KEY}`,
+    };
+    await ok("/public/sepay/webhook", "POST", sepayWebhook, undefined, sepayHeaders);
+    await ok("/public/sepay/webhook", "POST", sepayWebhook, undefined, sepayHeaders);
+    const confirmedPayment = await ok(
+      `/public/bookings/payment/${onlineBooking.payment.reference}`,
+      "GET",
+    );
+    assert.equal(confirmedPayment.status, "paid");
     assert.equal((await Table.findById(second._id)).status, "booked");
-    const qrBooking = await ok(
-      "/bookings/qr/resolve",
-      "POST",
-      { qrToken: onlineBooking.qrToken },
-      token,
-    );
-    assert.equal(qrBooking.table.code, "CHECK2");
-    assert.equal(qrBooking.preOrderItems[0].name, "Check drink");
-    assert.equal(qrBooking.preOrderTotal, 20000);
-    assert.equal(
-      (await request("/bookings/qr/resolve", "POST", { qrToken: onlineBooking.qrToken }, customer.accessToken))
-        .success,
-      false,
-    );
+    assert.equal((await Product.findById(preorderProduct._id)).stock, 8);
     const refreshedQr = await ok(
       `/bookings/${onlineBooking._id}/qr`,
       "POST",
       {},
       customer.accessToken,
     );
-    assert.notEqual(refreshedQr.qrToken, onlineBooking.qrToken);
+    const qrBooking = await ok(
+      "/bookings/qr/resolve",
+      "POST",
+      { qrToken: refreshedQr.qrToken },
+      token,
+    );
+    assert.equal(qrBooking.table.code, "CHECK2");
+    assert.equal(qrBooking.preOrderItems[0].name, "Check drink");
+    assert.equal(qrBooking.preOrderTotal, 20000);
+    assert.equal(
+      (await request("/bookings/qr/resolve", "POST", { qrToken: refreshedQr.qrToken }, customer.accessToken))
+        .success,
+      false,
+    );
     assert.equal(
       (await ok("/bookings/mine", "GET", undefined, customer.accessToken)).length,
       1,
@@ -312,7 +344,8 @@ async function main() {
       onlineDto,
       customer.accessToken,
     );
-    assert.equal(recreatedOnlineBooking.status, "approved");
+    assert.equal(recreatedOnlineBooking.status, "pending");
+    assert.equal(recreatedOnlineBooking.paymentStatus, "awaiting_payment");
     await ok(
       `/bookings/${recreatedOnlineBooking._id}/cancel`,
       "POST",
@@ -324,9 +357,10 @@ async function main() {
       "POST",
       { ...onlineDto, time: "15:00" },
     );
-    assert.equal(guestBooking.status, "approved");
+    assert.equal(guestBooking.status, "pending");
+    assert.equal(guestBooking.paymentStatus, "awaiting_payment");
     assert.equal(guestBooking.customer, null);
-    assert.match(guestBooking.qrToken, /^[a-f0-9]{64}$/);
+    assert.match(guestBooking.payment.reference, /^CB[A-F0-9]{24}$/);
     await ok(
       `/bookings/${guestBooking._id}`,
       "PATCH",

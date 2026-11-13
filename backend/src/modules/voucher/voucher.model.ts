@@ -39,6 +39,17 @@ export interface IVoucherUsage extends Document {
   usedAt: Date;
 }
 
+export interface IVoucherReservation extends Document {
+  voucherId: Types.ObjectId;
+  code: string;
+  sessionId: string;
+  customerPhone?: string;
+  customerId?: Types.ObjectId;
+  subtotal: number;
+  discountAmount: number;
+  reservedAt: Date;
+}
+
 const voucherSchema = new Schema<IVoucher>(
   {
     code: { type: String, required: true, unique: true, uppercase: true, trim: true, maxlength: 32 },
@@ -75,8 +86,25 @@ const voucherUsageSchema = new Schema<IVoucherUsage>(
   { timestamps: false },
 );
 
+const voucherReservationSchema = new Schema<IVoucherReservation>(
+  {
+    voucherId: { type: Schema.Types.ObjectId, ref: "Voucher", required: true, index: true },
+    code: { type: String, required: true, uppercase: true, trim: true },
+    sessionId: { type: String, required: true, unique: true },
+    customerPhone: { type: String, trim: true },
+    customerId: { type: Schema.Types.ObjectId, ref: "User" },
+    subtotal: { type: Number, required: true, min: 0 },
+    discountAmount: { type: Number, required: true, min: 0 },
+    reservedAt: { type: Date, required: true, default: Date.now },
+  },
+  { timestamps: false },
+);
+
 export const Voucher =
   mongoose.models.Voucher || mongoose.model<IVoucher>("Voucher", voucherSchema);
 export const VoucherUsage =
   mongoose.models.VoucherUsage ||
   mongoose.model<IVoucherUsage>("VoucherUsage", voucherUsageSchema);
+export const VoucherReservation =
+  mongoose.models.VoucherReservation ||
+  mongoose.model<IVoucherReservation>("VoucherReservation", voucherReservationSchema);

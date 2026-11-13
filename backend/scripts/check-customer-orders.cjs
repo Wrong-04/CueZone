@@ -1,6 +1,8 @@
 // Run from backend: pnpm check:customer-orders
 // Uses a disposable MongoDB database and requires transaction support.
 require("dotenv/config");
+const dns = require("node:dns");
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const mongoose = require("mongoose");
@@ -11,6 +13,7 @@ const { Table } = require("../dist/modules/table/table.model");
 const { CustomerOrder } = require("../dist/modules/customer-order/customer-order.model");
 const { Invoice } = require("../dist/modules/invoice/invoice.model");
 const { Wallet } = require("../dist/modules/wallet/wallet.model");
+const { Voucher, VoucherReservation, VoucherUsage } = require("../dist/modules/voucher/voucher.model");
 
 async function main() {
   const dbName = `cz_order_${crypto.randomUUID().slice(0, 20)}`;
@@ -20,7 +23,16 @@ async function main() {
       dbName,
       serverSelectionTimeoutMS: 8000,
     });
-    await Promise.all([User.init(), Product.init(), Table.init(), CustomerOrder.init()]);
+    await Promise.all([
+      User.init(),
+      Product.init(),
+      Table.init(),
+      CustomerOrder.init(),
+      Invoice.init(),
+      Voucher.init(),
+      VoucherReservation.init(),
+      VoucherUsage.init(),
+    ]);
     server = new App().app.listen(0, "127.0.0.1");
     await new Promise((resolve) => server.once("listening", resolve));
     const base = `http://127.0.0.1:${server.address().port}/api/v1`;
@@ -241,19 +253,33 @@ async function main() {
     );
     assert.equal(foreignPreview.status, 403, "Customers cannot view another account's session");
 
-    const insufficientWallet = await request(
+    const unsupportedWalletMethod = await request(
       `/customer/fnb-orders/${portalTableId}/checkout`,
       "POST",
       { sessionId: portalSessionId, paymentMethod: "member_balance" },
       customerToken,
     );
-    assert.equal(insufficientWallet.status, 409);
-    assert.equal(insufficientWallet.body.code, "WAL001");
+    assert.equal(unsupportedWalletMethod.status, 400);
 
+    const checkoutVoucher = await Voucher.create({
+      code: "PAYMENT-LOCK",
+      discountType: "fixed",
+      discountValue: 3000,
+      minOrderAmount: 0,
+      startsAt: new Date(Date.now() - 60000),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      maxUses: 1,
+      usageCount: 0,
+      isActive: true,
+    });
     const transferRequest = await request(
       `/customer/fnb-orders/${portalTableId}/checkout`,
       "POST",
-      { sessionId: portalSessionId, paymentMethod: "transfer" },
+      {
+        sessionId: portalSessionId,
+        paymentMethod: "transfer",
+        voucherCode: checkoutVoucher.code,
+      },
       customerToken,
     );
     assert.equal(transferRequest.status, 200, transferRequest.body.message);
@@ -271,6 +297,35 @@ async function main() {
       paymentRequests.body.data.some((item) => item.tableId === portalTableId),
       true,
     );
+    const pendingPayment = paymentRequests.body.data.find(
+      (item) => item.tableId === portalTableId,
+    );
+    assert.equal(pendingPayment.paymentMethod, "transfer");
+    assert.equal(pendingPayment.sessionId, portalSessionId);
+    assert.equal(
+      pendingPayment.subtotal,
+      pendingPayment.playingCost + pendingPayment.fnbTotal,
+    );
+    assert.equal(
+      pendingPayment.totalDue,
+      Math.max(
+        0,
+        pendingPayment.subtotal -
+          pendingPayment.membershipDiscountAmount -
+          pendingPayment.voucherDiscountAmount -
+          pendingPayment.deposit,
+      ),
+    );
+    assert.equal(
+      pendingPayment.membershipDiscountAmount,
+      portalTable.currentSession.pendingCheckout.membershipDiscountAmount,
+    );
+    assert.equal(pendingPayment.voucherDiscountAmount, 3000);
+    assert.equal(
+      (await VoucherReservation.findOne({ sessionId: portalSessionId })).discountAmount,
+      3000,
+    );
+    assert.equal((await Voucher.findById(checkoutVoucher._id)).usageCount, 1);
     const rejectedPayment = await request(
       `/customer/fnb-orders/payment-requests/${portalTableId}`,
       "PATCH",
@@ -278,6 +333,8 @@ async function main() {
       cashierToken,
     );
     assert.equal(rejectedPayment.body.data.status, "rejected");
+    assert.equal(await VoucherReservation.findOne({ sessionId: portalSessionId }), null);
+    assert.equal((await Voucher.findById(checkoutVoucher._id)).usageCount, 0);
     portalTable = await Table.findById(portalTableId);
     assert.equal(portalTable.currentSession.checkoutState, "open");
     assert.equal(portalTable.currentSession.isPaused, false);
@@ -285,9 +342,14 @@ async function main() {
     const cashRequest = await request(
       `/customer/fnb-orders/${portalTableId}/checkout`,
       "POST",
-      { sessionId: portalSessionId, paymentMethod: "cash" },
+      {
+        sessionId: portalSessionId,
+        paymentMethod: "cash",
+        voucherCode: checkoutVoucher.code,
+      },
       customerToken,
     );
+    await Voucher.updateOne({ _id: checkoutVoucher._id }, { $set: { isActive: false } });
     const confirmedPayment = await request(
       `/customer/fnb-orders/payment-requests/${portalTableId}`,
       "PATCH",
@@ -297,6 +359,18 @@ async function main() {
     assert.equal(confirmedPayment.body.data.status, "paid", confirmedPayment.body.message);
     assert.equal(confirmedPayment.body.data.receipt.paymentMethod, "cash");
     assert.equal(confirmedPayment.body.data.receipt.membershipTier, "Bạc");
+    assert.equal(confirmedPayment.body.data.receipt.voucherCode, checkoutVoucher.code);
+    assert.equal(confirmedPayment.body.data.receipt.voucherDiscountAmount, 3000);
+    assert.equal(
+      confirmedPayment.body.data.receipt.finalAmount,
+      cashRequest.body.data.totalDue,
+    );
+    assert.equal((await Voucher.findById(checkoutVoucher._id)).usageCount, 1);
+    assert.equal(await VoucherReservation.findOne({ sessionId: portalSessionId }), null);
+    assert.equal(
+      (await VoucherUsage.findOne({ sessionId: portalSessionId })).discountAmount,
+      3000,
+    );
     assert.equal(
       (await Invoice.findOne({ sessionId: portalSessionId })).status,
       "paid",
@@ -332,12 +406,8 @@ async function main() {
       { sessionId: walletSessionId, paymentMethod: "member_balance" },
       customerToken,
     );
-    assert.equal(walletCheckout.status, 200, walletCheckout.body.message);
-    assert.equal(walletCheckout.body.data.status, "paid");
-    assert.equal(
-      (await Invoice.findOne({ sessionId: walletSessionId })).receipt.paymentMethod,
-      "member_balance",
-    );
+    assert.equal(walletCheckout.status, 400);
+    assert.equal(await Invoice.findOne({ sessionId: walletSessionId }), null);
 
     const queue = await request("/customer/fnb-orders/queue", "GET", undefined, cashierToken);
     assert.equal(queue.body.data.some((item) => item._id === order._id), true);

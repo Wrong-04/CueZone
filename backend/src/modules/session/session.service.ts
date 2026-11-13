@@ -358,7 +358,7 @@ export class SessionService {
             throw Object.assign(new Error("Không tìm thấy lịch đặt bàn hợp lệ"), { httpCode: 409 });
           }
           booking.status = "checked_in";
-          deposit = booking.deposit || 0;
+          deposit = booking.paymentStatus === "paid" ? booking.deposit || 0 : 0;
           name = booking.customerName || name;
           phone = booking.phone || phone;
           preOrderedItems = (booking.preOrderItems || []).map((item: any) => ({
@@ -1060,9 +1060,15 @@ export class SessionService {
       let voucherDiscountAmount = 0;
       if (voucherCode) {
         voucherDiscountAmount = (
-          await new VoucherService().validate(
+          await new VoucherService().reserve(
             voucherCode,
             quote.subtotal - quote.membershipDiscountAmount,
+            {
+              sessionId: table.currentSession.sessionId,
+              customerPhone: user.phone,
+              customerId: user._id,
+            },
+            session,
           )
         ).discountAmount;
       }
@@ -1111,18 +1117,23 @@ export class SessionService {
   }
 
   async getCustomerPaymentRequests() {
-    const tables = await Table.find({
-      "currentSession.checkoutState": "pending_payment",
-      "currentSession.pendingCheckout": { $exists: true },
-    }).select("code name status currentSession");
+    const [tables, pricingTiers] = await Promise.all([
+      Table.find({
+        "currentSession.checkoutState": "pending_payment",
+        "currentSession.pendingCheckout": { $exists: true },
+      }).select("code name type area pricePerHour status currentSession"),
+      PricingTier.find({ isActive: true }),
+    ]);
     return Promise.all(
       tables.map(async (table) => {
         const pending = table.currentSession!.pendingCheckout!;
         const customer = await User.findById(pending.customerId).select("name phone");
+        const quote = this.customerQuote(table, 0, pricingTiers);
         return {
           tableId: String(table._id),
           tableCode: table.code,
           tableName: table.name,
+          tableType: table.type,
           sessionId: table.currentSession!.sessionId,
           customerName: customer?.name ?? table.currentSession!.customerName,
           customerPhone: customer?.phone ?? table.currentSession!.customerPhone,
@@ -1130,6 +1141,17 @@ export class SessionService {
           voucherCode: pending.voucherCode,
           requestedAt: pending.requestedAt,
           totalDue: pending.estimatedTotalDue,
+          sessionStart: table.currentSession!.sessionStart,
+          durationMinutes: quote.minutes,
+          durationFormatted: quote.formattedTime,
+          playingCost: quote.playingCost,
+          fnbTotal: quote.fnbTotal,
+          orders: quote.orders,
+          subtotal: quote.subtotal,
+          deposit: quote.deposit,
+          membershipTierName: pending.membershipTierName,
+          membershipDiscountAmount: pending.membershipDiscountAmount,
+          voucherDiscountAmount: pending.voucherDiscountAmount,
         };
       }),
     );
@@ -1181,6 +1203,13 @@ export class SessionService {
         throw Object.assign(new Error("Yêu cầu thanh toán đã được xử lý"), { httpCode: 409 });
       }
       const pending = current.currentSession.pendingCheckout;
+      if (pending?.voucherCode) {
+        await new VoucherService().releaseReservation(
+          sessionId,
+          pending.voucherCode,
+          session,
+        );
+      }
       current.currentSession.checkoutState = "open";
       if (pending?.wasPlaying) {
         current.currentSession.totalPausedMs +=
@@ -1379,21 +1408,58 @@ export class SessionService {
         typeof input.customerPhone === "string" && input.customerPhone.trim()
           ? input.customerPhone.trim()
           : current.customerPhone;
-      const voucher = input.voucherCode
-        ? await voucherService.redeem(
-            input.voucherCode,
-            voucherSubtotal,
-            {
-              sessionId: current.sessionId,
-              invoiceCode,
-              tableId: table._id,
-              customerName: current.customerName,
-              customerPhone: checkoutPhone,
-              customerId: input.customerId ? new Types.ObjectId(input.customerId) : undefined,
-            },
-            session,
-          )
-        : undefined;
+      const voucherData = {
+        sessionId: current.sessionId,
+        invoiceCode,
+        tableId: table._id,
+        customerName: current.customerName,
+        customerPhone: checkoutPhone,
+        customerId: input.customerId ? new Types.ObjectId(input.customerId) : undefined,
+      };
+      let voucher:
+        | { code: string; discountAmount: number }
+        | undefined;
+      if (input.customerCheckoutRequest === true && input.voucherCode) {
+        voucher = await voucherService.redeemReserved(
+          input.voucherCode,
+          voucherSubtotal,
+          voucherData,
+          session,
+        );
+      }
+      if (input.voucherCode && !voucher) {
+        voucher = await voucherService.redeem(
+          input.voucherCode,
+          voucherSubtotal,
+          voucherData,
+          session,
+        );
+        if (
+          input.customerCheckoutRequest === true &&
+          voucher.discountAmount !== current.pendingCheckout?.voucherDiscountAmount
+        ) {
+          throw Object.assign(new Error("Mức giảm voucher đã thay đổi, vui lòng kiểm tra lại"), {
+            httpCode: 409,
+          });
+        }
+      } else if (
+        input.customerCheckoutRequest === true &&
+        current.pendingCheckout?.voucherCode &&
+        !input.voucherCode
+      ) {
+        throw Object.assign(new Error("Yêu cầu voucher đang giữ không hợp lệ"), {
+          httpCode: 409,
+        });
+      }
+      if (
+        input.customerCheckoutRequest === true &&
+        voucher &&
+        voucher.discountAmount !== current.pendingCheckout?.voucherDiscountAmount
+      ) {
+        throw Object.assign(new Error("Mức giảm voucher đã thay đổi, vui lòng kiểm tra lại"), {
+          httpCode: 409,
+        });
+      }
       const voucherDiscountAmount = voucher?.discountAmount ?? 0;
       const manualDiscountAmount = input.discountPercent > 0
         ? Math.round((subtotal * input.discountPercent) / 100)
@@ -1403,6 +1469,15 @@ export class SessionService {
         membershipDiscountAmount + manualDiscountAmount + voucherDiscountAmount,
       );
       const finalAmount = Math.max(0, subtotal - discountAmount - current.deposit);
+      if (
+        input.customerCheckoutRequest === true &&
+        finalAmount !== current.pendingCheckout?.estimatedTotalDue
+      ) {
+        throw Object.assign(
+          new Error("Tổng tiền đã thay đổi so với yêu cầu thanh toán. Vui lòng kiểm tra lại."),
+          { httpCode: 409 },
+        );
+      }
 
       // Xử lý thanh toán kết hợp (Tiền mặt + Chuyển khoản QR)
       if (input.paymentMethod === "split" || input.paymentMethod === "cash_qr") {

@@ -5,6 +5,7 @@ import {
   UserOutlined,
   PhoneOutlined,
   CheckCircleOutlined,
+  CloseCircleOutlined,
   EnvironmentOutlined,
   ClockCircleOutlined,
   DollarOutlined,
@@ -40,14 +41,28 @@ interface BookingTableItem {
   id: string;
   code: string;
   name: string;
+  area: string;
   type: string;
   typeName: string;
+  isVip: boolean;
   price: number;
   priceFormatted: string;
 }
 
+interface BookingPaymentInfo {
+  reference: string;
+  status: "awaiting_payment" | "paid" | "expired" | "cancelled" | "refund_required";
+  amount: number;
+  deadline: string;
+  bankCode?: string;
+  accountNumber?: string;
+  accountName?: string;
+  qrUrl?: string | null;
+}
+
 const TABLE_CATEGORIES = [
   { key: "", label: "Tất Cả Loại Bàn" },
+  { key: "vip", label: "Bàn VIP" },
   { key: "pool", label: "Bida Lỗ (Pool)" },
   { key: "carom", label: "Bida Carom (Phăng)" },
   { key: "snooker", label: "Bida Snooker" },
@@ -62,7 +77,7 @@ export const CustomerBooking = () => {
   const [tablesList, setTablesList] = useState<BookingTableItem[]>([]);
   const [loadingTables, setLoadingTables] = useState<boolean>(true);
   const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam);
-  const [tableType, setTableType] = useState<"" | "pool" | "carom" | "snooker">("");
+  const [tableType, setTableType] = useState<"" | "vip" | "pool" | "carom" | "snooker">("");
   const [name, setName] = useState<string>(user?.name || "");
   const [phone, setPhone] = useState<string>(user?.phone || "");
 
@@ -108,7 +123,7 @@ export const CustomerBooking = () => {
   const isToday = date === todayIso;
 
   const timeOptions = useMemo(() => {
-    const slots: { value: string; label: string; disabled?: boolean }[] = [];
+    const slots: { value: string; label: string }[] = [];
     const currentH = new Date().getHours();
     const currentM = new Date().getMinutes();
 
@@ -117,14 +132,8 @@ export const CustomerBooking = () => {
         const hh = String(h).padStart(2, "0");
         const mm = String(m).padStart(2, "0");
         const val = `${hh}:${mm}`;
-        let label = val;
-
         const isPast = isToday && (h < currentH || (h === currentH && currentM >= m));
-        if (isPast) {
-          label += " (Đã qua)";
-        }
-
-        slots.push({ value: val, label, disabled: isPast });
+        if (!isPast) slots.push({ value: val, label: val });
       }
     }
     return slots;
@@ -132,9 +141,9 @@ export const CustomerBooking = () => {
 
   // Tự động ghim khung giờ hợp lệ nếu giờ đang chọn bị quá hạn
   useEffect(() => {
-    const validSlot = timeOptions.find((slot) => !slot.disabled);
+    const validSlot = timeOptions[0];
     const currentSlotObj = timeOptions.find((slot) => slot.value === time);
-    if ((!currentSlotObj || currentSlotObj.disabled) && validSlot) {
+    if (!currentSlotObj && validSlot) {
       setTime(validSlot.value);
     }
   }, [timeOptions, time]);
@@ -149,6 +158,60 @@ export const CustomerBooking = () => {
   const [showFnbMenuModal, setShowFnbMenuModal] = useState(false);
   const [selectedFnb, setSelectedFnb] = useState<Record<string, number>>({});
   const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
+  const [paymentIntent, setPaymentIntent] = useState<BookingPaymentInfo | null>(null);
+  const [paymentCheckError, setPaymentCheckError] = useState("");
+  const [cancellingPayment, setCancellingPayment] = useState(false);
+  const [confirmingCancelPayment, setConfirmingCancelPayment] = useState(false);
+
+  useEffect(() => {
+    if (!paymentIntent?.reference) return;
+    const deadline = new Date(paymentIntent.deadline).getTime();
+    const awaitingPayment = paymentIntent.status === "awaiting_payment";
+    const checkingLateWebhook =
+      paymentIntent.status === "expired" && Number.isFinite(deadline) && Date.now() < deadline + 120_000;
+    if (!awaitingPayment && !checkingLateWebhook) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const checkPayment = async () => {
+      try {
+        const status = await bookingService.getPublicPaymentStatus(paymentIntent.reference);
+        if (!active) return;
+        setPaymentIntent((current) => (current ? { ...current, ...status } : status));
+        if (status.status !== "awaiting_payment") setConfirmingCancelPayment(false);
+        setPaymentCheckError("");
+        if (status.status === "paid") {
+          setConfirmedBooking(status.booking);
+          setAvailabilityVersion((version) => version + 1);
+          message.success("Đã nhận cọc SePay, bàn đã được giữ thành công.");
+        } else if (status.status === "expired" || status.status === "refund_required") {
+          setAvailabilityVersion((version) => version + 1);
+          const statusDeadline = new Date(status.deadline).getTime();
+          if (
+            status.status === "expired" &&
+            Number.isFinite(statusDeadline) &&
+            Date.now() < statusDeadline + 120_000
+          ) {
+            timer = setTimeout(checkPayment, 3000);
+          }
+        } else {
+          timer = setTimeout(checkPayment, 3000);
+        }
+      } catch (error) {
+        if (!active) return;
+        setPaymentCheckError(
+          error instanceof Error ? error.message : "Chưa kiểm tra được trạng thái chuyển khoản",
+        );
+        timer = setTimeout(checkPayment, 5000);
+      }
+    };
+
+    timer = setTimeout(checkPayment, 3000);
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [paymentIntent?.deadline, paymentIntent?.reference, paymentIntent?.status]);
 
   useEffect(() => {
     let active = true;
@@ -215,23 +278,37 @@ export const CustomerBooking = () => {
           date,
           time,
           duration,
-          ...(tableType ? { type: tableType } : {}),
+          ...(tableType && tableType !== "vip" ? { type: tableType } : {}),
         });
         if (isMounted) {
-          const mapped: BookingTableItem[] = data.map((table) => ({
-            id: table.id,
-            code: table.code,
-            name: table.name.split("•")[0].split("-")[0].trim(),
-            type: table.type,
-            typeName:
-              table.type === "carom"
-                ? "Bàn Carom"
-                : table.type === "snooker"
-                  ? "Bàn Snooker"
-                  : "Bàn Lỗ (Pool)",
-            price: table.pricePerHour,
-            priceFormatted: `${table.pricePerHour.toLocaleString("vi-VN")}đ/h`,
-          }));
+          const mapped: BookingTableItem[] = data
+            .filter((table) =>
+              tableType !== "vip" ||
+              table.code?.toUpperCase().startsWith("VIP") ||
+              table.area?.toLowerCase().includes("vip"),
+            )
+            .map((table) => {
+              const isVip =
+                table.code?.toUpperCase().startsWith("VIP") ||
+                table.area?.toLowerCase().includes("vip");
+              const typeName =
+                table.type === "carom"
+                  ? "Bàn Carom"
+                  : table.type === "snooker"
+                    ? "Bàn Snooker"
+                    : "Bàn Lỗ (Pool)";
+              return {
+                id: table.id,
+                code: table.code,
+                name: table.name.split("•")[0].split("-")[0].trim(),
+                area: table.area || "",
+                type: table.type,
+                typeName: isVip ? `Bàn VIP · ${typeName}` : typeName,
+                isVip,
+                price: table.pricePerHour,
+                priceFormatted: `${table.pricePerHour.toLocaleString("vi-VN")}đ/h`,
+              };
+            });
           setTablesList(mapped);
           const preselected = mapped.find(
             (table) => table.id === preSelectedParam || table.code === preSelectedParam,
@@ -273,6 +350,8 @@ export const CustomerBooking = () => {
     const product = menuItems.find((menuItem) => menuItem._id === item.productId);
     return sum + (product?.salePrice || 0) * item.quantity;
   }, 0);
+  const estimatedTotal = totalCost + preOrderTotal;
+  const depositEstimate = Math.ceil(estimatedTotal / 2);
 
   const updateFnbQuantity = (productId: string, delta: number) => {
     setSelectedFnb((current) => {
@@ -288,6 +367,10 @@ export const CustomerBooking = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (paymentIntent?.status === "awaiting_payment") {
+      setShowSuccessModal(true);
+      return;
+    }
     if (!name.trim()) {
       message.warning("Vui lòng nhập tên người đặt bàn!");
       return;
@@ -326,9 +409,12 @@ export const CustomerBooking = () => {
         preOrderItems,
       });
       setConfirmedBooking(booking);
+      setPaymentIntent(booking.payment);
+      setPaymentCheckError("");
+      setConfirmingCancelPayment(false);
       setShowSuccessModal(true);
       setAvailabilityVersion((version) => version + 1);
-      message.success("Đặt bàn thành công! Quán đã sẵn sàng đón tiếp bạn.");
+      message.info("Vui lòng chuyển khoản tiền cọc trong 5 phút để giữ khung giờ.");
     } catch (err: any) {
       const errMsg =
         err.response?.data?.message || err.message || "Không thể đặt bàn, vui lòng thử lại!";
@@ -363,6 +449,33 @@ export const CustomerBooking = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelDeposit = async () => {
+    if (!paymentIntent?.reference || paymentIntent.status !== "awaiting_payment") return;
+    setCancellingPayment(true);
+    try {
+      const result = await bookingService.cancelPublicPayment(paymentIntent.reference);
+      setPaymentIntent((current) =>
+        current ? { ...current, status: result.status } : current,
+      );
+      setConfirmingCancelPayment(false);
+      setAvailabilityVersion((version) => version + 1);
+      setPaymentCheckError("");
+      if (result.status === "cancelled") {
+        message.success("Đã hủy yêu cầu đặt cọc và giải phóng khung giờ.");
+      } else {
+        message.info("Yêu cầu đặt cọc đã hết hạn, khung giờ không còn được giữ.");
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Không thể hủy yêu cầu đặt cọc";
+      setConfirmingCancelPayment(false);
+      setPaymentCheckError(errorMessage);
+      message.error(errorMessage);
+    } finally {
+      setCancellingPayment(false);
     }
   };
 
@@ -452,9 +565,16 @@ export const CustomerBooking = () => {
                           <span className="font-mono text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                             {t.code}
                           </span>
-                          {isSelected && (
-                            <CheckCircleOutlined className="text-emerald-600 text-sm" />
-                          )}
+                          <span className="flex items-center gap-1.5">
+                            {t.isVip && (
+                              <span className="text-[9px] font-black text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
+                                VIP
+                              </span>
+                            )}
+                            {isSelected && (
+                              <CheckCircleOutlined className="text-emerald-600 text-sm" />
+                            )}
+                          </span>
                         </div>
                         <span className={`font-black text-sm block ${isSelected ? "text-emerald-900" : "text-slate-900"}`}>
                           {t.name}
@@ -462,6 +582,11 @@ export const CustomerBooking = () => {
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase mt-0.5">
                           {t.typeName}
                         </span>
+                        {t.isVip && t.area && (
+                          <span className="text-[10px] text-purple-600 font-medium block mt-0.5">
+                            {t.area}
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -632,13 +757,23 @@ export const CustomerBooking = () => {
                     {time} ({selectedDateLabel}) • {duration} tiếng
                   </span>
                 </div>
-                <div className="pt-2 border-t border-slate-200 flex items-center justify-between font-bold text-sm">
-                  <span className="text-slate-900">Chi phí tạm tính:</span>
-                  <span className="text-emerald-700 text-base">
-                    {(totalCost + preOrderTotal).toLocaleString("vi-VN")} đ
-                  </span>
+                <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span>Tổng tạm tính (bàn + món):</span>
+                    <strong>{estimatedTotal.toLocaleString("vi-VN")} đ</strong>
+                  </div>
+                  <div className="flex items-center justify-between font-bold text-sm">
+                    <span className="text-slate-900">Cọc trước 50%:</span>
+                    <span className="text-emerald-700 text-base">
+                      {depositEstimate.toLocaleString("vi-VN")} đ
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              <p className="text-[11px] text-slate-500 -mt-2 mb-0">
+                Bàn chỉ được xác nhận sau khi SePay ghi nhận đúng số tiền cọc. Yêu cầu chuyển khoản giữ khung giờ trong 5 phút.
+              </p>
 
               {/* Lời nhắc chính sách giữ bàn */}
               <div className="p-3 bg-emerald-50 border border-emerald-200/90 rounded-2xl text-[11px] text-emerald-900 leading-relaxed flex items-start gap-1.5">
@@ -655,7 +790,9 @@ export const CustomerBooking = () => {
                 loading={loading}
                 className="w-full !h-12 !text-sm !font-bold !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white shadow-md shadow-emerald-600/20 !rounded-xl cursor-pointer"
               >
-                Xác Nhận Đặt Bàn Ngay
+                {paymentIntent?.status === "awaiting_payment"
+                  ? "Tiếp Tục Thanh Toán Cọc"
+                  : "Tạo Mã QR & Thanh Toán Cọc"}
                 <RightOutlined className="text-xs ml-1" />
               </Button>
             </form>
@@ -674,86 +811,174 @@ export const CustomerBooking = () => {
         confirmLabel="Lưu lựa chọn"
       />
 
-      {/* Modal Xác Nhận Thành Công */}
       <Modal
         open={showSuccessModal}
-        onCancel={() => setShowSuccessModal(false)}
-        footer={[
-          <Button
-            key="ok"
-            variant="primary"
-            onClick={() => setShowSuccessModal(false)}
-            className="!text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
-          >
-            Đã Hiểu & Đóng
-          </Button>,
-        ]}
+        onCancel={() => {
+          if (paymentIntent?.status !== "awaiting_payment") setShowSuccessModal(false);
+        }}
+        closable={paymentIntent?.status !== "awaiting_payment"}
+        maskClosable={paymentIntent?.status !== "awaiting_payment"}
+        footer={
+          paymentIntent?.status === "awaiting_payment"
+            ? confirmingCancelPayment
+              ? [
+                  <Button
+                    key="keep"
+                    disabled={cancellingPayment}
+                    onClick={() => setConfirmingCancelPayment(false)}
+                    className="!text-xs !font-bold !rounded-xl"
+                  >
+                    Quay lại thanh toán
+                  </Button>,
+                  <Button
+                    key="confirm-cancel"
+                    variant="danger"
+                    loading={cancellingPayment}
+                    onClick={handleCancelDeposit}
+                    className="!text-xs !font-bold !rounded-xl"
+                  >
+                    Xác nhận hủy đặt cọc
+                  </Button>,
+                ]
+              : [
+                  <Button
+                    key="cancel"
+                    variant="danger-outline"
+                    onClick={() => setConfirmingCancelPayment(true)}
+                    className="!text-xs !font-bold !rounded-xl"
+                  >
+                    Hủy yêu cầu đặt cọc
+                  </Button>,
+                  <Button
+                    key="wait"
+                    variant="primary"
+                    disabled
+                    className="!text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
+                  >
+                    Đang chờ thanh toán...
+                  </Button>,
+                ]
+            : [
+                <Button
+                  key="close"
+                  variant="primary"
+                  onClick={() => setShowSuccessModal(false)}
+                  className="!text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 text-white font-bold !rounded-xl"
+                >
+                  Đóng
+                </Button>,
+              ]
+        }
         title={
           <Space align="center" size={8}>
-            <CheckCircleOutlined className="text-emerald-600 text-lg" />
-            <span className="text-slate-900 font-bold">Đặt Bàn Thành Công!</span>
+            {paymentIntent?.status === "paid" ? (
+              <CheckCircleOutlined className="text-emerald-600 text-lg" />
+            ) : paymentIntent?.status === "cancelled" ? (
+              <CloseCircleOutlined className="text-rose-600 text-lg" />
+            ) : (
+              <DollarOutlined className="text-emerald-600 text-lg" />
+            )}
+            <span className="text-slate-900 font-bold">
+              {paymentIntent?.status === "paid"
+                ? "Đặt Bàn Thành Công!"
+                : paymentIntent?.status === "cancelled"
+                  ? "Đã Hủy Yêu Cầu Đặt Cọc"
+                  : paymentIntent?.status === "awaiting_payment"
+                    ? "Thanh Toán Cọc Đặt Bàn"
+                    : "Yêu Cầu Đặt Bàn Chưa Hoàn Tất"}
+            </span>
           </Space>
         }
       >
         <div className="space-y-4 py-2 text-xs text-slate-700">
-          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/90 text-emerald-900 space-y-1.5">
-            <div className="text-sm font-bold flex items-center gap-2">
-              <CheckCircleOutlined className="text-emerald-600" />
-              <span>Yêu cầu giữ bàn đã được xác nhận!</span>
+          {paymentIntent?.status === "awaiting_payment" && confirmingCancelPayment ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900 space-y-2">
+              <strong>Bạn có chắc muốn hủy yêu cầu đặt cọc này?</strong>
+              <p className="mb-0">
+                Khung giờ sẽ được giải phóng. Nếu bạn đã chuyển khoản, giao dịch có thể cần nhân viên đối soát hoặc hoàn tiền.
+              </p>
             </div>
-            <p className="text-xs text-emerald-800 leading-relaxed mb-0">
-              Khi đến quán, quý khách chỉ cần đọc số điện thoại{" "}
-              <strong className="font-mono text-emerald-950 font-bold">{phone}</strong>{" "}
-              cho nhân viên lễ tân/quầy thu ngân để mở bàn ngay mà không cần xuất trình mã QR.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-            <div className="flex items-center gap-2">
-              <EnvironmentOutlined className="text-emerald-600" />
-              <span>
-                <strong>Bàn:</strong>{" "}
-                {confirmedBooking?.tableCode
-                  ? `${confirmedBooking.tableCode} • ${confirmedBooking.tableName}`
-                  : selectedTable
-                    ? `${selectedTable.code} • ${selectedTable.name} (${selectedTable.typeName})`
-                    : ""}
-              </span>
+          ) : paymentIntent?.status === "awaiting_payment" ? (
+            <>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                Chuyển đúng <strong>{paymentIntent.amount.toLocaleString("vi-VN")}đ</strong> trong 5 phút. Bàn chỉ được xác nhận khi SePay báo giao dịch thành công.
+              </div>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                {paymentIntent.qrUrl && (
+                  <img
+                    src={paymentIntent.qrUrl}
+                    alt="Mã QR thanh toán cọc đặt bàn SePay"
+                    className="w-48 h-48 rounded-xl border border-slate-200 bg-white p-2"
+                  />
+                )}
+                <div className="space-y-2 text-xs">
+                  <div>Ngân hàng: <strong>{paymentIntent.bankCode}</strong></div>
+                  <div>Số tài khoản: <strong className="font-mono">{paymentIntent.accountNumber}</strong></div>
+                  <div>Chủ tài khoản: <strong>{paymentIntent.accountName}</strong></div>
+                  <div>Nội dung chuyển khoản: <strong className="font-mono text-emerald-700">{paymentIntent.reference}</strong></div>
+                  <div>Số tiền cọc: <strong className="text-emerald-700">{paymentIntent.amount.toLocaleString("vi-VN")}đ</strong></div>
+                </div>
+              </div>
+              {paymentCheckError && (
+                <p className="text-amber-700 mb-0">
+                  {paymentCheckError} — hệ thống sẽ tiếp tục kiểm tra tự động.
+                </p>
+              )}
+              <p className="text-slate-500 mb-0">Đang chờ SePay xác nhận giao dịch…</p>
+            </>
+          ) : paymentIntent?.status === "paid" ? (
+            <>
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1.5">
+                <div className="text-sm font-bold flex items-center gap-2">
+                  <CheckCircleOutlined className="text-emerald-600" />
+                  Đã nhận cọc và giữ bàn thành công.
+                </div>
+                <p className="mb-0">
+                  Khi đến quán, vui lòng đọc số điện thoại{" "}
+                  <strong className="font-mono">{confirmedBooking?.phone || phone}</strong>{" "}
+                  cho nhân viên để nhận bàn.
+                </p>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center gap-2">
+                  <EnvironmentOutlined className="text-emerald-600" />
+                  <span><strong>Bàn:</strong> {confirmedBooking?.tableCode} • {confirmedBooking?.tableName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ClockCircleOutlined className="text-emerald-600" />
+                  <span>
+                    <strong>Thời gian hẹn:</strong> {confirmedBooking?.time} ({confirmedBooking?.date}) • Dự kiến {confirmedBooking?.duration} giờ
+                  </span>
+                </div>
+                <div><strong>Tiền cọc đã thanh toán:</strong> {confirmedBooking?.deposit?.toLocaleString("vi-VN")} VNĐ</div>
+              </div>
+              <p className="text-slate-500">
+                Bạn có thể theo dõi lịch đặt tại{" "}
+                <Link to="/customer/history" className="font-semibold text-emerald-700">
+                  Lịch sử & Hóa đơn
+                </Link>.
+              </p>
+            </>
+          ) : paymentIntent?.status === "cancelled" ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-800 space-y-2">
+              <strong>Yêu cầu đặt cọc đã được hủy.</strong>
+              <p className="mb-0">
+                Khung giờ không còn được giữ. Nếu muốn đặt lại, hãy đóng cửa sổ này và tạo yêu cầu mới.
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <ClockCircleOutlined className="text-emerald-600" />
-              <span>
-                <strong>Thời gian hẹn:</strong> {confirmedBooking?.time || time} (
-                {confirmedBooking?.date || selectedDateLabel}) • Dự kiến {confirmedBooking?.duration || duration} giờ
-              </span>
+          ) : (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900 space-y-2">
+              <strong>
+                {paymentIntent?.status === "expired"
+                  ? "Đã hết 5 phút thanh toán; khung giờ không còn được giữ. Nếu bạn đã chuyển trước hạn, vui lòng liên hệ nhân viên để đối soát."
+                  : "Giao dịch chưa thể tự động xác nhận hoặc cần hoàn tiền."}
+              </strong>
+              <p className="mb-0">
+                Nếu bạn đã chuyển khoản, vui lòng liên hệ nhân viên CueZone và cung cấp mã{" "}
+                <strong className="font-mono">{paymentIntent?.reference}</strong> để được đối soát.
+              </p>
             </div>
-            <div className="p-2.5 rounded-xl bg-white border border-amber-300/80 text-[11px] text-amber-900 flex items-start gap-1.5">
-              <InfoCircleOutlined className="text-amber-600 text-xs mt-0.5 shrink-0" />
-              <span>
-                <strong>Lưu ý:</strong> Bàn được giữ tối đa <strong>15 phút</strong> sau giờ hẹn. Tiền bàn tính theo số phút thực tế từ lúc nhân viên mở bàn.
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <PhoneOutlined className="text-emerald-600" />
-              <span>
-                <strong>SĐT nhận bàn:</strong> {phone}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <DollarOutlined className="text-emerald-600" />
-              <span>
-                <strong>Chi phí bàn tạm tính:</strong>{" "}
-                {(confirmedBooking?.estimatedCost || totalCost).toLocaleString("vi-VN")} VNĐ
-              </span>
-            </div>
-          </div>
-          <p className="text-slate-500">
-            Lịch đặt đã được lưu vào hệ thống. Bạn có thể theo dõi hoặc hủy trước giờ chơi ít nhất 2 tiếng tại{" "}
-            <Link to="/customer/history" className="font-semibold text-emerald-700">
-              Lịch sử & Hóa đơn
-            </Link>
-            .
-          </p>
+          )}
         </div>
       </Modal>
     </div>
