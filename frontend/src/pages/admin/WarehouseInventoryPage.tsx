@@ -21,7 +21,6 @@ import {
   BarChartOutlined,
   ShoppingOutlined,
   ShopOutlined,
-  LockOutlined,
   PlusOutlined,
   AuditOutlined,
   SaveOutlined,
@@ -61,6 +60,8 @@ import {
 } from "../../services/goods-receipt.service";
 import { accessoryWasteService } from "../../services/accessory-waste.service";
 import { fetchSuppliers, type Supplier } from "../../services/supplier.service";
+import { posService } from "../../services/pos.service";
+import type { PosTable } from "../../types/pos";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -429,20 +430,14 @@ export const WarehouseInventoryPage: React.FC = () => {
           });
         }
 
-        if (isMounted && apiSlips.length > 0) {
-          setSlipsList((prev) => {
-            const userCreatedSlips = prev.filter((s) => !s.id.startsWith("slip-0"));
-            const map = new Map<string, InventorySlip>();
-            apiSlips.forEach((s) => map.set(s.id, s));
-            userCreatedSlips.forEach((s) => {
-              if (!map.has(s.id)) map.set(s.id, s);
-            });
-            return Array.from(map.values()).sort((a, b) => {
+        if (isMounted) {
+          setSlipsList(
+            apiSlips.sort((a, b) => {
               const da = parseSlipDate(a.date)?.unix() || 0;
               const db = parseSlipDate(b.date)?.unix() || 0;
               return db - da;
-            });
-          });
+            }),
+          );
         }
       } catch (err) {
         console.warn("Using local slip cache:", err);
@@ -888,6 +883,11 @@ export const WarehouseInventoryPage: React.FC = () => {
 
   // ── 2. MODALS ─────────────────────────────────────────────────────────────
 
+  // Trạng thái đang gửi yêu cầu (Loading & chống Double-click cho 3 modal)
+  const [isSubmittingInward, setIsSubmittingInward] = useState<boolean>(false);
+  const [isSubmittingTransfer, setIsSubmittingTransfer] = useState<boolean>(false);
+  const [isSubmittingWaste, setIsSubmittingWaste] = useState<boolean>(false);
+
   // Inward Modal
   const [inwardModalVisible, setInwardModalVisible] = useState<boolean>(false);
   const [inwardForm, setInwardForm] = useState({
@@ -903,9 +903,72 @@ export const WarehouseInventoryPage: React.FC = () => {
   const [transferForm, setTransferForm] = useState({
     sku: "",
     qty: 1,
-    target: "Quầy Bar & Phục Vụ Bàn Bida",
+    target: "Quầy Bar & Pha Chế",
     note: "",
   });
+
+  // Danh sách bàn bida thật lấy từ MongoDB & Bộ lọc trạng thái kiểm kê định kỳ
+  const [billiardTables, setBilliardTables] = useState<PosTable[]>([]);
+  const [stockCheckStatusFilter, setStockCheckStatusFilter] = useState<string>("all");
+  const [stockCheckSearch, setStockCheckSearch] = useState<string>("");
+
+  // Tải danh sách bàn bida thực tế từ MongoDB
+  useEffect(() => {
+    let isMounted = true;
+    posService
+      .getTables()
+      .then((tables) => {
+        if (isMounted && Array.isArray(tables)) {
+          setBilliardTables(tables);
+        }
+      })
+      .catch((err) => {
+        console.warn("Không thể tải danh sách bàn từ MongoDB:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Danh sách lựa chọn địa điểm tiếp nhận cấp phát xuất kho (Khu vực + Bàn thật trong DB)
+  const transferTargetOptions = useMemo(() => {
+    const operationalAreas = [
+      { value: "Quầy Bar & Pha Chế", label: "Quầy Bar & Pha Chế (F&B)" },
+      { value: "Quầy Thu Ngân / Lễ Tân", label: "Quầy Thu Ngân / Lễ Tân" },
+      { value: "Tủ cơ cho thuê & Phụ kiện", label: "Tủ cơ cho thuê & Phụ kiện (Lễ tân)" },
+      { value: "Khu vực bảo trì & thay nỉ bàn", label: "Khu vực bảo trì & thay nỉ bàn" },
+    ];
+
+    const tableOptions = billiardTables.map((t) => ({
+      value: `${t.name} (${t.typeName || t.type})`,
+      label: `${t.name} - ${t.typeName || "Bàn Bida"} [Mã: ${t.code}]`,
+    }));
+
+    return [
+      {
+        label: "Khu vực & Bộ phận vận hành quán",
+        options: operationalAreas,
+      },
+      {
+        label: `Bàn bida trong quán (${billiardTables.length} bàn thực tế từ MongoDB)`,
+        options: tableOptions,
+      },
+    ];
+  }, [billiardTables]);
+
+  // Bộ lọc danh sách kiểm kê định kỳ theo trạng thái và tìm kiếm
+  const filteredStockChecks = useMemo(() => {
+    return stockCheckList.filter((item) => {
+      const matchStatus =
+        stockCheckStatusFilter === "all" || item.status === stockCheckStatusFilter;
+      const matchSearch =
+        !stockCheckSearch.trim() ||
+        item.checkCode.toLowerCase().includes(stockCheckSearch.trim().toLowerCase()) ||
+        item.title.toLowerCase().includes(stockCheckSearch.trim().toLowerCase()) ||
+        (item.note && item.note.toLowerCase().includes(stockCheckSearch.trim().toLowerCase()));
+      return matchStatus && matchSearch;
+    });
+  }, [stockCheckList, stockCheckStatusFilter, stockCheckSearch]);
 
   // Modal & Form 2: Báo hỏng & hao mòn phụ kiện bida
   const [wasteModalVisible, setWasteModalVisible] = useState<boolean>(false);
@@ -1164,6 +1227,7 @@ export const WarehouseInventoryPage: React.FC = () => {
   };
 
   const handleCreateInwardSlip = async () => {
+    if (isSubmittingInward) return;
     if (inwardForm.qty <= 0) {
       message.warning("Số lượng nhập kho phải lớn hơn 0!");
       return;
@@ -1172,8 +1236,11 @@ export const WarehouseInventoryPage: React.FC = () => {
     const targetItem = stockList.find((i) => i.sku === inwardForm.sku);
     if (!targetItem) return;
 
-    const fixedCostPrice = targetItem.costPrice;
+    // Đơn giá vốn nhập linh hoạt (cho phép điều chỉnh khi giá thị trường/nhà cung cấp tăng)
+    const importPrice =
+      Number(inwardForm.unitPrice) >= 0 ? Number(inwardForm.unitPrice) : targetItem.costPrice;
 
+    setIsSubmittingInward(true);
     // Cập nhật trực tiếp vào MongoDB qua Goods Receipt API
     try {
       const matchedSupplier =
@@ -1187,7 +1254,7 @@ export const WarehouseInventoryPage: React.FC = () => {
             {
               product: targetItem.id,
               quantity: inwardForm.qty,
-              unitCost: fixedCostPrice,
+              unitCost: importPrice,
             },
           ],
           note: inwardForm.note || `Nhập kho mặt hàng ${targetItem.name}`,
@@ -1201,12 +1268,24 @@ export const WarehouseInventoryPage: React.FC = () => {
           product: targetItem.id,
           type: "in",
           quantity: inwardForm.qty,
-          reason: inwardForm.note || `Nhập kho mặt hàng ${targetItem.name}`,
+          reason:
+            inwardForm.note ||
+            `Nhập kho mặt hàng ${targetItem.name} (Đơn giá vốn: ${importPrice.toLocaleString("vi-VN")}đ)`,
         });
       }
 
-      // Re-fetch sản phẩm từ database để đồng bộ số lượng tồn kho thực tế trong MongoDB
-      const updatedProducts = await fetchProducts();
+      // Đóng modal NGAY LẬP TỨC để loại bỏ độ trễ và ngăn chặn click lần 2
+      setInwardModalVisible(false);
+      message.success(
+        `Đã lập phiếu nhập kho & cập nhật trực tiếp vào MongoDB! Cộng thêm +${inwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
+      );
+
+      // Re-fetch sản phẩm và phiếu nhập kho song song trong nền từ MongoDB
+      const [updatedProducts, updatedReceipts] = await Promise.all([
+        fetchProducts(),
+        fetchGoodsReceipts({ limit: 100 }),
+      ]);
+
       const rawProducts = Array.isArray(updatedProducts?.data)
         ? updatedProducts.data
         : Array.isArray(updatedProducts)
@@ -1217,8 +1296,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         setStockList(warehouseProducts.map(mapProductToWarehouseItem));
       }
 
-      // Re-fetch danh sách phiếu nhập kho từ MongoDB
-      const updatedReceipts = await fetchGoodsReceipts({ limit: 100 });
       if (Array.isArray(updatedReceipts?.data)) {
         const mappedReceipts: InventorySlip[] = updatedReceipts.data.map((r) => {
           const supplierName = typeof r.supplier === "object" ? r.supplier.name : "Nhà cung cấp";
@@ -1251,22 +1328,24 @@ export const WarehouseInventoryPage: React.FC = () => {
         });
         setSlipsList((prev) => {
           const nonInward = prev.filter((s) => s.type !== "inward");
-          return [...mappedReceipts, ...nonInward];
+          return [...mappedReceipts, ...nonInward].sort((a, b) => {
+            const da = parseSlipDate(a.date)?.unix() || 0;
+            const db = parseSlipDate(b.date)?.unix() || 0;
+            return db - da;
+          });
         });
       }
-
-      message.success(
-        `Đã lập phiếu nhập kho & cập nhật trực tiếp vào MongoDB! Cộng thêm +${inwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
-      );
-      setInwardModalVisible(false);
     } catch (err: any) {
       console.error("Lỗi cập nhật phiếu nhập kho lên MongoDB:", err);
       message.error(err?.message || "Không thể cập nhật phiếu nhập kho vào MongoDB.");
+    } finally {
+      setIsSubmittingInward(false);
     }
   };
 
   // Handler 1: Xuất kho cấp phát ra bàn & quầy POS
   const handleCreateTransferSlip = async () => {
+    if (isSubmittingTransfer) return;
     if (transferForm.qty <= 0) {
       message.warning("Số lượng xuất kho phải lớn hơn 0!");
       return;
@@ -1282,8 +1361,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       return;
     }
 
-    const subtotal = transferForm.qty * targetItem.costPrice;
-
+    setIsSubmittingTransfer(true);
     try {
       await createInventoryTransaction({
         product: targetItem.id,
@@ -1292,8 +1370,18 @@ export const WarehouseInventoryPage: React.FC = () => {
         reason: transferForm.note || `Xuất cấp phát ${targetItem.name} ra ${transferForm.target}`,
       });
 
-      // Đồng bộ tồn kho từ MongoDB (loại trừ các món chế biến tại quán)
-      const updatedProducts = await fetchProducts();
+      // Đóng modal NGAY LẬP TỨC để loại bỏ delay và ngăn click lần 2
+      setTransferModalVisible(false);
+      message.success(
+        `Đã lập phiếu xuất kho thành công! Trừ -${transferForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
+      );
+
+      // Đồng bộ đồng thời tồn kho và phiếu xuất kho từ MongoDB
+      const [updatedProducts, updatedTx] = await Promise.all([
+        fetchProducts(),
+        fetchInventoryTransactions({ limit: 100 }),
+      ]);
+
       const rawProducts = Array.isArray(updatedProducts?.data)
         ? updatedProducts.data
         : Array.isArray(updatedProducts)
@@ -1304,44 +1392,60 @@ export const WarehouseInventoryPage: React.FC = () => {
         setStockList(warehouseProducts.map(mapProductToWarehouseItem));
       }
 
-      const newSlip: InventorySlip = {
-        id: `slip-${Date.now()}`,
-        slipCode: `PXK-${Date.now().toString().slice(-4)}`,
-        type: "outward",
-        date: dayjs().format("DD/MM/YYYY"),
-        createdTime: dayjs().format("HH:mm"),
-        creator: user?.name || "Nhân viên kho",
-        partnerOrTarget: transferForm.target,
-        itemsCount: 1,
-        totalValue: subtotal,
-        status: "completed",
-        note: transferForm.note,
-        details: [
-          {
-            sku: targetItem.sku,
-            name: targetItem.name,
-            qty: transferForm.qty,
-            unit: targetItem.unit,
-            price: targetItem.costPrice,
-            subtotal: subtotal,
-          },
-        ],
-      };
-
-      setSlipsList((prev) => [newSlip, ...prev]);
-
-      message.success(
-        `Đã lập phiếu xuất kho thành công! Trừ -${transferForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
-      );
-      setTransferModalVisible(false);
+      if (Array.isArray(updatedTx?.data)) {
+        const mappedOutward: InventorySlip[] = [];
+        updatedTx.data.forEach((tx: any) => {
+          if (tx.type === "out") {
+            const performerName = tx.performedBy?.name || user?.name || "Nhân viên kho";
+            const p = typeof tx.product === "object" ? tx.product : {};
+            const unitPrice = Number(p?.costPrice ?? p?.price ?? targetItem.costPrice ?? 0);
+            const qty = Number(tx.quantity || 1);
+            const subtotalVal = qty * unitPrice;
+            mappedOutward.push({
+              id: tx._id,
+              slipCode: `PXK-${tx._id.slice(-6).toUpperCase()}`,
+              type: "outward",
+              date: dayjs(tx.createdAt).format("DD/MM/YYYY"),
+              createdTime: dayjs(tx.createdAt).format("HH:mm"),
+              creator: performerName,
+              partnerOrTarget: tx.reason || transferForm.target || "Quầy Bar & Bàn Bida",
+              itemsCount: 1,
+              totalValue: subtotalVal,
+              status: "completed",
+              note: tx.reason || "Xuất kho cấp phát",
+              details: [
+                {
+                  sku: p?.sku || targetItem.sku,
+                  name: p?.name || targetItem.name,
+                  qty,
+                  unit: p?.unit || targetItem.unit,
+                  price: unitPrice,
+                  subtotal: subtotalVal,
+                },
+              ],
+            });
+          }
+        });
+        setSlipsList((prev) => {
+          const nonOutward = prev.filter((s) => s.type !== "outward");
+          return [...mappedOutward, ...nonOutward].sort((a, b) => {
+            const da = parseSlipDate(a.date)?.unix() || 0;
+            const db = parseSlipDate(b.date)?.unix() || 0;
+            return db - da;
+          });
+        });
+      }
     } catch (err: any) {
       console.error("Lỗi xuất kho cấp phát:", err);
       message.error(err?.message || "Không thể thực hiện xuất kho cấp phát.");
+    } finally {
+      setIsSubmittingTransfer(false);
     }
   };
 
   // Handler 2: Báo hao mòn / hư hỏng phụ kiện bida
   const handleCreateWasteSlip = async () => {
+    if (isSubmittingWaste) return;
     if (wasteForm.qty <= 0) {
       message.warning("Số lượng báo hỏng phải lớn hơn 0!");
       return;
@@ -1362,6 +1466,7 @@ export const WarehouseInventoryPage: React.FC = () => {
         ? wasteForm.customReason
         : wasteForm.reason;
 
+    setIsSubmittingWaste(true);
     try {
       await accessoryWasteService.createWaste({
         productId: targetItem.id,
@@ -1370,8 +1475,18 @@ export const WarehouseInventoryPage: React.FC = () => {
         note: wasteForm.note,
       });
 
-      // Đồng bộ tồn kho từ MongoDB (loại trừ các món chế biến tại quán)
-      const updatedProducts = await fetchProducts();
+      // Đóng modal NGAY LẬP TỨC để loại bỏ delay và ngăn click lần 2
+      setWasteModalVisible(false);
+      message.success(
+        `Đã ghi nhận báo hỏng phụ kiện thành công! Trừ -${wasteForm.qty} ${targetItem.unit} "${targetItem.name}" trên MongoDB.`,
+      );
+
+      // Re-fetch tồn kho và danh sách báo hao mòn song song từ MongoDB
+      const [updatedProducts, updatedWastes] = await Promise.all([
+        fetchProducts(),
+        accessoryWasteService.getWastes({ limit: 100 }),
+      ]);
+
       const rawProducts = Array.isArray(updatedProducts?.data)
         ? updatedProducts.data
         : Array.isArray(updatedProducts)
@@ -1382,8 +1497,6 @@ export const WarehouseInventoryPage: React.FC = () => {
         setStockList(warehouseProducts.map(mapProductToWarehouseItem));
       }
 
-      // Re-fetch wastes từ MongoDB
-      const updatedWastes = await accessoryWasteService.getWastes({ limit: 100 });
       if (Array.isArray(updatedWastes?.data)) {
         const mappedWastes: InventorySlip[] = updatedWastes.data.map((w: any) => {
           const prodObj = typeof w.product === "object" ? w.product : null;
@@ -1420,17 +1533,18 @@ export const WarehouseInventoryPage: React.FC = () => {
         });
         setSlipsList((prev) => {
           const nonWaste = prev.filter((s) => s.type !== "waste");
-          return [...mappedWastes, ...nonWaste];
+          return [...mappedWastes, ...nonWaste].sort((a, b) => {
+            const da = parseSlipDate(a.date)?.unix() || 0;
+            const db = parseSlipDate(b.date)?.unix() || 0;
+            return db - da;
+          });
         });
       }
-
-      message.success(
-        `Đã ghi nhận báo hỏng phụ kiện thành công! Trừ -${wasteForm.qty} ${targetItem.unit} "${targetItem.name}" trên MongoDB.`,
-      );
-      setWasteModalVisible(false);
     } catch (err: any) {
       console.error("Lỗi ghi nhận hao mòn phụ kiện:", err);
       message.error(err?.message || "Không thể ghi nhận hao mòn phụ kiện.");
+    } finally {
+      setIsSubmittingWaste(false);
     }
   };
 
@@ -1612,8 +1726,18 @@ export const WarehouseInventoryPage: React.FC = () => {
       width: 130,
       align: "center",
       render: (_: unknown, record: WarehouseItem) => {
+        const alert = stockAlerts[record.sku];
+        let statusTag = (
+          <Tag
+            color="green"
+            className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
+          >
+            <CheckCircleOutlined /> ĐỦ HÀNG
+          </Tag>
+        );
+
         if (record.stockQty === 0) {
-          return (
+          statusTag = (
             <Tag
               color="error"
               className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
@@ -1621,9 +1745,8 @@ export const WarehouseInventoryPage: React.FC = () => {
               <CloseCircleOutlined /> HẾT HÀNG
             </Tag>
           );
-        }
-        if (record.stockQty <= record.minThreshold) {
-          return (
+        } else if (record.stockQty <= record.minThreshold) {
+          statusTag = (
             <Tag
               color="warning"
               className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
@@ -1632,105 +1755,67 @@ export const WarehouseInventoryPage: React.FC = () => {
             </Tag>
           );
         }
-        return (
-          <Tag
-            color="green"
-            className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold inline-flex items-center gap-1"
-          >
-            <CheckCircleOutlined /> ĐỦ HÀNG
-          </Tag>
-        );
-      },
-    },
-    {
-      title: "Thao tác",
-      key: "actions",
-      width: isAdmin ? 170 : 135,
-      align: "right" as const,
-      render: (_: unknown, record: WarehouseItem) => {
-        if (isAdmin) {
-          const hasAlert = Boolean(stockAlerts[record.sku]);
-          return (
-            <div className="flex items-center justify-end gap-1.5">
-              {hasAlert && (
-                <Tag
-                  color="orange"
-                  className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold cursor-pointer"
-                  onClick={() => handleOpenAlertModal(record)}
-                  title={`Nhân viên báo thiếu: ${stockAlerts[record.sku]?.note || ""}`}
-                >
-                  Báo thiếu
-                </Tag>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setInwardForm({
-                    sku: record.sku,
-                    qty: record.minThreshold * 2 || 2,
-                    unitPrice: record.costPrice,
-                    supplier: record.supplier,
-                    note: `Nhập bổ sung cho mặt hàng ${record.name}`,
-                  });
-                  setInwardModalVisible(true);
-                }}
-                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50 font-bold"
-              >
-                Nhập Thêm
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setTransferForm({
-                    sku: record.sku,
-                    qty: 1,
-                    target: "Quầy Bar & Phục Vụ Bàn Bida",
-                    note: `Xuất mặt hàng ${record.name}`,
-                  });
-                  setTransferModalVisible(true);
-                }}
-                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !bg-slate-100 hover:!bg-slate-200 !text-slate-700"
-              >
-                Xuất Kho
-              </Button>
-            </div>
-          );
-        }
 
-        // Với Staff: Chức năng Báo hết hàng
-        const alert = stockAlerts[record.sku];
         if (alert) {
           return (
-            <div className="flex items-center justify-end">
-              <Button
-                variant="outline"
-                size="sm"
+            <div className="inline-flex items-center gap-1.5">
+              {statusTag}
+              <Tag
+                color="orange"
+                className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold cursor-pointer"
                 onClick={() => handleOpenAlertModal(record)}
-                className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-amber-300 !bg-amber-50 hover:!bg-amber-100 !text-amber-800 font-bold flex items-center gap-1 shadow-2xs"
-                title="Bấm để xem hoặc cập nhật yêu cầu báo thiếu hàng"
+                title={`Nhân viên báo thiếu: ${alert.note || ""}`}
               >
-                <CheckOutlined className="text-amber-600" /> Đã báo thiếu
-              </Button>
+                Đã báo thiếu
+              </Tag>
             </div>
           );
         }
 
-        return (
-          <div className="flex items-center justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleOpenAlertModal(record)}
-              className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-amber-400 !bg-amber-50 hover:!bg-amber-100 !text-amber-800 font-bold flex items-center gap-1 shadow-2xs transition-all"
-            >
-              <AlertOutlined className="text-amber-600" /> Báo hết hàng
-            </Button>
-          </div>
-        );
+        return statusTag;
       },
     },
+    ...(!isAdmin
+      ? [
+          {
+            title: "Thao tác",
+            key: "actions",
+            width: 135,
+            align: "center" as const,
+            render: (_: unknown, record: WarehouseItem) => {
+              const alert = stockAlerts[record.sku];
+              if (alert) {
+                return (
+                  <div className="flex items-center justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenAlertModal(record)}
+                      className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-amber-300 !bg-amber-50 hover:!bg-amber-100 !text-amber-800 font-bold flex items-center gap-1 shadow-2xs"
+                      title="Bấm để xem hoặc cập nhật yêu cầu báo thiếu hàng"
+                    >
+                      <CheckOutlined className="text-amber-600" /> Đã báo thiếu
+                    </Button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex items-center justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenAlertModal(record)}
+                    className="!text-[11px] !h-8 !px-2.5 !rounded-xl !border-amber-400 !bg-amber-50 hover:!bg-amber-100 !text-amber-800 font-bold flex items-center gap-1 shadow-2xs transition-all"
+                  >
+                    <AlertOutlined className="text-amber-600" /> Báo hết hàng
+                  </Button>
+                </div>
+              );
+            },
+          },
+        ]
+      : []),
   ];
 
   // Slips Table Columns
@@ -2118,7 +2203,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       </div>
 
       {/* ── MAIN TABS SWITCHER (TOP NAVIGATION BAR) ────────────────────────── */}
-      <div className="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-xs">
+      <div className="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-xs overflow-x-auto">
         <SegmentedPillList
           items={mainPills}
           activeKey={activeTab}
@@ -2129,8 +2214,8 @@ export const WarehouseInventoryPage: React.FC = () => {
       {/* ── TAB 1: TỒN KHO VẬT TƯ & THIẾT BỊ ─────────────────────────────── */}
       {activeTab === "stock" && (
         <div className="space-y-4">
-          {/* 4 Thẻ KPI Thống Kê Chuẩn Giao Diện Ảnh 3 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 4 Thẻ KPI Thống Kê Chuẩn Giao Diện */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {/* Card 1: Tổng giá trị tồn */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
@@ -2141,10 +2226,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <DollarOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-emerald-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono truncate">
                 {metrics.totalValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2">Tổng giá trị vốn lưu kho thực tế</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Tổng giá trị vốn lưu kho thực tế</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
             </div>
 
@@ -2158,10 +2243,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <InboxOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-cyan-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-cyan-600 font-mono truncate">
                 {metrics.totalItems} mặt hàng
               </div>
-              <div className="text-xs text-slate-400 mt-2">Tổng số mã SKU sản phẩm và phụ kiện</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Tổng số mã SKU sản phẩm và phụ kiện</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
             </div>
 
@@ -2175,10 +2260,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <WarningOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-amber-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono truncate">
                 {metrics.lowStockCount} mặt hàng
               </div>
-              <div className="text-xs text-slate-400 mt-2">Mặt hàng chạm ngưỡng cần nhập thêm</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Mặt hàng chạm ngưỡng cần nhập thêm</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
             </div>
 
@@ -2192,10 +2277,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <FileTextOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-blue-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
                 {metrics.totalSlips} chứng từ
               </div>
-              <div className="text-xs text-slate-400 mt-2">Hồ sơ phiếu nhập, xuất và xuất hủy</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Hồ sơ phiếu nhập, xuất và xuất hủy</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
             </div>
           </div>
@@ -2212,31 +2297,6 @@ export const WarehouseInventoryPage: React.FC = () => {
                   phụ kiện bida và F&amp;B.
                 </p>
               </div>
-              {isAdmin && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    leftIcon={<PlusOutlined />}
-                    onClick={() => {
-                      const lowStockItem = stockList.find((i) => i.stockQty <= i.minThreshold);
-                      if (lowStockItem) {
-                        setInwardForm({
-                          sku: lowStockItem.sku,
-                          qty: lowStockItem.minThreshold * 2 || 5,
-                          unitPrice: lowStockItem.costPrice,
-                          supplier: lowStockItem.supplier,
-                          note: `Nhập bổ sung cho mặt hàng ${lowStockItem.name}`,
-                        });
-                      }
-                      setInwardModalVisible(true);
-                    }}
-                    className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
-                  >
-                    Nhập kho bổ sung
-                  </Button>
-                </div>
-              )}
             </div>
 
             {/* Toolbar lọc và tìm kiếm */}
@@ -2296,6 +2356,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               rowKey="id"
               pagination={false}
               bordered
+              scroll={{ x: 950 }}
             />
             <Pagination
               current={stockPage}
@@ -2312,7 +2373,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       {activeTab === "inward" && (
         <div className="space-y-4">
           {/* 4 Thẻ KPI Nhập Kho Đồng Bộ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {/* Card 1: Tổng giá trị nhập */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
@@ -2323,10 +2384,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <DollarOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-emerald-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono truncate">
                 {inwardMetrics.totalValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2">Vốn nhập hàng trong kỳ được chọn</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Vốn nhập hàng trong kỳ được chọn</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
             </div>
 
@@ -2340,10 +2401,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <FileTextOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-cyan-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-cyan-600 font-mono truncate">
                 {inwardMetrics.totalSlips} phiếu
               </div>
-              <div className="text-xs text-slate-400 mt-2">Đã ghi sổ nhập kho chính thức</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Đã ghi sổ nhập kho chính thức</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
             </div>
 
@@ -2357,10 +2418,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <InboxOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-blue-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
                 {inwardMetrics.totalQty.toLocaleString("vi-VN")} đơn vị
               </div>
-              <div className="text-xs text-slate-400 mt-2">
+              <div className="text-xs text-slate-400 mt-2 truncate">
                 Cơ, bóng, nỉ, lơ, phụ kiện & đồ uống
               </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
@@ -2376,10 +2437,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <ShopOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-purple-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-purple-600 font-mono truncate">
                 {inwardMetrics.suppliersCount} đối tác
               </div>
-              <div className="text-xs text-slate-400 mt-2">
+              <div className="text-xs text-slate-400 mt-2 truncate">
                 Nhà cung ứng phát sinh giao dịch nhập
               </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-purple-500" />
@@ -2402,7 +2463,18 @@ export const WarehouseInventoryPage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   leftIcon={<PlusOutlined />}
-                  onClick={() => setInwardModalVisible(true)}
+                  onClick={() => {
+                    const currentItem = stockList.find((i) => i.sku === inwardForm.sku) || stockList[0];
+                    if (currentItem) {
+                      setInwardForm((prev) => ({
+                        ...prev,
+                        sku: currentItem.sku,
+                        unitPrice: currentItem.costPrice || 0,
+                        supplier: currentItem.supplier || prev.supplier || (suppliers[0]?.name ?? ""),
+                      }));
+                    }
+                    setInwardModalVisible(true);
+                  }}
                   className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
                 >
                   Tạo phiếu nhập kho
@@ -2474,6 +2546,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               rowKey="id"
               pagination={false}
               bordered
+              scroll={{ x: 950 }}
             />
             <Pagination
               current={inwardPage}
@@ -2490,7 +2563,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       {activeTab === "outward" && (
         <div className="space-y-4">
           {/* 4 Thẻ KPI Xuất Kho & Hao Mòn */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {/* Card 1: Giá trị cấp phát */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
@@ -2501,10 +2574,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <CheckCircleOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-cyan-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-cyan-600 font-mono truncate">
                 {outwardMetrics.transferValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2">Xuất ra quầy bar & bàn bida phục vụ</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Xuất ra quầy bar & bàn bida phục vụ</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
             </div>
 
@@ -2518,10 +2591,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <DeleteOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-rose-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-rose-600 font-mono truncate">
                 {outwardMetrics.wasteValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2">
+              <div className="text-xs text-slate-400 mt-2 truncate">
                 {outwardMetrics.wasteCount} phiếu báo hỏng cơ, rách nỉ, mẻ bóng
               </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-rose-500" />
@@ -2537,10 +2610,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <FileTextOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-blue-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
                 {outwardMetrics.totalSlips} chứng từ
               </div>
-              <div className="text-xs text-slate-400 mt-2">Hồ sơ xuất cấp phát và xuất hủy kho</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">Hồ sơ xuất cấp phát và xuất hủy kho</div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
             </div>
 
@@ -2554,10 +2627,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <WarningOutlined />
                 </div>
               </div>
-              <div className="text-3xl font-black text-amber-600 font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono truncate">
                 {outwardMetrics.totalQty.toLocaleString("vi-VN")} đơn vị
               </div>
-              <div className="text-xs text-slate-400 mt-2">
+              <div className="text-xs text-slate-400 mt-2 truncate">
                 Tổng vật tư đã chuyển khỏi kho chính
               </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
@@ -2663,6 +2736,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               rowKey="id"
               pagination={false}
               bordered
+              scroll={{ x: 950 }}
             />
             <Pagination
               current={outwardPage}
@@ -2682,9 +2756,16 @@ export const WarehouseInventoryPage: React.FC = () => {
             /* ── CHẾ ĐỘ 1: DANH SÁCH CÁC ĐỢT KIỂM KÊ KHO ── */
             <div className="space-y-4">
               {/* 4 Thẻ KPI Summary Cards - Luôn đặt ở đầu tiên đồng bộ toàn hệ thống */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {/* Card 1: Tổng số đợt kiểm kê */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                <div
+                  onClick={() => setStockCheckStatusFilter("all")}
+                  className={`bg-white rounded-2xl p-5 border shadow-xs relative overflow-hidden cursor-pointer transition-all ${
+                    stockCheckStatusFilter === "all"
+                      ? "border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                       Tổng đợt kiểm kê
@@ -2693,15 +2774,22 @@ export const WarehouseInventoryPage: React.FC = () => {
                       <AuditOutlined />
                     </div>
                   </div>
-                  <div className="text-3xl font-black text-slate-800 font-mono">
+                  <div className="text-2xl sm:text-3xl font-black text-slate-800 font-mono truncate">
                     {stockCheckList.length} đợt
                   </div>
-                  <div className="text-xs text-slate-400 mt-2">Toàn bộ hồ sơ kiểm kê đối soát</div>
+                  <div className="text-xs text-slate-400 mt-2 truncate">Toàn bộ hồ sơ kiểm kê đối soát</div>
                   <div className="absolute top-0 right-0 left-0 h-1 bg-indigo-500" />
                 </div>
 
                 {/* Card 2: Đang kiểm đếm */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                <div
+                  onClick={() => setStockCheckStatusFilter("draft")}
+                  className={`bg-white rounded-2xl p-5 border shadow-xs relative overflow-hidden cursor-pointer transition-all ${
+                    stockCheckStatusFilter === "draft"
+                      ? "border-amber-500 ring-2 ring-amber-500/20 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                       Đang kiểm đếm
@@ -2710,15 +2798,22 @@ export const WarehouseInventoryPage: React.FC = () => {
                       <WarningOutlined />
                     </div>
                   </div>
-                  <div className="text-3xl font-black text-amber-600 font-mono">
+                  <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono truncate">
                     {stockCheckList.filter((s) => s.status === "draft").length} đợt
                   </div>
-                  <div className="text-xs text-slate-400 mt-2">Đang kiểm đếm thực tế tại quán</div>
+                  <div className="text-xs text-slate-400 mt-2 truncate">Đang kiểm đếm thực tế tại quán</div>
                   <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
                 </div>
 
                 {/* Card 3: Chờ duyệt cân bằng */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                <div
+                  onClick={() => setStockCheckStatusFilter("submitted")}
+                  className={`bg-white rounded-2xl p-5 border shadow-xs relative overflow-hidden cursor-pointer transition-all ${
+                    stockCheckStatusFilter === "submitted"
+                      ? "border-blue-500 ring-2 ring-blue-500/20 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                       Chờ duyệt cân bằng
@@ -2727,15 +2822,22 @@ export const WarehouseInventoryPage: React.FC = () => {
                       <FileTextOutlined />
                     </div>
                   </div>
-                  <div className="text-3xl font-black text-blue-600 font-mono">
+                  <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
                     {stockCheckList.filter((s) => s.status === "submitted").length} đợt
                   </div>
-                  <div className="text-xs text-slate-400 mt-2">Đã nộp biên bản đối soát</div>
+                  <div className="text-xs text-slate-400 mt-2 truncate">Đã nộp biên bản đối soát</div>
                   <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
                 </div>
 
                 {/* Card 4: Đã hoàn tất cân bằng */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+                <div
+                  onClick={() => setStockCheckStatusFilter("completed")}
+                  className={`bg-white rounded-2xl p-5 border shadow-xs relative overflow-hidden cursor-pointer transition-all ${
+                    stockCheckStatusFilter === "completed"
+                      ? "border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                       Đã hoàn tất cân bằng
@@ -2744,10 +2846,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                       <CheckCircleOutlined />
                     </div>
                   </div>
-                  <div className="text-3xl font-black text-emerald-600 font-mono">
+                  <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono truncate">
                     {stockCheckList.filter((s) => s.status === "completed").length} đợt
                   </div>
-                  <div className="text-xs text-slate-400 mt-2">
+                  <div className="text-xs text-slate-400 mt-2 truncate">
                     Đã cập nhật kho sổ cái chính thức
                   </div>
                   <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
@@ -2770,21 +2872,76 @@ export const WarehouseInventoryPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {isAdmin && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      leftIcon={<PlusOutlined />}
-                      onClick={() => setCreateCheckModalVisible(true)}
-                      className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
-                    >
-                      Tạo đợt kiểm kê
-                    </Button>
-                  )}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<PlusOutlined />}
+                    onClick={() => setCreateCheckModalVisible(true)}
+                    className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
+                  >
+                    Tạo đợt kiểm kê
+                  </Button>
+                </div>
+
+                {/* Thanh bộ lọc trạng thái & tìm kiếm theo dữ liệu thật */}
+                <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      LỌC THEO TRẠNG THÁI:
+                    </span>
+                    <Select
+                      value={stockCheckStatusFilter}
+                      onChange={(val) => setStockCheckStatusFilter(val)}
+                      className="!w-56 !rounded-xl !text-xs !h-9"
+                      options={[
+                        { value: "all", label: `Tất cả trạng thái (${stockCheckList.length})` },
+                        {
+                          value: "draft",
+                          label: `Đang kiểm đếm (${stockCheckList.filter((s) => s.status === "draft").length})`,
+                        },
+                        {
+                          value: "submitted",
+                          label: `Chờ duyệt cân bằng (${stockCheckList.filter((s) => s.status === "submitted").length})`,
+                        },
+                        {
+                          value: "completed",
+                          label: `Đã hoàn tất cân bằng (${stockCheckList.filter((s) => s.status === "completed").length})`,
+                        },
+                        {
+                          value: "cancelled",
+                          label: `Đã hủy (${stockCheckList.filter((s) => s.status === "cancelled").length})`,
+                        },
+                      ]}
+                    />
+
+                    {stockCheckStatusFilter !== "all" && (
+                      <button
+                        type="button"
+                        onClick={() => setStockCheckStatusFilter("all")}
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                      >
+                        Đặt lại bộ lọc
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Input
+                      prefix={<SearchOutlined className="text-slate-400 text-xs" />}
+                      placeholder="Tìm mã đợt, tiêu đề hoặc ghi chú..."
+                      value={stockCheckSearch}
+                      onChange={(e) => setStockCheckSearch(e.target.value)}
+                      allowClear
+                      className="!h-9 !rounded-xl !text-xs sm:!w-72"
+                    />
+                    <span className="text-xs text-slate-400 whitespace-nowrap font-medium">
+                      Hiển thị {filteredStockChecks.length} đợt
+                    </span>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm border-collapse">
+                  <table className="w-full text-left text-sm border-collapse min-w-[750px]">
                     <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200">
                       <tr>
                         <th className="px-5 py-4">Mã kiểm kê</th>
@@ -2798,14 +2955,16 @@ export const WarehouseInventoryPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {stockCheckList.length === 0 ? (
+                      {filteredStockChecks.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
-                            Chưa có đợt kiểm kê nào được tạo.
+                            {stockCheckList.length === 0
+                              ? "Chưa có đợt kiểm kê nào được tạo."
+                              : "Không tìm thấy đợt kiểm kê nào phù hợp với bộ lọc hiện tại."}
                           </td>
                         </tr>
                       ) : (
-                        stockCheckList.map((check) => {
+                        filteredStockChecks.map((check) => {
                           const matchRate =
                             check.summary.totalItems > 0
                               ? Math.round(
@@ -3000,18 +3159,26 @@ export const WarehouseInventoryPage: React.FC = () => {
                     </>
                   )}
 
-                  {activeCheckSession.status === "submitted" && isAdmin && (
-                    <Button
-                      variant="primary"
-                      size="md"
-                      leftIcon={<CheckCircleOutlined />}
-                      loading={stockCheckLoading}
-                      onClick={handleApproveBalance}
-                      className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-black !text-xs text-white shadow-sm"
-                    >
-                      Duyệt Cân Bằng Kho (Tự động điều chỉnh)
-                    </Button>
-                  )}
+                  {activeCheckSession.status === "submitted" &&
+                    (isAdmin ? (
+                      <Button
+                        variant="primary"
+                        size="md"
+                        leftIcon={<CheckCircleOutlined />}
+                        loading={stockCheckLoading}
+                        onClick={handleApproveBalance}
+                        className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-black !text-xs text-white shadow-sm"
+                      >
+                        Duyệt Cân Bằng Kho (Tự động điều chỉnh)
+                      </Button>
+                    ) : (
+                      <Tag
+                        color="processing"
+                        className="!text-xs !font-bold !py-1.5 !px-3 !rounded-full inline-flex items-center gap-1.5"
+                      >
+                        ⏳ Đã nộp phiếu — Chờ Quản lý duyệt cân bằng
+                      </Tag>
+                    ))}
 
                   {activeCheckSession.status === "completed" && (
                     <Tag color="green" className="!text-xs !font-bold !py-1 !px-3 !rounded-full">
@@ -3113,13 +3280,10 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <span className="font-bold text-slate-900 text-sm">
                     Bảng đối soát kiểm đếm & chênh lệch tồn kho (Variance)
                   </span>
-                  <span className="text-xs text-slate-400">
-                    Variance = Số đếm thực tế - Tồn hệ thống
-                  </span>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[850px]">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase">
                       <tr>
                         <th className="py-3 px-3 text-center w-12">STT</th>
@@ -3674,20 +3838,26 @@ export const WarehouseInventoryPage: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-bold text-slate-700">Đơn giá vốn nhập (VNĐ):</label>
-                <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-semibold inline-flex items-center gap-0.5">
-                  <LockOutlined /> Cố định
+                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold inline-flex items-center gap-0.5">
+                  Có thể điều chỉnh khi giá tăng
                 </span>
               </div>
-              <input
-                type="text"
-                readOnly
-                disabled
-                value={`${(inwardForm.unitPrice || 0).toLocaleString("vi-VN")} đ`}
-                title="Đơn giá vốn niêm yết theo Quản lý hàng hóa, không thể chỉnh sửa tăng giảm"
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 font-mono font-bold text-xs cursor-not-allowed select-none outline-none"
+              <Input
+                type="number"
+                min={0}
+                step={1000}
+                value={inwardForm.unitPrice}
+                onChange={(e) =>
+                  setInwardForm((prev) => ({
+                    ...prev,
+                    unitPrice: Math.max(0, parseInt(e.target.value) || 0),
+                  }))
+                }
+                placeholder="Nhập đơn giá vốn thực tế..."
+                className="!h-10 !rounded-xl text-xs font-mono font-bold"
               />
               <span className="text-[10.5px] text-slate-400 mt-0.5 block">
-                * Đồng bộ trực tiếp với giá vốn trong danh mục
+                * Mặc định theo giá vốn niêm yết, có thể sửa khi giá nhập nhà cung cấp tăng/thay đổi
               </span>
             </div>
           </div>
@@ -3734,6 +3904,7 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="outline"
               size="md"
+              disabled={isSubmittingInward}
               onClick={() => setInwardModalVisible(false)}
               className="!rounded-xl !text-xs"
             >
@@ -3742,10 +3913,12 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="primary"
               size="md"
+              loading={isSubmittingInward}
+              disabled={isSubmittingInward}
               onClick={handleCreateInwardSlip}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
             >
-              Xác Nhận Nhập Kho
+              {isSubmittingInward ? "Đang xử lý..." : "Xác Nhận Nhập Kho"}
             </Button>
           </div>
         </div>
@@ -3815,20 +3988,28 @@ export const WarehouseInventoryPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Địa điểm / Bộ phận tiếp nhận:
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700">
+                Địa điểm / Bộ phận tiếp nhận:
+              </label>
+              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
+                {billiardTables.length > 0
+                  ? `Đồng bộ ${billiardTables.length} bàn thực tế từ MongoDB`
+                  : "Bộ phận vận hành"}
+              </span>
+            </div>
             <Select
+              showSearch
               value={transferForm.target}
               onChange={(val) => setTransferForm((prev) => ({ ...prev, target: val }))}
               className="!w-full !rounded-xl !text-xs !h-10"
-              options={[
-                { value: "Quầy Bar & Thu ngân", label: "Quầy Bar & Thu ngân" },
-                { value: "Bàn thi đấu Match 13 (VIP)", label: "Bàn thi đấu Match 13 (VIP)" },
-                { value: "Bàn thi đấu Match 14 (VIP)", label: "Bàn thi đấu Match 14 (VIP)" },
-                { value: "Tủ cơ cho thuê (Lễ tân)", label: "Tủ cơ cho thuê (Lễ tân)" },
-                { value: "Khu vực bảo trì & thay nỉ bàn", label: "Khu vực bảo trì & thay nỉ bàn" },
-              ]}
+              options={transferTargetOptions}
+              filterOption={(input, option) =>
+                String(option?.label ?? "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
+              placeholder="Chọn bàn bida hoặc khu vực tiếp nhận..."
             />
           </div>
 
@@ -3857,6 +4038,7 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="outline"
               size="md"
+              disabled={isSubmittingTransfer}
               onClick={() => setTransferModalVisible(false)}
               className="!rounded-xl !text-xs"
             >
@@ -3865,10 +4047,12 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="primary"
               size="md"
+              loading={isSubmittingTransfer}
+              disabled={isSubmittingTransfer}
               onClick={handleCreateTransferSlip}
               className="!rounded-xl !font-bold px-6 !text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600"
             >
-              Xác Nhận Xuất Kho
+              {isSubmittingTransfer ? "Đang xử lý..." : "Xác Nhận Xuất Kho"}
             </Button>
           </div>
         </div>
@@ -3986,6 +4170,7 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="outline"
               size="md"
+              disabled={isSubmittingWaste}
               onClick={() => setWasteModalVisible(false)}
               className="!rounded-xl !text-xs"
             >
@@ -3994,10 +4179,12 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Button
               variant="primary"
               size="md"
+              loading={isSubmittingWaste}
+              disabled={isSubmittingWaste}
               onClick={handleCreateWasteSlip}
               className="!rounded-xl !font-bold px-6 !text-xs !bg-rose-600 hover:!bg-rose-700 !border-rose-600"
             >
-              Xác Nhận Báo Hao Mòn
+              {isSubmittingWaste ? "Đang xử lý..." : "Xác Nhận Báo Hao Mòn"}
             </Button>
           </div>
         </div>
@@ -4207,8 +4394,8 @@ export const WarehouseInventoryPage: React.FC = () => {
               <span className="font-bold text-slate-800 text-xs block mb-2">
                 Danh sách mặt hàng chứng từ:
               </span>
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <table className="w-full text-left text-xs">
+              <div className="border border-slate-200 rounded-2xl overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[500px]">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[10px] uppercase">
                     <tr>
                       <th className="py-2.5 px-3">Mã hàng</th>

@@ -406,9 +406,13 @@ router.post("/:id/complete", async (req: Request, res: Response) => {
       const inventoryDocs: any[] = [];
 
       for (const item of receipt.items) {
+        const updateOps: any = { $inc: { stock: item.quantity } };
+        if (Number(item.unitCost) > 0) {
+          updateOps.$set = { costPrice: Number(item.unitCost) };
+        }
         const product = await Product.findByIdAndUpdate(
           item.product,
-          { $inc: { stock: item.quantity } },
+          updateOps,
           { session: mongoSession, new: true },
         );
         if (!product) {

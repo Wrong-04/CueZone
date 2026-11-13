@@ -276,7 +276,7 @@ const AppRoutes = () => {
         <Route
           path="/stock-checks"
           element={
-            <ProtectedRoute permission="inventory.manage">
+            <ProtectedRoute permission="inventory.read">
               <StockCheckPage />
             </ProtectedRoute>
           }

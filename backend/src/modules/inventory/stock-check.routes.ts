@@ -67,10 +67,10 @@ router.get("/:id", requireInventoryRead, async (req: Request, res: Response, nex
 });
 
 /**
- * SCRUM-1065: BE: Xây dựng API tạo đợt kiểm kê kèm snapshot tồn kho hiện tại
+ * SCRUM-1065: BE: Xây dựng API tạo đợt kiểm kê kèm snapshot tồn kho hiện tại (Hỗ trợ cả Staff & Admin)
  * POST /inventory/stock-checks
  */
-router.post("/", requireProductManager, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/", requireInventoryRead, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
@@ -97,10 +97,10 @@ router.post("/", requireProductManager, async (req: Request, res: Response, next
 });
 
 /**
- * SCRUM-1064: BE: Xây dựng API nhập số lượng kiểm đếm và nộp phiếu kiểm kê ở trạng thái SUBMITTED
+ * SCRUM-1064: BE: Xây dựng API nhập số lượng kiểm đếm và nộp phiếu kiểm kê ở trạng thái SUBMITTED (Staff & Admin)
  * PUT /inventory/stock-checks/:id/counts
  */
-router.put("/:id/counts", requireProductManager, async (req: Request, res: Response, next: NextFunction) => {
+router.put("/:id/counts", requireInventoryRead, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
