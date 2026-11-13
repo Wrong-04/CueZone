@@ -18,7 +18,6 @@ import {
   type BracketStructure,
 } from "../../services/tournament.service";
 import { InteractiveBracketTree } from "../../components/tournament/InteractiveBracketTree";
-import { RefereeLivePanel } from "../../components/tournament/RefereeLivePanel";
 import { getSocket } from "../../services/socket.service";
 import { TournamentHero } from "../../components/tournament/TournamentHero";
 import { TournamentListTab } from "../../components/tournament/TournamentListTab";
@@ -344,7 +343,6 @@ export const AdminTournamentsPage: React.FC = () => {
   const mainTabPills = [
     { key: "tournaments", label: "Sảnh Giải Đấu CLB", badge: apiTournaments.length },
     { key: "brackets", label: "Nhánh Đấu" },
-    { key: "referee_live", label: "Bàn Trọng Tài" },
     { key: "leaderboard", label: "Bảng Xếp Hạng ELO", badge: leaderboard.length || undefined },
   ];
 
@@ -681,18 +679,6 @@ export const AdminTournamentsPage: React.FC = () => {
             </div>
           )}
         </div>
-      )}
-
-      {activeMainTab === "referee_live" && (
-        <RefereeLivePanel
-          tournaments={apiTournaments}
-          selectedTournamentId={selectedTourneyForBracket?._id}
-          onSelectTournament={(id) => {
-            const t = apiTournaments.find((item) => item._id === id) || null;
-            setSelectedTourneyForBracket(t);
-          }}
-          onScoreUpdated={() => void fetchLeaderboard()}
-        />
       )}
 
       {activeMainTab === "leaderboard" && (
