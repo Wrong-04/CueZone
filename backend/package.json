@@ -13,7 +13,8 @@
     "check:vouchers": "pnpm build && node scripts/check-vouchers.cjs",
     "check:customer-orders": "pnpm build && node scripts/check-customer-orders.cjs",
     "check:tournament-reg": "pnpm build && node scripts/check-tournament-registration.cjs",
-    "check:news": "pnpm build && node scripts/check-news.cjs"
+    "check:news": "pnpm build && node scripts/check-news.cjs",
+    "check:bracket": "pnpm build && node scripts/check-bracket.cjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",

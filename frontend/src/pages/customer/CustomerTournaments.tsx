@@ -14,7 +14,7 @@ import {
   ReloadOutlined,
   QrcodeOutlined,
 } from "@ant-design/icons";
-import { Button, Card, Tag, Space, Typography, Modal } from "../../shared/ui";
+import { Alert, Button, Card, Tag, Space, Typography, Modal } from "../../shared/ui";
 import { TournamentPaymentModal } from "../../components/tournament/TournamentPaymentModal";
 import { TournamentEPassModal, type TournamentEPassData } from "../../components/tournament/TournamentEPassModal";
 import { useAuth } from "../../contexts/AuthContext";
@@ -126,14 +126,19 @@ const CustomerTournaments = () => {
   const [selectedTourneyForBracket, setSelectedTourneyForBracket] = useState<TournamentItem | null>(null);
   const [bracketData, setBracketData] = useState<BracketStructure | null>(null);
   const [loadingBracket, setLoadingBracket] = useState<boolean>(false);
+  const [bracketError, setBracketError] = useState<boolean>(false);
 
   const loadBracket = useCallback(async (tourneyId: string, silent = false) => {
     if (!silent) setLoadingBracket(true);
     try {
       const data = await tournamentService.getBracket(tourneyId);
       setBracketData(data);
+      setBracketError(false);
     } catch {
-      setBracketData(null);
+      if (!silent) {
+        setBracketData(null);
+        setBracketError(true);
+      }
     } finally {
       if (!silent) setLoadingBracket(false);
     }
@@ -880,6 +885,22 @@ const CustomerTournaments = () => {
               <div className="inline-block animate-spin w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full" />
               <div>Đang tải sơ đồ nhánh thi đấu...</div>
             </div>
+          ) : bracketError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="Không tải được sơ đồ nhánh thi đấu"
+              description="Vui lòng kiểm tra kết nối rồi thử lại."
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => selectedTourneyForBracket && void loadBracket(selectedTourneyForBracket.id)}
+                >
+                  Thử lại
+                </Button>
+              }
+            />
           ) : bracketData && bracketData.rounds.length > 0 ? (
             <div className="rounded-2xl bg-[#0b1329] border border-slate-800 p-4 sm:p-6 shadow-md text-white">
               <div className="mb-4">

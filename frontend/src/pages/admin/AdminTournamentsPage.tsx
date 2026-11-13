@@ -4,10 +4,12 @@ import {
   DeleteOutlined,
 } from "@ant-design/icons";
 import {
+  Alert,
   Button,
   message,
   Modal,
   SegmentedPillList,
+  Spin,
 } from "../../shared/ui";
 import {
   tournamentService,
@@ -109,6 +111,7 @@ export const AdminTournamentsPage: React.FC = () => {
   const [selectedTourneyForBracket, setSelectedTourneyForBracket] = useState<TournamentItem | null>(null);
   const [bracketData, setBracketData] = useState<BracketStructure | null>(null);
   const [loadingBracket, setLoadingBracket] = useState<boolean>(false);
+  const [bracketError, setBracketError] = useState<boolean>(false);
   const [generatingBracket, setGeneratingBracket] = useState<boolean>(false);
 
   const fetchTournaments = useCallback(async () => {
@@ -147,8 +150,12 @@ export const AdminTournamentsPage: React.FC = () => {
     try {
       const data = await tournamentService.getBracket(tourneyId);
       setBracketData(data);
-    } catch (err: any) {
-      if (!silent) setBracketData(null);
+      setBracketError(false);
+    } catch {
+      if (!silent) {
+        setBracketData(null);
+        setBracketError(true);
+      }
     } finally {
       if (!silent) setLoadingBracket(false);
     }
@@ -260,6 +267,7 @@ export const AdminTournamentsPage: React.FC = () => {
     try {
       const data = await tournamentService.generateBracket(selectedTourneyForBracket._id);
       setBracketData(data);
+      setBracketError(false);
       message.success("Đã sinh cây nhánh đấu Single Elimination thành công!");
       void fetchTournaments();
     } catch (err: any) {
@@ -594,7 +602,7 @@ export const AdminTournamentsPage: React.FC = () => {
                 Tải lại
               </Button>
 
-              {selectedTourneyForBracket && (
+              {selectedTourneyForBracket && !bracketError && (
                 <Button
                   type="primary"
                   onClick={handleGenerateBracket}
@@ -609,8 +617,23 @@ export const AdminTournamentsPage: React.FC = () => {
 
           {loadingBracket ? (
             <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-12 text-center text-slate-400">
-              <span className="inline-block animate-spin mr-2">⚡</span> Đang tải cây nhánh đấu...
+              <Spin /> <span className="ml-2">Đang tải cây nhánh đấu...</span>
             </div>
+          ) : bracketError ? (
+            <Alert
+              type="error"
+              showIcon
+              title="Không tải được cây nhánh đấu"
+              description="Vui lòng kiểm tra kết nối rồi thử lại. Nhánh đấu hiện có không bị thay đổi."
+              action={
+                <Button
+                  size="small"
+                  onClick={() => selectedTourneyForBracket && void fetchBracket(selectedTourneyForBracket._id)}
+                >
+                  Thử lại
+                </Button>
+              }
+            />
           ) : bracketData && bracketData.rounds.length > 0 ? (
             <div className="rounded-2xl bg-slate-900/40 border border-slate-800 p-4 sm:p-6 shadow-md">
               <div className="mb-4 flex items-center justify-between">

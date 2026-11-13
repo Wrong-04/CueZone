@@ -56,3 +56,4 @@
 - Reloading, audit commands, and hook boundaries: Read `AGENT_SETUP.md` when modifying agent configuration.
 - Stack skills: `.agents/skills/cuezone-{react,antd,vite,node,mongodb}/`; load only relevant skills.
 - Do not modify personal configurations, tokens, MCPs, or global permissions to resolve project-level errors.
+- Once you have completed a task, you can assign a subagent to use a skill for code review, in order to check the work you have just done.
