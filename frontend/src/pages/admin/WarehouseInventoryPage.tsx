@@ -1024,75 +1024,18 @@ export const WarehouseInventoryPage: React.FC = () => {
         search: reportSearch.trim() || undefined,
       });
 
-      const slipsInPeriod = slipsList.filter((s) => isSlipInDateRange(s.date, reportRange));
-
       if (res && Array.isArray(res.items)) {
-        const itemMap = new Map<string, InventoryReportItem>();
-
-        // 1. Lưu các mặt hàng từ backend
-        for (const it of res.items) {
-          const key = it.sku ? it.sku.trim().toUpperCase() : it.name.trim().toLowerCase();
-          itemMap.set(key, { ...it });
-        }
-
-        // 2. Đồng bộ các giao dịch xuất nhập kho trong kỳ
-        for (const slip of slipsInPeriod) {
-          for (const d of slip.details) {
-            const key = d.sku ? d.sku.trim().toUpperCase() : d.name.trim().toLowerCase();
-            let target = itemMap.get(key);
-
-            if (!target) {
-              const matchedStock = stockList.find(
-                (si) =>
-                  (d.sku && si.sku.trim().toUpperCase() === d.sku.trim().toUpperCase()) ||
-                  si.name.trim().toLowerCase() === d.name.trim().toLowerCase(),
-              );
-
-              const initStock = matchedStock ? matchedStock.stockQty : d.qty;
-              const cost = matchedStock ? matchedStock.costPrice : d.price;
-
-              target = {
-                productId: matchedStock?.id || `item-${Date.now()}`,
-                sku: d.sku || matchedStock?.sku || "SKU-N/A",
-                name: d.name || matchedStock?.name || "Vật tư bida",
-                category: matchedStock?.category || "accessory",
-                unit: d.unit || matchedStock?.unit || "Cái",
-                costPrice: cost,
-                salePrice: matchedStock?.sellingPrice || cost * 1.3,
-                openingStock: initStock,
-                inStock: 0,
-                outStock: 0,
-                wasteStock: 0,
-                closingStock: initStock,
-                closingValue: initStock * cost,
-              };
-              itemMap.set(key, target);
-            }
-
-            if (slip.type === "inward") {
-              target.inStock += d.qty;
-            } else if (slip.type === "outward") {
-              target.outStock += d.qty;
-            } else if (slip.type === "waste") {
-              target.wasteStock += d.qty;
-            }
-
-            target.closingStock = Math.max(
-              0,
-              target.openingStock + target.inStock - target.outStock - target.wasteStock,
-            );
-            target.closingValue = target.closingStock * target.costPrice;
-          }
-        }
-
-        setReportItems(Array.from(itemMap.values()));
+        // Sử dụng 100% dữ liệu đối soát thực tế từ MongoDB qua Backend API
+        setReportItems(res.items);
       }
-    } catch {
-      // Fallback: derive from stockList and slipsList trong khoảng thời gian đã chọn
+    } catch (err) {
+      console.warn("Lỗi khi tải báo cáo xuất nhập tồn từ máy chủ, chuyển sang chế độ dự phòng:", err);
+      // Fallback: tính toán từ stockList và slipsList thực tế (loại bỏ món chế biến tại quán)
+      const validStock = stockList.filter((item) => !isMakeToOrderProduct(item));
       const slipsInPeriod = slipsList.filter((s) => isSlipInDateRange(s.date, reportRange));
       const itemMap = new Map<string, InventoryReportItem>();
 
-      for (const item of stockList) {
+      for (const item of validStock) {
         const key = item.sku.trim().toUpperCase();
         itemMap.set(key, {
           productId: item.id,
@@ -1114,26 +1057,8 @@ export const WarehouseInventoryPage: React.FC = () => {
       for (const slip of slipsInPeriod) {
         for (const d of slip.details) {
           const key = d.sku ? d.sku.trim().toUpperCase() : d.name.trim().toLowerCase();
-          let target = itemMap.get(key);
-
-          if (!target) {
-            target = {
-              productId: `item-${Date.now()}`,
-              sku: d.sku || "SKU-N/A",
-              name: d.name || "Vật tư bida",
-              category: "accessory",
-              unit: d.unit || "Cái",
-              costPrice: d.price || 0,
-              salePrice: (d.price || 0) * 1.3,
-              openingStock: d.qty,
-              inStock: 0,
-              outStock: 0,
-              wasteStock: 0,
-              closingStock: d.qty,
-              closingValue: d.qty * (d.price || 0),
-            };
-            itemMap.set(key, target);
-          }
+          const target = itemMap.get(key);
+          if (!target) continue;
 
           if (slip.type === "inward") {
             target.inStock += d.qty;
@@ -1170,8 +1095,8 @@ export const WarehouseInventoryPage: React.FC = () => {
   const handleExportExcel = async () => {
     try {
       setReportExporting(true);
-      const fromDate = reportRange[0].startOf("day").toISOString();
-      const toDate = reportRange[1].endOf("day").toISOString();
+      const fromDate = reportRange[0].startOf("day").format("YYYY-MM-DD");
+      const toDate = reportRange[1].endOf("day").format("YYYY-MM-DD");
 
       await inventoryReportService.exportExcel({
         fromDate,
@@ -1182,7 +1107,7 @@ export const WarehouseInventoryPage: React.FC = () => {
 
       message.success("Xuất báo cáo Excel thành công!");
     } catch {
-      message.info("Đã tạo bảng tính báo cáo Xuất - Nhập - Tồn kho bida.");
+      message.error("Lỗi khi xuất file Excel báo cáo.");
     } finally {
       setReportExporting(false);
     }
@@ -2158,8 +2083,9 @@ export const WarehouseInventoryPage: React.FC = () => {
   // Client-side filter cho tab Báo cáo (áp dụng sau khi fetch/fallback)
   const filteredReportItems = useMemo(() => {
     return reportItems.filter((item) => {
-      const allowed = CATEGORY_MAP[reportCategory] || [reportCategory];
-      const matchCat = reportCategory === "all" || allowed.includes(item.category);
+      const allowed = (CATEGORY_MAP[reportCategory] || [reportCategory]).map((c) => c.toLowerCase());
+      const itemCat = (item.category || "").toLowerCase().trim();
+      const matchCat = reportCategory === "all" || allowed.includes(itemCat);
       const q = reportSearch.toLowerCase().trim();
       const matchQ =
         !q || item.name.toLowerCase().includes(q) || item.sku.toLowerCase().includes(q);
