@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import dayjs, { Dayjs } from "dayjs";
 import {
-  DashboardOutlined,
-  ReloadOutlined,
   TrophyOutlined,
   ClockCircleOutlined,
   FireOutlined,
@@ -23,7 +21,6 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import {
-  Button,
   Card,
   Tag,
   DatePicker,
@@ -54,7 +51,15 @@ const { RangePicker } = DatePicker;
 
 type PeriodType = "day" | "week" | "month" | "year" | "custom";
 
-export const TablePerformanceReportPage: React.FC = () => {
+export interface TablePerformanceReportPageProps {
+  refreshTrigger?: number;
+  onLoadingChange?: (loading: boolean) => void;
+}
+
+export const TablePerformanceReportPage: React.FC<TablePerformanceReportPageProps> = ({
+  refreshTrigger,
+  onLoadingChange,
+}) => {
   const [period, setPeriod] = useState<PeriodType>("week");
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
     dayjs().subtract(6, "day"),
@@ -93,6 +98,16 @@ export const TablePerformanceReportPage: React.FC = () => {
   useEffect(() => {
     fetchReport();
   }, [fetchReport]);
+
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchReport();
+    }
+  }, [refreshTrigger, fetchReport]);
+
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
 
   const handlePeriodChange = (newPeriod: PeriodType) => {
     setPeriod(newPeriod);
@@ -390,29 +405,6 @@ export const TablePerformanceReportPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Sub-Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center text-cyan-700">
-            <DashboardOutlined className="text-xl" />
-          </div>
-          <div>
-            <h2 className="text-lg font-black text-slate-900 tracking-tight mb-0.5">
-              Hiệu Suất & Công Suất Từng Bàn
-            </h2>
-            <p className="text-xs text-slate-500 mb-0">
-              Chỉ số tỷ lệ khai thác (Utilization Rate), so sánh 3 loại bàn (Pool, Carom, Snooker) và tỷ lệ lấp đầy theo khung giờ.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button icon={<ReloadOutlined />} onClick={fetchReport} loading={loading} size="small" className="!rounded-xl">
-            Làm mới
-          </Button>
-        </div>
-      </div>
-
       {error && (
         <Alert
           type="error"
