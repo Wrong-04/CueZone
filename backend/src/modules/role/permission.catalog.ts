@@ -93,7 +93,6 @@ export const CONFIGURABLE_ROLES = [
   UserRole.STAFF,
   UserRole.CASHIER,
   UserRole.WAREHOUSE,
-  UserRole.REFEREE,
 ] as const;
 
 const POS_STAFF_DEFAULTS: IPermission[] = [
@@ -116,7 +115,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, IPermission[]> = {
     { module: "inventory", actions: ["read", "manage"] },
     { module: "suppliers", actions: ["manage"] },
   ],
-  [UserRole.REFEREE]: [],
 };
 
 // ponytail: collection roles có thể chứa bản ghi cũ (định dạng trước RBAC động: "manager", "tables:update"...).

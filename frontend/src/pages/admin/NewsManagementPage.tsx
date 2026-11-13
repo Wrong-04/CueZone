@@ -264,13 +264,8 @@ export default function NewsManagementPage() {
         <div className="space-y-4 py-2">
           <label className="block">Tiêu đề *<Input value={form.title} maxLength={300}
             onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="block">Chuyên mục<Select className="w-full" value={form.category} options={categories}
-              onChange={(value) => setForm({ ...form, category: value as NewsInput["category"] })} /></label>
-            <label className="block">Trạng thái<Select className="w-full" value={form.status}
-              options={[{ value: "draft", label: "Bản nháp (chưa công khai)" }, { value: "published", label: "Xuất bản ngay" }]}
-              onChange={(value) => setForm({ ...form, status: value as NewsInput["status"] })} /></label>
-          </div>
+          <label className="block">Chuyên mục<Select className="w-full" value={form.category} options={categories}
+            onChange={(value) => setForm({ ...form, category: value as NewsInput["category"] })} /></label>
           <fieldset disabled={uploading || saving} className="space-y-3">
             <legend className="text-sm font-medium text-slate-700">Ảnh bìa</legend>
             {form.image ? (
@@ -301,10 +296,7 @@ export default function NewsManagementPage() {
           <label className="block">Nội dung * (để một dòng trống giữa các đoạn)
             <Input.TextArea rows={7} maxLength={100000} value={contentText} onChange={(event) => setContentText(event.target.value)} />
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label>Tác giả<Input value={form.author} maxLength={120} onChange={(event) => setForm({ ...form, author: event.target.value })} /></label>
-            <label>Thời gian đọc<Input value={form.readTime} maxLength={50} onChange={(event) => setForm({ ...form, readTime: event.target.value })} /></label>
-          </div>
+          <label className="block">Tác giả<Input value={form.author} maxLength={120} onChange={(event) => setForm({ ...form, author: event.target.value })} /></label>
           <label className="flex gap-2 items-center"><input type="checkbox" checked={form.isFeatured}
             onChange={(event) => setForm({ ...form, isFeatured: event.target.checked })} />Ghim bài viết nổi bật</label>
         </div>
