@@ -4,6 +4,8 @@ const {
   getRoundName,
   shufflePlayers,
   isDueForAutoBracket,
+  assertMatchResultRules,
+  computeEloChange,
 } = require("../dist/modules/tournament/bracket.service");
 
 assert.deepEqual(getStandardSeedOrder(4), [1, 4, 2, 3]);
@@ -64,5 +66,26 @@ const paid = { ...base, registrationFee: 100000 };
 assert.equal(isDueForAutoBracket(paid, now), false);
 assert.equal(isDueForAutoBracket({ ...paid, paymentFinalizedAt: past }, now), true);
 assert.equal(isDueForAutoBracket({ ...paid, paymentFinalizedAt: past, paymentReconciliationRequired: true }, now), false);
+
+// Quy tắc kết quả trận: điểm không vượt Race to; chốt thường phải đạt đúng Race to.
+const rejects = (input, code = 400) => assert.throws(() => assertMatchResultRules(input), (e) => e.httpCode === code, JSON.stringify(input));
+assertMatchResultRules({ score1: 5, score2: 3, raceTo: 5, winnerSlot: 1 });
+assertMatchResultRules({ score1: 2, score2: 5, raceTo: 5, winnerSlot: 2 });
+assertMatchResultRules({ score1: 3, score2: 4, raceTo: 5 }); // đang đấu, chưa chốt
+assertMatchResultRules({ score1: 0, score2: 0, raceTo: 5, winnerSlot: 1, walkover: true }); // bỏ cuộc
+rejects({ score1: 6, score2: 0, raceTo: 5 });
+rejects({ score1: 0, score2: 6, raceTo: 5, winnerSlot: 2, walkover: true });
+rejects({ score1: 3, score2: 2, raceTo: 5, winnerSlot: 1 }); // thắng chưa đủ điểm
+rejects({ score1: 5, score2: 3, raceTo: 5, winnerSlot: 2 }); // người thắng thấp điểm hơn
+rejects({ score1: 5, score2: 5, raceTo: 5, winnerSlot: 1 }); // cả hai chạm Race to
+rejects({ score1: 5, score2: 5, raceTo: 5 }); // đang đấu mà cả hai đã chạm Race to
+assertMatchResultRules({ score1: 4, score2: 4, raceTo: 5 });
+
+// ELO K=32, sàn 1000: đáp án tính tay.
+assert.deepEqual(computeEloChange(1000, 1000, true), { newA: 1016, newB: 1000 });
+assert.deepEqual(computeEloChange(1000, 1000, false), { newA: 1000, newB: 1016 });
+assert.deepEqual(computeEloChange(1200, 1000, true), { newA: 1208, newB: 1000 });
+assert.deepEqual(computeEloChange(1000, 1200, true), { newA: 1024, newB: 1176 }); // cửa dưới thắng
+assert.deepEqual(computeEloChange(1200, 1000, false), { newA: 1176, newB: 1024 });
 
 console.log("check-bracket: OK");

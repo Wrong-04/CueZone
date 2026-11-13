@@ -354,6 +354,12 @@ router.patch(
           message: "Điểm số 2 phải là số nguyên không âm",
         });
       }
+      if (status !== undefined && !["in_progress", "completed", "walkover"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Trạng thái trận đấu không hợp lệ",
+        });
+      }
       if (tableId && !mongoose.Types.ObjectId.isValid(tableId)) {
         return res.status(400).json({
           success: false,

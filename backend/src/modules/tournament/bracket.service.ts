@@ -8,6 +8,7 @@ import {
   emitTournamentScoreUpdated,
   emitTournamentMatchCompleted,
   emitTournamentBracketUpdated,
+  emitTournamentLeaderboardUpdated,
 } from "../../utils/socketHolder";
 
 export interface BracketMatchParticipant {
@@ -125,6 +126,46 @@ export function isDueForAutoBracket(t: AutoBracketCandidate, now: Date): boolean
   if (t.format && !/single/i.test(t.format)) return false;
   if ((t.registrationFee ?? 0) > 0 && (!t.paymentFinalizedAt || t.paymentReconciliationRequired)) return false;
   return true;
+}
+
+const httpError = (message: string, httpCode: number) => Object.assign(new Error(message), { httpCode });
+
+/** Kiểm tra điểm và điều kiện chốt trận; ném lỗi 400 (hàm thuần, có kiểm thử đáp án chuẩn). */
+export function assertMatchResultRules(input: {
+  score1: number;
+  score2: number;
+  raceTo: number;
+  winnerSlot?: 1 | 2;
+  walkover?: boolean;
+}): void {
+  const { score1, score2, raceTo, winnerSlot, walkover } = input;
+  if (score1 > raceTo || score2 > raceTo) {
+    throw httpError(`Điểm tối đa của vòng này là ${raceTo} (Race to ${raceTo})`, 400);
+  }
+  if (!walkover && score1 >= raceTo && score2 >= raceTo) {
+    throw httpError(`Chỉ một cơ thủ được đạt ${raceTo} điểm (Race to ${raceTo})`, 400);
+  }
+  if (winnerSlot && !walkover) {
+    const winnerScore = winnerSlot === 1 ? score1 : score2;
+    const loserScore = winnerSlot === 1 ? score2 : score1;
+    if (winnerScore !== raceTo || loserScore >= raceTo) {
+      throw httpError(
+        `Chỉ chốt được khi cơ thủ thắng đạt đúng ${raceTo} điểm trước đối thủ. Nếu đối thủ bỏ cuộc, hãy chọn thắng do bỏ cuộc`,
+        400,
+      );
+    }
+  }
+}
+
+/** ELO K=32, sàn 1000 (giữ nguyên công thức cũ). */
+export function computeEloChange(rA: number, rB: number, aWins: boolean): { newA: number; newB: number } {
+  const eA = 1 / (1 + Math.pow(10, (rB - rA) / 400));
+  const eB = 1 / (1 + Math.pow(10, (rA - rB) / 400));
+  const K = 32;
+  return {
+    newA: Math.max(1000, Math.round(rA + K * ((aWins ? 1 : 0) - eA))),
+    newB: Math.max(1000, Math.round(rB + K * ((aWins ? 0 : 1) - eB))),
+  };
 }
 
 export class TournamentBracketService {
@@ -566,13 +607,92 @@ export class TournamentBracketService {
     let updatedMatch: any;
     let nextMatchDoc: any;
     let eloUpdated = false;
+    let isCorrection = false;
 
     await mongoose.connection.transaction(async (session) => {
+      // Transaction có thể chạy lại khi WriteConflict: đặt lại trạng thái ngoài closure
+      eloUpdated = false;
+      isCorrection = false;
+      nextMatchDoc = undefined;
       const match = await Match.findById(matchId).session(session);
-      if (!match) throw new Error("Không tìm thấy trận đấu");
+      if (!match) throw httpError("Không tìm thấy trận đấu", 404);
+      if (match.status === "bye" || match.status === "cancelled") {
+        throw httpError("Trận đấu này không có kết quả để cập nhật", 409);
+      }
+      if (
+        (data.status === "completed" || data.status === "walkover") &&
+        !data.winnerRegistrationId &&
+        !match.winnerRegistrationId
+      ) {
+        throw httpError("Cần chọn người thắng để chốt trận đấu", 400);
+      }
 
       const p1 = match.participants.find((p: any) => p.slot === 1);
       const p2 = match.participants.find((p: any) => p.slot === 2);
+      if ((data.score1 !== undefined && !p1) || (data.score2 !== undefined && !p2)) {
+        throw httpError("Trận đấu chưa xác định đủ cơ thủ để ghi điểm", 400);
+      }
+
+      const tournamentMeta = await Tournament.findById(match.tournament)
+        .select("rounds raceToScore")
+        .session(session);
+      const roundMeta = (tournamentMeta?.rounds || []).find((ro: any) => ro.roundNo === match.round);
+      const raceTo = roundMeta?.raceTo || tournamentMeta?.raceToScore || 5;
+      const finalScore1 = data.score1 ?? p1?.score ?? 0;
+      const finalScore2 = data.score2 ?? p2?.score ?? 0;
+
+      if ((match.status === "completed" || match.status === "walkover") && match.winnerRegistrationId) {
+        // Trận đã chốt: chỉ sửa tỉ số; ELO và đôn người đã áp dụng một lần.
+        if (
+          data.winnerRegistrationId &&
+          String(data.winnerRegistrationId) !== String(match.winnerRegistrationId)
+        ) {
+          throw httpError("Trận đấu đã chốt, không thể đổi người thắng", 409);
+        }
+        const winnerSlot = match.participants.find(
+          (p: any) => String(p.registrationId) === String(match.winnerRegistrationId),
+        )?.slot as 1 | 2 | undefined;
+        // Chỉ kiểm tra khi có đổi điểm: dữ liệu cũ có tỉ số tự do vẫn đổi được bàn
+        if (data.score1 !== undefined || data.score2 !== undefined) {
+          assertMatchResultRules({
+            score1: finalScore1,
+            score2: finalScore2,
+            raceTo,
+            winnerSlot,
+            walkover: match.status === "walkover",
+          });
+        }
+        if (data.score1 !== undefined && p1) {
+          p1.score = data.score1;
+          match.score1 = data.score1;
+        }
+        if (data.score2 !== undefined && p2) {
+          p2.score = data.score2;
+          match.score2 = data.score2;
+        }
+        if (data.tableId) match.table = new mongoose.Types.ObjectId(data.tableId);
+        await match.save({ session });
+        updatedMatch = match;
+        isCorrection = true;
+        return;
+      }
+
+      const requestedWinnerSlot = data.winnerRegistrationId
+        ? (match.participants.find(
+            (p: any) => String(p.registrationId) === String(data.winnerRegistrationId),
+          )?.slot as 1 | 2 | undefined)
+        : undefined;
+      if (data.winnerRegistrationId && !requestedWinnerSlot && match.participants.length >= 2) {
+        throw httpError("Người thắng phải là một trong hai cơ thủ tham gia trận đấu", 400);
+      }
+      assertMatchResultRules({
+        score1: finalScore1,
+        score2: finalScore2,
+        raceTo,
+        winnerSlot: requestedWinnerSlot,
+        walkover: data.status === "walkover",
+      });
+
       if (data.score1 !== undefined && p1) {
         p1.score = data.score1;
         match.score1 = data.score1;
@@ -589,21 +709,21 @@ export class TournamentBracketService {
       }
 
       if (data.winnerRegistrationId) {
-        if (match.status !== "bye" && match.participants.length < 2) {
-          throw new Error("Không thể chốt kết quả trận đấu khi chưa đủ hai cơ thủ");
+        if (match.participants.length < 2) {
+          throw httpError("Không thể chốt kết quả trận đấu khi chưa đủ hai cơ thủ", 400);
         }
 
         const winnerPart = match.participants.find(
           (p) => String(p.registrationId) === String(data.winnerRegistrationId),
         );
         if (!winnerPart) {
-          throw new Error("Người thắng phải là một trong hai cơ thủ tham gia trận đấu");
+          throw httpError("Người thắng phải là một trong hai cơ thủ tham gia trận đấu", 400);
         }
 
         if (match.nextMatchId) {
           const nextMatch = await Match.findById(match.nextMatchId).session(session);
           if (nextMatch && nextMatch.status !== "scheduled") {
-            throw new Error("Trận đấu ở vòng tiếp theo đã diễn ra hoặc kết thúc, không thể đổi kết quả");
+            throw httpError("Trận đấu ở vòng tiếp theo đã diễn ra hoặc kết thúc, không thể đổi kết quả", 409);
           }
         }
 
@@ -644,7 +764,7 @@ export class TournamentBracketService {
           if (tournamentDoc) {
             const totalRounds = tournamentDoc.rounds?.length || 0;
             if (match.round !== totalRounds) {
-              throw new Error("Trận đấu không phải trận Chung kết, không thể chốt kết quả giải");
+              throw httpError("Trận đấu không phải trận Chung kết, không thể chốt kết quả giải", 409);
             }
             const loserPart = match.participants.find(
               (p: any) => String(p.registrationId) !== String(data.winnerRegistrationId),
@@ -705,9 +825,11 @@ export class TournamentBracketService {
         }
 
         if (!match.eloApplied && match.player1 && match.player2 && match.status !== "walkover") {
-          await this.calculateAndApplyEloInSession(match, session);
-          match.eloApplied = true;
-          eloUpdated = true;
+          const eloChanged = await this.calculateAndApplyEloInSession(match, session);
+          if (eloChanged !== null) {
+            match.eloApplied = true;
+            eloUpdated = eloChanged;
+          }
         }
       }
 
@@ -718,7 +840,11 @@ export class TournamentBracketService {
     const p1Final = updatedMatch.participants.find((p: any) => p.slot === 1);
     const p2Final = updatedMatch.participants.find((p: any) => p.slot === 2);
 
-    if ((updatedMatch.status === "completed" || updatedMatch.status === "walkover") && updatedMatch.winnerRegistrationId) {
+    if (
+      !isCorrection &&
+      (updatedMatch.status === "completed" || updatedMatch.status === "walkover") &&
+      updatedMatch.winnerRegistrationId
+    ) {
       let winnerUserData: { _id: string; name: string; avatar?: string; phone?: string; seed?: number } | undefined;
       const winnerUserId = updatedMatch.winner;
       if (winnerUserId) {
@@ -744,6 +870,10 @@ export class TournamentBracketService {
       });
     }
 
+    if (eloUpdated) {
+      emitTournamentLeaderboardUpdated({ tournamentId: String(updatedMatch.tournament) });
+    }
+
     emitTournamentScoreUpdated({
       tournamentId: String(updatedMatch.tournament),
       matchId: String(updatedMatch._id),
@@ -762,37 +892,35 @@ export class TournamentBracketService {
     return updatedMatch;
   }
 
-  async calculateAndApplyEloInSession(match: any, session: mongoose.ClientSession) {
-    if (!match.player1 || !match.player2) return;
+  /** Trả null nếu chưa áp dụng được; ngược lại trả true khi có ELO thay đổi. */
+  async calculateAndApplyEloInSession(
+    match: any,
+    session: mongoose.ClientSession,
+  ): Promise<boolean | null> {
+    if (!match.player1 || !match.player2) return null;
 
     const [user1, user2] = await Promise.all([
       User.findById(match.player1).session(session),
       User.findById(match.player2).session(session),
     ]);
 
-    if (!user1 || !user2) return;
-
-    const rA = user1.elo ?? 1000;
-    const rB = user2.elo ?? 1000;
-
-    const eA = 1 / (1 + Math.pow(10, (rB - rA) / 400));
-    const eB = 1 / (1 + Math.pow(10, (rA - rB) / 400));
+    if (!user1 || !user2) return null;
 
     const isUser1Winner =
       match.participants.find((p: any) => String(p.registrationId) === String(match.winnerRegistrationId))
         ?.slot === 1;
+    const { newA: newEloA, newB: newEloB } = computeEloChange(
+      user1.elo ?? 1000,
+      user2.elo ?? 1000,
+      Boolean(isUser1Winner),
+    );
 
-    const sA = isUser1Winner ? 1 : 0;
-    const sB = isUser1Winner ? 0 : 1;
-
-    const K = 32;
-    const newEloA = Math.max(1000, Math.round(rA + K * (sA - eA)));
-    const newEloB = Math.max(1000, Math.round(rB + K * (sB - eB)));
-
+    const changed = newEloA !== (user1.elo ?? 1000) || newEloB !== (user2.elo ?? 1000);
     user1.elo = newEloA;
     user2.elo = newEloB;
 
     await Promise.all([user1.save({ session }), user2.save({ session })]);
+    return changed;
   }
 }
 

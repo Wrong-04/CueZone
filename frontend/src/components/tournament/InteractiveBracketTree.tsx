@@ -27,6 +27,7 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
   const [score2, setScore2] = useState<number>(0);
   const [selectedWinnerId, setSelectedWinnerId] = useState<string>("");
   const [updating, setUpdating] = useState<boolean>(false);
+  const [walkover, setWalkover] = useState<boolean>(false);
 
   const openScoreModal = (match: BracketMatch) => {
     if (readOnly || match.status === "bye") return;
@@ -40,6 +41,7 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
     setScore1(p1?.score || 0);
     setScore2(p2?.score || 0);
     setSelectedWinnerId(match.winnerRegistrationId || "");
+    setWalkover(match.status === "walkover");
   };
 
   const handleSaveScore = async () => {
@@ -50,7 +52,7 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
         score1: Number(score1),
         score2: Number(score2),
         winnerRegistrationId: selectedWinnerId || undefined,
-        status: selectedWinnerId ? "completed" : "in_progress",
+        status: selectedWinnerId ? (walkover ? "walkover" : "completed") : "in_progress",
       });
       message.success("Đã cập nhật tỷ số trận đấu!");
       setSelectedMatch(null);
@@ -61,6 +63,12 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
       setUpdating(false);
     }
   };
+
+  // Trận completed cũ thiếu người thắng vẫn cho chốt lại
+  const isFinished =
+    (selectedMatch?.status === "completed" || selectedMatch?.status === "walkover") &&
+    Boolean(selectedMatch.winnerRegistrationId);
+  const selectedRaceTo = bracket.rounds.find((r) => r.matches.some((m) => m._id === selectedMatch?._id))?.raceTo;
 
   return (
     <div className="w-full overflow-x-auto pb-6 select-none">
@@ -86,7 +94,7 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
                 const p1 = match.participants.find((p) => p.slot === 1);
                 const p2 = match.participants.find((p) => p.slot === 2);
                 const isBye = match.status === "bye";
-                const isCompleted = match.status === "completed" || isBye;
+                const isCompleted = match.status === "completed" || match.status === "walkover" || isBye;
 
                 return (
                   <div
@@ -112,7 +120,7 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
                         </span>
                       ) : isCompleted ? (
                         <span className="text-emerald-400 font-bold flex items-center gap-1">
-                          <CheckCircleOutlined /> Xong
+                          <CheckCircleOutlined /> {match.status === "walkover" ? "Bỏ cuộc" : "Xong"}
                         </span>
                       ) : match.status === "in_progress" ? (
                         <span className="text-amber-400 font-bold flex items-center gap-1">
@@ -212,7 +220,9 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
         {selectedMatch && (
           <div className="space-y-4 py-2">
             <p className="text-xs text-slate-400">
-              Cập nhật điểm số hai cơ thủ. Chọn cơ thủ thắng để tự động đưa vào nhánh đấu vòng tiếp theo.
+              {isFinished
+                ? "Trận đã chốt: chỉ sửa được tỉ số, không đổi được người thắng."
+                : `Cập nhật điểm số hai cơ thủ. Chọn cơ thủ thắng (đạt ${selectedRaceTo ?? "Race to"} điểm trước) để tự động đưa vào nhánh đấu vòng tiếp theo.`}
             </p>
 
             <div className="space-y-3">
@@ -245,6 +255,7 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
                       <input
                         type="number"
                         min="0"
+                        max={selectedRaceTo}
                         value={p.slot === 1 ? score1 : score2}
                         onChange={(e) =>
                           p.slot === 1
@@ -262,6 +273,7 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
                             ? "!bg-emerald-600 !border-emerald-500"
                             : "!border-slate-700 !text-slate-300"
                         }
+                        disabled={isFinished}
                         onClick={() => setSelectedWinnerId(p.registrationId || "")}
                       >
                         {isSelectedWinner ? "Thắng cuộc" : "Chọn thắng"}
@@ -271,6 +283,12 @@ export const InteractiveBracketTree: React.FC<InteractiveBracketTreeProps> = ({
                 );
               })}
             </div>
+            {!isFinished && selectedWinnerId && (
+              <label className="flex items-center gap-2 text-xs text-slate-300">
+                <input type="checkbox" checked={walkover} onChange={(e) => setWalkover(e.target.checked)} />
+                Thắng do đối thủ bỏ cuộc (không tính ELO)
+              </label>
+            )}
           </div>
         )}
       </Modal>

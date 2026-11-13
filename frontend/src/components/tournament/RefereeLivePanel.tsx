@@ -45,6 +45,7 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
   const [score2, setScore2] = useState<number>(0);
   const [saving, setSaving] = useState<boolean>(false);
   const [confirmCompleteModal, setConfirmCompleteModal] = useState<boolean>(false);
+  const [walkover, setWalkover] = useState<boolean>(false);
   const [winnerRegistrationId, setWinnerRegistrationId] = useState<string>("");
 
   useEffect(() => {
@@ -241,7 +242,7 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
         score1,
         score2,
         winnerRegistrationId: winnerId,
-        status: "completed",
+        status: walkover ? "walkover" : "completed",
       });
       message.success("Đã chốt kết quả trận đấu và đôn cơ thủ vào vòng tiếp theo!");
       setConfirmCompleteModal(false);
@@ -256,7 +257,14 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
 
   const p1 = selectedMatch?.participants.find((p) => p.slot === 1);
   const p2 = selectedMatch?.participants.find((p) => p.slot === 2);
-  const raceTo = bracket?.tournament.raceToScore || 5;
+  // Race to theo vòng chứa trận (cùng nguồn với backend), không lấy raceToScore hiện tại của giải
+  const raceTo =
+    bracket?.rounds.find((r) => r.matches.some((m) => m._id === selectedMatch?._id))?.raceTo ||
+    bracket?.tournament.raceToScore ||
+    5;
+  const isFinishedMatch =
+    (selectedMatch?.status === "completed" || selectedMatch?.status === "walkover") &&
+    Boolean(selectedMatch.winnerRegistrationId);
 
   return (
     <div className="space-y-4">
@@ -319,7 +327,7 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
                     const mp2 = m.participants.find((p) => p.slot === 2);
                     const isSelected = selectedMatch?._id === m._id;
                     const isBye = m.status === "bye";
-                    const isDone = m.status === "completed" || isBye;
+                    const isDone = m.status === "completed" || m.status === "walkover" || isBye;
 
                     return (
                       <div
@@ -411,7 +419,7 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
                       {score1}
                     </div>
 
-                    {selectedMatch.status !== "completed" && p1?.registrationId && (
+                    {!isFinishedMatch && p1?.registrationId && (
                       <div className="flex items-center justify-center gap-4 mt-5">
                         <Button
                           disabled={score1 <= 0 || saving}
@@ -455,7 +463,7 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
                       {score2}
                     </div>
 
-                    {selectedMatch.status !== "completed" && p2?.registrationId && (
+                    {!isFinishedMatch && p2?.registrationId && (
                       <div className="flex items-center justify-center gap-4 mt-5">
                         <Button
                           disabled={score2 <= 0 || saving}
@@ -478,7 +486,7 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
                   </div>
                 </div>
 
-                {selectedMatch.status !== "completed" && p1?.registrationId && p2?.registrationId && (
+                {!isFinishedMatch && p1?.registrationId && p2?.registrationId && (
                   <div className="mt-8 pt-6 border-t border-emerald-800/60 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-xs text-emerald-200/80">
                       Cơ thủ đạt {raceTo} điểm trước sẽ giành chiến thắng chung cuộc.
@@ -486,13 +494,11 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
                     <Button
                       type="primary"
                       onClick={() => {
+                        // Mặc định theo bên điểm cao hơn; hòa điểm thì để trống cho trọng tài chọn
                         const defaultWinner =
-                          score1 >= raceTo
-                            ? p1.registrationId
-                            : score2 >= raceTo
-                              ? p2.registrationId
-                              : p1.registrationId;
+                          score1 > score2 ? p1.registrationId : score2 > score1 ? p2.registrationId : "";
                         setWinnerRegistrationId(defaultWinner || "");
+                        setWalkover(score1 < raceTo && score2 < raceTo);
                         setConfirmCompleteModal(true);
                       }}
                       className="!bg-amber-400 hover:!bg-amber-300 !text-slate-950 font-bold px-6 h-10 shadow-lg"
@@ -503,7 +509,7 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
                   </div>
                 )}
 
-                {selectedMatch.status === "completed" && (
+                {isFinishedMatch && (
                   <div className="mt-6 p-4 rounded-xl bg-amber-400/10 border border-amber-400/30 text-center">
                     <span className="text-amber-300 font-bold text-sm flex items-center justify-center gap-2">
                       <TrophyOutlined className="text-lg" /> Trận đấu đã hoàn tất! Người thắng đã được đôn
@@ -577,11 +583,22 @@ export const RefereeLivePanel: React.FC<RefereeLivePanelProps> = ({
             )}
           </div>
 
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input type="checkbox" checked={walkover} onChange={(e) => setWalkover(e.target.checked)} />
+            Thắng do đối thủ bỏ cuộc (không tính ELO)
+          </label>
+          {!walkover && (score1 >= raceTo) === (score2 >= raceTo) && (
+            <p className="text-xs text-amber-400">
+              Chốt thường cần đúng một cơ thủ đạt {raceTo} điểm. Nếu trận kết thúc sớm, hãy chọn bỏ cuộc.
+            </p>
+          )}
+
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
             <Button onClick={() => setConfirmCompleteModal(false)}>Hủy</Button>
             <Button
               type="primary"
               loading={saving}
+              disabled={!winnerRegistrationId}
               onClick={() => handleCompleteMatch(winnerRegistrationId)}
               className="!bg-emerald-600 hover:!bg-emerald-500 font-bold"
             >

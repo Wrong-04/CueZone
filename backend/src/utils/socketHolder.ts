@@ -136,6 +136,10 @@ export const emitTournamentMatchCompleted = (payload: {
   io?.emit(`tournament:${payload.tournamentId}:completed`, payload);
 };
 
+export const emitTournamentLeaderboardUpdated = (payload: { tournamentId: string }) => {
+  io?.emit("tournament:leaderboard_updated", payload);
+};
+
 export const emitTournamentBracketUpdated = (payload: {
   tournamentId: string;
   bracketSize?: number;

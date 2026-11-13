@@ -253,13 +253,18 @@ export const AdminTournamentsPage: React.FC = () => {
     socket.on("tournament:score_updated", handleScoreUpdated);
     socket.on("tournament:match_completed", handleMatchCompleted);
     socket.on("tournament:bracket_updated", handleBracketUpdated);
+    const handleLeaderboardUpdated = () => {
+      if (activeMainTab === "leaderboard") void fetchLeaderboard();
+    };
+    socket.on("tournament:leaderboard_updated", handleLeaderboardUpdated);
 
     return () => {
+      socket.off("tournament:leaderboard_updated", handleLeaderboardUpdated);
       socket.off("tournament:score_updated", handleScoreUpdated);
       socket.off("tournament:match_completed", handleMatchCompleted);
       socket.off("tournament:bracket_updated", handleBracketUpdated);
     };
-  }, [activeMainTab, selectedTourneyForBracket, fetchBracket]);
+  }, [activeMainTab, selectedTourneyForBracket, fetchBracket, fetchLeaderboard]);
 
   const handleGenerateBracket = async () => {
     if (!selectedTourneyForBracket) return;
