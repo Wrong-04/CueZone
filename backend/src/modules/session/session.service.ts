@@ -917,7 +917,6 @@ export class SessionService {
           checkoutState: current.checkoutState ?? "open",
           pendingCheckout: pending
             ? {
-                paymentMethod: pending.paymentMethod,
                 requestedAt: pending.requestedAt,
               }
             : undefined,
@@ -982,20 +981,18 @@ export class SessionService {
   async requestCustomerCheckout(
     customerId: string,
     tableId: string,
-    input: { sessionId?: unknown; paymentMethod?: unknown; voucherCode?: unknown },
+    input: { sessionId?: unknown; voucherCode?: unknown },
   ) {
     if (!input || typeof input !== "object") {
       throw Object.assign(new Error("Thông tin yêu cầu thanh toán không hợp lệ"), {
         httpCode: 400,
       });
     }
-    const validMethods = ["cash", "transfer"];
     if (
       !mongoose.isValidObjectId(customerId) ||
       !mongoose.isValidObjectId(tableId) ||
       typeof input.sessionId !== "string" ||
       !input.sessionId ||
-      !validMethods.includes(String(input.paymentMethod)) ||
       (input.voucherCode !== undefined &&
         (typeof input.voucherCode !== "string" || !input.voucherCode.trim()))
     ) {
@@ -1065,7 +1062,6 @@ export class SessionService {
       table.currentSession.checkoutState = "pending_payment";
       table.currentSession.pendingCheckout = {
         customerId: new mongoose.Types.ObjectId(customerId),
-        paymentMethod: input.paymentMethod as "cash" | "transfer",
         voucherCode,
         estimatedTotalDue: totalDue,
         wasPlaying,
@@ -1082,7 +1078,6 @@ export class SessionService {
         customerId,
         tableName: table.name,
         tableCode: table.code,
-        paymentMethod: input.paymentMethod,
         totalDue,
         voucherCode,
         requestedAt: table.currentSession.pendingCheckout.requestedAt,
@@ -1093,7 +1088,7 @@ export class SessionService {
       .createForRoles(
         {
           title: `Yêu cầu thanh toán tại ${request.tableName}`,
-          content: `${request.tableCode}: khách yêu cầu thanh toán ${request.totalDue.toLocaleString("vi-VN")}đ bằng ${request.paymentMethod === "cash" ? "tiền mặt" : "chuyển khoản"}.`,
+          content: `${request.tableCode}: khách yêu cầu nhân viên hỗ trợ thanh toán hóa đơn ${request.totalDue.toLocaleString("vi-VN")}đ.`,
           type: NotificationType.SYSTEM,
         },
         [UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER],
@@ -1123,7 +1118,6 @@ export class SessionService {
           sessionId: table.currentSession!.sessionId,
           customerName: customer?.name ?? table.currentSession!.customerName,
           customerPhone: customer?.phone ?? table.currentSession!.customerPhone,
-          paymentMethod: pending.paymentMethod,
           voucherCode: pending.voucherCode,
           requestedAt: pending.requestedAt,
           totalDue: pending.estimatedTotalDue,
@@ -1143,9 +1137,42 @@ export class SessionService {
     );
   }
 
-  async resolveCustomerPaymentRequest(tableId: string, sessionId: string, approved: boolean) {
+  async resolveCustomerPaymentRequest(
+    tableId: string,
+    sessionId: string,
+    approved: boolean,
+    payment?: { paymentMethod?: unknown; paymentDetails?: unknown },
+  ) {
     if (!mongoose.isValidObjectId(tableId) || typeof sessionId !== "string" || !sessionId) {
       throw new Error("Mã yêu cầu thanh toán không hợp lệ");
+    }
+    const paymentMethods = ["cash", "vnpay", "split"];
+    const paymentMethod =
+      typeof payment?.paymentMethod === "string" ? payment.paymentMethod : "";
+    if (approved && !paymentMethods.includes(paymentMethod)) {
+      throw Object.assign(new Error("Vui lòng chọn phương thức thanh toán hợp lệ"), {
+        httpCode: 400,
+      });
+    }
+    const paymentDetails =
+      payment?.paymentDetails &&
+      typeof payment.paymentDetails === "object" &&
+      !Array.isArray(payment.paymentDetails)
+        ? (payment.paymentDetails as Record<string, unknown>)
+        : undefined;
+    if (
+      approved &&
+      (!paymentDetails ||
+        typeof paymentDetails.cashAmount !== "number" ||
+        !Number.isFinite(paymentDetails.cashAmount) ||
+        paymentDetails.cashAmount < 0 ||
+        typeof paymentDetails.transferAmount !== "number" ||
+        !Number.isFinite(paymentDetails.transferAmount) ||
+        paymentDetails.transferAmount < 0)
+    ) {
+      throw Object.assign(new Error("Thông tin thanh toán không hợp lệ"), {
+        httpCode: 400,
+      });
     }
     const table = await Table.findOne({
       _id: tableId,
@@ -1162,7 +1189,8 @@ export class SessionService {
     if (approved) {
       const receipt = await this.checkout(tableId, {
         sessionId,
-        paymentMethod: pending.paymentMethod,
+        paymentMethod,
+        paymentDetails,
         customerId: String(pending.customerId),
         customerCheckout: true,
         customerCheckoutRequest: true,
@@ -1465,13 +1493,39 @@ export class SessionService {
         );
       }
 
+      if (input.customerCheckoutRequest === true) {
+        const cashAmount = Number(input.paymentDetails?.cashAmount);
+        const transferAmount = Number(input.paymentDetails?.transferAmount);
+        const amountsMatchMethod =
+          input.paymentMethod === "cash"
+            ? cashAmount === finalAmount && transferAmount === 0
+            : input.paymentMethod === "vnpay"
+              ? cashAmount === 0 && transferAmount === finalAmount
+              : input.paymentMethod === "split" &&
+                cashAmount + transferAmount === finalAmount;
+        if (!amountsMatchMethod) {
+          throw Object.assign(new Error("Số tiền thanh toán không khớp với phương thức đã chọn"), {
+            httpCode: 400,
+          });
+        }
+      }
+
       // Xử lý thanh toán kết hợp (Tiền mặt + Chuyển khoản QR)
       if (input.paymentMethod === "split" || input.paymentMethod === "cash_qr") {
-        const cashAmount = Number(input.paymentDetails?.cashAmount) || 0;
-        const transferAmount = Number(input.paymentDetails?.transferAmount) || 0;
-        if (cashAmount + transferAmount < finalAmount) {
-          throw new Error(
-            `Tổng tiền thanh toán kết hợp không đủ (${(cashAmount + transferAmount).toLocaleString("vi-VN")}đ < ${finalAmount.toLocaleString("vi-VN")}đ)`,
+        const cashAmount = Number(input.paymentDetails?.cashAmount);
+        const transferAmount = Number(input.paymentDetails?.transferAmount);
+        if (
+          !Number.isFinite(cashAmount) ||
+          !Number.isFinite(transferAmount) ||
+          cashAmount < 0 ||
+          transferAmount < 0 ||
+          cashAmount + transferAmount !== finalAmount
+        ) {
+          throw Object.assign(
+            new Error(
+              `Tổng tiền thanh toán kết hợp phải khớp hóa đơn (${(cashAmount + transferAmount).toLocaleString("vi-VN")}đ / ${finalAmount.toLocaleString("vi-VN")}đ)`,
+            ),
+            { httpCode: 400 },
           );
         }
       }

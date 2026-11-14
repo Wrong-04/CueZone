@@ -71,6 +71,7 @@ export interface ClubInvoice {
   discountAmount: number;
   finalTotal: number;
   paymentMethod: string;
+  paymentDetails?: { cashAmount: number; transferAmount: number };
   paymentMethodText: string;
   status: "paid" | "pending" | "cancelled";
   statusText: string;
@@ -514,6 +515,8 @@ export const InvoicesManagementPage: React.FC = () => {
           invMethod === "transfer" ||
           invMethod.includes("chuyển khoản") ||
           invMethod.includes("ngân hàng");
+      } else if (statusFilter === "split") {
+        matchStatus = invMethod === "split" || invMethod === "cash_qr";
       } else if (statusFilter === "wallet") {
         matchStatus =
           invMethod === "cuezone_pay" ||
@@ -583,8 +586,26 @@ export const InvoicesManagementPage: React.FC = () => {
     const totalRevenue = paidList.reduce((acc, cur) => acc + cur.finalTotal, 0);
     const totalTableFee = paidList.reduce((acc, cur) => acc + cur.tableFee, 0);
     const totalFnbFee = paidList.reduce((acc, cur) => acc + cur.fnbFee, 0);
-    const cashRevenue = paidList.filter((i) => i.paymentMethod === "cash").reduce((acc, cur) => acc + cur.finalTotal, 0);
-    const bankRevenue = paidList.filter((i) => ["vietqr", "card"].includes(i.paymentMethod)).reduce((acc, cur) => acc + cur.finalTotal, 0);
+    const cashRevenue = paidList.reduce(
+      (acc, cur) =>
+        acc +
+        (cur.paymentMethod === "split"
+          ? cur.paymentDetails?.cashAmount || 0
+          : cur.paymentMethod === "cash"
+            ? cur.finalTotal
+            : 0),
+      0,
+    );
+    const bankRevenue = paidList.reduce(
+      (acc, cur) =>
+        acc +
+        (cur.paymentMethod === "split"
+          ? cur.paymentDetails?.transferAmount || 0
+          : ["vietqr", "card"].includes(cur.paymentMethod)
+            ? cur.finalTotal
+            : 0),
+      0,
+    );
     const walletRevenue = paidList.filter((i) => ["cuezone_pay", "wallet", "member_balance"].includes(i.paymentMethod)).reduce((acc, cur) => acc + cur.finalTotal, 0);
 
     if (isFilteredDate) {
@@ -653,6 +674,15 @@ export const InvoicesManagementPage: React.FC = () => {
         );
       }).length,
       dotClassName: "bg-blue-500",
+    },
+    {
+      key: "split",
+      label: "Tiền mặt + QR",
+      badge: invoicesFilteredByDate.filter((i) => {
+        const method = (i.paymentMethod || "").toLowerCase();
+        return method === "split" || method === "cash_qr";
+      }).length,
+      dotClassName: "bg-violet-500",
     },
     // ponytail: Đã ngưng tính năng Ví hội viên theo yêu cầu
     /*

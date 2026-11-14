@@ -146,7 +146,9 @@ export function usePosCheckout({
     setCheckoutModalVisible(true);
   };
 
-  const handleConfirmCheckout = async () => {
+  const handleConfirmCheckout = async (
+    paymentDetails: NonNullable<CheckoutReceipt["paymentDetails"]>,
+  ) => {
     if (!selectedTable?.currentSession) return;
     const ok = await save(async () => {
       const summary = await posService.checkout(
@@ -155,14 +157,23 @@ export function usePosCheckout({
         paymentMethod,
         appliedVoucher?.code,
         loyaltyCustomer?.phone || selectedTable.currentSession?.customerPhone,
+        paymentDetails,
       );
       setPaidSummary(summary);
     });
     if (!ok) return;
     setCheckoutModalVisible(false);
     setReceiptModalVisible(true);
+    const paymentLabel =
+      paymentMethod === "split"
+        ? "Tiền mặt + QR"
+        : paymentMethod === "vnpay"
+          ? "Chuyển khoản QR"
+          : paymentMethod === "card"
+            ? "Thẻ ngân hàng"
+            : "Tiền mặt";
     message.success(
-      `Đã lưu hóa đơn thanh toán (${paymentMethod === "vnpay" ? "Chuyển khoản QR" : "Tiền mặt"}) cho ${selectedTable.name}!`,
+      `Đã lưu hóa đơn thanh toán (${paymentLabel}) cho ${selectedTable.name}!`,
     );
   };
 

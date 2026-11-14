@@ -71,7 +71,6 @@ export interface TableSession {
 
   pendingCheckout?: {
     customerId: mongoose.Types.ObjectId;
-    paymentMethod: "cash" | "transfer";
     voucherCode?: string;
     estimatedTotalDue: number;
     wasPlaying: boolean;
@@ -185,7 +184,6 @@ const tableSchema = new Schema<ITable>(
             type: new Schema(
               {
                 customerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-                paymentMethod: { type: String, enum: ["cash", "transfer"], required: true },
                 voucherCode: { type: String, trim: true, maxlength: 32 },
                 estimatedTotalDue: { type: Number, required: true, min: 0 },
                 wasPlaying: { type: Boolean, required: true },

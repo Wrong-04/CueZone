@@ -31,7 +31,7 @@ const payments = new TournamentPaymentService();
 router.get("/bank-info", (_req: Request, res: Response, next: NextFunction) => {
   try {
     const { key, ...bank } = sepayConfig();
-    res.json({ success: true, data: bank });
+    res.json({ success: true, data: { ...bank, qrTemplate: "compact" } });
   } catch (error) { next(error); }
 });
 router.get("/:id/payment", async (req, res, next) => {

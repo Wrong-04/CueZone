@@ -197,6 +197,8 @@ export class RevenueReportService {
       member_balance: "Ví hội viên",
       wallet: "Ví hội viên",
       cuezone_pay: "Ví hội viên",
+      split: "Tiền mặt + QR",
+      cash_qr: "Tiền mặt + QR",
       momo: "MoMo",
       vnpay: "VNPay",
       card: "Thẻ ngân hàng",
@@ -206,11 +208,13 @@ export class RevenueReportService {
       cash: { label: "Tiền mặt", amount: 0, count: 0 },
       transfer: { label: "Chuyển khoản", amount: 0, count: 0 },
       member_balance: { label: "Ví hội viên", amount: 0, count: 0 },
+      split: { label: "Tiền mặt + QR", amount: 0, count: 0 },
     };
 
     const normalizeMethodKey = (method: string): string => {
       const m = String(method || "cash").toLowerCase();
       if (m === "cash") return "cash";
+      if (m === "split" || m === "cash_qr") return "split";
       if (
         m.includes("vietqr") ||
         m.includes("transfer") ||

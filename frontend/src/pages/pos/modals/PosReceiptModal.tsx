@@ -1,7 +1,7 @@
 import React from "react";
 import { PrinterOutlined } from "@ant-design/icons";
 import { Button, Modal, message } from "../../../shared/ui";
-import { getClubPaymentSettings } from "../constants/posConstants";
+import { getClubReceiptSettings } from "../constants/posConstants";
 import type { PosOrderItem } from "../../../types/pos";
 
 export interface PaidSummary {
@@ -81,7 +81,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
       }
     >
       {paidSummary && (() => {
-        const clubSettings = getClubPaymentSettings();
+        const clubSettings = getClubReceiptSettings();
         return (
           <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 font-mono text-xs space-y-3">
             <div className="text-center pb-2 border-b border-slate-200">

@@ -13,10 +13,11 @@ import {
   QrcodeOutlined,
   PrinterOutlined,
 } from "@ant-design/icons";
-import { Button, Input, Modal, Space, Tag, message } from "../../../shared/ui";
-import { getClubPaymentSettings } from "../constants/posConstants";
+import { Alert, Button, Input, Modal, Space, Tag, message } from "../../../shared/ui";
 import { posService } from "../../../services/pos.service";
-import type { PosTable } from "../../../types/pos";
+import { tournamentService, type ClubBankInfo } from "../../../services/tournament.service";
+import type { CheckoutReceipt, PosTable } from "../../../types/pos";
+import { getSepayQrUrl } from "../../../utils/sepay-qr";
 
 interface PosCheckoutModalProps {
   open: boolean;
@@ -41,7 +42,9 @@ interface PosCheckoutModalProps {
   setPaymentMethod: (val: any) => void;
   cashReceived: number | null;
   setCashReceived: (val: number | null) => void;
-  onConfirmCheckout: () => void | Promise<void>;
+  onConfirmCheckout: (
+    paymentDetails: NonNullable<CheckoutReceipt["paymentDetails"]>,
+  ) => void | Promise<void>;
   saving?: boolean;
   loading?: boolean;
   loadError?: any;
@@ -79,6 +82,31 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
   const [quickRegName, setQuickRegName] = React.useState("");
   const [quickRegPhone, setQuickRegPhone] = React.useState("");
   const [isRegistering, setIsRegistering] = React.useState(false);
+  const [sepayBank, setSepayBank] = React.useState<ClubBankInfo | null>(null);
+  const [sepayError, setSepayError] = React.useState("");
+  const sepayRequest = React.useRef(0);
+  const sepayLoading =
+    open && ["vnpay", "split"].includes(paymentMethod) && !sepayBank && !sepayError;
+
+  const handlePaymentMethodChange = (method: string) => {
+    const requestId = ++sepayRequest.current;
+    setSepayBank(null);
+    setSepayError("");
+    setPaymentMethod(method);
+    if (!["vnpay", "split"].includes(method)) return;
+
+    tournamentService
+      .getBankInfo()
+      .then((bank) => {
+        if (sepayRequest.current === requestId) setSepayBank(bank);
+      })
+      .catch((error: unknown) => {
+        if (sepayRequest.current !== requestId) return;
+        setSepayError(
+          error instanceof Error ? error.message : "Không thể tải thông tin tài khoản SePay.",
+        );
+      });
+  };
 
   React.useEffect(() => {
     if (checkoutPhone) setQuickRegPhone(checkoutPhone);
@@ -147,7 +175,6 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
       }
     >
       {selectedTable && selectedTable.currentSession && (() => {
-        const clubPayment = getClubPaymentSettings();
         const playingDetailsObj = calculatePlayingDetails(selectedTable);
         const fnbTotal = (selectedTable.currentSession.orders || []).reduce(
           (sum: number, item: any) =>
@@ -166,6 +193,14 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
         const depositAmount = selectedTable.currentSession.deposit || 0;
         const finalAmount = Math.max(0, subtotal - totalDiscount - depositAmount);
         const pointsWillEarn = loyaltyCustomer ? Math.floor(finalAmount / 10000) : 0;
+        const splitCashAmount =
+          cashReceived !== null
+            ? Math.max(0, Math.min(finalAmount, cashReceived))
+            : Math.floor(finalAmount / 2);
+        const splitQrAmount = Math.max(0, finalAmount - splitCashAmount);
+        const isTransferPayment = paymentMethod === "vnpay" || paymentMethod === "card";
+        const needsSepayBank =
+          paymentMethod === "vnpay" || (paymentMethod === "split" && splitQrAmount > 0);
 
         return (
           <div className="py-2 space-y-3.5 text-xs">
@@ -660,7 +695,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                   <Button
                     variant={paymentMethod === "cash" ? "primary" : "outline"}
                     size="sm"
-                    onClick={() => setPaymentMethod("cash")}
+                    onClick={() => handlePaymentMethodChange("cash")}
                     leftIcon={<DollarOutlined />}
                     className={`!h-12 !flex-col !gap-1 !rounded-xl ${
                       paymentMethod === "cash"
@@ -674,7 +709,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                   <Button
                     variant={paymentMethod === "vnpay" ? "primary" : "outline"}
                     size="sm"
-                    onClick={() => setPaymentMethod("vnpay")}
+                    onClick={() => handlePaymentMethodChange("vnpay")}
                     leftIcon={<QrcodeOutlined />}
                     className={`!h-12 !flex-col !gap-1 !rounded-xl ${
                       paymentMethod === "vnpay"
@@ -688,7 +723,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                   <Button
                     variant={paymentMethod === "split" ? "primary" : "outline"}
                     size="sm"
-                    onClick={() => setPaymentMethod("split")}
+                    onClick={() => handlePaymentMethodChange("split")}
                     leftIcon={<SwapOutlined />}
                     className={`!h-12 !flex-col !gap-1 !rounded-xl ${
                       paymentMethod === "split"
@@ -769,7 +804,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                           variant="primary"
                           size="sm"
                           onClick={() => {
-                            setPaymentMethod("split");
+                            handlePaymentMethodChange("split");
                             setCashReceived(actualReceived);
                           }}
                           leftIcon={<QrcodeOutlined />}
@@ -785,11 +820,16 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
 
               {paymentMethod === "vnpay" && (
                 <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200 space-y-2.5">
+                  {sepayLoading ? (
+                    <p className="text-xs text-slate-600">Đang tải thông tin tài khoản SePay…</p>
+                  ) : sepayError ? (
+                    <Alert type="error" title={sepayError} />
+                  ) : sepayBank ? (
                   <div className="flex items-center gap-3.5">
                     <div className="h-28 w-28 bg-white rounded-xl p-1 shadow-xs border border-emerald-300 flex-shrink-0 flex items-center justify-center overflow-hidden">
                       <img
-                        src={`https://img.vietqr.io/image/${clubPayment.bankCode}-${clubPayment.bankAccountNo}-compact2.png?amount=${finalAmount}&addInfo=CueZone%20${selectedTable.code}&accountName=${encodeURIComponent(clubPayment.bankAccountName)}`}
-                        alt="VietQR Chuyển Khoản"
+                        src={getSepayQrUrl(sepayBank, finalAmount, selectedTable.code)}
+                        alt="Mã QR SePay"
                         className="w-full h-full object-contain"
                       />
                     </div>
@@ -799,21 +839,21 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                           color="green"
                           className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-bold !m-0"
                         >
-                          VIETQR 24/7
+                          SEPAY
                         </Tag>
                         <span className="font-extrabold text-slate-900 text-xs">
-                          {clubPayment.bankName}
+                          {sepayBank.bankCode}
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-600">
                         STK:{" "}
                         <strong className="font-mono text-slate-900 font-bold">
-                          {clubPayment.bankAccountNo}
+                          {sepayBank.accountNumber}
                         </strong>
                       </div>
                       <div className="text-[11px] text-slate-600 truncate">
                         Chủ TK:{" "}
-                        <strong className="text-slate-900 font-bold">{clubPayment.bankAccountName}</strong>
+                        <strong className="text-slate-900 font-bold">{sepayBank.accountName}</strong>
                       </div>
                       <div className="text-[11px] text-slate-600">
                         Số tiền:{" "}
@@ -826,6 +866,9 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                       </div>
                     </div>
                   </div>
+                  ) : (
+                    <Alert type="error" title="Chưa có thông tin tài khoản SePay." />
+                  )}
                   <div className="p-2 rounded-lg bg-white/80 border border-emerald-200/80 text-[11px] text-emerald-800 flex items-center gap-1.5">
                     <CheckCircleOutlined className="text-emerald-600 shrink-0" />
                     <span>
@@ -886,14 +929,19 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
 
                     {/* Cột 2: Phần còn lại quét QR */}
                     {(() => {
-                      const cashPart = cashReceived !== null ? cashReceived : Math.floor(finalAmount / 2);
-                      const qrPart = Math.max(0, finalAmount - cashPart);
+                      const qrPart = splitQrAmount;
                       return (
                         <div className="p-2.5 bg-white rounded-xl border border-indigo-100 flex items-center gap-2.5">
+                          {qrPart > 0 && sepayLoading ? (
+                            <span className="text-[10px] text-slate-500">Đang tải tài khoản SePay…</span>
+                          ) : qrPart > 0 && sepayError ? (
+                            <span className="text-[10px] text-rose-600">{sepayError}</span>
+                          ) : qrPart > 0 && sepayBank ? (
+                            <>
                           <div className="h-20 w-20 bg-white rounded-lg p-0.5 shadow-2xs border border-indigo-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
                             <img
-                              src={`https://img.vietqr.io/image/${clubPayment.bankCode}-${clubPayment.bankAccountNo}-compact2.png?amount=${qrPart}&addInfo=CueZone%20${selectedTable.code}&accountName=${encodeURIComponent(clubPayment.bankAccountName)}`}
-                              alt="VietQR Còn Thiếu"
+                              src={getSepayQrUrl(sepayBank, qrPart, selectedTable.code)}
+                              alt="Mã QR SePay phần còn lại"
                               className="w-full h-full object-contain"
                             />
                           </div>
@@ -905,9 +953,18 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                               {qrPart.toLocaleString("vi-VN")}đ
                             </div>
                             <div className="text-[10px] text-slate-500 truncate">
-                              {clubPayment.bankCode}: <strong>{clubPayment.bankAccountNo}</strong>
+                              {sepayBank.bankCode}: <strong>{sepayBank.accountNumber}</strong>
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate">
+                              Chủ TK: <strong>{sepayBank.accountName}</strong>
                             </div>
                           </div>
+                            </>
+                          ) : qrPart > 0 ? (
+                            <span className="text-[10px] text-rose-600">Chưa có thông tin tài khoản SePay.</span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500">Không cần chuyển khoản QR.</span>
+                          )}
                         </div>
                       );
                     })()}
@@ -929,9 +986,26 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
               <Button
                 variant="primary"
                 size="sm"
-                onClick={onConfirmCheckout}
+                onClick={() =>
+                  onConfirmCheckout({
+                    cashAmount: isTransferPayment
+                      ? 0
+                      : paymentMethod === "split"
+                        ? splitCashAmount
+                        : finalAmount,
+                    transferAmount: isTransferPayment
+                      ? finalAmount
+                      : paymentMethod === "split"
+                        ? splitQrAmount
+                        : 0,
+                  })
+                }
                 loading={saving}
-                disabled={loading || !!loadError}
+                disabled={
+                  loading ||
+                  !!loadError ||
+                  (needsSepayBank && (sepayLoading || !!sepayError || !sepayBank))
+                }
                 leftIcon={<PrinterOutlined />}
                 className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4"
               >

@@ -42,9 +42,15 @@ export interface ActiveOrderTable {
   walletBalance: number;
   checkoutState: "open" | "pending_payment";
   pendingCheckout?: {
-    paymentMethod: "cash" | "transfer";
     requestedAt: string;
   };
+}
+
+export type CheckoutPaymentMethod = "cash" | "vnpay" | "split";
+
+export interface CheckoutPaymentDetails {
+  cashAmount: number;
+  transferAmount: number;
 }
 
 export interface CheckoutRequest {
@@ -55,7 +61,6 @@ export interface CheckoutRequest {
   sessionId: string;
   customerName: string;
   customerPhone?: string;
-  paymentMethod: "cash" | "transfer";
   voucherCode?: string;
   requestedAt: string;
   totalDue: number;
@@ -158,7 +163,7 @@ export const customerOrderService = {
   },
   async requestCheckout(
     tableId: string,
-    input: { sessionId: string; paymentMethod: "cash" | "transfer"; voucherCode?: string },
+    input: { sessionId: string; voucherCode?: string },
   ): Promise<{ status: "paid" | "pending_payment"; receipt?: Record<string, unknown> }> {
     const { data } = await api.post<
       ApiResponse<{ status: "paid" | "pending_payment"; receipt?: Record<string, unknown> }>
@@ -193,12 +198,16 @@ export const staffOrderService = {
     tableId: string,
     sessionId: string,
     approved: boolean,
+    payment?: {
+      paymentMethod: CheckoutPaymentMethod;
+      paymentDetails: CheckoutPaymentDetails;
+    },
   ): Promise<{ status: "paid"; receipt: CheckoutReceipt } | { status: "rejected" }> {
     const { data } = await api.patch<
       ApiResponse<{ status: "paid"; receipt: CheckoutReceipt } | { status: "rejected" }>
     >(
       `/customer/fnb-orders/payment-requests/${encodeURIComponent(tableId)}`,
-      { sessionId, approved },
+      { sessionId, approved, ...payment },
     );
     return unwrap(data);
   },
