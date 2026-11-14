@@ -17,6 +17,8 @@
     "check:customer-orders": "pnpm build && node scripts/check-customer-orders.cjs",
     "check:tournament-reg": "pnpm build && node scripts/check-tournament-registration.cjs",
     "check:news": "pnpm build && node scripts/check-news.cjs",
+    "check:claim-account": "pnpm build && node scripts/check-claim-counter-account.cjs",
+    "check:tournament-checkin": "pnpm build && node scripts/check-tournament-checkin.cjs",
     "check:bracket": "pnpm build && node scripts/check-bracket.cjs"
   },
   "dependencies": {

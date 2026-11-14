@@ -33,11 +33,11 @@
 
 ## Independent review before completion
 
-- Subagents are authorized for read-only independent review. Before completing each
-  implementation task, launch a different reviewer using the code-reviewer skill
-  in a fresh context/session with model `cliproxy/gemini-3.8-flash-high`. Select it explicitly;
-  for Pi pass model: "cliproxy/gemini-3.8-flash-high". Do not reuse the implementer, inherit/fork
-  the parent transcript or pass its implementation narrative.
+- Subagent được phép review độc lập, chỉ đọc. Trước khi hoàn tất mỗi nhiệm vụ triển khai,
+  chạy reviewer dùng skill `code-reviewer` trong context/session mới, với cùng provider/model
+  đang dùng để code. Với Pi, truyền `model: "inherit"` để lấy model của phiên cha đang chạy,
+  không lấy model mặc định lưu trên đĩa. Giữ reviewer tách biệt với implementer;
+  không kế thừa/fork transcript hoặc truyền diễn giải triển khai của phiên cha.
 - Give requirements/acceptance criteria, workspace/baseline when available, changed
   paths and read-only authority. Reviewer inspects actual files/diff and relevant
   callers for correctness, regressions, safety and project conventions. Split large
@@ -46,9 +46,9 @@
   corresponding integration tests) on the actual source code and verify no remaining issues.
 - Parent verifies findings, fixes critical/high issues, reruns affected checks and
   requests recheck. Reviewer claims alone are not verification; report remaining risks.
-- If the exact model, review tool or skill is unavailable, or review fails, report
-  changed files, checks and the blocked review; ask the user how to proceed. Never
-  silently substitute a model, self-review instead, retry endlessly or claim completion.
+- Nếu model đang code, công cụ hoặc skill review không khả dụng, hoặc review thất bại,
+  báo file thay đổi, kết quả kiểm tra và blocker; hỏi người dùng cách tiếp tục.
+  Không tự đổi model, tự review thay thế, thử lại vô hạn hoặc tuyên bố hoàn tất.
 
 ## Configuration & Maintenance
 

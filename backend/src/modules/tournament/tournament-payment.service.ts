@@ -159,11 +159,19 @@ export class TournamentPaymentService {
       if ((tournament.paymentRevision || 0) !== revision) throw paymentError("Danh sách thanh toán đã thay đổi. Vui lòng tải và đối soát lại", 409);
       const ranked = await this.ranking(tournament, session);
       const winners = ranked.candidates.slice(0, ranked.capacity);
+      const previousRegistrations = tournament.players;
       tournament.players = tournament.players.filter((p: any) => !p.paymentReference);
       for (const { intent } of winners) {
         const player = { user: intent.user, name: intent.name, avatar: intent.avatar, phone: intent.phone, feePaid: true, paymentMethod: "bank_transfer", registrationStatus: "confirmed", paymentReference: intent.reference, registeredAt: intent.createdAt };
         const old = tournament.players.find((p: any) => String(p.user) === String(intent.user));
-        if (old) Object.assign(old, player); else tournament.players.push(player);
+        if (old) Object.assign(old, player);
+        else {
+          const previous = previousRegistrations.find((p: any) => String(p.user) === String(intent.user));
+          tournament.players.push({
+            ...player,
+            ...(previous ? { _id: previous._id, checkedInAt: previous.checkedInAt, checkedInBy: previous.checkedInBy } : {}),
+          } as any);
+        }
       }
       const winnerIds = winners.map(({ intent }) => intent._id);
       const remainingCandidateIds = ranked.candidates.slice(ranked.capacity).map(({ intent }) => intent._id);

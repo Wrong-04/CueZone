@@ -11,7 +11,7 @@ import {
 } from "@ant-design/icons";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import { Button, Input, Space, Typography, Alert } from "../../shared/ui";
+import { Button, Input, Space, Typography, Alert, message } from "../../shared/ui";
 import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
 
 const { Title, Text } = Typography;
@@ -148,7 +148,10 @@ const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await verifyAndRegister(email, code);
+      const inheritedPoints = await verifyAndRegister(email, code);
+      if (inheritedPoints > 0) {
+        message.success(`Đã kế thừa ${inheritedPoints.toLocaleString("vi-VN")} điểm tích lũy tại quầy vào tài khoản của bạn.`);
+      }
       navigate("/customer");
     } catch (err: any) {
       setError(err.message || "Xác minh thất bại");

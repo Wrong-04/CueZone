@@ -2,7 +2,9 @@ import { Router, Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import multer from "multer";
 import { TournamentService } from "./tournament.service";
-import { requirePermission } from "../../middlewares/auth.middleware";
+import { requirePermission, requireRole } from "../../middlewares/auth.middleware";
+import { UserRole } from "../user/user.model";
+import { TournamentTicketService } from "./tournament-ticket.service";
 import { TournamentStatus, Tournament } from "./tournament.model";
 import { uploadReceiptImage } from "../../config/cloudinary.config";
 import { TournamentPaymentService } from "./tournament-payment.service";
@@ -97,6 +99,26 @@ router.get("/:id/my-status", async (req: Request, res: Response, next: NextFunct
 });
 
 const requireTournamentOperator = requirePermission("tournaments", "manage");
+const tickets = new TournamentTicketService();
+
+router.get("/:id/epass", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ success: true, data: await tickets.getMyPass(req.params.id, (req as any).user.userId) });
+  } catch (error) { next(error); }
+});
+
+router.post("/:id/check-in/preview", requireTournamentOperator, async (req, res, next) => {
+  try {
+    res.json({ success: true, data: await tickets.preview(req.params.id, req.body.ticket) });
+  } catch (error) { next(error); }
+});
+
+router.post("/:id/check-in", requireTournamentOperator, async (req, res, next) => {
+  try {
+    res.json({ success: true, data: await tickets.checkIn(req.params.id, req.body.ticket, (req as any).user.userId) });
+  } catch (error) { next(error); }
+});
 
 router.get("/:id/payments", requireTournamentOperator, async (req, res, next) => {
   try { res.json({ success: true, data: await payments.snapshot(req.params.id) }); }

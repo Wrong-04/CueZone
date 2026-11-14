@@ -36,6 +36,7 @@ export interface AuthResponse {
   user: User;
   accessToken: string;
   refreshToken: string;
+  inheritedPoints?: number;
 }
 
 export interface ApiResponse<T = any> {

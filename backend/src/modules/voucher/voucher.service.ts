@@ -9,6 +9,7 @@ import {
 import { User, UserRole } from "../user/user.model";
 import { Wallet } from "../wallet/wallet.model";
 import { isVipMemberTier } from "../member/membership.policy";
+import { phonePattern } from "../../utils/phone";
 
 function buildPhoneMatchCondition(customerPhone?: string, customerId?: Types.ObjectId) {
   const conditions: Record<string, unknown>[] = [];
@@ -17,10 +18,9 @@ function buildPhoneMatchCondition(customerPhone?: string, customerId?: Types.Obj
   }
   if (customerPhone && typeof customerPhone === "string" && customerPhone.trim()) {
     const trimmed = customerPhone.trim();
-    const digits = trimmed.replace(/\D/g, "");
-    if (digits.length >= 8) {
-      const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
-      conditions.push({ customerPhone: { $regex: phonePattern } });
+    const pattern = phonePattern(trimmed);
+    if (pattern) {
+      conditions.push({ customerPhone: { $regex: pattern } });
     } else {
       conditions.push({ customerPhone: trimmed });
     }
@@ -40,10 +40,9 @@ async function assertVipAudienceEligible(
   if (customerId) userFilters.push({ _id: customerId });
   if (customerPhone && typeof customerPhone === "string" && customerPhone.trim()) {
     const trimmed = customerPhone.trim();
-    const digits = trimmed.replace(/\D/g, "");
-    if (digits.length >= 8) {
-      const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
-      userFilters.push({ phone: { $regex: phonePattern } });
+    const pattern = phonePattern(trimmed);
+    if (pattern) {
+      userFilters.push({ phone: { $regex: pattern } });
     } else {
       userFilters.push({ phone: trimmed });
     }
@@ -403,12 +402,11 @@ export class VoucherService {
     assertValidAt(voucher, subtotal);
 
     if (customerPhone && typeof customerPhone === "string" && customerPhone.trim()) {
-      const digits = customerPhone.replace(/\D/g, "");
-      if (digits.length >= 8) {
-        const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+      const pattern = phonePattern(customerPhone);
+      if (pattern) {
         const alreadyUsed = await VoucherUsage.findOne({
           voucherId: voucher._id,
-          customerPhone: { $regex: phonePattern },
+          customerPhone: { $regex: pattern },
         });
         if (alreadyUsed) {
           throw httpError(
@@ -446,17 +444,7 @@ export class VoucherService {
     if (!voucher) throw httpError("Không tìm thấy mã voucher", 404, "VOUCHER_NOT_FOUND");
     assertValidAt(voucher, subtotal);
 
-    const customerConditions: Record<string, unknown>[] = [];
-    if (data.customerId) customerConditions.push({ customerId: data.customerId });
-    if (data.customerPhone) {
-      const digits = data.customerPhone.replace(/\D/g, "");
-      customerConditions.push({
-        customerPhone:
-          digits.length >= 8
-            ? { $regex: `^\\+?${digits.split("").join("[\\s().-]*")}$` }
-            : data.customerPhone,
-      });
-    }
+    const customerConditions = buildPhoneMatchCondition(data.customerPhone, data.customerId);
     if (customerConditions.length > 0) {
       const condition = { voucherId: voucher._id, $or: customerConditions };
       const [alreadyUsed, alreadyReserved] = await Promise.all([

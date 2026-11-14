@@ -3,13 +3,9 @@ import { User, UserRole } from "../user/user.model";
 import { Wallet } from "../wallet/wallet.model";
 import { getMemberTier, MEMBER_EARN_POINTS_RATE, MEMBER_TIERS } from "./membership.policy";
 import { PlayReview } from "./play-review.model";
+import { phonePattern } from "../../utils/phone";
 
 const pageSize = 10;
-
-function phonePattern(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  return digits.length >= 8 ? `^\\+?${digits.split("").join("[\\s().-]*")}$` : null;
-}
 
 export class MemberCenterService {
   private httpError(message: string, httpCode: number) {

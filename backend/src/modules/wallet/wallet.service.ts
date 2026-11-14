@@ -6,6 +6,7 @@ import { User } from "../user/user.model";
 import { IWallet, Wallet, WalletTransactionStatus, WalletTransactionType } from "./wallet.model";
 import { WalletPayment } from "./wallet-payment.model";
 import { getPointsForSpend } from "../member/membership.policy";
+import { phonePattern } from "../../utils/phone";
 
 const notifications = new NotificationService();
 
@@ -496,11 +497,10 @@ export class WalletService {
   }
 
   private async findCheckoutMember(phone: string, session: ClientSession) {
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 8) return null;
-    const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+    const pattern = phonePattern(phone);
+    if (!pattern) return null;
     const users = await User.find({
-      phone: { $regex: phonePattern },
+      phone: { $regex: pattern },
       role: "customer",
       isActive: true,
       isLocked: false,

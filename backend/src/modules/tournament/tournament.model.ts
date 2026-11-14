@@ -42,6 +42,8 @@ export interface ITournamentPlayer {
   paymentReference?: string;
 
   registeredAt: Date;
+  checkedInAt?: Date;
+  checkedInBy?: mongoose.Types.ObjectId;
 }
 
 export interface ITournament extends Document {
@@ -164,6 +166,8 @@ const TournamentPlayerSchema = new Schema<ITournamentPlayer>(
     paymentReference: { type: String },
 
     registeredAt: { type: Date, default: Date.now },
+    checkedInAt: { type: Date },
+    checkedInBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { _id: true },
 );

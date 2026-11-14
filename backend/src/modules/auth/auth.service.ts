@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { User, IUser, UserRole } from "../user/user.model";
 import { IPermission } from "../role/role.model";
+import { Wallet } from "../wallet/wallet.model";
 import { getEffectivePermissions } from "../role/permission.catalog";
 import {
   RegisterDTO,
@@ -10,6 +11,7 @@ import {
   ChangePasswordDTO,
 } from "./dto/auth.dto";
 import { appConfig } from "../../config/app.config";
+import { normalizePhone, phonePattern } from "../../utils/phone";
 import { EmailVerification } from "./emailVerification.model";
 import { PasswordResetOtp } from "./passwordResetOtp.model";
 import {
@@ -47,6 +49,8 @@ export interface AuthResponse {
   user: UserWithPermissions;
   accessToken: string;
   refreshToken: string;
+  /** Điểm kế thừa khi nhận lại tài khoản tạo tại quầy (chỉ có khi đăng ký có xác minh). */
+  inheritedPoints?: number;
 }
 
 export class AuthService {
@@ -78,7 +82,7 @@ export class AuthService {
 
     let phone: string | undefined = undefined;
     if (dto.phone !== undefined && dto.phone !== null && String(dto.phone).trim() !== "") {
-      phone = String(dto.phone).trim();
+      phone = String(dto.phone).trim().replace(/[\s().-]/g, "");
       const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
       if (!phoneRegex.test(phone)) {
         throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
@@ -87,7 +91,7 @@ export class AuthService {
 
     this.validatePassword(dto.password);
 
-    return { name, email, phone, password: dto.password };
+    return { name, email, phone: phone ? normalizePhone(phone) : undefined, password: dto.password };
   }
 
   private validatePassword(password: string): void {
@@ -99,6 +103,25 @@ export class AuthService {
     }
   }
 
+  // Trả tài khoản tạo nhanh tại quầy (email @cuezone.local) nếu số điện thoại thuộc về nó,
+  // null nếu số còn trống; ném lỗi nếu số đã thuộc tài khoản thật / nhiều bản ghi.
+  // ponytail: chỉ OTP email, chưa chứng minh quyền sở hữu số; nâng cấp bằng SMS OTP hoặc nhân viên duyệt tại quầy.
+  private async findCounterAccount(phone: string) {
+    const pattern = phonePattern(phone);
+    if (!pattern) throw new Error("Số điện thoại không hợp lệ");
+    const users = await User.find({ phone: { $regex: pattern } }).limit(2);
+    if (!users.length) return null;
+    const [user] = users;
+    const isCounter =
+      users.length === 1 &&
+      user.role === UserRole.CUSTOMER &&
+      user.email.endsWith("@cuezone.local") &&
+      user.isActive &&
+      !user.isLocked;
+    if (!isCounter) throw new Error("Số điện thoại đã được sử dụng");
+    return user;
+  }
+
   async register(dto: RegisterDTO): Promise<AuthResponse> {
     const validated = this.validateRegistrationInput(dto);
 
@@ -107,36 +130,10 @@ export class AuthService {
       throw new Error("Email đã được sử dụng");
     }
 
-    if (validated.phone) {
-      const phoneDigits = validated.phone.replace(/\D/g, "");
-      const phonePattern = `^\\+?${phoneDigits.split("").join("[\\s().-]*")}$`;
-      const existingPhone = await User.findOne({ phone: { $regex: phonePattern } });
-      if (existingPhone) {
-        // Nếu là tài khoản khách được tạo nhanh tại quầy thu ngân (email tạm .local)
-        // -> Tự động liên kết và kích hoạt tài khoản chính thức, bảo lưu toàn bộ điểm tích lũy & hạng thẻ
-        if (existingPhone.email.endsWith("@cuezone.local") && existingPhone.role === UserRole.CUSTOMER) {
-          existingPhone.email = validated.email;
-          existingPhone.password = validated.password;
-          existingPhone.phone = validated.phone;
-          if (validated.name && (!existingPhone.name || existingPhone.name.startsWith("Khách "))) {
-            existingPhone.name = validated.name;
-          }
-          await existingPhone.save();
-
-          sendWelcomeRegistrationEmail(existingPhone.email, existingPhone.name).catch((err) => {
-            console.warn("⚠️ Không thể gửi email xác thực đăng ký:", err.message);
-          });
-
-          const tokens = this.generateTokens(existingPhone);
-          const userObj = existingPhone.toObject();
-          delete (userObj as any).password;
-          const permissions = await this.getRolePermissions(existingPhone.role);
-
-          return { user: { ...userObj, permissions } as UserWithPermissions, ...tokens };
-        }
-
-        throw new Error("Số điện thoại đã được sử dụng");
-      }
+    if (validated.phone && (await this.findCounterAccount(validated.phone))) {
+      throw new Error(
+        "Số điện thoại này đã tích điểm tại quầy. Vui lòng đăng ký bằng mã xác minh email để nhận lại điểm.",
+      );
     }
 
     const user = new User({
@@ -171,10 +168,11 @@ export class AuthService {
     }
 
     const isEmail = identifier.includes("@");
+    const pattern = isEmail ? null : phonePattern(identifier);
     const user = await User.findOne(
       isEmail
         ? { email: identifier.toLowerCase() }
-        : { $or: [{ phone: identifier }, { email: identifier.toLowerCase() }] },
+        : { phone: pattern ? { $regex: pattern } : identifier },
     ).select("+password");
 
     if (!user) {
@@ -238,12 +236,16 @@ export class AuthService {
 
     let phone: string | undefined;
     if (input.phone !== undefined && input.phone !== null && String(input.phone).trim()) {
-      phone = String(input.phone).trim();
+      phone = String(input.phone).trim().replace(/[\s().-]/g, "");
       const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
       if (!phoneRegex.test(phone)) {
         throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
       }
-      const existingPhone = await User.findOne({ phone, _id: { $ne: userId } }).select("_id");
+      phone = normalizePhone(phone);
+      const existingPhone = await User.findOne({
+        phone: { $regex: phonePattern(phone)! },
+        _id: { $ne: userId },
+      }).select("_id");
       if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
     }
 
@@ -272,12 +274,7 @@ export class AuthService {
         throw new Error("Email đã được sử dụng");
       }
 
-      if (validated.phone) {
-        const existingPhone = await User.findOne({ phone: validated.phone });
-        if (existingPhone) {
-          throw new Error("Số điện thoại đã được sử dụng");
-        }
-      }
+      if (validated.phone) await this.findCounterAccount(validated.phone);
 
       const pending = await EmailVerification.findOne({ email: validated.email });
       if (pending) {
@@ -351,22 +348,44 @@ export class AuthService {
       throw new Error("Email đã được sử dụng");
     }
 
+    let counter: IUser | null = null;
     if (pending.phone) {
-      const existingPhone = await User.findOne({ phone: pending.phone });
-      if (existingPhone) {
+      try {
+        counter = await this.findCounterAccount(pending.phone);
+      } catch (err) {
         await EmailVerification.deleteOne({ email: normalizedEmail });
-        throw new Error("Số điện thoại đã được sử dụng");
+        throw err;
       }
     }
 
-    const user = new User({
-      name: pending.name,
-      email: pending.email,
-      password: pending.password,
-      phone: pending.phone,
-      role: UserRole.CUSTOMER,
-    });
-    await user.save();
+    // Nhận lại đúng User tạm: Wallet (điểm, số dư) và hóa đơn trỏ theo _id nên đi theo.
+    const user =
+      counter ??
+      new User({
+        name: pending.name,
+        email: pending.email,
+        password: pending.password,
+        phone: pending.phone,
+        role: UserRole.CUSTOMER,
+      });
+    if (counter) {
+      // Chỉ một yêu cầu được nhận hồ sơ tạm; vẫn chạy hook băm mật khẩu của save().
+      counter.$where = { email: counter.email, isActive: true, isLocked: false };
+      counter.email = pending.email;
+      counter.password = pending.password;
+      if (!counter.name || counter.name.startsWith("Khách ")) counter.name = pending.name;
+    }
+    const inheritedPoints = counter
+      ? ((await Wallet.findOne({ userId: user._id }).select("points"))?.points ?? 0)
+      : undefined;
+    try {
+      await user.save();
+    } catch (error) {
+      if (counter && error instanceof Error && error.name === "DocumentNotFoundError") {
+        throw new Error("Hồ sơ hội viên đã thay đổi hoặc được liên kết. Vui lòng đăng ký lại.");
+      }
+      throw error;
+    }
     await EmailVerification.deleteOne({ email: normalizedEmail });
 
     sendWelcomeRegistrationEmail(user.email, user.name).catch((err) => {
@@ -378,7 +397,7 @@ export class AuthService {
     delete (userObj as any).password;
     const permissions = await this.getRolePermissions(user.role);
 
-    return { user: { ...userObj, permissions } as UserWithPermissions, ...tokens };
+    return { user: { ...userObj, permissions } as UserWithPermissions, ...tokens, inheritedPoints };
   }
 
   async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {

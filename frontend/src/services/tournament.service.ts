@@ -19,6 +19,32 @@ export interface TournamentPlayer {
   registrationStatus?: "pending" | "confirmed" | "cancelled";
   paymentReference?: string;
   registeredAt: string;
+  checkedInAt?: string;
+}
+
+export interface TournamentPass {
+  tournamentId: string;
+  tournamentName: string;
+  format: string;
+  raceToScore: number;
+  startDate: string;
+  endDate: string;
+  athleteName: string;
+  athletePhone: string;
+  athleteCode: string;
+  feeAmount: number;
+  checkedInAt: string | null;
+  ticket: string;
+}
+
+export interface TournamentCheckIn {
+  tournamentId: string;
+  tournamentName: string;
+  registrationId: string;
+  athleteName: string;
+  athletePhone: string;
+  checkedInAt: string | null;
+  alreadyCheckedIn: boolean;
 }
 
 export interface TournamentItem {
@@ -306,6 +332,24 @@ export const tournamentService = {
   async deleteTournament(id: string): Promise<void> {
     const { data } = await api.delete<ApiResponse>(`/tournaments/${id}`);
     if (!data.success) throw new Error(data.message || "Không thể xóa giải đấu");
+  },
+
+  async getMyPass(id: string): Promise<TournamentPass> {
+    const { data } = await api.get<ApiResponse<TournamentPass>>(`/tournaments/${id}/epass`);
+    if (!data.success || !data.data) throw new Error(data.message || "Không thể tải vé thi đấu");
+    return data.data;
+  },
+
+  async previewTicket(id: string, ticket: string): Promise<TournamentCheckIn> {
+    const { data } = await api.post<ApiResponse<TournamentCheckIn>>(`/tournaments/${id}/check-in/preview`, { ticket });
+    if (!data.success || !data.data) throw new Error(data.message || "Không thể kiểm tra vé");
+    return data.data;
+  },
+
+  async checkInTicket(id: string, ticket: string): Promise<TournamentCheckIn> {
+    const { data } = await api.post<ApiResponse<TournamentCheckIn>>(`/tournaments/${id}/check-in`, { ticket });
+    if (!data.success || !data.data) throw new Error(data.message || "Không thể điểm danh");
+    return data.data;
   },
 
   async getPayment(id: string): Promise<TournamentPayment> {

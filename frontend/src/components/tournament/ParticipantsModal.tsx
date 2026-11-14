@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { tournamentService } from "../../services/tournament.service";
-import { UserOutlined, UserAddOutlined } from "@ant-design/icons";
+import { UserOutlined, UserAddOutlined, QrcodeOutlined } from "@ant-design/icons";
 import { Modal, Button, Tag } from "../../shared/ui";
 import type { TournamentItem } from "../../services/tournament.service";
 import { TournamentPaymentReconciliation } from "./TournamentPaymentReconciliation";
 import { CounterRegistrationModal } from "./CounterRegistrationModal";
+import { TournamentCheckInModal } from "./TournamentCheckInModal";
 
 interface ParticipantsModalProps {
   open: boolean;
@@ -19,6 +20,7 @@ export const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
 }) => {
   const [updated, setUpdated] = useState<TournamentItem | null>(null);
   const [openCounterReg, setOpenCounterReg] = useState(false);
+  const [openCheckIn, setOpenCheckIn] = useState(false);
   const currentTourney = updated?._id === tournament?._id ? updated : tournament;
   const players = currentTourney?.players || [];
   const refresh = async () => {
@@ -43,6 +45,9 @@ export const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
       }
     >
       <div className="py-3 space-y-3">
+        <Button variant="primary" leftIcon={<QrcodeOutlined />} onClick={() => setOpenCheckIn(true)} disabled={!tournament}>
+          Quét vé / Điểm danh
+        </Button>
         <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
           {players.length > 0 ? (
             players.map((p, idx) => (
@@ -70,9 +75,12 @@ export const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
                     </span>
                   </div>
                 </div>
-                <Tag color={p.feePaid ? "green" : "volcano"}>
-                  {p.feePaid ? "Đã nộp lệ phí" : "Chưa nộp"}
-                </Tag>
+                <div className="text-right space-y-1">
+                  <Tag color={p.feePaid ? "green" : "volcano"}>
+                    {p.feePaid ? "Đã nộp lệ phí" : "Chưa nộp"}
+                  </Tag>
+                  {p.checkedInAt && <p className="text-xs text-brand">Đã điểm danh {new Date(p.checkedInAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</p>}
+                </div>
               </div>
             ))
           ) : (
@@ -99,6 +107,11 @@ export const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
         </div>
       </div>
 
+      {open && openCheckIn && tournament && (
+        <TournamentCheckInModal key={tournament._id} tournamentId={tournament._id}
+          onClose={() => setOpenCheckIn(false)}
+          onCheckedIn={() => { void refresh().catch(() => undefined); }} />
+      )}
       <CounterRegistrationModal
         open={openCounterReg}
         tournament={currentTourney}
