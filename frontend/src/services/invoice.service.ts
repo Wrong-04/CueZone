@@ -57,10 +57,10 @@ export const invoiceService = {
     return res.data;
   },
 
-  async cancelInvoice(id: string, reason: string) {
+  async cancelInvoice(id: string, reason: string, restock = false) {
     const res = await api.post<{ success: boolean; data: any; message?: string }>(
       `/invoices/${id}/cancel`,
-      { reason },
+      { reason, restock },
     );
     return res.data;
   },

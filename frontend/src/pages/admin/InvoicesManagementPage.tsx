@@ -84,13 +84,47 @@ export interface ClubInvoice {
   note?: string;
 }
 
-// ── Mock Initial Invoices ─────────────────────────────────────────────────────
+// ── Club Settings Dynamic Loader ──────────────────────────────────────────
 
-const INITIAL_INVOICES: ClubInvoice[] = [];;
+interface ClubInfoSettings {
+  clubName: string;
+  address: string;
+  phone: string;
+  wifiSSID: string;
+  wifiPassword: string;
+  slogan: string;
+}
+
+const getClubSettings = (): ClubInfoSettings => {
+  try {
+    const saved = localStorage.getItem("cuezone_admin_settings");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        clubName: parsed.clubName || "CueZone Billiards Club",
+        address: parsed.address || "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
+        phone: parsed.phone || "0908 888 999",
+        wifiSSID: parsed.wifiSSID || "CueZone_5G_VIP",
+        wifiPassword: parsed.wifiPassword || "cuezone8888",
+        slogan: parsed.slogan || "Hệ thống CLB Bida CueZone",
+      };
+    }
+  } catch {}
+  return {
+    clubName: "CueZone Billiards Club",
+    address: "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
+    phone: "0908 888 999",
+    wifiSSID: "CueZone_5G_VIP",
+    wifiPassword: "cuezone8888",
+    slogan: "Hệ thống CLB Bida CueZone",
+  };
+};
 
 export const InvoicesManagementPage: React.FC = () => {
+  const clubSettings = useMemo(() => getClubSettings(), []);
+
   // ── 1. STATE & LIVE API INTEGRATION ──────────────────────────────────────
-  const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>(INITIAL_INVOICES);
+  const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [liveMetrics, setLiveMetrics] = useState({
     totalCount: 0,
@@ -109,7 +143,7 @@ export const InvoicesManagementPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Date Filter & Sorting States
-  type DateFilterPreset = "all" | "today" | "yesterday" | "7days" | "this_month" | "custom";
+  type DateFilterPreset = "all" | "today" | "7days" | "this_month" | "custom";
   type SortByOption = "newest" | "oldest" | "amount_desc" | "amount_asc" | "duration_desc";
 
   const [datePreset, setDatePreset] = useState<DateFilterPreset>("all");
@@ -147,19 +181,6 @@ export const InvoicesManagementPage: React.FC = () => {
     if (preset === "today") {
       return date >= startOfToday && date <= endOfToday;
     }
-    if (preset === "yesterday") {
-      const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-      const endOfYesterday = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - 1,
-        23,
-        59,
-        59,
-        999,
-      );
-      return date >= startOfYesterday && date <= endOfYesterday;
-    }
     if (preset === "7days") {
       const startOf7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
       return date >= startOf7Days && date <= endOfToday;
@@ -185,11 +206,25 @@ export const InvoicesManagementPage: React.FC = () => {
   const [cancelModalOpen, setCancelModalOpen] = useState<boolean>(false);
   const [cancellingInvoice, setCancellingInvoice] = useState<ClubInvoice | null>(null);
   const [cancelReason, setCancelReason] = useState<string>("");
+  const [restockInventory, setRestockInventory] = useState<boolean>(false);
   const [cancelLoading, setCancelLoading] = useState<boolean>(false);
 
+  const isInvoiceCancellable = (inv?: ClubInvoice | null) => {
+    if (!inv || inv.status !== "paid") return false;
+    const createdTime = inv.createdAt ? new Date(inv.createdAt).getTime() : 0;
+    if (!createdTime) return true;
+    const ageHours = (Date.now() - createdTime) / (1000 * 60 * 60);
+    return ageHours <= 24;
+  };
+
   const handleOpenCancelModal = (inv: ClubInvoice) => {
+    if (!isInvoiceCancellable(inv)) {
+      message.warning("Hóa đơn đã quá hạn 24 giờ kể từ khi thanh toán, không thể hủy");
+      return;
+    }
     setCancellingInvoice(inv);
     setCancelReason("");
+    setRestockInventory(false);
     setCancelModalOpen(true);
   };
 
@@ -202,11 +237,12 @@ export const InvoicesManagementPage: React.FC = () => {
     }
     setCancelLoading(true);
     try {
-      await invoiceService.cancelInvoice(cancellingInvoice.id, trimmedReason);
+      await invoiceService.cancelInvoice(cancellingInvoice.id, trimmedReason, restockInventory);
       message.success(`Đã hủy hóa đơn ${cancellingInvoice.code} thành công`);
       setCancelModalOpen(false);
       setCancellingInvoice(null);
       setCancelReason("");
+      setRestockInventory(false);
       if (selectedInvoice && selectedInvoice.id === cancellingInvoice.id) {
         setSelectedInvoice({
           ...selectedInvoice,
@@ -305,9 +341,9 @@ export const InvoicesManagementPage: React.FC = () => {
         </head>
         <body>
           <div class="text-center">
-            <div class="title">CUEZONE BILLIARDS CLUB</div>
-            <div>246 Nguyễn Trãi, P.3, Q.5, TP.HCM</div>
-            <div>Hotline: 0909 888 999</div>
+            <div class="title">${clubSettings.clubName.toUpperCase()}</div>
+            <div>${clubSettings.address}</div>
+            <div>Hotline: ${clubSettings.phone}</div>
           </div>
           <div class="double-dashed"></div>
           <div class="text-center bold" style="font-size: 13px;">PHIẾU THANH TOÁN</div>
@@ -359,7 +395,7 @@ export const InvoicesManagementPage: React.FC = () => {
           }
           ${
             selectedInvoice.membershipDiscountAmount && selectedInvoice.membershipDiscountAmount > 0
-              ? `<div class="row bold"><span>Ưu đãi hội viên (${selectedInvoice.discountPercent || 10}%):</span><span>-${selectedInvoice.membershipDiscountAmount.toLocaleString("vi-VN")}đ</span></div>`
+              ? `<div class="row bold"><span>Ưu đãi hội viên${selectedInvoice.discountPercent ? ` (${selectedInvoice.discountPercent}%)` : ""}:</span><span>-${selectedInvoice.membershipDiscountAmount.toLocaleString("vi-VN")}đ</span></div>`
               : selectedInvoice.discountAmount > 0 && !selectedInvoice.voucherDiscountAmount
                 ? `<div class="row bold"><span>Giảm giá:</span><span>-${selectedInvoice.discountAmount.toLocaleString("vi-VN")}đ</span></div>`
                 : ""
@@ -376,7 +412,7 @@ export const InvoicesManagementPage: React.FC = () => {
           <div class="double-dashed"></div>
           <div class="footer">
             <div>*** CẢM ƠN QUÝ KHÁCH ***</div>
-            <div>Wifi: CueZone_VIP (Pass: 88888888)</div>
+            <div>Wifi: ${clubSettings.wifiSSID} (Pass: ${clubSettings.wifiPassword})</div>
             <div>Hẹn gặp lại quý khách lần sau!</div>
           </div>
         </body>
@@ -487,11 +523,19 @@ export const InvoicesManagementPage: React.FC = () => {
           invMethod.includes("hội viên");
       }
 
+      const tableNameLower = (inv.tableName || "").toLowerCase();
       const matchTableType =
         tableTypeFilter === "all" ||
-        (tableTypeFilter === "vip" && inv.tableName.toLowerCase().includes("vip")) ||
-        (tableTypeFilter === "pool" && (inv.tableName.toLowerCase().includes("phổ thông") || inv.tableName.toLowerCase().includes("thường") || inv.tableName.toLowerCase().includes("pool"))) ||
-        (tableTypeFilter === "match" && inv.tableName.toLowerCase().includes("thi đấu"));
+        (tableTypeFilter === "vip" && tableNameLower.includes("vip")) ||
+        (tableTypeFilter === "pool" &&
+          (tableNameLower.includes("phổ thông") ||
+            tableNameLower.includes("thường") ||
+            tableNameLower.includes("pool") ||
+            tableNameLower.includes("lỗ"))) ||
+        (tableTypeFilter === "match" &&
+          (tableNameLower.includes("thi đấu") || tableNameLower.includes("match"))) ||
+        (tableTypeFilter === "carom" && tableNameLower.includes("carom")) ||
+        (tableTypeFilter === "snooker" && tableNameLower.includes("snooker"));
 
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
@@ -610,6 +654,8 @@ export const InvoicesManagementPage: React.FC = () => {
       }).length,
       dotClassName: "bg-blue-500",
     },
+    // ponytail: Đã ngưng tính năng Ví hội viên theo yêu cầu
+    /*
     {
       key: "wallet",
       label: "Ví hội viên",
@@ -625,6 +671,7 @@ export const InvoicesManagementPage: React.FC = () => {
       }).length,
       dotClassName: "bg-purple-500",
     },
+    */
     {
       key: "cancelled",
       label: "Đã hủy",
@@ -786,9 +833,14 @@ export const InvoicesManagementPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
+              disabled={!isInvoiceCancellable(record)}
               onClick={() => handleOpenCancelModal(record)}
-              className="!rounded-xl !text-xs !h-8 !border-rose-200 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-400 font-bold px-2.5"
-              title="Hủy hóa đơn này"
+              className={`!rounded-xl !text-xs !h-8 font-bold px-2.5 ${
+                isInvoiceCancellable(record)
+                  ? "!border-rose-200 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-400"
+                  : "!border-slate-200 !text-slate-400 opacity-60 cursor-not-allowed"
+              }`}
+              title={isInvoiceCancellable(record) ? "Hủy hóa đơn này" : "Hóa đơn đã quá hạn 24 giờ, không thể hủy"}
             >
               Hủy
             </Button>
@@ -861,14 +913,14 @@ export const InvoicesManagementPage: React.FC = () => {
               </span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
-              {metrics.paidCount} hóa đơn hoàn tất
+              {metrics.paidCount} hóa đơn đã thanh toán
             </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">
-                Doanh thu Giờ Bida
+                Doanh thu Tiền Giờ
               </span>
               <span className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs border border-emerald-200">
                 <CheckCircleOutlined />
@@ -929,16 +981,17 @@ export const InvoicesManagementPage: React.FC = () => {
       {/* ── FILTER TOOLBAR (Bố cục thông minh 2 hàng chuẩn SaaS) ────────── */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3.5">
         {/* Hàng 1: Tabs Trạng thái & Hình thức thanh toán (Trái) + Ô tìm kiếm (Phải) */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           <div className="overflow-x-auto pb-1 max-w-full">
             <SegmentedPillList
               items={statusPills}
               activeKey={statusFilter}
               onSelect={(key) => setStatusFilter(key)}
+              className="flex-nowrap whitespace-nowrap"
             />
           </div>
 
-          <div className="w-full lg:w-72 shrink-0">
+          <div className="w-full xl:w-64 shrink-0">
             <Input
               placeholder="Tìm mã HD, khách hàng, số bàn..."
               prefix={<SearchOutlined className="text-slate-400" />}
@@ -950,21 +1003,19 @@ export const InvoicesManagementPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Hàng 2: Bộ lọc chuyên sâu gọn trong 1 dải nền tinh tế */}
-        <div className="bg-slate-50/90 p-3 rounded-2xl border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Cụm trái: Bộ lọc Thời gian */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-600 flex items-center gap-1 mr-1">
+        {/* Hàng 2: Bộ lọc chuyên sâu chuẩn SaaS - Luôn nằm trên 1 DÒNG DUY NHẤT phẳng lì */}
+        <div className="bg-slate-50/90 p-2.5 rounded-2xl border border-slate-100 flex items-center justify-between gap-2.5 overflow-x-auto whitespace-nowrap">
+          {/* Cụm trái: Bộ lọc Thời gian nhanh + RangePicker */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1 mr-1 whitespace-nowrap">
               <CalendarOutlined className="text-emerald-600 text-sm" /> Thời gian:
             </span>
             {(
               [
                 { key: "all", label: "Tất cả" },
                 { key: "today", label: "Hôm nay" },
-                { key: "yesterday", label: "Hôm qua" },
                 { key: "7days", label: "7 ngày qua" },
                 { key: "this_month", label: "Tháng này" },
-                { key: "custom", label: "Tùy chọn ngày" },
               ] as { key: DateFilterPreset; label: string }[]
             ).map((item) => {
               const isActive = datePreset === item.key;
@@ -974,12 +1025,10 @@ export const InvoicesManagementPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setDatePreset(item.key);
-                    if (item.key !== "custom") {
-                      setCustomRange(null);
-                      setCustomDayjsRange(null);
-                    }
+                    setCustomRange(null);
+                    setCustomDayjsRange(null);
                   }}
-                  className={`text-xs px-3 py-1.5 rounded-xl transition-all cursor-pointer select-none ${
+                  className={`text-xs px-2.5 py-1 rounded-xl transition-all cursor-pointer select-none whitespace-nowrap ${
                     isActive
                       ? "bg-emerald-600 text-white font-bold shadow-xs"
                       : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/90 font-medium"
@@ -990,35 +1039,41 @@ export const InvoicesManagementPage: React.FC = () => {
               );
             })}
 
-            {datePreset === "custom" && (
-              <div className="inline-block ml-1">
-                <RangePicker
-                  value={customDayjsRange}
-                  onChange={(dates) => {
-                    if (dates && dates[0] && dates[1]) {
-                      setCustomDayjsRange([dates[0], dates[1]]);
-                      setCustomRange([
-                        dates[0].format("YYYY-MM-DD"),
-                        dates[1].format("YYYY-MM-DD"),
-                      ]);
-                    } else {
-                      setCustomDayjsRange(null);
-                      setCustomRange(null);
-                    }
-                  }}
-                  format="DD/MM/YYYY"
-                  placeholder={["Từ ngày", "Đến ngày"]}
-                  className="!rounded-xl !h-8 text-xs !bg-white"
-                />
-              </div>
-            )}
+            {/* RangePicker trực tiếp trên cùng hàng - Bấm vào bung popup lịch dropdown overlay, không đẩy giao diện */}
+            <div className="inline-flex items-center ml-0.5">
+              <RangePicker
+                value={customDayjsRange}
+                onChange={(dates) => {
+                  if (dates && dates[0] && dates[1]) {
+                    setDatePreset("custom");
+                    setCustomDayjsRange([dates[0], dates[1]]);
+                    setCustomRange([
+                      dates[0].format("YYYY-MM-DD"),
+                      dates[1].format("YYYY-MM-DD"),
+                    ]);
+                  } else {
+                    setDatePreset("all");
+                    setCustomDayjsRange(null);
+                    setCustomRange(null);
+                  }
+                }}
+                format="DD/MM/YYYY"
+                placeholder={["Từ ngày", "Đến ngày"]}
+                allowClear
+                className={`!w-48 !rounded-xl !h-8 text-xs transition-all ${
+                  datePreset === "custom"
+                    ? "!bg-white !border-emerald-500 !ring-1 !ring-emerald-500/20 font-bold"
+                    : "!bg-white !border-slate-200"
+                }`}
+              />
+            </div>
           </div>
 
-          {/* Cụm phải: Khu vực bàn, Sắp xếp & Đặt lại */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                <FilterOutlined /> Khu vực:
+          {/* Cụm phải: Loại bàn, Sắp xếp, Đặt lại & Đếm số lượng */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap">
+                <FilterOutlined /> Loại bàn:
               </span>
               <Select
                 value={tableTypeFilter}
@@ -1026,21 +1081,23 @@ export const InvoicesManagementPage: React.FC = () => {
                 className="!w-36 !rounded-xl !text-xs !bg-white"
                 options={[
                   { value: "all", label: "Tất cả loại bàn" },
-                  { value: "pool", label: "Bàn Phổ Thông" },
+                  { value: "pool", label: "Bàn Phổ Thông / Pool" },
                   { value: "vip", label: "Bàn VIP" },
                   { value: "match", label: "Bàn Thi Đấu" },
+                  { value: "carom", label: "Bàn Carom" },
+                  { value: "snooker", label: "Bàn Snooker" },
                 ]}
               />
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap">
                 <SortAscendingOutlined /> Sắp xếp:
               </span>
               <Select
                 value={sortBy}
                 onChange={(val) => setSortBy(val as SortByOption)}
-                className="!w-44 !rounded-xl !text-xs !bg-white"
+                className="!w-36 !rounded-xl !text-xs !bg-white"
                 options={[
                   { value: "newest", label: "Mới nhất trước" },
                   { value: "oldest", label: "Cũ nhất trước" },
@@ -1068,14 +1125,14 @@ export const InvoicesManagementPage: React.FC = () => {
                   setSortBy("newest");
                 }}
                 leftIcon={<ReloadOutlined />}
-                className="!rounded-xl !text-xs !h-8 !text-slate-600 !border-slate-200 hover:!bg-white"
+                className="!rounded-xl !text-xs !h-8 !px-2.5 !text-slate-600 !border-slate-200 hover:!bg-white whitespace-nowrap"
                 title="Xóa tất cả bộ lọc về mặc định"
               >
                 Đặt lại
               </Button>
             )}
 
-            <Tag color="cyan" className="!rounded-full !px-2.5 !py-0.5 !text-[11px] !font-bold !m-0">
+            <Tag color="cyan" className="!rounded-full !px-2.5 !py-1 !text-[11px] !font-bold !m-0 shrink-0 whitespace-nowrap">
               {sortedInvoices.length} Hóa đơn
             </Tag>
           </div>
@@ -1135,13 +1192,13 @@ export const InvoicesManagementPage: React.FC = () => {
               {/* Receipt Header */}
               <div className="text-center pb-3 border-b border-dashed border-slate-300">
                 <span className="font-black text-base tracking-widest text-slate-900 block">
-                  CUEZONE BILLIARDS CLUB
+                  {clubSettings.clubName.toUpperCase()}
                 </span>
                 <span className="text-[11px] text-slate-500 block">
-                  Hệ thống CLB Bida CueZone
+                  {clubSettings.address}
                 </span>
                 <span className="text-[11px] text-slate-500 block">
-                  Wifi: CueZone_VIP (Mật khẩu: 88888888)
+                  Wifi: {clubSettings.wifiSSID} (Mật khẩu: {clubSettings.wifiPassword})
                 </span>
               </div>
 
@@ -1154,7 +1211,7 @@ export const InvoicesManagementPage: React.FC = () => {
                   Ngày: <strong>{selectedInvoice.date}</strong>
                 </div>
                 <div>
-                  Khu vực: <strong className="text-emerald-800">{selectedInvoice.tableName}</strong>
+                  Bàn chơi: <strong className="text-emerald-800">{selectedInvoice.tableName}</strong>
                 </div>
                 <div className="text-right">
                   Thu ngân: <strong>{selectedInvoice.cashierName}</strong>
@@ -1240,7 +1297,7 @@ export const InvoicesManagementPage: React.FC = () => {
 
                 {selectedInvoice.membershipDiscountAmount && selectedInvoice.membershipDiscountAmount > 0 ? (
                   <div className="flex justify-between text-emerald-700 font-medium">
-                    <span>Ưu đãi hội viên ({selectedInvoice.discountPercent || 10}%):</span>
+                    <span>Ưu đãi hội viên{selectedInvoice.discountPercent ? ` (${selectedInvoice.discountPercent}%)` : ""}:</span>
                     <span className="font-mono">
                       -{selectedInvoice.membershipDiscountAmount.toLocaleString("vi-VN")}đ
                     </span>
@@ -1285,9 +1342,15 @@ export const InvoicesManagementPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="md"
+                    disabled={!isInvoiceCancellable(selectedInvoice)}
                     leftIcon={<CloseCircleOutlined />}
                     onClick={() => handleOpenCancelModal(selectedInvoice)}
-                    className="!border-rose-300 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-400 !rounded-xl !font-bold text-xs"
+                    className={`!rounded-xl !font-bold text-xs ${
+                      isInvoiceCancellable(selectedInvoice)
+                        ? "!border-rose-300 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-400"
+                        : "!border-slate-200 !text-slate-400 opacity-60 cursor-not-allowed"
+                    }`}
+                    title={isInvoiceCancellable(selectedInvoice) ? "Hủy hóa đơn này" : "Hóa đơn đã quá hạn 24 giờ, không thể hủy"}
                   >
                     Hủy Hóa Đơn
                   </Button>
@@ -1395,6 +1458,26 @@ export const InvoicesManagementPage: React.FC = () => {
                 onChange={(e) => setCancelReason(e.target.value)}
                 className="!rounded-xl text-xs !border-slate-300 focus:!border-rose-500"
               />
+            </div>
+
+            {/* Tùy chọn hoàn kho mặt hàng F&B */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={restockInventory}
+                  onChange={(e) => setRestockInventory(e.target.checked)}
+                  className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                />
+                <div>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    Cộng hoàn các mặt hàng F&B vào kho
+                  </span>
+                  <span className="text-[11px] text-slate-500 block leading-relaxed mt-0.5">
+                    Chỉ tích chọn nếu khách <strong>chưa khui / chưa sử dụng đồ</strong> (do thu ngân tính nhầm bill). Nếu khách <strong>đã dùng rồi</strong> nhưng bùng tiền hoặc miễn phí, vui lòng <strong>không tích chọn</strong> để phản ánh đúng thực tế hao hụt kho.
+                  </span>
+                </div>
+              </label>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
