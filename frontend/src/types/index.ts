@@ -15,6 +15,12 @@ export interface User {
   role: UserRole;
   phone?: string;
   avatar?: string;
+  bio?: string;
+  favoriteGame?: string;
+  notificationSettings?: {
+    bookingReminder?: boolean;
+    tournamentNews?: boolean;
+  };
   elo?: number;
   rank?: string;
   isActive: boolean;

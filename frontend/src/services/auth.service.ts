@@ -63,10 +63,32 @@ export const authService = {
     return data.data!;
   },
 
-  async updateProfile(input: { name: string; phone: string }): Promise<User> {
+  async updateProfile(input: {
+    name?: string;
+    phone?: string;
+    avatar?: string;
+    bio?: string;
+    favoriteGame?: string;
+    notificationSettings?: {
+      bookingReminder?: boolean;
+      tournamentNews?: boolean;
+    };
+  }): Promise<User> {
     const { data } = await api.patch<ApiResponse<User>>("/auth/profile", input);
     if (!data.success || !data.data) {
       throw new Error(data.message || "Không thể cập nhật hồ sơ");
+    }
+    return data.data;
+  },
+
+  async uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    const { data } = await api.post<ApiResponse<{ avatarUrl: string }>>("/auth/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Không thể tải lên ảnh đại diện");
     }
     return data.data;
   },

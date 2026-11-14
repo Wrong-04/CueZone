@@ -384,8 +384,12 @@ const CustomerLayout = () => {
                     className="h-9 px-2.5 rounded-xl border border-slate-200/80 hover:border-slate-300 hover:bg-slate-50 inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition"
                     title="Hồ sơ hội viên"
                   >
-                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                      {user.name?.charAt(0) || <UserOutlined />}
+                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                      ) : (
+                        user.name?.charAt(0)?.toUpperCase() || <UserOutlined />
+                      )}
                     </div>
                     <span className="text-xs font-semibold text-slate-800 hidden sm:inline truncate max-w-[130px]">
                       {user.name}

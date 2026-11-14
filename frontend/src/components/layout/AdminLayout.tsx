@@ -632,10 +632,14 @@ const AdminLayout = () => {
 
               {/* User information */}
               <div className="flex items-center gap-2 pl-4 border-l border-gray-200">
-                <div className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center shadow-xs">
-                  <span className="text-white font-bold text-sm">
-                    {user?.name?.charAt(0) || "U"}
-                  </span>
+                <div className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center shadow-xs overflow-hidden">
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt={user?.name || "Admin"} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-white font-bold text-sm">
+                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    </span>
+                  )}
                 </div>
 
                 <div className="hidden md:block">
