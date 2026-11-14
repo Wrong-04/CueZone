@@ -353,7 +353,15 @@ async function main() {
     const confirmedPayment = await request(
       `/customer/fnb-orders/payment-requests/${portalTableId}`,
       "PATCH",
-      { sessionId: portalSessionId, approved: true },
+      {
+        sessionId: portalSessionId,
+        approved: true,
+        paymentMethod: "cash",
+        paymentDetails: {
+          cashAmount: cashRequest.body.data.totalDue,
+          transferAmount: 0,
+        },
+      },
       cashierToken,
     );
     assert.equal(confirmedPayment.body.data.status, "paid", confirmedPayment.body.message);

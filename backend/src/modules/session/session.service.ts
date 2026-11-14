@@ -994,9 +994,11 @@ export class SessionService {
       typeof input.sessionId !== "string" ||
       !input.sessionId ||
       (input.voucherCode !== undefined &&
-        (typeof input.voucherCode !== "string" || !input.voucherCode.trim()))
+        (typeof input.voucherCode !== "string" || !input.voucherCode.trim())) ||
+      (input as any).paymentMethod === "member_balance" ||
+      (input as any).paymentMethod === "wallet"
     ) {
-      throw Object.assign(new Error("Thông tin yêu cầu thanh toán không hợp lệ"), {
+      throw Object.assign(new Error("Phương thức thanh toán qua ví không còn được hỗ trợ"), {
         httpCode: 400,
       });
     }
@@ -1071,6 +1073,10 @@ export class SessionService {
         fnbDiscountPercent: quote.tier.fnbDiscountPercent,
         membershipDiscountAmount: quote.membershipDiscountAmount,
         voucherDiscountAmount,
+        paymentMethod:
+          typeof (input as any).paymentMethod === "string" && (input as any).paymentMethod.trim()
+            ? (input as any).paymentMethod.trim()
+            : "transfer",
         requestedAt: new Date(),
       };
       await table.save({ session });
@@ -1119,6 +1125,7 @@ export class SessionService {
           customerName: customer?.name ?? table.currentSession!.customerName,
           customerPhone: customer?.phone ?? table.currentSession!.customerPhone,
           voucherCode: pending.voucherCode,
+          paymentMethod: (pending as any).paymentMethod || "transfer",
           requestedAt: pending.requestedAt,
           totalDue: pending.estimatedTotalDue,
           sessionStart: table.currentSession!.sessionStart,

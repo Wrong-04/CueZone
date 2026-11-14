@@ -36,8 +36,6 @@ import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
 import NoAccessPage from "./pages/admin/NoAccessPage";
 import CatalogManagementPage from "./pages/admin/CatalogManagementPage";
 import SupplierManagementPage from "./pages/admin/SupplierManagementPage";
-import WalletTopupsPage from "./pages/admin/WalletTopupsPage";
-import TournamentFeesPage from "./pages/admin/TournamentFeesPage";
 import { getHomePath, hasPermission, STAFF_ROLES, type PermissionKey } from "./utils/permissions";
 
 import {
@@ -287,25 +285,6 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute permission="invoices.read">
               <InvoicesPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Reconciliation tabs integrated into /invoices */}
-        <Route
-          path="/wallet-topups"
-          element={
-            <ProtectedRoute permission="wallet.operate">
-              <WalletTopupsPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/tournament-fees"
-          element={
-            <ProtectedRoute permission="tournaments.manage">
-              <TournamentFeesPage />
             </ProtectedRoute>
           }
         />

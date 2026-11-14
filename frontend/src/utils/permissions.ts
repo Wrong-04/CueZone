@@ -31,7 +31,6 @@ export const hasPermission = (user: User | null | undefined, key: PermissionKey)
 // Trang đích sau đăng nhập: trang đầu tiên trong danh sách mà user có quyền.
 const LANDING_PAGES: { path: string; permission: PermissionKey }[] = [
   { path: "/pos", permission: "pos.read" },
-  { path: "/wallet-topups", permission: "wallet.operate" },
   { path: "/stock-catalog", permission: "inventory.read" },
   { path: "/goods-receipts", permission: "inventory.manage" },
   { path: "/tournaments", permission: "tournaments.manage" },
