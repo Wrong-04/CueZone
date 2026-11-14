@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 
 import { requireProductManager } from "../../middlewares/product-admin.middleware";
+import { requireInventoryRead } from "../../middlewares/inventory-read.middleware";
 import GoodsReceipt from "./goods-receipt.model";
 import Product from "../product/product.model";
 import Supplier from "../supplier/supplier.model";
@@ -9,8 +10,6 @@ import InventoryTransaction from "../product/inventory.model";
 import { User } from "../user/user.model";
 
 const router = Router();
-
-router.use(requireProductManager);
 
 function getUserId(req: Request): string | null {
   const user = (req as any).user;
@@ -29,9 +28,9 @@ function generateReceiptNumber(): string {
 
 /*
  * GET /api/v1/goods-receipts
- * Danh sách phiếu nhập kho
+ * Danh sách phiếu nhập kho (Quyền đọc tồn kho)
  */
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", requireInventoryRead, async (req: Request, res: Response) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
@@ -83,7 +82,7 @@ router.get("/", async (req: Request, res: Response) => {
  * GET /api/v1/goods-receipts/:id
  * Chi tiết phiếu nhập kho
  */
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", requireInventoryRead, async (req: Request, res: Response) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ success: false, message: "Mã phiếu không hợp lệ." });
@@ -109,7 +108,7 @@ router.get("/:id", async (req: Request, res: Response) => {
  * POST /api/v1/goods-receipts
  * Tạo phiếu nhập nháp
  */
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", requireProductManager, async (req: Request, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
@@ -227,7 +226,7 @@ router.post("/", async (req: Request, res: Response) => {
  * PUT /api/v1/goods-receipts/:id
  * Cập nhật phiếu nháp
  */
-router.put("/:id", async (req: Request, res: Response) => {
+router.put("/:id", requireProductManager, async (req: Request, res: Response) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ success: false, message: "Mã phiếu không hợp lệ." });
@@ -348,7 +347,7 @@ router.put("/:id", async (req: Request, res: Response) => {
  * DELETE /api/v1/goods-receipts/:id
  * Xóa phiếu nháp
  */
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", requireProductManager, async (req: Request, res: Response) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ success: false, message: "Mã phiếu không hợp lệ." });
@@ -375,7 +374,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
  * POST /api/v1/goods-receipts/:id/complete
  * Hoàn tất phiếu nhập — cập nhật tồn kho trong transaction
  */
-router.post("/:id/complete", async (req: Request, res: Response) => {
+router.post("/:id/complete", requireProductManager, async (req: Request, res: Response) => {
   const mongoSession = await mongoose.startSession();
   try {
     const userId = getUserId(req);
@@ -468,7 +467,7 @@ router.post("/:id/complete", async (req: Request, res: Response) => {
  * GET /api/v1/goods-receipts/:id/items
  * Liệt kê items của phiếu
  */
-router.get("/:id/items", async (req: Request, res: Response) => {
+router.get("/:id/items", requireInventoryRead, async (req: Request, res: Response) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ success: false, message: "Mã phiếu không hợp lệ." });
