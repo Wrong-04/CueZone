@@ -123,10 +123,22 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
       const subtotal = receipt.subtotal || inv.subtotal || (tableFee + fnbFee);
       const discountAmount = receipt.discountAmount || (inv.discount ? Math.round(subtotal * (inv.discount / 100)) : 0);
       const finalTotal = receipt.finalAmount ?? inv.totalAmount ?? (subtotal - discountAmount);
+      const paymentDetails = receipt.paymentDetails || {};
+      const splitCashAmount = Number(paymentDetails.cashAmount);
+      const splitTransferAmount = Number(paymentDetails.transferAmount);
+      const hasValidSplitAmounts =
+        Number.isFinite(splitCashAmount) &&
+        Number.isFinite(splitTransferAmount) &&
+        splitCashAmount >= 0 &&
+        splitTransferAmount >= 0 &&
+        splitCashAmount + splitTransferAmount === finalTotal;
+      // ponytail: Hóa đơn kết hợp cũ thiếu phân bổ không thể tách doanh thu; cần backfill từ dữ liệu thanh toán gốc.
 
       const rawPaymentMethod = String(receipt.paymentMethod || receipt.paymentDetails?.method || inv.payment?.method || "cash").toLowerCase();
       let pMethod = "cash";
-      if (
+      if (rawPaymentMethod === "split" || rawPaymentMethod === "cash_qr") {
+        pMethod = "split";
+      } else if (
         rawPaymentMethod.includes("vietqr") ||
         rawPaymentMethod.includes("vnpay") ||
         rawPaymentMethod.includes("qr") ||
@@ -153,7 +165,7 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
         cuezone_pay: "Ví CueZone Pay",
         wallet: "Ví Hội Viên",
         member_balance: "Ví Hội Viên",
-        split: "Kết Hợp",
+        split: "Tiền Mặt + QR",
       };
 
       const rawCode = inv.invoiceNumber || receipt.invoiceCode || `HD-${String(inv._id).slice(-6).toUpperCase()}`;
@@ -222,6 +234,10 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
         finalTotal,
         paymentMethod: pMethod,
         paymentMethodText: methodMap[pMethod] || "Tiền Mặt",
+        paymentDetails:
+          pMethod === "split" && hasValidSplitAmounts
+            ? { cashAmount: splitCashAmount, transferAmount: splitTransferAmount }
+            : undefined,
         status: inv.status === "cancelled" ? "cancelled" : "paid",
         statusText: inv.status === "cancelled" ? "Đã Hủy" : "Đã Thanh Toán",
         cancelledAt: inv.cancelledAt,
@@ -258,6 +274,8 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
         allCombined = allCombined.filter((inv) => inv.paymentMethod === "cash");
       } else if (status === "vietqr") {
         allCombined = allCombined.filter((inv) => ["vietqr", "card"].includes(inv.paymentMethod));
+      } else if (status === "split") {
+        allCombined = allCombined.filter((inv) => inv.paymentMethod === "split");
       } else if (status === "wallet") {
         allCombined = allCombined.filter((inv) => ["cuezone_pay", "wallet", "member_balance"].includes(inv.paymentMethod));
       }
@@ -267,6 +285,8 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
         allCombined = allCombined.filter((inv) => inv.paymentMethod === "cash");
       } else if (paymentMethod === "vietqr") {
         allCombined = allCombined.filter((inv) => ["vietqr", "card"].includes(inv.paymentMethod));
+      } else if (paymentMethod === "split") {
+        allCombined = allCombined.filter((inv) => inv.paymentMethod === "split");
       } else if (paymentMethod === "wallet") {
         allCombined = allCombined.filter((inv) => ["cuezone_pay", "wallet", "member_balance"].includes(inv.paymentMethod));
       }
@@ -277,12 +297,26 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
     const totalRevenue = paidList.reduce((acc, cur) => acc + cur.finalTotal, 0);
     const totalTableFee = paidList.reduce((acc, cur) => acc + cur.tableFee, 0);
     const totalFnbFee = paidList.reduce((acc, cur) => acc + cur.fnbFee, 0);
-    const cashRevenue = paidList
-      .filter((i) => i.paymentMethod === "cash")
-      .reduce((acc, cur) => acc + cur.finalTotal, 0);
-    const bankRevenue = paidList
-      .filter((i) => ["vietqr", "card"].includes(i.paymentMethod))
-      .reduce((acc, cur) => acc + cur.finalTotal, 0);
+    const cashRevenue = paidList.reduce(
+      (acc, cur) =>
+        acc +
+        (cur.paymentMethod === "split"
+          ? cur.paymentDetails?.cashAmount || 0
+          : cur.paymentMethod === "cash"
+            ? cur.finalTotal
+            : 0),
+      0,
+    );
+    const bankRevenue = paidList.reduce(
+      (acc, cur) =>
+        acc +
+        (cur.paymentMethod === "split"
+          ? cur.paymentDetails?.transferAmount || 0
+          : ["vietqr", "card"].includes(cur.paymentMethod)
+            ? cur.finalTotal
+            : 0),
+      0,
+    );
     const walletRevenue = paidList
       .filter((i) => ["cuezone_pay", "wallet", "member_balance"].includes(i.paymentMethod))
       .reduce((acc, cur) => acc + cur.finalTotal, 0);

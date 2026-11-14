@@ -55,6 +55,7 @@ router.patch("/payment-requests/:tableId", fnbOrdersManage, async (req, res, nex
       req.params.tableId,
       req.body?.sessionId,
       req.body.approved,
+      req.body,
     );
     res.json({
       success: true,

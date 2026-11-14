@@ -45,6 +45,7 @@ interface BookingTableItem {
   type: string;
   typeName: string;
   isVip: boolean;
+  isTournament: boolean;
   price: number;
   priceFormatted: string;
 }
@@ -63,10 +64,20 @@ interface BookingPaymentInfo {
 const TABLE_CATEGORIES = [
   { key: "", label: "Tất Cả Loại Bàn" },
   { key: "vip", label: "Bàn VIP" },
+  { key: "match", label: "Bàn Thi Đấu" },
   { key: "pool", label: "Bida Lỗ (Pool)" },
   { key: "carom", label: "Bida Carom (Phăng)" },
   { key: "snooker", label: "Bida Snooker" },
 ];
+
+function isTournamentTable(table: { area?: string; code?: string }) {
+  const area = table.area?.trim().toLowerCase() || "";
+  return (
+    area.includes("match") ||
+    area.includes("thi đấu") ||
+    table.code?.toUpperCase().startsWith("MTCH") === true
+  );
+}
 
 export const CustomerBooking = () => {
   const { user } = useAuth();
@@ -77,7 +88,9 @@ export const CustomerBooking = () => {
   const [tablesList, setTablesList] = useState<BookingTableItem[]>([]);
   const [loadingTables, setLoadingTables] = useState<boolean>(true);
   const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam);
-  const [tableType, setTableType] = useState<"" | "vip" | "pool" | "carom" | "snooker">("");
+  const [tableType, setTableType] = useState<
+    "" | "vip" | "match" | "pool" | "carom" | "snooker"
+  >("");
   const [name, setName] = useState<string>(user?.name || "");
   const [phone, setPhone] = useState<string>(user?.phone || "");
 
@@ -278,19 +291,26 @@ export const CustomerBooking = () => {
           date,
           time,
           duration,
-          ...(tableType && tableType !== "vip" ? { type: tableType } : {}),
+          ...(tableType && tableType !== "vip" && tableType !== "match"
+            ? { type: tableType }
+            : {}),
         });
         if (isMounted) {
           const mapped: BookingTableItem[] = data
-            .filter((table) =>
-              tableType !== "vip" ||
-              table.code?.toUpperCase().startsWith("VIP") ||
-              table.area?.toLowerCase().includes("vip"),
-            )
+            .filter((table) => {
+              if (tableType === "vip") {
+                return (
+                  table.code?.toUpperCase().startsWith("VIP") ||
+                  table.area?.toLowerCase().includes("vip")
+                );
+              }
+              return tableType !== "match" || isTournamentTable(table);
+            })
             .map((table) => {
               const isVip =
                 table.code?.toUpperCase().startsWith("VIP") ||
                 table.area?.toLowerCase().includes("vip");
+              const isTournament = isTournamentTable(table);
               const typeName =
                 table.type === "carom"
                   ? "Bàn Carom"
@@ -303,8 +323,13 @@ export const CustomerBooking = () => {
                 name: table.name.split("•")[0].split("-")[0].trim(),
                 area: table.area || "",
                 type: table.type,
-                typeName: isVip ? `Bàn VIP · ${typeName}` : typeName,
+                typeName: isTournament
+                  ? `Bàn Thi Đấu · ${typeName}`
+                  : isVip
+                    ? `Bàn VIP · ${typeName}`
+                    : typeName,
                 isVip,
+                isTournament,
                 price: table.pricePerHour,
                 priceFormatted: `${table.pricePerHour.toLocaleString("vi-VN")}đ/h`,
               };
@@ -571,6 +596,11 @@ export const CustomerBooking = () => {
                                 VIP
                               </span>
                             )}
+                            {t.isTournament && (
+                              <span className="text-[9px] font-black text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                                THI ĐẤU
+                              </span>
+                            )}
                             {isSelected && (
                               <CheckCircleOutlined className="text-emerald-600 text-sm" />
                             )}
@@ -582,8 +612,10 @@ export const CustomerBooking = () => {
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase mt-0.5">
                           {t.typeName}
                         </span>
-                        {t.isVip && t.area && (
-                          <span className="text-[10px] text-purple-600 font-medium block mt-0.5">
+                        {(t.isVip || t.isTournament) && t.area && (
+                          <span className={`text-[10px] font-medium block mt-0.5 ${
+                            t.isTournament ? "text-blue-600" : "text-purple-600"
+                          }`}>
                             {t.area}
                           </span>
                         )}

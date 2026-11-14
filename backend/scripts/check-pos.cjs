@@ -18,6 +18,7 @@ const { Wallet } = require("../dist/modules/wallet/wallet.model");
 const { Product } = require("../dist/modules/product/product.model");
 const { playingDetails } = require("../dist/modules/session/session.service");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
+const { RevenueReportService } = require("../dist/modules/report/revenue-report.service");
 const { getMemberTier, getPointsForSpend } = require("../dist/modules/member/membership.policy");
 const { PlayReview } = require("../dist/modules/member/play-review.model");
 
@@ -95,10 +96,15 @@ async function main() {
       password: "CheckPassword123",
     });
     const rejectedWalletCheckout = await request(
-      `/customer/fnb-orders/${new mongoose.Types.ObjectId()}/checkout`,
-      "POST",
-      { sessionId: "wallet-checkout-disabled", paymentMethod: "member_balance" },
-      customer.accessToken,
+      `/customer/fnb-orders/payment-requests/${new mongoose.Types.ObjectId()}`,
+      "PATCH",
+      {
+        sessionId: "wallet-checkout-disabled",
+        approved: true,
+        paymentMethod: "member_balance",
+        paymentDetails: { cashAmount: 0, transferAmount: 0 },
+      },
+      token,
     );
     assert.equal(rejectedWalletCheckout.httpStatus, 400);
     assert.equal(rejectedWalletCheckout.success, false);
@@ -108,6 +114,110 @@ async function main() {
       password: "CheckPassword123",
     });
     assert.equal(formattedPhoneLogin.user.phone, "0912345678");
+    const paymentTable = await ok(
+      "/tables",
+      "POST",
+      {
+        code: "CHECKPAY",
+        name: "Payment request table",
+        type: "pool",
+        area: "Check",
+        pricePerHour: 60000,
+      },
+      token,
+    );
+    const paymentSession = await ok(
+      `/tables/${paymentTable._id}/session/open`,
+      "POST",
+      { customerName: customer.user.name, customerPhone: "0912345678" },
+      token,
+    );
+    const customerPaymentRequest = await ok(
+      `/customer/fnb-orders/${paymentTable._id}/checkout`,
+      "POST",
+      { sessionId: paymentSession.currentSession.sessionId },
+      customer.accessToken,
+    );
+    assert.equal(customerPaymentRequest.status, "pending_payment");
+    assert.equal("paymentMethod" in customerPaymentRequest, false);
+    const queuedPaymentRequest = (
+      await ok("/customer/fnb-orders/payment-requests", "GET", undefined, token)
+    ).find((item) => item.tableId === String(paymentTable._id));
+    assert.ok(queuedPaymentRequest);
+    assert.equal("paymentMethod" in queuedPaymentRequest, false);
+    assert.ok(customerPaymentRequest.totalDue > 0);
+    const splitCashAmount = Math.floor(customerPaymentRequest.totalDue / 2);
+    const splitTransferAmount = customerPaymentRequest.totalDue - splitCashAmount;
+    const paidCustomerRequest = await ok(
+      `/customer/fnb-orders/payment-requests/${paymentTable._id}`,
+      "PATCH",
+      {
+        sessionId: paymentSession.currentSession.sessionId,
+        approved: true,
+        paymentMethod: "split",
+        paymentDetails: {
+          cashAmount: splitCashAmount,
+          transferAmount: splitTransferAmount,
+        },
+      },
+      token,
+    );
+    assert.equal(paidCustomerRequest.status, "paid");
+    assert.equal(paidCustomerRequest.receipt.paymentMethod, "split");
+    assert.deepEqual(paidCustomerRequest.receipt.paymentDetails, {
+      cashAmount: splitCashAmount,
+      transferAmount: splitTransferAmount,
+    });
+    const splitInvoices = await ok("/invoices?paymentMethod=split", "GET", undefined, token);
+    assert.equal(splitInvoices.items.length, 1);
+    assert.equal(splitInvoices.items[0].paymentMethod, "split");
+    assert.equal(splitInvoices.items[0].paymentMethodText, "Tiền Mặt + QR");
+    assert.deepEqual(splitInvoices.items[0].paymentDetails, {
+      cashAmount: splitCashAmount,
+      transferAmount: splitTransferAmount,
+    });
+    assert.equal(splitInvoices.metrics.cashRevenue, splitCashAmount);
+    assert.equal(splitInvoices.metrics.bankRevenue, splitTransferAmount);
+    const revenueReport = await new RevenueReportService().getRevenueReport({ period: "day" });
+    const splitChannel = revenueReport.paymentMethods.find((method) => method.method === "split");
+    assert.deepEqual(
+      { label: splitChannel?.label, amount: splitChannel?.amount, count: splitChannel?.count },
+      { label: "Tiền mặt + QR", amount: customerPaymentRequest.totalDue, count: 1 },
+    );
+    await Invoice.deleteOne({ tableId: paymentTable._id });
+    await Table.deleteOne({ _id: paymentTable._id });
+    const overpaymentTable = await ok(
+      "/tables",
+      "POST",
+      {
+        code: "CHECKOVER",
+        name: "Overpayment validation table",
+        type: "pool",
+        area: "Check",
+        pricePerHour: 60000,
+      },
+      token,
+    );
+    const overpaymentSession = await ok(
+      `/tables/${overpaymentTable._id}/session/open`,
+      "POST",
+      { customerName: customer.user.name, customerPhone: "0912345678" },
+      token,
+    );
+    const rejectedSplitOverpayment = await request(
+      `/tables/${overpaymentTable._id}/session/checkout`,
+      "POST",
+      {
+        sessionId: overpaymentSession.currentSession.sessionId,
+        discountPercent: 0,
+        paymentMethod: "split",
+        paymentDetails: { cashAmount: 1000000, transferAmount: 0 },
+      },
+      token,
+    );
+    assert.equal(rejectedSplitOverpayment.httpStatus, 400);
+    assert.equal(rejectedSplitOverpayment.success, false);
+    await Table.deleteOne({ _id: overpaymentTable._id });
     const duplicatePhoneRegistration = await request("/auth/register/request", "POST", {
       name: "Duplicate phone",
       email: "duplicate-phone@check.invalid",
