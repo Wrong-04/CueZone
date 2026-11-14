@@ -997,11 +997,186 @@ export const WarehouseInventoryPage: React.FC = () => {
         options: operationalAreas,
       },
       {
-        label: `Bàn bida trong quán (${billiardTables.length} bàn thực tế từ MongoDB)`,
+        label: "Bàn bida trong quán",
         options: tableOptions,
       },
     ];
   }, [billiardTables]);
+
+  // Danh sách riêng chỉ gồm Phụ kiện & Vật tư Bida (dùng cho Ghi nhận hao mòn & xuất hủy phụ kiện)
+  const accessoryStockList = useMemo(() => {
+    return stockList.filter((item) => {
+      const cat = (item.category || "").toLowerCase();
+      const sku = (item.sku || "").toUpperCase();
+      const name = (item.name || "").toLowerCase();
+      const catName = (item.categoryName || "").toLowerCase();
+
+      const isFnbOrIngredient =
+        cat === "beverage" ||
+        cat === "drink" ||
+        cat === "food" ||
+        cat === "snack" ||
+        cat === "ingredients" ||
+        cat === "ingredient" ||
+        sku.startsWith("DRK") ||
+        sku.startsWith("BEER") ||
+        sku.startsWith("SNK") ||
+        sku.startsWith("FOD") ||
+        sku.startsWith("ING");
+
+      if (isFnbOrIngredient) return false;
+
+      return (
+        cat === "equipment" ||
+        cat === "accessory" ||
+        cat === "table_supplies" ||
+        cat === "maintenance" ||
+        sku.startsWith("ACC") ||
+        catName.includes("phụ kiện") ||
+        catName.includes("bàn") ||
+        catName.includes("vật tư") ||
+        name.includes("cơ") ||
+        name.includes("bóng") ||
+        name.includes("lơ") ||
+        name.includes("nỉ") ||
+        name.includes("đầu cơ") ||
+        name.includes("găng")
+      );
+    });
+  }, [stockList]);
+
+  // Danh sách mặt hàng xuất kho cấp phát được phân nhóm nghiệp vụ rõ ràng
+  const transferItemOptions = useMemo(() => {
+    const activeItems = stockList.filter((it) => it.isActive !== false);
+
+    const isAccessory = (i: WarehouseItem) => {
+      const cat = (i.category || "").toLowerCase();
+      const sku = (i.sku || "").toUpperCase();
+      const catName = (i.categoryName || "").toLowerCase();
+      const name = (i.name || "").toLowerCase();
+      return (
+        cat === "equipment" ||
+        cat === "accessory" ||
+        cat === "table_supplies" ||
+        cat === "maintenance" ||
+        sku.startsWith("ACC") ||
+        catName.includes("phụ kiện") ||
+        catName.includes("vật tư") ||
+        name.includes("cơ") ||
+        name.includes("bóng") ||
+        name.includes("lơ") ||
+        name.includes("nỉ")
+      );
+    };
+
+    const isIngredient = (i: WarehouseItem) => {
+      const cat = (i.category || "").toLowerCase();
+      const sku = (i.sku || "").toUpperCase();
+      return cat === "ingredients" || cat === "ingredient" || sku.startsWith("ING");
+    };
+
+    const isBeverage = (i: WarehouseItem) => {
+      const cat = (i.category || "").toLowerCase();
+      const sku = (i.sku || "").toUpperCase();
+      return (
+        (cat === "beverage" || cat === "drink" || sku.startsWith("DRK") || sku.startsWith("BEER")) &&
+        !isAccessory(i) &&
+        !isIngredient(i)
+      );
+    };
+
+    const isSnack = (i: WarehouseItem) => {
+      const cat = (i.category || "").toLowerCase();
+      const sku = (i.sku || "").toUpperCase();
+      return (
+        (cat === "food" || cat === "snack" || sku.startsWith("SNK") || sku.startsWith("FOD")) &&
+        !isAccessory(i) &&
+        !isIngredient(i)
+      );
+    };
+
+    const accessories = activeItems.filter(isAccessory);
+    const beverages = activeItems.filter(isBeverage);
+    const snacks = activeItems.filter(isSnack);
+    const ingredients = activeItems.filter(isIngredient);
+
+    const formatOption = (i: WarehouseItem) => ({
+      value: i.sku,
+      label: `${i.sku} - ${i.name} (Tồn hiện tại: ${i.stockQty} ${i.unit})${i.stockQty === 0 ? " [HẾT HÀNG]" : ""}`,
+      disabled: i.stockQty === 0,
+    });
+
+    const groups: { label: string; options: { value: string; label: string; disabled: boolean }[] }[] = [];
+
+    if (accessories.length > 0) {
+      groups.push({
+        label: "🎱 Phụ Kiện & Vật Tư Bida (Cấp phát ra Bàn bida / Tủ cơ / Bảo trì)",
+        options: accessories.map(formatOption),
+      });
+    }
+
+    if (beverages.length > 0) {
+      groups.push({
+        label: "🍹 Đồ Uống & Nước Giải Khát (Tiếp ứng Quầy Bar / Thu ngân)",
+        options: beverages.map(formatOption),
+      });
+    }
+
+    if (snacks.length > 0) {
+      groups.push({
+        label: "🍿 Đồ Ăn Vặt & Món Ăn (Tiếp ứng Quầy Bar / Thu ngân)",
+        options: snacks.map(formatOption),
+      });
+    }
+
+    if (ingredients.length > 0) {
+      groups.push({
+        label: "☕ Nguyên Liệu Pha Chế (Cấp phát Quầy Bar & Pha Chế)",
+        options: ingredients.map(formatOption),
+      });
+    }
+
+    const others = activeItems.filter(
+      (i) => !isAccessory(i) && !isBeverage(i) && !isSnack(i) && !isIngredient(i),
+    );
+    if (others.length > 0) {
+      groups.push({
+        label: "📦 Hàng Hóa Lưu Kho Khác",
+        options: others.map(formatOption),
+      });
+    }
+
+    return groups;
+  }, [stockList]);
+
+  // Kiểm tra mối liên hệ hợp lý giữa Địa điểm tiếp nhận và Mặt hàng xuất kho
+  const isTargetTable = useMemo(() => {
+    const tgt = (transferForm.target || "").toLowerCase();
+    return tgt.includes("bàn") || tgt.includes("ban ") || tgt.includes("tủ cơ") || tgt.includes("bảo trì");
+  }, [transferForm.target]);
+
+  const selectedTransferItem = useMemo(() => {
+    return stockList.find((i) => i.sku === transferForm.sku);
+  }, [stockList, transferForm.sku]);
+
+  const isSelectedItemFnb = useMemo(() => {
+    if (!selectedTransferItem) return false;
+    const cat = (selectedTransferItem.category || "").toLowerCase();
+    const sku = (selectedTransferItem.sku || "").toUpperCase();
+    return (
+      cat === "beverage" ||
+      cat === "drink" ||
+      cat === "food" ||
+      cat === "snack" ||
+      cat === "ingredients" ||
+      cat === "ingredient" ||
+      sku.startsWith("DRK") ||
+      sku.startsWith("BEER") ||
+      sku.startsWith("SNK") ||
+      sku.startsWith("FOD") ||
+      sku.startsWith("ING")
+    );
+  }, [selectedTransferItem]);
 
   // Bộ lọc danh sách kiểm kê định kỳ theo trạng thái và tìm kiếm
   const filteredStockChecks = useMemo(() => {
@@ -1044,14 +1219,20 @@ export const WarehouseInventoryPage: React.FC = () => {
           sku: stockList[0].sku,
         }));
       }
-      if (!wasteForm.sku || !stockList.some((it) => it.sku === wasteForm.sku)) {
+    }
+  }, [stockList]);
+
+  // Tự động đồng bộ SKU mặc định cho Báo hao mòn phụ kiện từ danh sách PHỤ KIỆN BIDA
+  useEffect(() => {
+    if (accessoryStockList.length > 0) {
+      if (!wasteForm.sku || !accessoryStockList.some((it) => it.sku === wasteForm.sku)) {
         setWasteForm((prev) => ({
           ...prev,
-          sku: stockList[0].sku,
+          sku: accessoryStockList[0].sku,
         }));
       }
     }
-  }, [stockList]);
+  }, [accessoryStockList, wasteForm.sku]);
 
   const [selectedSlip, setSelectedSlip] = useState<InventorySlip | null>(null);
 
@@ -1423,7 +1604,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       return;
     }
 
-    const targetItem = stockList.find((i) => i.sku === wasteForm.sku);
+    const targetItem =
+      accessoryStockList.find((i) => i.sku === wasteForm.sku) ||
+      stockList.find((i) => i.sku === wasteForm.sku);
     if (!targetItem) return;
 
     if (targetItem.stockQty < wasteForm.qty) {
@@ -2729,7 +2912,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                     variant="outline"
                     size="sm"
                     leftIcon={<DeleteOutlined className="text-rose-600" />}
-                    onClick={() => setWasteModalVisible(true)}
+                    onClick={() => {
+                      if (
+                        accessoryStockList.length > 0 &&
+                        (!wasteForm.sku || !accessoryStockList.some((it) => it.sku === wasteForm.sku))
+                      ) {
+                        setWasteForm((prev) => ({ ...prev, sku: accessoryStockList[0].sku }));
+                      }
+                      setWasteModalVisible(true);
+                    }}
                     className="!border-rose-300 !text-rose-700 hover:!bg-rose-50 !rounded-xl !font-bold"
                   >
                     Báo hao mòn phụ kiện
@@ -4020,13 +4211,17 @@ export const WarehouseInventoryPage: React.FC = () => {
               Chọn mặt hàng xuất kho:
             </label>
             <Select
+              showSearch
               value={transferForm.sku}
               onChange={(val) => setTransferForm((prev) => ({ ...prev, sku: val }))}
               className="!w-full !rounded-xl !text-xs !h-10"
-              options={stockList.map((i) => ({
-                value: i.sku,
-                label: `${i.sku} - ${i.name} (Tồn hiện tại: ${i.stockQty} ${i.unit})`,
-              }))}
+              placeholder="Chọn mặt hàng xuất kho..."
+              options={transferItemOptions}
+              filterOption={(input, option) =>
+                String(option?.label ?? "")
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
             />
           </div>
 
@@ -4067,11 +4262,6 @@ export const WarehouseInventoryPage: React.FC = () => {
               <label className="text-xs font-bold text-slate-700">
                 Địa điểm / Bộ phận tiếp nhận:
               </label>
-              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
-                {billiardTables.length > 0
-                  ? `Đồng bộ ${billiardTables.length} bàn thực tế từ MongoDB`
-                  : "Bộ phận vận hành"}
-              </span>
             </div>
             <Select
               showSearch
@@ -4086,6 +4276,14 @@ export const WarehouseInventoryPage: React.FC = () => {
               }
               placeholder="Chọn bàn bida hoặc khu vực tiếp nhận..."
             />
+            {isTargetTable && isSelectedItemFnb && (
+              <div className="mt-2 p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl text-amber-900 text-[11px] leading-relaxed flex items-start gap-2">
+                <span className="text-amber-600 font-bold text-xs shrink-0">💡 Lưu ý:</span>
+                <span>
+                  Bạn đang xuất <strong>đồ ăn/uống</strong> cấp phát cho <strong>Bàn bida</strong>. Thông thường đối với bàn bida, phiếu cấp phát xuất kho dùng để bổ sung <em>phụ kiện &amp; vật tư bàn</em> (cơ, bóng, nỉ, lơ...). Nếu khách chơi tại bàn gọi đồ uống/đồ ăn, bạn nên order trực tiếp trên máy <strong>POS</strong> để tự động trừ tồn kho và ghi nhận doanh thu hóa đơn.
+                </span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -4153,22 +4351,38 @@ export const WarehouseInventoryPage: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Chọn phụ kiện bị hỏng / hao mòn:
             </label>
-            <Select
-              value={wasteForm.sku}
-              onChange={(val) => setWasteForm((prev) => ({ ...prev, sku: val }))}
-              className="!w-full !rounded-xl !text-xs !h-10"
-              options={stockList.map((i) => ({
-                value: i.sku,
-                label: `${i.sku} - ${i.name} (Tồn hiện tại: ${i.stockQty} ${i.unit})`,
-              }))}
-            />
+            {accessoryStockList.length === 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                Không tìm thấy mặt hàng phụ kiện bida nào trong kho để ghi nhận hao mòn.
+              </div>
+            ) : (
+              <Select
+                showSearch
+                value={wasteForm.sku}
+                onChange={(val) => setWasteForm((prev) => ({ ...prev, sku: val }))}
+                className="!w-full !rounded-xl !text-xs !h-10"
+                options={accessoryStockList.map((i) => ({
+                  value: i.sku,
+                  label: `${i.sku} - ${i.name} (Tồn hiện tại: ${i.stockQty} ${i.unit})`,
+                  disabled: i.stockQty === 0,
+                }))}
+                filterOption={(input, option) =>
+                  String(option?.label ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
+                }
+                placeholder="Chọn phụ kiện bida bị hỏng..."
+              />
+            )}
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-slate-700">Số lượng phụ kiện bị hỏng:</label>
               {(() => {
-                const target = stockList.find((i) => i.sku === wasteForm.sku);
+                const target =
+                  accessoryStockList.find((i) => i.sku === wasteForm.sku) ||
+                  stockList.find((i) => i.sku === wasteForm.sku);
                 return (
                   <span className="text-[11px] text-slate-500">
                     Tổng trong kho:{" "}
@@ -4182,7 +4396,12 @@ export const WarehouseInventoryPage: React.FC = () => {
             <Input
               type="number"
               min={1}
-              max={stockList.find((i) => i.sku === wasteForm.sku)?.stockQty || 1}
+              max={
+                (
+                  accessoryStockList.find((i) => i.sku === wasteForm.sku) ||
+                  stockList.find((i) => i.sku === wasteForm.sku)
+                )?.stockQty || 1
+              }
               value={wasteForm.qty}
               onChange={(e) =>
                 setWasteForm((prev) => ({
@@ -4234,7 +4453,9 @@ export const WarehouseInventoryPage: React.FC = () => {
             <span className="font-semibold text-rose-800">Giá trị tổn thất hao mòn:</span>
             <span className="font-black text-base font-mono text-rose-900">
               {(() => {
-                const target = stockList.find((i) => i.sku === wasteForm.sku);
+                const target =
+                  accessoryStockList.find((i) => i.sku === wasteForm.sku) ||
+                  stockList.find((i) => i.sku === wasteForm.sku);
                 const cost = target?.costPrice || 0;
                 return `${(wasteForm.qty * cost).toLocaleString("vi-VN")}đ`;
               })()}
