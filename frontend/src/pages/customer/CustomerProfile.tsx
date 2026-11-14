@@ -70,15 +70,28 @@ export const CustomerProfile: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    membershipService
-      .getOverview()
-      .then((data) => {
-        if (active) setOverview(data);
-      })
-      .catch(() => {});
+    const fetchOverview = () => {
+      membershipService
+        .getOverview()
+        .then((data) => {
+          if (active) setOverview(data);
+        })
+        .catch(() => {});
+    };
+
+    fetchOverview();
+
+    const handleSettingsChanged = () => {
+      fetchOverview();
+    };
+
+    window.addEventListener("storage", handleSettingsChanged);
+    window.addEventListener("cuezone_settings_updated", handleSettingsChanged);
 
     return () => {
       active = false;
+      window.removeEventListener("storage", handleSettingsChanged);
+      window.removeEventListener("cuezone_settings_updated", handleSettingsChanged);
     };
   }, []);
 

@@ -76,13 +76,40 @@ const MemberOverviewTab = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    membershipService
-      .getOverview()
-      .then(setOverview)
-      .catch((cause: unknown) =>
-        setError(cause instanceof Error ? cause.message : "Không thể tải thông tin hội viên"),
-      )
-      .finally(() => setLoading(false));
+    let mounted = true;
+    const fetchOverview = () => {
+      membershipService
+        .getOverview()
+        .then((data) => {
+          if (mounted) {
+            setOverview(data);
+            setError("");
+          }
+        })
+        .catch((cause: unknown) => {
+          if (mounted) {
+            setError(cause instanceof Error ? cause.message : "Không thể tải thông tin hội viên");
+          }
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    };
+
+    fetchOverview();
+
+    const handleSettingsChanged = () => {
+      fetchOverview();
+    };
+
+    window.addEventListener("storage", handleSettingsChanged);
+    window.addEventListener("cuezone_settings_updated", handleSettingsChanged);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("storage", handleSettingsChanged);
+      window.removeEventListener("cuezone_settings_updated", handleSettingsChanged);
+    };
   }, []);
 
   if (loading) return <div className="py-12 text-center text-slate-500">Đang tải quyền lợi hội viên...</div>;
@@ -155,8 +182,8 @@ const MemberOverviewTab = () => {
             <span className="ml-2 text-sm font-semibold text-slate-500">điểm</span>
           </div>
           <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-            <StarOutlined className="text-emerald-600" />
-            Tích 1 điểm cho mỗi {overview.earnPointsRate.toLocaleString("vi-VN")}đ thanh toán.
+            <StarOutlined className="text-emerald-600 shrink-0" />
+            <span>Tích 1 điểm cho mỗi {overview.earnPointsRate.toLocaleString("vi-VN")}đ thanh toán (dùng để xét thăng hạng thẻ).</span>
           </div>
         </Card>
       </div>
