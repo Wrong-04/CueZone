@@ -85,11 +85,12 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
   const isMaintenance = table.status === "maintenance";
   const overdueMinutes = isBooked ? getBookingOverdueMinutes(table.bookedInfo?.time) : 0;
   const upcomingMinutes = isBooked ? getBookingUpcomingMinutes(table.bookedInfo?.time) : -1;
-  const isUpcoming = isBooked && upcomingMinutes >= 0 && upcomingMinutes <= 45;
+  // Chỉ khóa giữ bàn đón khách trong vòng 15 phút trước giờ hẹn (thay vì 45-60 phút để quán vẫn đón khách chơi nhanh được)
+  const isUpcoming = isBooked && upcomingMinutes >= 0 && upcomingMinutes <= 15;
   const isOverdue = isBooked && overdueMinutes > 0;
   const isExpiredHold = isBooked && overdueMinutes > 15;
   const isHoldingForBooking = isBooked && (isUpcoming || (isOverdue && !isExpiredHold));
-  const hasAdvanceBooking = isBooked && upcomingMinutes > 45;
+  const hasAdvanceBooking = isBooked && upcomingMinutes > 15;
   const isGenericBooked = isBooked && !isHoldingForBooking && !hasAdvanceBooking && !isExpiredHold;
   const displayTableName = table.name.replace(/\s*•\s*.*$/, "");
 
@@ -470,32 +471,27 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
               </div>
               {isExpiredHold ? (
                 <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-red-200 text-red-600 bg-red-100/60 -mx-1 px-1.5 py-0.5 rounded">
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 shrink-0">
                     <AlertOutlined className="text-red-600 animate-pulse" />
                     Tình trạng:
                   </span>
-                  <span>Quá hạn {overdueMinutes}p • Đang tự động hủy</span>
+                  <span className="truncate">Quá hạn {overdueMinutes}p • Đang tự động hủy</span>
                 </div>
               ) : overdueMinutes > 0 ? (
                 <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-amber-200 text-amber-800 bg-amber-100/60 -mx-1 px-1.5 py-0.5 rounded">
-                  <span>Tình trạng:</span>
-                  <span>Trễ hẹn {overdueMinutes} phút (Chờ tối đa 15p)</span>
+                  <span className="shrink-0">Trễ hẹn:</span>
+                  <span className="truncate font-mono">{overdueMinutes}p (chờ tối đa 15p)</span>
                 </div>
               ) : isUpcoming ? (
-                <div className="flex justify-between items-center text-[10px] font-bold pt-1 border-t border-amber-200 text-amber-800 bg-amber-100/60 -mx-1 px-1.5 py-0.5 rounded">
-                  <span className="flex items-center gap-1">
-                    <AlertOutlined className="text-amber-600 animate-bounce" />
-                    Khung giờ giữ bàn:
+                <div className="flex justify-between items-center text-[10.5px] font-bold pt-1 border-t border-amber-200 text-amber-900 bg-amber-100/60 -mx-1 px-1.5 py-0.5 rounded">
+                  <span className="flex items-center gap-1 shrink-0">
+                    <ClockCircleOutlined className="text-amber-600" />
+                    Đang giữ bàn:
                   </span>
-                  <span>Đang giữ bàn chờ khách (còn {upcomingMinutes}p)</span>
+                  <span className="font-mono font-extrabold text-amber-800 truncate">Còn {upcomingMinutes}p</span>
                 </div>
               ) : null}
             </div>
-            <span className="text-[10px] text-slate-400 block text-center italic">
-              {isExpiredHold
-                ? "Đã quá hạn giữ bàn 15 phút. Đang tự động giải phóng bàn..."
-                : 'Khách đến? Bấm "Khách Nhận Bàn" bên dưới'}
-            </span>
           </div>
         ) : hasAdvanceBooking ? (
           <div
@@ -580,18 +576,18 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
         )}
       </div>
 
-      <div className="px-3.5 py-2.5 bg-slate-50/80 border-t border-slate-100 shrink-0 mt-auto">
+      <div className="px-2.5 py-2 bg-slate-50/80 border-t border-slate-100 shrink-0 mt-auto">
         {isHoldingForBooking || isGenericBooked ? (
           <div className="flex items-center gap-1.5">
             <Button
               variant="primary"
               size="sm"
               onClick={() => onOpenTableModal(table, true)}
-              leftIcon={<PlayCircleOutlined />}
+              leftIcon={<PlayCircleOutlined className="text-xs shrink-0" />}
               style={{ backgroundColor: "#2563eb", borderColor: "#2563eb", color: "#ffffff" }}
-              className="!flex-1 !rounded-xl font-bold !text-xs !h-9 shadow-2xs text-white"
+              className="!flex-1 min-w-0 !rounded-xl font-bold !text-xs !h-9 shadow-2xs text-white whitespace-nowrap !px-2 flex items-center justify-center gap-1"
             >
-              Khách Nhận Bàn
+              <span className="whitespace-nowrap">Khách Nhận Bàn</span>
             </Button>
             <Tooltip title="Hủy giữ bàn và chuyển về trạng thái Trống">
               <Button
@@ -599,7 +595,7 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
                 size="sm"
                 onClick={() => onCancelBooking(table)}
                 disabled={saving}
-                className="!rounded-xl !text-xs !h-9 !px-2.5 !border-red-200 !text-red-600 hover:!border-red-500 hover:!bg-red-50 font-medium"
+                className="!rounded-xl !text-xs !h-9 !px-2.5 !border-red-200 !text-red-600 hover:!border-red-500 hover:!bg-red-50 font-medium shrink-0"
               >
                 Hủy
               </Button>
@@ -634,17 +630,17 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
               variant="primary"
               size="sm"
               onClick={() => onOpenTableModal(table, false)}
-              leftIcon={<PlayCircleOutlined />}
-              className="!flex-1 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9 shadow-2xs text-white"
+              leftIcon={<PlayCircleOutlined className="text-xs shrink-0" />}
+              className="!flex-1 min-w-0 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-9 shadow-2xs text-white whitespace-nowrap !px-2 flex items-center justify-center gap-1"
             >
-              Mở Bàn Tính Giờ
+              <span className="whitespace-nowrap">Mở Bàn Tính Giờ</span>
             </Button>
             <Tooltip title="Khách đặt trước đến sớm nhận bàn">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => onOpenTableModal(table, true)}
-                className="!rounded-xl !border-blue-300 !text-blue-700 hover:!bg-blue-50 font-bold !text-xs !h-9 !px-2.5 shrink-0"
+                className="!rounded-xl !border-blue-300 !text-blue-700 hover:!bg-blue-50 font-bold !text-xs !h-9 !px-2 shrink-0 whitespace-nowrap"
               >
                 Nhận Bàn
               </Button>
@@ -662,36 +658,36 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
           </Button>
         ) : isPlaying || isPaused ? (
           <div className="flex items-center gap-1.5 min-w-0">
-            {/* 1. Nút Thanh Toán: To rõ ràng, nổi bật nhất quầy */}
+            {/* 1. Nút Thanh Toán: To rõ ràng, thoải mái khoảng thở, không bị dính border */}
             <Button
               variant="primary"
               size="sm"
               onClick={() => onOpenCheckout(table)}
-              leftIcon={<DollarOutlined />}
-              className="!flex-1 min-w-0 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-black !text-xs !h-9 text-white shadow-2xs tracking-wide whitespace-nowrap !px-2.5"
+              leftIcon={<DollarOutlined className="text-xs shrink-0" />}
+              className="!flex-1 min-w-0 !rounded-xl !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-extrabold !text-[11.5px] sm:!text-xs !h-9 text-white shadow-2xs tracking-tight whitespace-nowrap !px-2 flex items-center justify-center gap-1"
             >
               <span className="whitespace-nowrap">Thanh Toán</span>
             </Button>
 
-            {/* 2. Nút In Tạm Tính: Hỗ trợ quầy in phiếu kiểm tiền cho khách trước khi thu */}
+            {/* 2. Nút In Tạm Tính: Gọn gàng 32px */}
             <Tooltip title="In phiếu tạm tính cho khách kiểm đồ">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => triggerPrePrint?.(table)}
-                icon={<PrinterOutlined className="text-slate-600" />}
-                className="!rounded-xl !h-9 !w-9 !min-h-9 !p-0 !min-w-9 !border-slate-200 hover:!border-emerald-500 !bg-white hover:!bg-slate-50 text-slate-700 shadow-2xs shrink-0"
+                icon={<PrinterOutlined className="text-slate-600 text-xs" />}
+                className="!rounded-xl !h-9 !w-8 !min-h-9 !p-0 !min-w-8 !border-slate-200 hover:!border-emerald-500 !bg-white hover:!bg-slate-50 text-slate-700 shadow-2xs shrink-0 flex items-center justify-center"
                 aria-label="In tạm tính"
               />
             </Tooltip>
 
-            {/* 3. Nút Gọi Món: Tinh tế, hiện badge số lượng món */}
+            {/* 3. Nút Gọi Món: Tinh tế, vừa vặn */}
             <Button
               variant="outline"
               size="sm"
               onClick={() => onOpenFnbModal(table)}
-              leftIcon={<CoffeeOutlined className="text-emerald-700" />}
-              className="!rounded-xl !text-xs !h-9 !px-2.5 !border-slate-200 hover:!border-emerald-500 !bg-white hover:!bg-emerald-50/50 !text-slate-800 font-bold shadow-2xs shrink-0 whitespace-nowrap"
+              leftIcon={<CoffeeOutlined className="text-emerald-700 text-xs shrink-0" />}
+              className="!rounded-xl !text-[11px] sm:!text-xs !h-9 !px-2 !border-slate-200 hover:!border-emerald-500 !bg-white hover:!bg-emerald-50/50 !text-slate-800 font-bold shadow-2xs shrink-0 whitespace-nowrap flex items-center gap-1"
             >
               <span className="whitespace-nowrap">Gọi Món</span>
               {(() => {
@@ -700,7 +696,7 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
                   .reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0);
                 if (totalQty <= 0) return null;
                 return (
-                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black font-mono">
+                  <span className="ml-0.5 px-1 py-0.2 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black font-mono">
                     {totalQty}
                   </span>
                 );
