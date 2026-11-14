@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   TrophyOutlined,
   QrcodeOutlined,
@@ -7,8 +7,10 @@ import {
   UserOutlined,
   EnvironmentOutlined,
   SafetyCertificateFilled,
+  CopyOutlined,
 } from "@ant-design/icons";
-import { Modal, Button, message } from "../../shared/ui";
+import { Modal, Button, message, Alert } from "../../shared/ui";
+import { tournamentService, type TournamentPass } from "../../services/tournament.service";
 import QRCode from "qrcode";
 
 export interface TournamentEPassData {
@@ -31,12 +33,19 @@ export interface TournamentAthletePassCardProps {
   renderActions?: (handleDownload: () => void) => React.ReactNode;
 }
 
-export function TournamentAthletePassCard({
-  data,
+export function TournamentAthletePassCard(props: TournamentAthletePassCardProps) {
+  return <TournamentPassCard key={props.data.tournamentId} {...props} />;
+}
+
+function TournamentPassCard({
+  data: initialData,
   renderActions,
 }: TournamentAthletePassCardProps) {
+  const [pass, setPass] = useState<TournamentPass | null>(null);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const data = pass ?? initialData;
   const [qrSrc, setQrSrc] = useState<string>("");
-  const passCardRef = useRef<HTMLDivElement>(null);
 
   const phoneDigits = (data.athletePhone || "").replace(/\D/g, "");
   const athleteSuffix = phoneDigits.slice(-4) || "VĐV";
@@ -44,36 +53,17 @@ export function TournamentAthletePassCard({
   const athleteCode = data.athleteCode || `CZ-${tourneySuffix}-${athleteSuffix}`;
 
   useEffect(() => {
-    // ponytail: QR code hien tai chua du lieu JSON de doi chieu thu cong tai ban/quay, can nang cap endpoint check-in scanner tu dong khi backend ho tro.
-    const checkinData = JSON.stringify({
-      app: "CueZone",
-      type: "TOURNAMENT_CHECKIN",
-      tId: data.tournamentId,
-      tName: data.tournamentName,
-      athlete: data.athleteName,
-      phone: data.athletePhone,
-      code: athleteCode,
-      validDate: data.startDate,
-    });
-
-    QRCode.toDataURL(checkinData, {
-      width: 220,
-      margin: 1,
-      color: {
-        dark: "#064e3b",
-        light: "#ffffff",
-      },
-    })
-      .then((url) => setQrSrc(url))
-      .catch(() => setQrSrc(""));
-  }, [
-    data.tournamentId,
-    data.tournamentName,
-    data.athleteName,
-    data.athletePhone,
-    athleteCode,
-    data.startDate,
-  ]);
+    let active = true;
+    tournamentService.getMyPass(initialData.tournamentId)
+      .then(async (latest) => {
+        const url = await QRCode.toDataURL(latest.ticket, { width: 220, margin: 1 });
+        if (active) { setPass(latest); setQrSrc(url); }
+      })
+      .catch(() => {
+        if (active) setError("Không thể tải vé hợp lệ. Vui lòng tải lại hoặc liên hệ ban tổ chức.");
+      });
+    return () => { active = false; };
+  }, [initialData.tournamentId, revision]);
 
   const handleDownload = () => {
     if (!qrSrc) return;
@@ -227,10 +217,18 @@ export function TournamentAthletePassCard({
     qrImg.src = qrSrc;
   };
 
+  if (error) return (
+    <Alert type="error" showIcon title={error} action={
+      <Button variant="outline" size="sm" onClick={() => { setError(""); setRevision((value) => value + 1); }}>Thử lại</Button>
+    } />
+  );
+  if (!pass || pass.tournamentId !== initialData.tournamentId) {
+    return <div role="status" className="py-8 text-center text-text-secondary">Đang tải vé từ hệ thống…</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div
-        ref={passCardRef}
         className="relative bg-gradient-to-br from-emerald-950 via-[#064e3b] to-slate-950 text-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-emerald-500/30 overflow-hidden"
       >
         <div className="absolute -top-16 -right-16 w-44 h-44 rounded-full bg-emerald-400/10 blur-2xl pointer-events-none" />
@@ -268,7 +266,7 @@ export function TournamentAthletePassCard({
               <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-medium">
                 Mã thẻ VĐV
               </span>
-              <span className="font-mono font-black text-amber-300 text-sm sm:text-base">
+              <span className="font-mono font-black text-amber-300 text-sm sm:text-base break-all">
                 {athleteCode}
               </span>
             </div>
@@ -338,6 +336,14 @@ export function TournamentAthletePassCard({
         </div>
       </div>
 
+      <div className="rounded-xl border border-border-standard bg-bg-card p-3 space-y-2">
+        <p className="text-xs text-text-secondary">Mã dự phòng: sao chép và đưa nhân viên nếu camera không đọc được QR.</p>
+        <Button variant="outline" size="sm" leftIcon={<CopyOutlined />} onClick={async () => {
+          try { await navigator.clipboard.writeText(pass.ticket); message.success("Đã sao chép mã vé"); }
+          catch { message.error("Không thể sao chép. Vui lòng dùng mã QR."); }
+        }}>Sao chép mã vé</Button>
+        {pass.checkedInAt && <p className="text-sm text-brand">Đã điểm danh: {new Date(pass.checkedInAt).toLocaleString("vi-VN")}</p>}
+      </div>
       {renderActions ? (
         renderActions(handleDownload)
       ) : (

@@ -14,6 +14,7 @@ import { getMemberTier, MEMBER_TIERS } from "../member/membership.policy";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 import { CustomerOrder, CustomerOrderStatus } from "../customer-order/customer-order.model";
+import { normalizePhone, phonePattern } from "../../utils/phone";
 
 export interface SplitTimeSlot {
   tierName: string;
@@ -25,22 +26,6 @@ export interface SplitTimeSlot {
 }
 
 const notifications = new NotificationService();
-
-const normalizePhone = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  return digits.startsWith("84") ? `0${digits.slice(2)}` : digits;
-};
-
-function phonePatterns(value: string) {
-  const localDigits = normalizePhone(value).replace(/\D/g, "");
-  if (!localDigits) return [];
-  const variants = [localDigits];
-  if (localDigits.startsWith("0")) variants.push(`84${localDigits.slice(1)}`);
-  return variants.map((digits) => {
-    const formattedDigits = digits.split("").join("[\\s().-]*");
-    return `^${digits.startsWith("84") ? "\\+?" : ""}${formattedDigits}$`;
-  });
-}
 
 export function sessionBelongsToCustomer(
   current: { customerId?: unknown; customerPhone?: string },
@@ -384,10 +369,10 @@ export class SessionService {
       }
       let isMember = Boolean(input.isMember);
       if (phone) {
-        const patterns = phonePatterns(phone);
-        const memberUser = patterns.length
+        const pattern = phonePattern(phone);
+        const memberUser = pattern
           ? await User.findOne({
-              phone: { $in: patterns.map((pattern) => new RegExp(pattern, "i")) },
+              phone: { $regex: pattern },
               role: UserRole.CUSTOMER,
               isActive: true,
               isLocked: false,

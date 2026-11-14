@@ -22,7 +22,7 @@ interface AuthContextType {
     password: string,
     phone?: string,
   ) => Promise<void>;
-  verifyAndRegister: (email: string, code: string) => Promise<void>;
+  verifyAndRegister: (email: string, code: string) => Promise<number>;
   logout: () => void;
 }
 
@@ -100,6 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("refreshToken", result.refreshToken);
     localStorage.setItem("cuezone_user", JSON.stringify(result.user));
     setUser(result.user);
+    return result.inheritedPoints ?? 0;
   }, []);
 
   const logout = useCallback(() => {

@@ -8,6 +8,7 @@ import { CreateTableDTO, UpdateTableDTO } from "./dto/table.dto";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
+import { normalizePhone, phonePattern } from "../../utils/phone";
 
 const notificationService = new NotificationService();
 
@@ -40,11 +41,10 @@ export class TableService {
   async lookupCustomer(query: string) {
     const trimmed = (query || "").trim();
     if (!trimmed) return null;
-    const digits = trimmed.replace(/\D/g, "");
+    const pattern = phonePattern(trimmed);
     const conditions: any[] = [];
-    if (digits.length >= 8) {
-      const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
-      conditions.push({ phone: { $regex: phonePattern } });
+    if (pattern) {
+      conditions.push({ phone: { $regex: pattern } });
     }
     if (trimmed.length >= 2) {
       const safeName = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -70,10 +70,9 @@ export class TableService {
     // Tìm các voucher mà khách hàng này đã từng sử dụng (mỗi khách dùng 1 lần)
     const usedConditions: any[] = [{ customerId: user._id }];
     if (user.phone) {
-      const digits = user.phone.replace(/\D/g, "");
-      if (digits.length >= 8) {
-        const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
-        usedConditions.push({ customerPhone: { $regex: phonePattern } });
+      const pattern = phonePattern(user.phone);
+      if (pattern) {
+        usedConditions.push({ customerPhone: { $regex: pattern } });
       } else {
         usedConditions.push({ customerPhone: user.phone });
       }
@@ -134,15 +133,16 @@ export class TableService {
 
   async quickRegisterCustomer(data: { phone: string; name?: string }) {
     const rawPhone = (data.phone || "").trim();
-    const digits = rawPhone.replace(/\D/g, "");
+    const digits = normalizePhone(rawPhone);
     if (digits.length < 8 || digits.length > 12) {
       throw new Error("Số điện thoại không hợp lệ (phải từ 8-12 chữ số)");
     }
 
-    const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
-    let existingAnyUser = await User.findOne({
-      phone: { $regex: phonePattern },
-    });
+    const users = await User.find({ phone: { $regex: phonePattern(rawPhone)! } }).limit(2);
+    if (users.length > 1) {
+      throw new Error("Số điện thoại hội viên không duy nhất, vui lòng kiểm tra hồ sơ tại quầy");
+    }
+    const existingAnyUser = users[0];
 
     if (existingAnyUser && existingAnyUser.role !== UserRole.CUSTOMER) {
       throw new Error(`Số điện thoại này đã được đăng ký cho tài khoản nhân viên (${existingAnyUser.name})`);
@@ -159,7 +159,7 @@ export class TableService {
 
       user = new User({
         name: customerName,
-        phone: rawPhone,
+        phone: digits,
         email,
         password: `cz@${digits.slice(-4)}`,
         role: UserRole.CUSTOMER,

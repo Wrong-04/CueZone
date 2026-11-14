@@ -1,5 +1,6 @@
 import mongoose, { ClientSession, Types } from "mongoose";
 import { Voucher, VoucherDiscountType, VoucherUsage, IVoucher } from "./voucher.model";
+import { phonePattern } from "../../utils/phone";
 
 const httpError = (message: string, httpCode = 400, code?: string) =>
   Object.assign(new Error(message), { httpCode, code });
@@ -266,12 +267,11 @@ export class VoucherService {
     assertValidAt(voucher, subtotal);
 
     if (customerPhone && typeof customerPhone === "string" && customerPhone.trim()) {
-      const digits = customerPhone.replace(/\D/g, "");
-      if (digits.length >= 8) {
-        const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+      const pattern = phonePattern(customerPhone);
+      if (pattern) {
         const alreadyUsed = await VoucherUsage.findOne({
           voucherId: voucher._id,
-          customerPhone: { $regex: phonePattern },
+          customerPhone: { $regex: pattern },
         });
         if (alreadyUsed) {
           throw httpError(
@@ -317,10 +317,9 @@ export class VoucherService {
       const condition: any[] = [];
       if (data.customerId) condition.push({ customerId: data.customerId });
       if (data.customerPhone) {
-        const digits = data.customerPhone.replace(/\D/g, "");
-        if (digits.length >= 8) {
-          const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
-          condition.push({ customerPhone: { $regex: phonePattern } });
+        const pattern = phonePattern(data.customerPhone);
+        if (pattern) {
+          condition.push({ customerPhone: { $regex: pattern } });
         } else {
           condition.push({ customerPhone: data.customerPhone });
         }
