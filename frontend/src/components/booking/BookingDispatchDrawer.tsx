@@ -5,7 +5,6 @@ import {
   PhoneOutlined,
   PlayCircleOutlined,
   SwapOutlined,
-  CloseCircleOutlined,
   PlusOutlined,
   SyncOutlined,
   AppstoreOutlined,
@@ -17,10 +16,10 @@ import {
   Input,
   Select,
   Modal,
-  SegmentedPillList,
+  Tooltip,
   message,
 } from "../../shared/ui";
-import { bookingService, posService } from "../../services/pos.service";
+import { bookingService } from "../../services/pos.service";
 import type { BookingRequest, PosTable } from "../../types/pos";
 import { getSocket } from "../../services/socket.service";
 
@@ -44,7 +43,7 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
   const [bookings, setBookings] = useState<BookingRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tabFilter, setTabFilter] = useState<"today" | "upcoming" | "holding" | "noshow" | "checked_in" | "all">("today");
+  const [tabFilter, setTabFilter] = useState<"urgent" | "today" | "noshow" | "all">("today");
 
   // Re-assign table modal state
   const [changeTableModalOpen, setChangeTableModalOpen] = useState(false);
@@ -56,7 +55,16 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
     setLoading(true);
     try {
       const data = await bookingService.getAll();
-      setBookings(data);
+      // Deduplicate bookings: loại bỏ các bản ghi trùng lặp khách + bàn + giờ hẹn
+      const seen = new Set<string>();
+      const deduped = (data || []).filter((b) => {
+        if (!b) return false;
+        const key = `${b.phone || ""}_${b.tableId || ""}_${b.date || ""}_${b.time || ""}`;
+        if (b.status !== "rejected" && b.status !== "checked_in" && seen.has(key)) return false;
+        if (b.status !== "rejected" && b.status !== "checked_in") seen.add(key);
+        return true;
+      });
+      setBookings(deduped);
     } catch {
       // ignore
     } finally {
@@ -103,21 +111,25 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
       let isHolding = false;
       let isOverdueNoShow = false;
 
+      // Kiểm tra xem bàn thực tế trên POS có đang bị khóa bởi lịch đặt này không
+      const targetTable = tables.find((t) => t.id === b.tableId || t.code === b.tableId);
+      const isTableActuallyBooked = targetTable?.status === "booked";
+
       if (b.date && b.time) {
         const timeParts = b.time.split(":");
         const bDate = new Date(`${b.date}T${timeParts[0]?.padStart(2, "0")}:${timeParts[1]?.padStart(2, "0")}:00+07:00`);
         const diffMs = bDate.getTime() - now;
         diffMinutes = Math.floor(diffMs / 60000);
 
-        // Upcoming within 60 mins
+        // Sắp đến: trong vòng 60 phút tới
         if (diffMinutes >= 0 && diffMinutes <= 60 && isToday) {
           isUpcoming = true;
         }
-        // Holding slot: 15 mins before to 15 mins after
+        // Đang giữ bàn: từ 15 phút trước tới 15 phút sau giờ hẹn
         if (diffMinutes > -15 && diffMinutes <= 15 && isToday) {
           isHolding = true;
         }
-        // Overdue No-Show: > 15 mins late
+        // Quá hạn: trễ hơn 15 phút mà chưa check-in hoặc chưa hủy
         if (diffMinutes <= -15 && isToday && b.status !== "checked_in" && b.status !== "rejected") {
           isOverdueNoShow = true;
         }
@@ -132,32 +144,46 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
         isUpcoming,
         isHolding,
         isOverdueNoShow,
+        isTableActuallyBooked,
       };
     });
-  }, [bookings, todayIso]);
+  }, [bookings, todayIso, tables]);
 
-  // Tab counts
+  // Tab counts (Chỉ đếm các lịch hẹn trong ngày hôm nay và tương lai, không tính lịch cũ quá khứ)
   const counts = useMemo(() => {
     const todayList = enrichedBookings.filter((b) => b.isToday);
+    const activeList = enrichedBookings.filter((b) => !b.date || b.date >= todayIso);
+    const urgentList = todayList.filter(
+      (b) =>
+        b.status !== "checked_in" &&
+        b.status !== "rejected" &&
+        !b.isOverdueNoShow &&
+        (b.isHolding || b.isUpcoming),
+    );
+    const noshowList = todayList.filter((b) => b.isOverdueNoShow && b.status !== "checked_in" && b.status !== "rejected");
     return {
+      urgent: urgentList.length,
       today: todayList.length,
-      upcoming: todayList.filter((b) => b.isUpcoming && b.status !== "checked_in" && b.status !== "rejected").length,
-      holding: todayList.filter((b) => b.isHolding && b.status !== "checked_in" && b.status !== "rejected").length,
-      noshow: todayList.filter((b) => b.isOverdueNoShow).length,
+      noshow: noshowList.length,
       checked_in: todayList.filter((b) => b.status === "checked_in").length,
-      all: bookings.length,
+      all: activeList.length,
     };
-  }, [enrichedBookings, bookings]);
+  }, [enrichedBookings, todayIso]);
 
   // Filtered List
   const displayBookings = useMemo(() => {
     return enrichedBookings.filter((b) => {
+      // Bỏ qua các lịch hẹn của các ngày cũ trong quá khứ (không load rác vào Drawer POS)
+      if (b.date && b.date < todayIso) return false;
+
       // Tab filter
+      if (tabFilter === "urgent") {
+        if (b.status === "checked_in" || b.status === "rejected" || b.isOverdueNoShow) return false;
+        if (!b.isToday) return false;
+        return b.isHolding || b.isUpcoming;
+      }
       if (tabFilter === "today" && !b.isToday) return false;
-      if (tabFilter === "upcoming" && (!b.isUpcoming || b.status === "checked_in" || b.status === "rejected")) return false;
-      if (tabFilter === "holding" && (!b.isHolding || b.status === "checked_in" || b.status === "rejected")) return false;
-      if (tabFilter === "noshow" && !b.isOverdueNoShow) return false;
-      if (tabFilter === "checked_in" && b.status !== "checked_in") return false;
+      if (tabFilter === "noshow" && (!b.isOverdueNoShow || !b.isToday)) return false;
 
       // Search query
       if (searchQuery.trim()) {
@@ -170,7 +196,39 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
 
       return true;
     });
-  }, [enrichedBookings, tabFilter, searchQuery]);
+  }, [enrichedBookings, tabFilter, searchQuery, todayIso]);
+
+  // Sắp xếp thứ tự danh sách hiển thị thông minh:
+  // 1. Khách đang giữ chỗ (Holding) ưu tiên số 1
+  // 2. Khách sắp đến (Upcoming) ưu tiên số 2
+  // 3. Khách đặt theo giờ hẹn tăng dần (sớm lên trước)
+  // 4. Khách quá hạn nhưng bàn vẫn bị giữ (cần xả bàn)
+  // 5. Khách quá hạn mà bàn đã xả (bàn trống) đưa xuống dưới
+  // 6. Khách đã nhận bàn (checked_in) hoặc đã hủy (rejected) đưa xuống cuối cùng
+  const sortedBookings = useMemo(() => {
+    return [...displayBookings].sort((a, b) => {
+      const aDone = a.status === "checked_in" || a.status === "rejected";
+      const bDone = b.status === "checked_in" || b.status === "rejected";
+      if (aDone && !bDone) return 1;
+      if (!aDone && bDone) return -1;
+
+      if (a.isHolding && !b.isHolding) return -1;
+      if (!a.isHolding && b.isHolding) return 1;
+
+      if (a.isUpcoming && !b.isUpcoming) return -1;
+      if (!a.isUpcoming && b.isUpcoming) return 1;
+
+      const aOverdueHeld = a.isOverdueNoShow && a.isTableActuallyBooked;
+      const bOverdueHeld = b.isOverdueNoShow && b.isTableActuallyBooked;
+      if (aOverdueHeld && !bOverdueHeld) return -1;
+      if (!aOverdueHeld && bOverdueHeld) return 1;
+
+      if (a.isOverdueNoShow && !b.isOverdueNoShow) return 1;
+      if (!a.isOverdueNoShow && b.isOverdueNoShow) return -1;
+
+      return (a.time || "").localeCompare(b.time || "");
+    });
+  }, [displayBookings]);
 
   // Handlers
   const handleCheckIn = (b: BookingRequest) => {
@@ -189,36 +247,6 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
     }
     onClose();
     onCheckInTable(b.tableId, b);
-  };
-
-  const handleCancelNoShow = (b: BookingRequest) => {
-    Modal.confirm({
-      title: `Hủy lịch giữ bàn do khách quá giờ hẹn?`,
-      content: `Khách ${b.customerName} (${b.phone}) hẹn lúc ${b.time} tại ${b.tableName}. Bấm xác nhận để hủy lịch đặt và giải phóng bàn cho khách vãng lai.`,
-      okText: "Hủy giữ bàn",
-      okType: "danger",
-      cancelText: "Bỏ qua",
-      onOk: async () => {
-        try {
-          await bookingService.update(b.id, {
-            status: "rejected",
-            rejectionReason: "Khách quá hạn giữ bàn (No-show)",
-          });
-          if (b.tableId) {
-            try {
-              await posService.cancelBooking(b.tableId);
-            } catch {
-              // Bàn có thể đã đổi trạng thái, bỏ qua lỗi bàn
-            }
-          }
-          message.success(`Đã hủy lịch giữ bàn thành công`);
-          void fetchBookings();
-          void onTablesReload();
-        } catch (err: any) {
-          message.error(err.message || "Không thể hủy giữ bàn");
-        }
-      },
-    });
   };
 
   const handleOpenChangeTable = (b: BookingRequest) => {
@@ -251,15 +279,9 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
   };
 
   const filterTabs = [
+    { key: "urgent", label: `Cần đón (${counts.urgent})` },
     { key: "today", label: `Hôm nay (${counts.today})` },
-    { key: "upcoming", label: `Sắp đến (${counts.upcoming})` },
-    { key: "holding", label: `Đang giữ (${counts.holding})` },
-    {
-      key: "noshow",
-      label: `Quá hạn giữ bàn (${counts.noshow})`,
-      dotClassName: counts.noshow > 0 ? "bg-rose-500 animate-ping" : undefined,
-    },
-    { key: "checked_in", label: `Đã nhận (${counts.checked_in})` },
+    { key: "noshow", label: `Hết hạn (${counts.noshow})` },
     { key: "all", label: `Tất cả (${counts.all})` },
   ];
 
@@ -281,7 +303,7 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
                   Lịch Hẹn Đặt Bàn
                 </span>
                 <span className="text-[11px] text-slate-500 font-normal">
-                  Tự động xác nhận 24/7 · Nhận bàn 1 chạm tại POS
+                  Quản lý khách đặt trước và nhận bàn tại quầy
                 </span>
               </div>
             </div>
@@ -323,23 +345,37 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
             />
           </div>
 
-          {/* Segmented Filter Pills */}
-          <div className="overflow-x-auto pb-1">
-            <SegmentedPillList
-              items={filterTabs}
-              activeKey={tabFilter}
-              onSelect={(k) => setTabFilter(k as typeof tabFilter)}
-              className="[&_button]:!text-xs [&_button]:!py-1 [&_button]:!px-2.5"
-            />
+          {/* Filter Tabs: 4 tabs dàn đều 100%, không bị cuộn ngang tràn viền mất chữ */}
+          <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl w-full">
+            {filterTabs.map((tab) => {
+              const isActive = tabFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setTabFilter(tab.key as typeof tabFilter)}
+                  className={`relative flex items-center justify-center py-2 px-1 rounded-lg text-xs font-bold transition-all text-center ${
+                    isActive
+                      ? "bg-white text-emerald-800 shadow-2xs font-extrabold"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  }`}
+                >
+                  <span className="truncate">{tab.label}</span>
+                  {tab.key === "urgent" && counts.urgent > 0 && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* List of bookings */}
-          {loading && displayBookings.length === 0 ? (
+          {loading && sortedBookings.length === 0 ? (
             <div className="py-16 text-center text-slate-400 space-y-2">
               <SyncOutlined spin className="text-2xl text-emerald-600" />
               <p className="text-xs">Đang đồng bộ danh sách khách đặt bàn...</p>
             </div>
-          ) : displayBookings.length === 0 ? (
+          ) : sortedBookings.length === 0 ? (
             <div className="py-16 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6 space-y-2 text-slate-400">
               <CalendarOutlined className="text-3xl text-slate-300 mx-auto" />
               <p className="text-xs font-semibold text-slate-600 mb-0">
@@ -351,21 +387,21 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {displayBookings.map((b) => {
+              {sortedBookings.map((b) => {
                 const isCheckedIn = b.status === "checked_in";
                 const isRejected = b.status === "rejected";
+                const targetTable = tables.find((t) => t.id === b.tableId || t.code === b.tableId);
+                const isTablePlaying = targetTable?.status === "playing";
 
                 return (
                   <div
                     key={b.id}
                     className={`p-3.5 rounded-2xl border transition-all ${
-                      b.isOverdueNoShow
-                        ? "bg-rose-50/70 border-rose-300 ring-1 ring-rose-400/20"
-                        : b.isHolding && !isCheckedIn
+                      b.isOverdueNoShow || isCheckedIn || isRejected
+                        ? "bg-slate-50/70 border-slate-200 opacity-60"
+                        : b.isHolding
                           ? "bg-amber-50/70 border-amber-300 ring-1 ring-amber-400/20"
-                          : isCheckedIn
-                            ? "bg-slate-50 border-slate-200 opacity-75"
-                            : "bg-white border-slate-200 shadow-2xs hover:border-slate-300"
+                          : "bg-white border-slate-200 shadow-2xs hover:border-slate-300"
                     }`}
                   >
                     {/* Top Row: Customer Name, Phone & Status Tag */}
@@ -389,12 +425,12 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
                             ĐÃ NHẬN BÀN
                           </Tag>
                         ) : isRejected ? (
-                          <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0">
+                          <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-500 !border-slate-300">
                             ĐÃ HỦY
                           </Tag>
                         ) : b.isOverdueNoShow ? (
-                          <Tag color="error" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0">
-                            QUÁ HẠN GIỮ BÀN
+                          <Tag color="default" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0 !bg-slate-100 !text-slate-500 !border-slate-300">
+                            HẾT HẠN GIỮ CHỖ
                           </Tag>
                         ) : b.isHolding ? (
                           <Tag color="warning" className="!rounded-full !px-2.5 !py-0.5 !text-[10px] !font-bold !m-0">
@@ -442,41 +478,43 @@ export const BookingDispatchDrawer: React.FC<Props> = ({
                       </div>
                     )}
 
-                    {/* Bottom Actions */}
-                    {!isCheckedIn && !isRejected && (
+                    {/* Bottom Actions: Chỉ hiển thị nút thao tác cho các khách trong hạn, đã quá giờ giữ bàn thì không hiển thị */}
+                    {!isCheckedIn && !isRejected && !b.isOverdueNoShow && (
                       <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenChangeTable(b)}
-                            icon={<SwapOutlined />}
-                            className="!h-7 !px-2.5 !text-xs !rounded-lg !border-slate-300 text-slate-700 font-medium"
-                          >
-                            Đổi bàn
-                          </Button>
-                          {b.isOverdueNoShow && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleCancelNoShow(b)}
-                              icon={<CloseCircleOutlined />}
-                              className="!h-7 !px-2.5 !text-xs !rounded-lg !border-rose-300 !text-rose-700 hover:!bg-rose-50 font-bold"
-                            >
-                              Hủy Giữ Bàn
-                            </Button>
-                          )}
-                        </div>
-
                         <Button
-                          variant="primary"
+                          variant="outline"
                           size="sm"
-                          onClick={() => handleCheckIn(b)}
-                          leftIcon={<PlayCircleOutlined />}
-                          className="!h-7 !px-3.5 !text-xs !bg-emerald-600 hover:!bg-emerald-700 !border-0 font-bold !rounded-lg text-white shadow-2xs"
+                          onClick={() => handleOpenChangeTable(b)}
+                          icon={<SwapOutlined />}
+                          className="!h-7.5 !px-2.5 !text-xs !rounded-lg !border-slate-300 text-slate-700 font-medium whitespace-nowrap shrink-0"
                         >
-                          Nhận Bàn (Mở POS)
+                          Đổi bàn
                         </Button>
+
+                        <Tooltip
+                          title={
+                            isTablePlaying
+                              ? `Bàn ${b.tableName} hiện đang có khách chơi!`
+                              : ""
+                          }
+                        >
+                          <span>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              disabled={isTablePlaying}
+                              onClick={() => handleCheckIn(b)}
+                              leftIcon={<PlayCircleOutlined />}
+                              className={`!h-7.5 !px-3.5 !text-xs font-bold !rounded-lg text-white shadow-2xs whitespace-nowrap shrink-0 ${
+                                isTablePlaying
+                                  ? "!bg-slate-300 !border-slate-300 !cursor-not-allowed"
+                                  : "!bg-emerald-600 hover:!bg-emerald-700 !border-0"
+                              }`}
+                            >
+                              Nhận Bàn (Mở POS)
+                            </Button>
+                          </span>
+                        </Tooltip>
                       </div>
                     )}
                   </div>
