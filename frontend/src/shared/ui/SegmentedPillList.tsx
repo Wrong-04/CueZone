@@ -25,7 +25,7 @@ export function SegmentedPillList({
   return (
     <div
       className={clsx(
-        "inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-border-divider bg-[#f1f5f9] p-1 shadow-2xs",
+        "inline-flex flex-nowrap items-center gap-1.5 rounded-lg border border-border-divider bg-[#f1f5f9] p-1 shadow-2xs whitespace-nowrap overflow-x-auto",
         className,
       )}
     >
@@ -39,7 +39,7 @@ export function SegmentedPillList({
             aria-pressed={active}
             onClick={() => onSelect(item.key)}
             className={clsx(
-              "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[12.5px] transition-all select-none font-medium",
+              "inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-[12.5px] transition-all select-none font-medium whitespace-nowrap shrink-0",
               active
                 ? "cursor-default !bg-white !font-bold !text-[#06a897] !shadow-2xs !border !border-black/5"
                 : "cursor-pointer !bg-transparent !text-[#64748b] hover:!bg-white/60 hover:!text-[#0f172a] !border-transparent",
@@ -48,11 +48,11 @@ export function SegmentedPillList({
             {item.dotClassName ? (
               <span className={clsx("w-2 h-2 rounded-full shrink-0", item.dotClassName)} />
             ) : null}
-            <span>{item.label}</span>
+            <span className="whitespace-nowrap">{item.label}</span>
             {item.badge !== undefined && item.badge !== null ? (
               <span
                 className={clsx(
-                  "px-1.5 py-0.5 rounded text-[11px] font-semibold shrink-0",
+                  "px-1.5 py-0.5 rounded text-[11px] font-semibold shrink-0 whitespace-nowrap",
                   active ? "bg-[#06a897]/15 text-[#06a897]" : "bg-gray-200/80 text-gray-600",
                 )}
               >
