@@ -28,6 +28,7 @@ export type Product = {
   salePrice: number;
   supplierId?: string | null;
   description?: string;
+  productType?: "fnb" | "ingredient" | "accessory";
   isForSale: boolean;
   isActive: boolean;
   isMadeToOrder?: boolean;
@@ -58,6 +59,7 @@ type ProductPayload = {
   minStock: number;
   supplierId?: string | null;
   description?: string;
+  productType?: "fnb" | "ingredient" | "accessory";
   isForSale: boolean;
   isMadeToOrder?: boolean;
   isTheMakeToOrder?: boolean;
