@@ -257,9 +257,10 @@ const SettingsManagementPage: React.FC = () => {
     {
       title: "Cấp bậc hội viên",
       key: "tierName",
+      width: 170,
       render: (_, r) => (
         <div className="flex items-center gap-2">
-          <Tag color={r.color as any} className="!font-bold !text-xs !px-2.5 !py-1">
+          <Tag color={r.color as any} className="!font-bold !text-xs !px-2.5 !py-1 whitespace-nowrap">
             {r.tierName}
           </Tag>
         </div>
@@ -270,28 +271,34 @@ const SettingsManagementPage: React.FC = () => {
       key: "minPoints",
       width: 180,
       render: (_, r) => (
-        <Text strong className="!text-slate-800 !text-xs font-semibold">
+        <Text strong className="!text-slate-800 !text-xs font-semibold whitespace-nowrap">
           Từ {r.minPoints.toLocaleString("vi-VN")} điểm
         </Text>
       ),
     },
     {
-      title: "Ưu đãi tiền bàn",
+      title: "Giảm giá tiền bàn",
       key: "tableDiscountPercent",
       width: 150,
       render: (_, r) => (
-        <span className="text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+        <span className="text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 whitespace-nowrap inline-block">
           Giảm {r.tableDiscountPercent}%
         </span>
       ),
     },
     {
-      title: "Ưu đãi F&B",
+      title: "Giảm giá menu F&B",
       key: "fnbDiscountPercent",
-      width: 140,
+      width: 160,
       render: (_, r) => (
-        <span className="text-blue-700 font-bold text-xs bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
-          {r.fnbDiscountPercent > 0 ? `Giảm ${r.fnbDiscountPercent}%` : "Theo giá niêm yết"}
+        <span
+          className={`font-bold text-xs px-2.5 py-1 rounded-md border whitespace-nowrap inline-block ${
+            r.fnbDiscountPercent > 0
+              ? "text-blue-700 bg-blue-50 border-blue-200"
+              : "text-slate-600 bg-slate-100 border-slate-200 font-medium"
+          }`}
+        >
+          {r.fnbDiscountPercent > 0 ? `Giảm ${r.fnbDiscountPercent}%` : "Giá niêm yết (0%)"}
         </span>
       ),
     },
@@ -925,7 +932,7 @@ const SettingsManagementPage: React.FC = () => {
                   onChange={(e) => setSettings({ ...settings, autoCutPaper: e.target.checked })}
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                 />
-                <span className="font-semibold">Tự động đẩy lệnh cắt giấy khi in xong bill</span>
+                <span className="font-semibold">Tự động cắt giấy khi in xong hóa đơn</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
@@ -945,7 +952,7 @@ const SettingsManagementPage: React.FC = () => {
                   onChange={(e) => setSettings({ ...settings, printClubLogoOnBill: e.target.checked })}
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                 />
-                <span className="font-semibold">In tên CLB, địa chỉ và thông tin Wifi ở đầu hóa đơn</span>
+                <span className="font-semibold">In tên quán, địa chỉ và mật khẩu Wifi ở đầu hóa đơn</span>
               </label>
             </div>
           </div>
@@ -999,7 +1006,7 @@ const SettingsManagementPage: React.FC = () => {
                     }
                     className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
-                  <span>Yêu cầu quyền Quản trị khi hủy món F&B hoặc giảm số lượng đã phục vụ</span>
+                  <span>Bắt buộc quyền Quản lý khi hủy món F&B hoặc giảm số lượng đã gọi</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
@@ -1014,7 +1021,7 @@ const SettingsManagementPage: React.FC = () => {
                     }
                     className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                   />
-                  <span>Yêu cầu xác nhận Quản trị khi áp dụng giảm giá thủ công trên 20%</span>
+                  <span>Bắt buộc duyệt Quản lý khi áp dụng giảm giá hóa đơn trên 20%</span>
                 </label>
               </div>
             </div>
@@ -1031,7 +1038,7 @@ const SettingsManagementPage: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Giờ chốt ca đêm tự động & kết ca doanh thu
+                  Giờ kết ca đêm tự động & chốt doanh thu ngày
                 </label>
                 <Input
                   value={settings.autoEndShiftTime}
