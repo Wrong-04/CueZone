@@ -88,10 +88,19 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
               <span className="text-sm font-black text-slate-900 block">
                 {clubSettings.clubName}
               </span>
-              <span className="text-[10px] text-slate-500 block">
-                {clubSettings.address}
-              </span>
-              <span className="text-[10px] text-slate-500 block">Hotline: {clubSettings.hotline}</span>
+              {clubSettings.printClubLogoOnBill !== false && (
+                <>
+                  <span className="text-[10px] text-slate-500 block">
+                    {clubSettings.address}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">Hotline: {clubSettings.hotline}</span>
+                  {clubSettings.wifiSSID && (
+                    <span className="text-[10px] text-slate-500 block">
+                      Wifi: {clubSettings.wifiSSID} | Pass: {clubSettings.wifiPassword}
+                    </span>
+                  )}
+                </>
+              )}
             <span className="text-[11px] font-bold text-slate-800 block mt-1">
               {isPrePrint
                 ? `PHIẾU TẠM TÍNH (${paidSummary.invoiceCode})`
@@ -222,6 +231,28 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
               </div>
             )}
           </div>
+
+          {clubSettings.printVietQROnBill !== false && clubSettings.bankAccountNo && paidSummary.finalAmount > 0 && (
+            <div className="pt-2 border-t border-dashed border-slate-200 text-center space-y-1">
+              <span className="text-[10px] text-slate-700 font-bold block uppercase tracking-wider">
+                Quét Mã VietQR Chuyển Khoản
+              </span>
+              <div className="flex justify-center py-1">
+                <img
+                  src={`https://api.vietqr.io/image/${clubSettings.bankCode}-${clubSettings.bankAccountNo}-compact2.jpg?amount=${paidSummary.finalAmount}&addInfo=${encodeURIComponent(paidSummary.invoiceCode)}&accountName=${encodeURIComponent(clubSettings.bankAccountName)}`}
+                  alt="VietQR Thanh Toán"
+                  className="w-24 h-24 object-contain border border-slate-300 rounded p-1 bg-white"
+                  loading="lazy"
+                />
+              </div>
+              <div className="text-[9.5px] text-slate-700 font-medium">
+                {clubSettings.bankName?.split(" (")[0] || "Ngân hàng"} · STK: <strong>{clubSettings.bankAccountNo}</strong>
+              </div>
+              <div className="text-[9px] text-slate-500">
+                Chủ TK: {clubSettings.bankAccountName}
+              </div>
+            </div>
+          )}
 
           <div className="text-center pt-3 border-t border-slate-200 text-[10px] text-slate-400">
             Cảm ơn quý khách đã sử dụng dịch vụ tại CueZone!

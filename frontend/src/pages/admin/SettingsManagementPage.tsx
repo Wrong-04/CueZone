@@ -4,10 +4,7 @@ import { posService } from "../../services/pos.service";
 import {
   SettingOutlined,
   ShopOutlined,
-  DollarOutlined,
   CrownOutlined,
-  PrinterOutlined,
-  SafetyCertificateOutlined,
   SaveOutlined,
   ReloadOutlined,
   WifiOutlined,
@@ -16,12 +13,12 @@ import {
   MailOutlined,
   EnvironmentOutlined,
   QrcodeOutlined,
-  BellOutlined,
-  LockOutlined,
   BankOutlined,
   CopyOutlined,
   EyeOutlined,
   AppstoreOutlined,
+  PrinterOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -51,7 +48,7 @@ export interface MemberTierPolicy {
 }
 
 export interface ClubSettingsData {
-  // General Info
+  // 1. Thông tin CLB & Cơ sở
   clubName: string;
   slogan: string;
   phone: string;
@@ -62,45 +59,21 @@ export interface ClubSettingsData {
   wifiPassword: string;
   totalTables: number;
 
-  // Pricing & Billing Rules
-  goldHourStart: string; // e.g. "18:00"
-  goldHourEnd: string; // e.g. "23:00"
-  minBillingMinutes: number; // e.g. 15
-  roundBillingMinutes: number; // e.g. 5
-  vatTaxPercent: number; // e.g. 8
-  isVatEnabled: boolean;
-  serviceChargePercent: number; // e.g. 0
-  holidaySurchargePercent: number; // e.g. 15
-
-  // Membership Points
-  earnPointsRate: number;
-  redeemPointsRate: number;
-  memberTiers: MemberTierPolicy[];
-
-  // Hardware & Peripherals
-  printerType: string;
-  printerPaperWidth: string; // K80 or K58
-  printerIpAddress: string;
-  autoCutPaper: boolean;
-  printVietQROnBill: boolean;
-  printClubLogoOnBill: boolean;
-
-  // Payment VietQR
+  // 2. Cổng Thanh Toán VietQR & Tùy chọn In Bill
   bankCode: string;
   bankName: string;
   bankAccountNo: string;
   bankAccountName: string;
   isVietQREnabled: boolean;
+  printVietQROnBill: boolean;
+  printClubLogoOnBill: boolean;
 
-  // Security & Automation
-  autoLockPosTimeoutMinutes: number;
-  requireAdminPassOnCancelItem: boolean;
-  requireAdminPassOnHighDiscount: boolean;
-  autoEndShiftTime: string; // "04:00"
-  soundAlertNewBooking: boolean;
+  // 3. Chính Sách Hội Viên & Điểm Thưởng
+  earnPointsRate: number;
+  memberTiers: MemberTierPolicy[];
 }
 
-// ── Default Mock Settings ─────────────────────────────────────────────────────
+// ── Default Settings Chuẩn Nghiệp Vụ CLB ───────────────────────────────────────
 
 const DEFAULT_SETTINGS: ClubSettingsData = {
   clubName: "CueZone Billiards Club",
@@ -113,26 +86,24 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
   wifiPassword: "cuezone8888",
   totalTables: 26,
 
-  goldHourStart: "18:00",
-  goldHourEnd: "23:00",
-  minBillingMinutes: 15,
-  roundBillingMinutes: 5,
-  vatTaxPercent: 8,
-  isVatEnabled: false,
-  serviceChargePercent: 0,
-  holidaySurchargePercent: 15,
+  bankCode: "TPB",
+  bankName: "TPBank (Ngân hàng TMCP Tiên Phong)",
+  bankAccountNo: "0975685609",
+  bankAccountName: "NGUYEN QUANG HUY",
+  isVietQREnabled: true,
+  printVietQROnBill: true,
+  printClubLogoOnBill: true,
 
   earnPointsRate: 10000,
-  redeemPointsRate: 100,
   memberTiers: [
     {
-      tierKey: "standard",
-      tierName: "Thành Viên Tiêu Chuẩn",
-      color: "blue",
+      tierKey: "bronze",
+      tierName: "Hội Viên Đồng (Bronze)",
+      color: "orange",
       minPoints: 0,
       tableDiscountPercent: 5,
       fnbDiscountPercent: 0,
-      perks: "Tích lũy điểm giờ chơi, đặt bàn trước qua App",
+      perks: "Tích lũy điểm từ hóa đơn chơi, đặt bàn trước qua App",
     },
     {
       tierKey: "silver",
@@ -152,35 +123,7 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
       fnbDiscountPercent: 10,
       perks: "Giảm 15% tiền bàn, ưu tiên giữ bàn giờ cao điểm, tủ để cơ riêng",
     },
-    {
-      tierKey: "diamond",
-      tierName: "Kim Cương (Diamond VIP)",
-      color: "purple",
-      minPoints: 3500,
-      tableDiscountPercent: 20,
-      fnbDiscountPercent: 15,
-      perks: "Giảm 20% tiền bàn, tủ cơ vân tay VIP, miễn phí thay đầu cơ Kamui",
-    },
   ],
-
-  printerType: "Máy in nhiệt mạng LAN (Network ESC/POS)",
-  printerPaperWidth: "K80 (Khổ rộng 80mm)",
-  printerIpAddress: "192.168.1.200:9100",
-  autoCutPaper: true,
-  printVietQROnBill: true,
-  printClubLogoOnBill: true,
-
-  bankCode: "MB",
-  bankName: "MB Bank (Ngân hàng TMCP Quân Đội)",
-  bankAccountNo: "0908888999",
-  bankAccountName: "CLB BIDA CUEZONE - NGUYEN HAI LONG",
-  isVietQREnabled: true,
-
-  autoLockPosTimeoutMinutes: 30,
-  requireAdminPassOnCancelItem: true,
-  requireAdminPassOnHighDiscount: true,
-  autoEndShiftTime: "04:00",
-  soundAlertNewBooking: true,
 };
 
 export const POPULAR_BANKS = [
@@ -211,10 +154,17 @@ const SettingsManagementPage: React.FC = () => {
           ...DEFAULT_SETTINGS,
           ...parsed,
           totalTables: 26,
-          bankCode: parsed.bankCode || "MB",
-          bankName: parsed.bankName || "MB Bank (Ngân hàng TMCP Quân Đội)",
-          bankAccountNo: parsed.bankAccountNo || "0908888999",
-          bankAccountName: parsed.bankAccountName || "CLB BIDA CUEZONE - NGUYEN HAI LONG",
+          // Đồng bộ chuẩn 3 cấp bậc thực tế của CLB (giữ dữ liệu đã lưu nếu hợp lệ)
+          memberTiers:
+            Array.isArray(parsed.memberTiers) && parsed.memberTiers.length === 3
+              ? parsed.memberTiers
+              : DEFAULT_SETTINGS.memberTiers,
+          bankCode: parsed.bankCode || DEFAULT_SETTINGS.bankCode,
+          bankName: parsed.bankName || DEFAULT_SETTINGS.bankName,
+          bankAccountNo: parsed.bankAccountNo || DEFAULT_SETTINGS.bankAccountNo,
+          bankAccountName: parsed.bankAccountName || DEFAULT_SETTINGS.bankAccountName,
+          printVietQROnBill: parsed.printVietQROnBill ?? DEFAULT_SETTINGS.printVietQROnBill,
+          printClubLogoOnBill: parsed.printClubLogoOnBill ?? DEFAULT_SETTINGS.printClubLogoOnBill,
         };
       } catch (e) {
         console.error("Failed to parse settings from storage:", e);
@@ -252,17 +202,42 @@ const SettingsManagementPage: React.FC = () => {
     localStorage.setItem("cuezone_admin_settings", JSON.stringify(settings));
   }, [settings]);
 
-  // Active Tab
-  const [activeTab, setActiveTab] = useState<
-    "general" | "pricing" | "membership" | "hardware" | "system"
-  >("general");
+  // 3 Tab thực tế 100%: "general" | "vietqr" | "membership"
+  const [activeTab, setActiveTab] = useState<"general" | "vietqr" | "membership">("general");
 
-  // Bill Preview Modal
+  // Modal xem trước mẫu in hóa đơn
   const [billPreviewVisible, setBillPreviewVisible] = useState<boolean>(false);
 
-  // Sync to localStorage
+  // Modal chỉnh sửa đặc quyền cấp bậc hội viên
+  const [editingTier, setEditingTier] = useState<MemberTierPolicy | null>(null);
+  const [isEditTierModalOpen, setIsEditTierModalOpen] = useState<boolean>(false);
+
+  const handleOpenEditTier = (tier: MemberTierPolicy) => {
+    setEditingTier({ ...tier });
+    setIsEditTierModalOpen(true);
+  };
+
+  const handleSaveTier = () => {
+    if (!editingTier) return;
+    if (!editingTier.tierName.trim()) {
+      message.error("Tên cấp bậc không được để trống!");
+      return;
+    }
+    const updatedTiers = settings.memberTiers.map((t) =>
+      t.tierKey === editingTier.tierKey ? editingTier : t
+    );
+    const newSettings = { ...settings, memberTiers: updatedTiers };
+    setSettings(newSettings);
+    localStorage.setItem("cuezone_admin_settings", JSON.stringify(newSettings));
+    window.dispatchEvent(new Event("cuezone_settings_updated"));
+    setIsEditTierModalOpen(false);
+    setEditingTier(null);
+    message.success(`Đã cập nhật chính sách cấp bậc "${editingTier.tierName}" thành công!`);
+  };
+
   const handleSaveAllSettings = () => {
     localStorage.setItem("cuezone_admin_settings", JSON.stringify(settings));
+    window.dispatchEvent(new Event("cuezone_settings_updated"));
     message.success("Toàn bộ cấu hình hệ thống CueZone đã được lưu thành công!");
   };
 
@@ -270,30 +245,16 @@ const SettingsManagementPage: React.FC = () => {
     Modal.confirm({
       title: "Khôi phục toàn bộ cấu hình ban đầu?",
       content:
-        "Tất cả cài đặt thông tin CLB, quy tắc tính tiền, máy in bill và tích điểm sẽ trở về thông số chuẩn ban đầu của hệ thống.",
+        "Tất cả cài đặt thông tin CLB, tài khoản VietQR và chính sách hội viên sẽ trở về thông số chuẩn ban đầu của hệ thống.",
       okText: "Khôi phục",
       cancelText: "Hủy bỏ",
       onOk: () => {
         setSettings(DEFAULT_SETTINGS);
         localStorage.setItem("cuezone_admin_settings", JSON.stringify(DEFAULT_SETTINGS));
+        window.dispatchEvent(new Event("cuezone_settings_updated"));
         message.success("Đã khôi phục cài đặt mặc định thành công!");
       },
     });
-  };
-
-  // Test hardware actions
-  const handleTestPrinter = () => {
-    message.loading({
-      content: "Đang gửi lệnh in thử đến máy in nhiệt K80...",
-      key: "print",
-    });
-    setTimeout(() => {
-      message.success({
-        content: "Lệnh in test thành công! Giấy in K80 đã được cắt tự động.",
-        key: "print",
-        duration: 3,
-      });
-    }, 1200);
   };
 
   // Member Tier Table Columns
@@ -301,9 +262,10 @@ const SettingsManagementPage: React.FC = () => {
     {
       title: "Cấp bậc hội viên",
       key: "tierName",
+      width: 170,
       render: (_, r) => (
         <div className="flex items-center gap-2">
-          <Tag color={r.color as any} className="!font-bold !text-xs !px-2.5 !py-1">
+          <Tag color={r.color as any} className="!font-bold !text-xs !px-2.5 !py-1 whitespace-nowrap">
             {r.tierName}
           </Tag>
         </div>
@@ -314,28 +276,34 @@ const SettingsManagementPage: React.FC = () => {
       key: "minPoints",
       width: 180,
       render: (_, r) => (
-        <Text strong className="!text-slate-800 !text-xs font-semibold">
-          Từ {r.minPoints.toLocaleString()} điểm
+        <Text strong className="!text-slate-800 !text-xs font-semibold whitespace-nowrap">
+          Từ {r.minPoints.toLocaleString("vi-VN")} điểm
         </Text>
       ),
     },
     {
-      title: "Ưu đãi tiền bàn",
+      title: "Giảm giá tiền bàn",
       key: "tableDiscountPercent",
       width: 150,
       render: (_, r) => (
-        <span className="text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+        <span className="text-emerald-700 font-bold text-xs bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 whitespace-nowrap inline-block">
           Giảm {r.tableDiscountPercent}%
         </span>
       ),
     },
     {
-      title: "Ưu đãi F&B",
+      title: "Giảm giá menu F&B",
       key: "fnbDiscountPercent",
-      width: 140,
+      width: 160,
       render: (_, r) => (
-        <span className="text-blue-700 font-bold text-xs bg-blue-50 px-2.5 py-1 rounded border border-blue-200">
-          Giảm {r.fnbDiscountPercent}%
+        <span
+          className={`font-bold text-xs px-2.5 py-1 rounded-md border whitespace-nowrap inline-block ${
+            r.fnbDiscountPercent > 0
+              ? "text-blue-700 bg-blue-50 border-blue-200"
+              : "text-slate-600 bg-slate-100 border-slate-200 font-medium"
+          }`}
+        >
+          {r.fnbDiscountPercent > 0 ? `Giảm ${r.fnbDiscountPercent}%` : "Giá niêm yết (0%)"}
         </span>
       ),
     },
@@ -344,11 +312,27 @@ const SettingsManagementPage: React.FC = () => {
       key: "perks",
       render: (_, r) => <Text className="!text-xs !text-slate-600">{r.perks}</Text>,
     },
+    {
+      title: "Thao tác",
+      key: "actions",
+      width: 120,
+      render: (_, r) => (
+        <Button
+          size="sm"
+          variant="outline"
+          leftIcon={<EditOutlined />}
+          onClick={() => handleOpenEditTier(r)}
+          className="!text-xs !border-slate-200 !text-slate-700 hover:!border-emerald-500 hover:!text-emerald-700 !rounded-lg"
+        >
+          Chỉnh sửa
+        </Button>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6 pb-12">
-      {/* ── 1. Page Header (Light Theme) ── */}
+      {/* ── 1. Page Header ── */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
@@ -370,7 +354,7 @@ const SettingsManagementPage: React.FC = () => {
                 </Tag>
               </div>
               <Text className="!text-xs md:!text-sm !text-slate-500">
-                Thiết lập thông tin câu lạc bộ, quy tắc tính tiền, máy in hóa đơn, tài khoản thanh toán và hội viên
+                Thiết lập thông tin câu lạc bộ, tài khoản thanh toán VietQR và chính sách hội viên
               </Text>
             </div>
           </div>
@@ -397,8 +381,8 @@ const SettingsManagementPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 2. Quick Status Bar (Clean Light Cards) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── 2. Quick Status Bar (3 Thẻ Trạng Thái Thực Tế) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-emerald-300 transition-all flex items-center justify-between">
           <div>
             <span className="text-xs text-slate-500 block font-medium">Hệ Thống Bàn Bida</span>
@@ -407,7 +391,7 @@ const SettingsManagementPage: React.FC = () => {
               Đang hoạt động
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
-              26 Bàn phục vụ (Pool, Carom, Snooker)
+              {actualTableCount} Bàn ({actualTablesBreakdown.pool} Pool · {actualTablesBreakdown.carom} Carom · {actualTablesBreakdown.snooker} Snooker)
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
@@ -415,53 +399,38 @@ const SettingsManagementPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-amber-300 transition-all flex items-center justify-between">
-          <div>
-            <span className="text-xs text-slate-500 block font-medium">Chính Sách Hội Viên</span>
-            <div className="text-base font-black text-amber-800 mt-1 flex items-center gap-1.5">
-              <CrownOutlined /> 4 Cấp Bậc Thẻ
-            </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">
-              Tích điểm & giảm giá giờ chơi tự động
-            </span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
-            <CrownOutlined />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-blue-300 transition-all flex items-center justify-between">
-          <div>
-            <span className="text-xs text-slate-500 block font-medium">Máy In Hóa Đơn</span>
-            <div className="text-base font-black text-blue-700 mt-1 flex items-center gap-1.5">
-              <PrinterOutlined /> Khổ K80 (80mm)
-            </div>
-            <span className="text-[11px] text-slate-400 mt-0.5 block">
-              Tự động cắt giấy khi in xong bill
-            </span>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-xl">
-            <PrinterOutlined />
-          </div>
-        </div>
-
         <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-emerald-300 transition-all flex items-center justify-between">
           <div>
             <span className="text-xs text-slate-500 block font-medium">Cổng Thanh Toán VietQR</span>
             <div className="text-base font-black text-emerald-800 mt-1 flex items-center gap-1.5">
-              <BankOutlined /> {settings.bankName || "MB Bank Quầy"}
+              <BankOutlined /> {settings.bankName?.split(" (")[0] || "TPBank"}
             </div>
             <span className="text-[11px] text-slate-400 mt-0.5 block">
-              STK: {settings.bankAccountNo || "0908888999"}
+              STK: {settings.bankAccountNo || "Chưa thiết lập"} · {settings.bankAccountName || ""}
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
             <QrcodeOutlined />
           </div>
         </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs hover:border-amber-300 transition-all flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 block font-medium">Chính Sách Hội Viên</span>
+            <div className="text-base font-black text-amber-800 mt-1 flex items-center gap-1.5">
+              <CrownOutlined /> 3 Cấp Bậc Thẻ
+            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">
+              Đồng · Bạc · Vàng (Tích điểm tự động)
+            </span>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 text-xl">
+            <CrownOutlined />
+          </div>
+        </div>
       </div>
 
-      {/* ── 3. Navigation Tabs Bar (Consistent Styled Buttons) ── */}
+      {/* ── 3. Navigation Tabs Bar (3 Tab Rõ Ràng, Thực Chất 100%) ── */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
         <Button
           size="sm"
@@ -479,16 +448,16 @@ const SettingsManagementPage: React.FC = () => {
 
         <Button
           size="sm"
-          variant={activeTab === "pricing" ? "primary" : "outline"}
-          leftIcon={<DollarOutlined />}
-          onClick={() => setActiveTab("pricing")}
+          variant={activeTab === "vietqr" ? "primary" : "outline"}
+          leftIcon={<BankOutlined />}
+          onClick={() => setActiveTab("vietqr")}
           className={
-            activeTab === "pricing"
+            activeTab === "vietqr"
               ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
               : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
           }
         >
-          Quy Tắc Tính Tiền & Phụ Thu
+          Cổng Thanh Toán VietQR & In Bill
         </Button>
 
         <Button
@@ -504,37 +473,9 @@ const SettingsManagementPage: React.FC = () => {
         >
           Hội viên & Tích lũy điểm
         </Button>
-
-        <Button
-          size="sm"
-          variant={activeTab === "hardware" ? "primary" : "outline"}
-          leftIcon={<PrinterOutlined />}
-          onClick={() => setActiveTab("hardware")}
-          className={
-            activeTab === "hardware"
-              ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
-              : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
-          }
-        >
-          Máy In Bill & Tài Khoản Ngân Hàng
-        </Button>
-
-        <Button
-          size="sm"
-          variant={activeTab === "system" ? "primary" : "outline"}
-          leftIcon={<SafetyCertificateOutlined />}
-          onClick={() => setActiveTab("system")}
-          className={
-            activeTab === "system"
-              ? "!bg-emerald-600 !border-emerald-600 text-white font-bold shadow-2xs"
-              : "!bg-white !border-slate-200 !text-slate-700 hover:!bg-slate-50 font-semibold"
-          }
-        >
-          Bảo Mật & Thông Báo Quầy
-        </Button>
       </div>
 
-      {/* ── 4. Tab 1: General Info & Brand ── */}
+      {/* ── 4. Tab 1: Thông Tin CLB & Thương Hiệu ── */}
       {activeTab === "general" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -673,7 +614,7 @@ const SettingsManagementPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Preview Card (Clean Brand Showcase) */}
+          {/* Right Preview Card */}
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-2xl border border-slate-800 p-6 shadow-xl relative overflow-hidden text-white">
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -737,380 +678,23 @@ const SettingsManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── 5. Tab 2: Pricing & Billing Rules ── */}
-      {activeTab === "pricing" && (
-        <div className="space-y-6">
-          {/* Banner liên kết sang Quản Lý Bàn & Bảng Giá */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 text-lg shadow-2xs">
-                <DollarOutlined />
-              </div>
-              <div>
-                <strong className="text-sm sm:text-base text-emerald-950 block font-bold">
-                  Quản Lý Đơn Giá Giờ Chơi Theo Bàn & Khung Giờ
-                </strong>
-                <span className="text-xs text-emerald-800 leading-relaxed block mt-0.5">
-                  Đơn giá giờ chơi chính thức theo từng loại bàn (Pool, Carom, Snooker) và theo khung giờ (Ngày, Đêm, Giờ Cao Điểm) được thiết lập tại trang <strong>Quản Lý Bàn & Bảng Giá</strong> để đồng bộ trực tiếp tới máy POS.
-                </span>
-              </div>
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => navigate("/tables")}
-              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !rounded-xl !h-9 !px-4 text-xs text-white shadow-2xs shrink-0 self-start sm:self-center whitespace-nowrap"
-            >
-              Mở Quản Lý Bàn & Bảng Giá &rarr;
-            </Button>
-          </div>
-
-          {/* Billing Calculation Rules */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <ClockCircleOutlined className="text-amber-600 text-lg" />
-              <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                Quy Tắc Tính Tiền Giờ & Phụ Thu
-              </Title>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Khung Giờ Vàng (Bắt đầu)
-                </label>
-                <Input
-                  value={settings.goldHourStart}
-                  onChange={(e) => setSettings({ ...settings, goldHourStart: e.target.value })}
-                  placeholder="18:00"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Khung Giờ Vàng (Kết thúc)
-                </label>
-                <Input
-                  value={settings.goldHourEnd}
-                  onChange={(e) => setSettings({ ...settings, goldHourEnd: e.target.value })}
-                  placeholder="23:00"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Block tính tiền tối thiểu
-                </label>
-                <Select
-                  value={settings.minBillingMinutes.toString()}
-                  onChange={(val) =>
-                    setSettings({ ...settings, minBillingMinutes: parseInt(val) || 15 })
-                  }
-                  className="w-full"
-                  options={[
-                    { label: "15 Phút đầu", value: "15" },
-                    { label: "30 Phút đầu", value: "30" },
-                    { label: "60 Phút (1 Giờ)", value: "60" },
-                  ]}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Làm tròn thời gian
-                </label>
-                <Select
-                  value={settings.roundBillingMinutes.toString()}
-                  onChange={(val) =>
-                    setSettings({ ...settings, roundBillingMinutes: parseInt(val) || 5 })
-                  }
-                  className="w-full"
-                  options={[
-                    { label: "Làm tròn 5 phút", value: "5" },
-                    { label: "Làm tròn 10 phút", value: "10" },
-                    { label: "Làm tròn 15 phút", value: "15" },
-                    { label: "Tính chính xác từng phút", value: "1" },
-                  ]}
-                />
-              </div>
-            </div>
-
-            {/* Taxes & Surcharges */}
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-              <Title level={5} className="!text-slate-900 !text-xs !font-bold !mb-0">
-                Thuế VAT & Phụ Thu Ngày Lễ
-              </Title>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800 mb-1">
-                    <input
-                      type="checkbox"
-                      checked={settings.isVatEnabled}
-                      onChange={(e) => setSettings({ ...settings, isVatEnabled: e.target.checked })}
-                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                    />
-                    <span className="font-semibold">Áp dụng Thuế VAT xuất hóa đơn</span>
-                  </label>
-                  <Input
-                    type="number"
-                    disabled={!settings.isVatEnabled}
-                    value={settings.vatTaxPercent.toString()}
-                    onChange={(e) =>
-                      setSettings({ ...settings, vatTaxPercent: parseInt(e.target.value) || 8 })
-                    }
-                    suffix="%"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Phí dịch vụ phòng lạnh (Service Charge)
-                  </label>
-                  <Input
-                    type="number"
-                    value={settings.serviceChargePercent.toString()}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        serviceChargePercent: parseInt(e.target.value) || 0,
-                      })
-                    }
-                    suffix="%"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Phụ thu ngày Lễ / Tết
-                  </label>
-                  <Input
-                    type="number"
-                    value={settings.holidaySurchargePercent.toString()}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        holidaySurchargePercent: parseInt(e.target.value) || 15,
-                      })
-                    }
-                    suffix="%"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── 6. Tab 3: Membership & Loyalty Points ── */}
-      {activeTab === "membership" && (
+      {/* ── 5. Tab 2: Cổng Thanh Toán VietQR & Tùy Chọn In Bill ── */}
+      {activeTab === "vietqr" && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <CrownOutlined className="text-amber-600 text-lg" />
-              <div>
-                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                  Tỷ Lệ Tích Điểm & Đổi Thưởng
-                </Title>
-                <Text className="!text-xs !text-slate-500">
-                  Tự động cộng điểm cho hội viên khi thanh toán hóa đơn bàn chơi hoặc F&B
-                </Text>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-xs text-slate-700 block font-bold mb-1">
-                  Tỷ lệ tích lũy điểm tiêu dùng
-                </span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={settings.earnPointsRate.toString()}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        earnPointsRate: parseInt(e.target.value) || 10000,
-                      })
-                    }
-                    suffix="VNĐ"
-                  />
-                  <span className="text-slate-900 text-sm font-bold whitespace-nowrap shrink-0">= 1 Điểm</span>
-                </div>
-                <span className="text-[11px] text-emerald-700 font-semibold mt-1 block">
-                  Ví dụ: Hóa đơn 300.000đ sẽ tích được{" "}
-                  <strong>
-                    {Math.floor(
-                      300000 / (settings.earnPointsRate > 0 ? settings.earnPointsRate : 10000)
-                    ).toLocaleString("vi-VN")}
-                  </strong>{" "}
-                  điểm
-                </span>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-xs text-slate-700 block font-bold mb-1">
-                  Tỷ lệ quy đổi điểm trừ tiền hóa đơn
-                </span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={settings.redeemPointsRate.toString()}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        redeemPointsRate: parseInt(e.target.value) || 100,
-                      })
-                    }
-                    suffix="Điểm"
-                  />
-                  <span className="text-slate-900 text-sm font-bold whitespace-nowrap shrink-0">= 10.000 VNĐ</span>
-                </div>
-                <span className="text-[11px] text-amber-800 font-semibold mt-1 block">
-                  Ví dụ: Dùng{" "}
-                  <strong>
-                    {(
-                      (settings.redeemPointsRate > 0 ? settings.redeemPointsRate : 100) * 2
-                    ).toLocaleString("vi-VN")}
-                  </strong>{" "}
-                  điểm sẽ được trừ <strong>20.000đ</strong> vào bill (1 điểm ={" "}
-                  {Math.round(
-                    10000 / (settings.redeemPointsRate > 0 ? settings.redeemPointsRate : 100)
-                  ).toLocaleString("vi-VN")}
-                  đ)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Member Tiers Matrix */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <CrownOutlined className="text-purple-600 text-lg" />
-                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                  Chính Sách Đặc Quyền Cấp Bậc Hội Viên
-                </Title>
-              </div>
-            </div>
-
-            <Table<MemberTierPolicy>
-              dataSource={settings.memberTiers}
-              columns={tierColumns}
-              rowKey="tierKey"
-              pagination={false}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── 7. Tab 4: Hardware & Payments ── */}
-      {activeTab === "hardware" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Thermal Printer Settings */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <PrinterOutlined className="text-blue-600 text-lg" />
-                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                  Máy In Hóa Đơn Nhiệt (K80 / K58)
-                </Title>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleTestPrinter}
-                className="!border-slate-300 font-semibold"
-              >
-                In thử hóa đơn
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Loại máy in
-                </label>
-                <Input
-                  value={settings.printerType}
-                  onChange={(e) => setSettings({ ...settings, printerType: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <BankOutlined className="text-emerald-600 text-lg" />
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Khổ giấy in
-                  </label>
-                  <Select
-                    value={settings.printerPaperWidth}
-                    onChange={(val) => setSettings({ ...settings, printerPaperWidth: val })}
-                    className="w-full"
-                    options={[
-                      { label: "K80 (Khổ chuẩn 80mm)", value: "K80 (Khổ rộng 80mm)" },
-                      { label: "K58 (Khổ nhỏ 58mm)", value: "K58 (Khổ nhỏ 58mm)" },
-                    ]}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Địa chỉ IP máy in LAN
-                  </label>
-                  <Input
-                    value={settings.printerIpAddress}
-                    onChange={(e) => setSettings({ ...settings, printerIpAddress: e.target.value })}
-                  />
+                  <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
+                    Tài Khoản Ngân Hàng Nhận Tiền & Cổng VietQR Napas
+                  </Title>
+                  <Text className="!text-xs !text-slate-500">
+                    Máy POS và ứng dụng khách hàng sẽ tự động sinh mã VietQR động có sẵn số tiền chính xác khi thanh toán
+                  </Text>
                 </div>
               </div>
-
-              <div className="space-y-2 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoCutPaper}
-                    onChange={(e) => setSettings({ ...settings, autoCutPaper: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                  />
-                  <span>Tự động cắt giấy khi in xong bill</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={settings.printVietQROnBill}
-                    onChange={(e) =>
-                      setSettings({ ...settings, printVietQROnBill: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                  />
-                  <span>In mã QR chuyển khoản VietQR ở chân hóa đơn</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={settings.printClubLogoOnBill}
-                    onChange={(e) =>
-                      setSettings({ ...settings, printClubLogoOnBill: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                  />
-                  <span>In logo CueZone và thông tin Wifi ở đầu hóa đơn</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment VietQR Gateway */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <BankOutlined className="text-amber-600 text-lg" />
-                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                  Tài Khoản Ngân Hàng Nhận Tiền & Cổng VietQR Napas
-                </Title>
-              </div>
-              <Tag color="green" className="!font-bold">
+              <Tag color="green" className="!font-bold !px-3 !py-1">
                 Tự Động Sinh Mã QR Động
               </Tag>
             </div>
@@ -1118,10 +702,10 @@ const SettingsManagementPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Ngân hàng thụ hưởng (VietQR) <span className="text-rose-500">*</span>
+                  Ngân hàng thụ hưởng <span className="text-rose-500">*</span>
                 </label>
                 <Select
-                  value={settings.bankCode || "MB"}
+                  value={settings.bankCode || "TPB"}
                   onChange={(val) => {
                     const matched = POPULAR_BANKS.find((b) => b.code === val);
                     setSettings({
@@ -1137,12 +721,13 @@ const SettingsManagementPage: React.FC = () => {
                   className="w-full !rounded-lg"
                 />
               </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Tên ngân hàng đầy đủ <span className="text-rose-500">*</span>
                 </label>
                 <Input
-                  value={settings.bankName || "MB Bank (Ngân hàng TMCP Quân Đội)"}
+                  value={settings.bankName || "TPBank (Ngân hàng TMCP Tiên Phong)"}
                   onChange={(e) => setSettings({ ...settings, bankName: e.target.value })}
                 />
               </div>
@@ -1154,7 +739,7 @@ const SettingsManagementPage: React.FC = () => {
                 <Input
                   value={settings.bankAccountNo}
                   onChange={(e) => setSettings({ ...settings, bankAccountNo: e.target.value.trim() })}
-                  placeholder="VD: 0908888999"
+                  placeholder="VD: 0975685609"
                 />
               </div>
 
@@ -1165,130 +750,165 @@ const SettingsManagementPage: React.FC = () => {
                 <Input
                   value={settings.bankAccountName}
                   onChange={(e) => setSettings({ ...settings, bankAccountName: e.target.value.toUpperCase() })}
-                  placeholder="VD: CLB BIDA CUEZONE"
+                  placeholder="VD: NGUYEN QUANG HUY"
                 />
               </div>
             </div>
-            <p className="text-xs text-slate-500">
-              Cần cấu hình đủ mã ngân hàng, số tài khoản và tên chủ tài khoản để tạo QR chuyển khoản.
-            </p>
+
+            <div className="pt-2">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shrink-0">
+                    <QrcodeOutlined />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      Đang liên kết: {settings.bankName?.split(" (")[0]} — STK: {settings.bankAccountNo || "Chưa nhập"}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Chủ tài khoản: {settings.bankAccountName || "Chưa nhập"} · Chuẩn Napas 247 VietQR
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  leftIcon={<EyeOutlined />}
+                  onClick={() => setBillPreviewVisible(true)}
+                  className="!border-emerald-600 !text-emerald-700 font-bold hover:!bg-emerald-50 shrink-0"
+                >
+                  Xem mẫu in hóa đơn
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Tùy Chọn Mẫu In Hóa Đơn */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <PrinterOutlined className="text-blue-600 text-lg" />
+              <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
+                Tùy Chọn Thông Tin In Lên Hóa Đơn Thanh Toán
+              </Title>
+            </div>
+
+            <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={settings.printVietQROnBill}
+                  onChange={(e) => setSettings({ ...settings, printVietQROnBill: e.target.checked })}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                />
+                <span className="font-semibold">In mã QR chuyển khoản VietQR ở chân hóa đơn thanh toán</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={settings.printClubLogoOnBill}
+                  onChange={(e) => setSettings({ ...settings, printClubLogoOnBill: e.target.checked })}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                />
+                <span className="font-semibold">In tên quán, địa chỉ và mật khẩu Wifi ở đầu hóa đơn</span>
+              </label>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── 8. Tab 5: Security & Automation ── */}
-      {activeTab === "system" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ── 6. Tab 3: Chính Sách Hội Viên & Điểm Thưởng ── */}
+      {activeTab === "membership" && (
+        <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <LockOutlined className="text-emerald-600 text-lg" />
-              <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                Bảo Mật Thu Ngân & Phân Quyền Vận Hành
-              </Title>
+              <CrownOutlined className="text-amber-600 text-lg" />
+              <div>
+                <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
+                  Chính Sách Tích Điểm Thăng Hạng Hội Viên
+                </Title>
+                <Text className="!text-xs !text-slate-500">
+                  Điểm thưởng được tự động cộng dồn khi hội viên thanh toán tại quầy POS để xét nâng hạng thẻ và hưởng quyền lợi chiết khấu
+                </Text>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Tự động khóa màn hình POS khi không có thao tác
-                </label>
-                <Select
-                  value={settings.autoLockPosTimeoutMinutes.toString()}
-                  onChange={(val) =>
-                    setSettings({
-                      ...settings,
-                      autoLockPosTimeoutMinutes: parseInt(val) || 30,
-                    })
-                  }
-                  className="w-full"
-                  options={[
-                    { label: "15 phút không hoạt động", value: "15" },
-                    { label: "30 phút không hoạt động (Khuyến nghị)", value: "30" },
-                    { label: "60 phút không hoạt động", value: "60" },
-                    { label: "Không bao giờ tự khóa", value: "0" },
-                  ]}
-                />
+            <div className="p-5 bg-gradient-to-r from-emerald-50/80 via-teal-50/40 to-white rounded-2xl border border-emerald-200/90 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Định Mức Tích Lũy Điểm Thưởng Tiêu Dùng
+                </span>
+                <span className="text-xs text-slate-500 block max-w-xl">
+                  Mỗi khi hóa đơn thanh toán tiền giờ hoặc F&B hoàn tất tại quầy thu ngân POS, hệ thống sẽ tự động quy đổi số tiền chi tiêu thành điểm hội viên theo định mức này để tích lũy thăng hạng.
+                </span>
+                <span className="text-[11px] text-emerald-800 font-semibold pt-1 block">
+                  💡 <strong>Ví dụ minh họa:</strong> Hóa đơn 300.000đ sẽ tích được{" "}
+                  <strong className="text-emerald-950 font-bold underline">
+                    {Math.floor(
+                      300000 / (settings.earnPointsRate > 0 ? settings.earnPointsRate : 10000),
+                    ).toLocaleString("vi-VN")}{" "}
+                    điểm
+                  </strong>{" "}
+                  thưởng thăng hạng.
+                </span>
               </div>
 
-              <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={settings.requireAdminPassOnCancelItem}
+              <div className="shrink-0 bg-white p-3.5 rounded-xl border border-emerald-200 shadow-2xs flex items-center gap-2.5">
+                <div className="w-36">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Số tiền chi tiêu
+                  </label>
+                  <Input
+                    type="number"
+                    min={1000}
+                    step={1000}
+                    value={settings.earnPointsRate.toString()}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
-                        requireAdminPassOnCancelItem: e.target.checked,
+                        earnPointsRate: Math.max(1000, parseInt(e.target.value) || 10000),
                       })
                     }
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                    suffix="đ"
+                    className="!font-bold !text-slate-800"
                   />
-                  <span>Bắt buộc mã PIN Quản lý khi hủy món F&B hoặc giảm số lượng đã phục vụ</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={settings.requireAdminPassOnHighDiscount}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        requireAdminPassOnHighDiscount: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                  />
-                  <span>Bắt buộc duyệt mã PIN khi áp dụng chiết khấu đặc biệt trên 20%</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-              <BellOutlined className="text-amber-600 text-lg" />
-              <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                Thông Báo & Ca Trực
-              </Title>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Giờ chốt ca đêm tự động & tổng kết báo cáo doanh thu
-                </label>
-                <Input
-                  value={settings.autoEndShiftTime}
-                  onChange={(e) => setSettings({ ...settings, autoEndShiftTime: e.target.value })}
-                  placeholder="04:00"
-                />
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={settings.soundAlertNewBooking}
-                    onChange={(e) =>
-                      setSettings({ ...settings, soundAlertNewBooking: e.target.checked })
-                    }
-                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                  />
-                  <span className="font-bold text-amber-800">
-                    Phát chuông thông báo âm thanh khi có yêu cầu đặt bàn mới từ App Khách Hàng
-                  </span>
-                </label>
-
-                <div className="text-[11px] text-slate-500 leading-relaxed">
-                  Phát chuông thông báo âm thanh tại quầy thu ngân khi có yêu cầu đặt bàn mới từ khách hàng để nhân viên kịp thời chuẩn bị bàn.
+                </div>
+                <div className="text-slate-900 text-sm font-black whitespace-nowrap pt-4">
+                  = 1 Điểm
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Member Tiers Matrix: 3 Cấp bậc chuẩn Database */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <CrownOutlined className="text-purple-600 text-lg" />
+                <div>
+                  <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
+                    Chính Sách Đặc Quyền 3 Cấp Bậc Hội Viên
+                  </Title>
+                  <Text className="!text-xs !text-slate-500">
+                    Đồng bộ trực tiếp với hệ thống tự động thăng hạng và chiết khấu trên hóa đơn POS
+                  </Text>
+                </div>
+              </div>
+            </div>
+
+            <Table<MemberTierPolicy>
+              dataSource={settings.memberTiers}
+              columns={tierColumns}
+              rowKey="tierKey"
+              pagination={false}
+            />
+          </div>
         </div>
       )}
 
-      {/* ── 9. Modal: Thermal Bill Header Preview ── */}
+      {/* ── 7. Modal: Thermal Bill Header Preview ── */}
       <Modal
         title={
           <div className="flex items-center gap-2 text-slate-900 font-bold">
@@ -1309,11 +929,17 @@ const SettingsManagementPage: React.FC = () => {
           <div className="text-center pb-2 border-b border-dashed border-slate-400">
             <div className="font-bold text-sm tracking-wider uppercase">{settings.clubName}</div>
             <div className="text-[10px] text-slate-600 italic">{settings.slogan}</div>
-            <div className="text-[11px] mt-1">{settings.address}</div>
-            <div className="text-[11px]">Hotline: {settings.phone}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">
-              Wifi: {settings.wifiSSID} | Pass: {settings.wifiPassword}
-            </div>
+            {settings.printClubLogoOnBill !== false && (
+              <>
+                <div className="text-[11px] mt-1">{settings.address}</div>
+                <div className="text-[11px]">Hotline: {settings.phone}</div>
+                {settings.wifiSSID && (
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    Wifi: {settings.wifiSSID} | Pass: {settings.wifiPassword}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="py-2 border-b border-dashed border-slate-400 space-y-1 text-[11px]">
@@ -1333,7 +959,7 @@ const SettingsManagementPage: React.FC = () => {
 
           <div className="py-2 border-b border-dashed border-slate-400 space-y-1 text-[11px]">
             <div className="flex justify-between font-bold">
-              <span>TIỀN GIỜ (Giờ vàng):</span>
+              <span>TIỀN GIỜ:</span>
               <span>275.000 đ</span>
             </div>
             <div className="flex justify-between">
@@ -1350,13 +976,153 @@ const SettingsManagementPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-center pt-2 space-y-1">
-            <div className="text-[10px] text-slate-600">
-              STK: {settings.bankAccountNo} ({settings.bankName})
+          {settings.printVietQROnBill !== false && settings.bankAccountNo && (
+            <div className="pt-2 border-t border-dashed border-slate-300 text-center space-y-1">
+              <span className="text-[10px] text-slate-700 font-bold block uppercase tracking-wider">
+                Mã VietQR Thanh Toán
+              </span>
+              <div className="flex justify-center py-1">
+                <img
+                  src={`https://api.vietqr.io/image/${settings.bankCode || "TPB"}-${settings.bankAccountNo}-compact2.jpg?amount=352750&addInfo=HD20260924&accountName=${encodeURIComponent(settings.bankAccountName || "")}`}
+                  alt="VietQR Demo"
+                  className="w-20 h-20 object-contain border border-slate-300 rounded p-1 bg-white"
+                  loading="lazy"
+                />
+              </div>
+              <div className="text-[9.5px] text-slate-700 font-medium">
+                {settings.bankName?.split(" (")[0] || "Ngân hàng"} · STK: <strong>{settings.bankAccountNo}</strong>
+              </div>
+              <div className="text-[9px] text-slate-500">
+                Chủ TK: {settings.bankAccountName}
+              </div>
             </div>
-            <div className="text-[10px] font-bold">CẢMƠN QUÝ KHÁCH & HẸN GẶP LẠI!</div>
+          )}
+
+          <div className="text-center pt-2 space-y-1 border-t border-slate-200">
+            <div className="text-[10px] font-bold">CẢM ƠN QUÝ KHÁCH & HẸN GẶP LẠI!</div>
           </div>
         </div>
+      </Modal>
+
+      {/* ── 8. Modal: Chỉnh Sửa Chính Sách Cấp Bậc Hội Viên ── */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <CrownOutlined className="text-amber-500" />
+            <span>Chỉnh Sửa Chính Sách: {editingTier?.tierName}</span>
+          </div>
+        }
+        open={isEditTierModalOpen}
+        onCancel={() => {
+          setIsEditTierModalOpen(false);
+          setEditingTier(null);
+        }}
+        onOk={handleSaveTier}
+        okText="Lưu chính sách"
+        cancelText="Hủy bỏ"
+        width={520}
+        okButtonProps={{
+          className: "!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !rounded-xl",
+        }}
+      >
+        {editingTier && (
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Tên cấp bậc hiển thị <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                value={editingTier.tierName}
+                onChange={(e) =>
+                  setEditingTier({ ...editingTier, tierName: e.target.value })
+                }
+                placeholder="VD: Hội Viên Vàng (Gold)"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Điểm tối thiểu
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editingTier.minPoints.toString()}
+                  onChange={(e) =>
+                    setEditingTier({
+                      ...editingTier,
+                      minPoints: Math.max(0, parseInt(e.target.value) || 0),
+                    })
+                  }
+                  suffix="điểm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Giảm giá tiền bàn
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={editingTier.tableDiscountPercent.toString()}
+                  onChange={(e) =>
+                    setEditingTier({
+                      ...editingTier,
+                      tableDiscountPercent: Math.min(
+                        100,
+                        Math.max(0, parseInt(e.target.value) || 0)
+                      ),
+                    })
+                  }
+                  suffix="%"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Giảm giá F&B
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={editingTier.fnbDiscountPercent.toString()}
+                  onChange={(e) =>
+                    setEditingTier({
+                      ...editingTier,
+                      fnbDiscountPercent: Math.min(
+                        100,
+                        Math.max(0, parseInt(e.target.value) || 0)
+                      ),
+                    })
+                  }
+                  suffix="%"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Đặc quyền & Quyền lợi bổ sung
+              </label>
+              <Input.TextArea
+                rows={3}
+                value={editingTier.perks}
+                onChange={(e) =>
+                  setEditingTier({ ...editingTier, perks: e.target.value })
+                }
+                placeholder="VD: Giảm 15% tiền bàn, ưu tiên giữ bàn giờ cao điểm, tủ để cơ riêng"
+              />
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900">
+              💡 <strong>Lưu ý nghiệp vụ:</strong> Mức giảm giá sẽ tự động được áp dụng tại máy thu ngân POS khi chọn hội viên đạt cấp bậc này và đồng bộ trên toàn hệ thống.
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

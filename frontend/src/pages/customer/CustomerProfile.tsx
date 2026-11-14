@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   UserOutlined,
@@ -6,12 +6,14 @@ import {
   PhoneOutlined,
   LockOutlined,
   SaveOutlined,
-  CheckCircleOutlined,
   BellOutlined,
   CrownOutlined,
   KeyOutlined,
   HistoryOutlined,
   TrophyOutlined,
+  CameraOutlined,
+  LoadingOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
 import { Button, Tag, Input, Select, Typography, message, Space, Tabs } from "../../shared/ui";
 import { useAuth } from "../../contexts/AuthContext";
@@ -21,47 +23,104 @@ import { MemberOverviewTab } from "./CustomerMembershipCenter";
 
 const { Title } = Typography;
 
-const CLUB_BRANCHES = [
-  { value: "q3", label: "CueZone Q.3 — 123 Nguyễn Thị Minh Khai, P.6, Q.3, TP.HCM" },
-  { value: "q1", label: "CueZone Q.1 — 45 Lê Duẩn, P. Bến Nghé, Q.1, TP.HCM" },
-  { value: "bt", label: "CueZone Bình Thạnh — 78 Điện Biên Phủ, P.25, Bình Thạnh, TP.HCM" },
+const BILLIARDS_DISCIPLINES = [
+  { value: "pool", label: "Bida Lỗ (Pool 9-ball / 10-ball)" },
+  { value: "carom", label: "Bida Phăng / 3 Băng (Carom Libre & 3C)" },
+  { value: "snooker", label: "Bida Snooker Chuyên Nghiệp" },
 ];
 
 export const CustomerProfile: React.FC = () => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, uploadAvatar } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [name, setName] = useState<string>(user?.name || "");
   const email = user?.email || "";
   const [phone, setPhone] = useState<string>(user?.phone || "");
-  const [favoriteBranch, setFavoriteBranch] = useState<string>("q3");
-  const [bio, setBio] = useState<string>(
-    "Cơ thủ bida phong trào, đam mê cọ xát và học hỏi kỹ thuật gậy cơ tại CueZone.",
-  );
+  const [favoriteGame, setFavoriteGame] = useState<string>(user?.favoriteGame || "pool");
+  const [bio, setBio] = useState<string>(user?.bio || "");
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState<boolean>(false);
 
   const [currentPassword, setCurrentPassword] = useState<string>("");
   const [newPassword, setNewPassword] = useState<string>("");
   const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
   const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
 
-  const [notifyBooking, setNotifyBooking] = useState<boolean>(true);
-  const [notifyTournament, setNotifyTournament] = useState<boolean>(true);
+  const [notifyBooking, setNotifyBooking] = useState<boolean>(
+    user?.notificationSettings?.bookingReminder ?? true,
+  );
+  const [notifyTournament, setNotifyTournament] = useState<boolean>(
+    user?.notificationSettings?.tournamentNews ?? true,
+  );
 
   const [overview, setOverview] = useState<MembershipOverview | null>(null);
 
   useEffect(() => {
+    if (user) {
+      setName(user.name || "");
+      setPhone(user.phone || "");
+      setBio(user.bio || "");
+      setFavoriteGame(user.favoriteGame || "pool");
+      if (user.notificationSettings) {
+        setNotifyBooking(user.notificationSettings.bookingReminder ?? true);
+        setNotifyTournament(user.notificationSettings.tournamentNews ?? true);
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
     let active = true;
-    membershipService
-      .getOverview()
-      .then((data) => {
-        if (active) setOverview(data);
-      })
-      .catch(() => {});
+    const fetchOverview = () => {
+      membershipService
+        .getOverview()
+        .then((data) => {
+          if (active) setOverview(data);
+        })
+        .catch(() => {});
+    };
+
+    fetchOverview();
+
+    const handleSettingsChanged = () => {
+      fetchOverview();
+    };
+
+    window.addEventListener("storage", handleSettingsChanged);
+    window.addEventListener("cuezone_settings_updated", handleSettingsChanged);
 
     return () => {
       active = false;
+      window.removeEventListener("storage", handleSettingsChanged);
+      window.removeEventListener("cuezone_settings_updated", handleSettingsChanged);
     };
   }, []);
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      message.error("Vui lòng chọn ảnh định dạng JPG, PNG hoặc WEBP");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      message.error("Dung lượng ảnh không được vượt quá 5MB");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      await uploadAvatar(file);
+      message.success("Cập nhật ảnh đại diện thành công!");
+    } catch (error: any) {
+      message.error(error.message || "Không thể tải lên ảnh đại diện");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   const handleSaveProfile = async () => {
     if (!name.trim()) {
@@ -70,7 +129,12 @@ export const CustomerProfile: React.FC = () => {
     }
     setIsSavingProfile(true);
     try {
-      await updateProfile({ name: name.trim(), phone: phone.trim() });
+      await updateProfile({
+        name: name.trim(),
+        phone: phone.trim(),
+        bio: bio.trim(),
+        favoriteGame,
+      });
       message.success("Đã cập nhật thông tin hồ sơ cá nhân thành công!");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Không thể cập nhật hồ sơ");
@@ -115,13 +179,30 @@ export const CustomerProfile: React.FC = () => {
     }
   };
 
-  const handleToggleNotification = (
+  const handleToggleNotification = async (
     type: "booking" | "tournament",
     nextVal: boolean,
   ) => {
+    const prevBooking = notifyBooking;
+    const prevTournament = notifyTournament;
+    const nextSettings = {
+      bookingReminder: type === "booking" ? nextVal : notifyBooking,
+      tournamentNews: type === "tournament" ? nextVal : notifyTournament,
+    };
     if (type === "booking") setNotifyBooking(nextVal);
     if (type === "tournament") setNotifyTournament(nextVal);
-    message.success("Đã cập nhật cài đặt thông báo!");
+
+    try {
+      await updateProfile({
+        name: user?.name || name,
+        notificationSettings: nextSettings,
+      });
+      message.success("Đã cập nhật cài đặt thông báo!");
+    } catch (err: any) {
+      if (type === "booking") setNotifyBooking(prevBooking);
+      if (type === "tournament") setNotifyTournament(prevTournament);
+      message.error(err.message || "Không thể cập nhật cài đặt thông báo");
+    }
   };
 
   const memberCode = `CZ-${user?._id ? user._id.slice(-6).toUpperCase() : "MEMBER"}`;
@@ -138,13 +219,38 @@ export const CustomerProfile: React.FC = () => {
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
           {/* Thông tin hội viên */}
           <div className="flex items-center gap-4 sm:gap-5">
-            <div className="relative shrink-0">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 aspect-square rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 border-2 border-emerald-400/60 flex items-center justify-center text-white text-2xl sm:text-3xl font-black shadow-lg shadow-emerald-950/60">
-                {name.charAt(0) || "U"}
+            <div className="relative shrink-0 group">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 aspect-square rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 border-2 border-emerald-400/60 flex items-center justify-center text-white text-2xl sm:text-3xl font-black shadow-lg shadow-emerald-950/60 overflow-hidden relative">
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  (name || "U").charAt(0).toUpperCase()
+                )}
+
+                {isUploadingAvatar && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white">
+                    <LoadingOutlined className="text-xl animate-spin" />
+                  </div>
+                )}
               </div>
-              <span className="absolute -bottom-1 -right-1 h-5 w-5 sm:h-6 sm:w-6 bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center shadow">
-                <CheckCircleOutlined className="text-white text-[10px] sm:text-xs" />
-              </span>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+                className="absolute -bottom-1 -right-1 h-6 w-6 sm:h-7 sm:w-7 bg-emerald-600 hover:bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-white shadow-md transition cursor-pointer"
+                title="Đổi ảnh đại diện"
+              >
+                {isUploadingAvatar ? (
+                  <LoadingOutlined className="text-[10px] sm:text-xs" />
+                ) : (
+                  <CameraOutlined className="text-[10px] sm:text-xs" />
+                )}
+              </button>
             </div>
 
             <div className="space-y-1.5">
@@ -172,7 +278,7 @@ export const CustomerProfile: React.FC = () => {
               </div>
 
               <div className="text-[11px] text-slate-400 pt-0.5">
-                Mã hội viên: <strong className="font-mono text-emerald-400 font-bold">{memberCode}</strong> · CLB Bida CueZone
+                Mã hội viên: <strong className="font-mono text-emerald-400 font-bold">{memberCode}</strong> · CueZone Billiards Club
               </div>
             </div>
           </div>
@@ -227,6 +333,45 @@ export const CustomerProfile: React.FC = () => {
               ),
               children: (
                 <div className="space-y-5 max-w-2xl">
+                  {/* Quản lý ảnh đại diện */}
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-200 shrink-0 border border-slate-300 flex items-center justify-center text-slate-700 font-bold text-xl relative shadow-xs">
+                      {user?.avatar ? (
+                        <img src={user.avatar} alt={name} className="w-full h-full object-cover" />
+                      ) : (
+                        (name || "U").charAt(0).toUpperCase()
+                      )}
+                      {isUploadingAvatar && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white">
+                          <LoadingOutlined className="text-sm" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-slate-800">Ảnh đại diện cơ thủ</div>
+                      <div className="text-[11px] text-slate-500 mb-2">
+                        Định dạng JPG, PNG hoặc WEBP (tối đa 5MB)
+                      </div>
+                      <Button
+                        size="small"
+                        disabled={isUploadingAvatar}
+                        loading={isUploadingAvatar}
+                        leftIcon={<CameraOutlined />}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="!text-xs !h-8 !rounded-lg !font-semibold"
+                      >
+                        {user?.avatar ? "Đổi Ảnh Khác" : "Tải Ảnh Lên"}
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handleAvatarFileChange}
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Họ và tên cơ thủ:
@@ -273,16 +418,36 @@ export const CustomerProfile: React.FC = () => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Chi nhánh CLB quen thuộc:
-                    </label>
-                    <Select
-                      value={favoriteBranch}
-                      onChange={setFavoriteBranch}
-                      options={CLUB_BRANCHES}
-                      className="w-full !h-10"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Cơ sở CLB hoạt động:
+                      </label>
+                      <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium">
+                        <EnvironmentOutlined className="text-emerald-600 shrink-0 text-sm" />
+                        <span className="truncate" title="CueZone Billiards Club — 128 Nguyễn Trãi, P. Bến Thành, Q.1, TP.HCM">
+                          CueZone Billiards Club — 128 Nguyễn Trãi, Q.1
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 mt-1 block">
+                        Cơ sở thi đấu tiêu chuẩn của CLB Bida CueZone
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Sở trường / Bộ môn yêu thích:
+                      </label>
+                      <Select
+                        value={favoriteGame}
+                        onChange={setFavoriteGame}
+                        options={BILLIARDS_DISCIPLINES}
+                        className="w-full !h-10"
+                      />
+                      <span className="text-[11px] text-slate-400 mt-1 block">
+                        Gợi ý sắp xếp bàn và ghép trận giao lưu phù hợp
+                      </span>
+                    </div>
                   </div>
 
                   <div>
@@ -294,7 +459,7 @@ export const CustomerProfile: React.FC = () => {
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                       className="!rounded-xl"
-                      placeholder="Giới thiệu phong cách chơi bida, sở thích của bạn..."
+                      placeholder="Chia sẻ về phong cách chơi, dòng cơ yêu thích hoặc kinh nghiệm bida của bạn..."
                     />
                   </div>
 
@@ -416,7 +581,7 @@ export const CustomerProfile: React.FC = () => {
                         Giải đấu & Ưu đãi giờ vàng
                       </strong>
                       <span className="text-slate-500">
-                        Cập nhật sớm giải đấu Bank Pool mở rộng và khuyến mãi ngày hội viên
+                        Cập nhật sớm giải đấu bida mở rộng và khuyến mãi ngày hội viên
                       </span>
                     </div>
                     <button

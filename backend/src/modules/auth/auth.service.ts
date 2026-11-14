@@ -19,6 +19,7 @@ import {
   sendPasswordResetEmail,
   sendWelcomeRegistrationEmail,
 } from "./email.service";
+import { uploadAvatarImage } from "../../config/cloudinary.config";
 
 export interface TokenPayload {
   userId: string;
@@ -224,39 +225,91 @@ export class AuthService {
 
   async updateProfile(
     userId: string,
-    input: { name?: unknown; phone?: unknown },
+    input: {
+      name?: unknown;
+      phone?: unknown;
+      avatar?: unknown;
+      bio?: unknown;
+      favoriteGame?: unknown;
+      notificationSettings?: {
+        bookingReminder?: unknown;
+        tournamentNews?: unknown;
+      };
+    },
   ): Promise<UserWithPermissions> {
     if (!input || typeof input !== "object") {
       throw new Error("Thông tin hồ sơ không hợp lệ");
-    }
-    const name = typeof input.name === "string" ? input.name.trim() : "";
-    if (!name || name.length > 120) {
-      throw new Error("Họ và tên phải có từ 1 đến 120 ký tự");
-    }
-
-    let phone: string | undefined;
-    if (input.phone !== undefined && input.phone !== null && String(input.phone).trim()) {
-      phone = String(input.phone).trim().replace(/[\s().-]/g, "");
-      const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
-      if (!phoneRegex.test(phone)) {
-        throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
-      }
-      phone = normalizePhone(phone);
-      const existingPhone = await User.findOne({
-        phone: { $regex: phonePattern(phone)! },
-        _id: { $ne: userId },
-      }).select("_id");
-      if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
     }
 
     const user = await User.findById(userId);
     if (!user || !user.isActive || user.isLocked) {
       throw new Error("Tài khoản không còn hoạt động");
     }
-    user.name = name;
-    user.phone = phone;
+
+    if (input.name !== undefined) {
+      const name = typeof input.name === "string" ? input.name.trim() : "";
+      if (!name || name.length > 120) {
+        throw new Error("Họ và tên phải có từ 1 đến 120 ký tự");
+      }
+      user.name = name;
+    }
+
+    if (input.phone !== undefined) {
+      let phone: string | undefined;
+      if (input.phone !== null && String(input.phone).trim()) {
+        phone = String(input.phone).trim().replace(/[\s().-]/g, "");
+        const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+        if (!phoneRegex.test(phone)) {
+          throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
+        }
+        phone = normalizePhone(phone);
+        const existingPhone = await User.findOne({
+          phone: { $regex: phonePattern(phone)! },
+          _id: { $ne: userId },
+        }).select("_id");
+        if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
+      }
+      user.phone = phone;
+    }
+
+    if (typeof input.bio === "string") {
+      user.bio = input.bio.trim().slice(0, 500);
+    }
+    if (typeof input.favoriteGame === "string") {
+      user.favoriteGame = input.favoriteGame.trim();
+    }
+    if (typeof input.avatar === "string" && input.avatar.trim()) {
+      user.avatar = input.avatar.trim();
+    }
+    if (input.notificationSettings && typeof input.notificationSettings === "object") {
+      const current = user.notificationSettings || { bookingReminder: true, tournamentNews: true };
+      user.notificationSettings = {
+        bookingReminder:
+          typeof input.notificationSettings.bookingReminder === "boolean"
+            ? input.notificationSettings.bookingReminder
+            : current.bookingReminder ?? true,
+        tournamentNews:
+          typeof input.notificationSettings.tournamentNews === "boolean"
+            ? input.notificationSettings.tournamentNews
+            : current.tournamentNews ?? true,
+      };
+    }
+
     await user.save();
     return this.getProfile(userId);
+  }
+
+  async uploadAvatar(userId: string, buffer: Buffer): Promise<{ avatarUrl: string }> {
+    const user = await User.findById(userId);
+    if (!user || !user.isActive || user.isLocked) {
+      throw new Error("Tài khoản không tồn tại hoặc đã bị khóa");
+    }
+
+    const result = await uploadAvatarImage(buffer);
+    user.avatar = result.secure_url;
+    await user.save();
+
+    return { avatarUrl: result.secure_url };
   }
 
   async sendVerificationCode(dto: RegisterDTO): Promise<{ message: string }> {

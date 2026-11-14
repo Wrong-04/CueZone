@@ -184,18 +184,6 @@ router.get("/my-history", async (req: Request, res: Response, next: NextFunction
   }
 });
 
-router.get("/my-payment-intents", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = (req as any).user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Yêu cầu đăng nhập" });
-    }
-    res.json({ success: true, data: await payments.myIntents(userId) });
-  } catch (err) {
-    next(err);
-  }
-});
-
 router.get("/leaderboard", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = await tournamentService.getLeaderboard(Number(req.query.limit) || 50);

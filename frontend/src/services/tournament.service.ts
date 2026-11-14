@@ -254,13 +254,6 @@ export const tournamentService = {
     if (!data.success) throw new Error(data.message || "Không thể tải lịch sử giải đấu");
     return data.data || [];
   },
-  async getMyPaymentIntents(): Promise<{ tournamentId: string; status: string }[]> {
-    const { data } = await api.get<ApiResponse<{ tournamentId: string; status: string }[]>>(
-      "/tournaments/my-payment-intents",
-    );
-    if (!data.success) throw new Error(data.message || "Không thể tải trạng thái ghi danh");
-    return data.data || [];
-  },
   async getLeaderboard(limit = 50): Promise<LeaderboardItem[]> {
     const { data } = await api.get<ApiResponse<LeaderboardItem[]>>("/tournaments/leaderboard", {
       params: { limit },

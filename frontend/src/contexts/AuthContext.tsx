@@ -13,7 +13,18 @@ import { authService } from "../services/auth.service";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  updateProfile: (input: { name: string; phone: string }) => Promise<User>;
+  updateProfile: (input: {
+    name?: string;
+    phone?: string;
+    avatar?: string;
+    bio?: string;
+    favoriteGame?: string;
+    notificationSettings?: {
+      bookingReminder?: boolean;
+      tournamentNews?: boolean;
+    };
+  }) => Promise<User>;
+  uploadAvatar: (file: File) => Promise<string>;
   login: (email: string, password?: string) => Promise<User>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   sendVerificationCode: (
@@ -70,10 +81,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return result.user;
   }, []);
 
-  const updateProfile = useCallback(async (input: { name: string; phone: string }) => {
-    const profile = await authService.updateProfile(input);
-    setUser(profile);
-    return profile;
+  const updateProfile = useCallback(
+    async (input: {
+      name?: string;
+      phone?: string;
+      avatar?: string;
+      bio?: string;
+      favoriteGame?: string;
+      notificationSettings?: {
+        bookingReminder?: boolean;
+        tournamentNews?: boolean;
+      };
+    }) => {
+      const profile = await authService.updateProfile(input);
+      setUser(profile);
+      return profile;
+    },
+    [],
+  );
+
+  const uploadAvatar = useCallback(async (file: File) => {
+    const { avatarUrl } = await authService.uploadAvatar(file);
+    setUser((prev) => (prev ? { ...prev, avatar: avatarUrl } : prev));
+    return avatarUrl;
   }, []);
 
   const register = useCallback(
@@ -113,13 +143,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user,
       loading,
       updateProfile,
+      uploadAvatar,
       login,
       register,
       sendVerificationCode,
       verifyAndRegister,
       logout,
     }),
-    [user, loading, updateProfile, login, register, sendVerificationCode, verifyAndRegister, logout],
+    [user, loading, updateProfile, uploadAvatar, login, register, sendVerificationCode, verifyAndRegister, logout],
   );
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

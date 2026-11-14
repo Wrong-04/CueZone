@@ -384,8 +384,12 @@ const CustomerLayout = () => {
                     className="h-9 px-2.5 rounded-xl border border-slate-200/80 hover:border-slate-300 hover:bg-slate-50 inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition"
                     title="Hồ sơ hội viên"
                   >
-                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                      {user.name?.charAt(0) || <UserOutlined />}
+                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                      ) : (
+                        user.name?.charAt(0)?.toUpperCase() || <UserOutlined />
+                      )}
                     </div>
                     <span className="text-xs font-semibold text-slate-800 hidden sm:inline truncate max-w-[130px]">
                       {user.name}
@@ -490,7 +494,7 @@ const CustomerLayout = () => {
                 nghiệp hàng đầu.
               </p>
               <div className="pt-1 flex items-center gap-2 text-emerald-400 font-semibold">
-                <PhoneOutlined /> 1900 6868 • Hỗ trợ 24/7
+                <PhoneOutlined /> 0908 888 999 • Hỗ trợ 24/7
               </div>
             </div>
 
@@ -556,15 +560,15 @@ const CustomerLayout = () => {
               </h4>
               <p className="text-slate-400 flex items-center gap-2">
                 <EnvironmentOutlined className="text-emerald-400 flex-shrink-0" />
-                <span>123 Nguyễn Thị Minh Khai, Phường 6, Quận 3, TP. Hồ Chí Minh</span>
+                <span>128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh</span>
               </p>
               <p className="text-slate-400 flex items-center gap-2">
                 <ClockCircleOutlined className="text-emerald-400 flex-shrink-0" />
-                <span>Hoạt động: 08:00 - 24:00 các ngày trong tuần</span>
+                <span>Hoạt động: 08:00 - 04:00 Sáng hôm sau (Mở cửa xuyên đêm)</span>
               </p>
               <p className="text-slate-400 flex items-center gap-2">
                 <CreditCardOutlined className="text-emerald-400 flex-shrink-0" />
-                <span>Thanh toán: Tiền mặt, Chuyển khoản</span>
+                <span>Thanh toán: Tiền mặt, Chuyển khoản VietQR</span>
               </p>
             </div>
           </div>
