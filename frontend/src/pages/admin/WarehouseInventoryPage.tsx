@@ -517,11 +517,11 @@ export const WarehouseInventoryPage: React.FC = () => {
   const rawTab = searchParams.get("tab") || "stock";
   const validTabs = [
     "stock",
-    "inward",
+    ...(isAdmin ? ["inward"] : []),
     "outward",
     "audit",
     "report",
-    ...(hasPermission(user, "inventory.manage") ? ["catalog"] : []),
+    ...(isAdmin ? ["catalog"] : []),
     ...(hasPermission(user, "suppliers.manage") ? ["suppliers"] : []),
   ];
   const activeTab = validTabs.includes(rawTab) ? rawTab : "stock";
@@ -2627,8 +2627,8 @@ export const WarehouseInventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── TAB 2: LỊCH SỬ PHIẾU NHẬP KHO ─────────────────────────────────── */}
-      {activeTab === "inward" && (
+      {/* ── TAB 2: LỊCH SỬ PHIẾU NHẬP KHO (CHỈ DÀNH CHO ADMIN & QUẢN LÝ KHO) ── */}
+      {isAdmin && activeTab === "inward" && (
         <div className="space-y-4">
           {/* 4 Thẻ KPI Nhập Kho Đồng Bộ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
