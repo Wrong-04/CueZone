@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ShoppingOutlined,
-  TagsOutlined,
   CloseOutlined,
   SaveOutlined,
   PlusOutlined,
+  PlusCircleOutlined,
   CheckCircleFilled,
   ExclamationCircleFilled,
 } from "@ant-design/icons";
@@ -899,7 +899,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                   ? "Danh mục phân loại hàng hóa & dịch vụ"
                   : "Danh mục hàng hóa & Phụ kiện bida"}
               </h3>
-              <p className="text-xs text-slate-500 mb-0">
+              <p className="text-xs text-slate-500 mb-0 leading-relaxed [text-wrap:balance]">
                 {currentTab === "categories"
                   ? "Quản lý các nhóm danh mục phân loại đồ ăn, đồ uống F&B, phụ kiện bida và vật tư kho."
                   : "Quản lý các nhóm danh mục phân loại và mã sản phẩm trong hệ thống kho."}
@@ -1077,7 +1077,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                         return (
                           <tr key={category._id} className="transition-colors hover:bg-emerald-50/30">
                             <td className="px-4 py-4 font-semibold text-slate-700">
-                              <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 font-mono text-xs font-bold text-slate-800 border border-slate-200">
+                              <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 font-mono text-xs font-bold text-slate-800 border border-slate-200 whitespace-nowrap inline-block shrink-0">
                                 {category.code}
                               </span>
                             </td>
@@ -1166,7 +1166,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                             className="transition-colors hover:bg-emerald-50/30"
                           >
                             <td className="px-4 py-4 font-semibold text-slate-700">
-                              <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold text-slate-800 border border-slate-200">
+                              <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold text-slate-800 border border-slate-200 whitespace-nowrap inline-block shrink-0">
                                 {product.sku}
                               </span>
                             </td>
@@ -1590,26 +1590,19 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
 
             <form onSubmit={handleCategorySubmit} className="p-6 sm:p-7 space-y-5">
               {/* Modal Header */}
-              <div className="flex items-start justify-between pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 text-xl shadow-xs">
-                    <TagsOutlined />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight mb-0.5">
-                      {editingCategory ? "Cập Nhật Danh Mục" : "Thêm Danh Mục Mới"}
-                    </h2>
-                    <p className="text-xs text-slate-500 mb-0">
-                      Quản lý nhóm phân loại đồ uống, thức ăn, phụ kiện cho quán.
-                    </p>
-                  </div>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <PlusCircleOutlined className="text-emerald-600 text-lg" />
+                  <h2 className="text-base font-black text-slate-900 tracking-tight mb-0">
+                    {editingCategory ? "Cập Nhật Danh Mục" : "Thêm Danh Mục Mới"}
+                  </h2>
                 </div>
 
                 <button
                   type="button"
                   disabled={saving}
                   onClick={() => setCategoryModal(false)}
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                   aria-label="Đóng"
                 >
                   <CloseOutlined className="text-sm" />
@@ -1676,9 +1669,6 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                       </p>
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    Xác định danh mục sẽ xuất hiện trên Thực đơn khách gọi (F&amp;B) hay Quản lý tồn kho vật tư.
-                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1707,15 +1697,12 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                     }
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-slate-50/30 focus:bg-white"
                   />
-                  <p className="text-[11px] text-slate-400">
-                    Tên nhóm hiển thị trên bảng danh mục và các bộ lọc tìm kiếm.
-                  </p>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                      Mã danh mục (Code) <span className="text-rose-500">*</span>
+                      Mã danh mục <span className="text-rose-500">*</span>
                     </label>
                     {editingCategory && (
                       <span className="text-[10.5px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">
@@ -1728,17 +1715,14 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                     disabled={Boolean(editingCategory)}
                     value={categoryForm.code}
                     onChange={(e) => setCategoryForm((f) => ({ ...f, code: e.target.value.toLowerCase().replace(/\s+/g, "_") }))}
-                    placeholder="Ví dụ: drink, snack, accessory..."
+                    placeholder="Ví dụ: nuoc_ngot, bia, phu_kien..."
                     className="w-full font-mono rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all disabled:bg-slate-100 disabled:text-slate-500"
                   />
-                  <p className="text-[11px] text-slate-400">
-                    Mã định danh duy nhất (viết thường không dấu, dùng liên kết dữ liệu hệ thống).
-                  </p>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700">
-                    Mô tả nhóm hàng hóa
+                    Mô tả
                   </label>
                   <textarea
                     rows={3}
@@ -1764,7 +1748,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                   onClick={() => setCategoryModal(false)}
                   className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  Hủy bỏ
+                  Hủy
                 </button>
                 <button
                   type="submit"
@@ -1774,9 +1758,9 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
                   {saving ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
-                    <SaveOutlined />
+                    <PlusCircleOutlined />
                   )}
-                  {editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
+                  {editingCategory ? "Lưu thay đổi" : "Lưu danh mục"}
                 </button>
               </div>
             </form>
@@ -1834,7 +1818,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
               <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl text-emerald-900 text-xs flex items-start gap-2.5">
                 <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="leading-relaxed">
-                  <strong className="text-emerald-800">Quy tắc nghiệp vụ chuẩn:</strong> Khi quán chỉ hết hàng 1 vài món (ví dụ: hết <em>Pepsi lon</em> nhưng vẫn còn <em>Bia / Nước suối</em>), bạn chỉ cần gạt công tắc <strong>Tạm ngưng</strong> ở riêng món đó bên dưới. Danh mục <strong>"{categoryProductsModal.name}"</strong> vẫn tiếp tục hoạt động bình thường trên Menu POS để phục vụ các món còn hàng khác!
+                  <strong className="text-emerald-800">Mẹo nhỏ:</strong> Khi quán chỉ hết hàng 1 vài món (ví dụ: hết <em>Pepsi lon</em> nhưng vẫn còn <em>Bia / Nước suối</em>), bạn chỉ cần gạt công tắc <strong>Tạm ngưng</strong> ở riêng món đó bên dưới. Danh mục <strong>"{categoryProductsModal.name}"</strong> vẫn tiếp tục hoạt động bình thường trên Menu POS để phục vụ các món còn hàng khác!
                 </div>
               </div>
             </div>

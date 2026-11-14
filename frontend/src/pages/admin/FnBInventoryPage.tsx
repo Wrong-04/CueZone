@@ -640,7 +640,7 @@ export const FnBInventoryPage: React.FC = () => {
       render: (_: unknown, record: FnbStockItem) => (
         <div>
           <div className="flex items-center gap-1.5 mb-1">
-            <span className="inline-block px-1.5 py-0.5 rounded font-mono text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            <span className="inline-block px-2 py-0.5 rounded font-mono text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap shrink-0">
               {record.code}
             </span>
             <Tag color="cyan" className="!rounded-md !px-1.5 !py-0 !text-[10px] !font-medium">
@@ -845,8 +845,8 @@ export const FnBInventoryPage: React.FC = () => {
                 MENU DỊCH VỤ CLB
               </Tag>
             </div>
-            <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Quản lý menu đồ ăn, thức uống, cấu hình món chế biến theo yêu cầu và kiểm soát tồn kho hàng đóng gói phục vụ tại bàn.
+            <Text className="!text-xs sm:!text-sm !text-slate-500 block leading-relaxed [text-wrap:balance]">
+              Quản lý menu đồ ăn, thức uống, cấu hình món chế biến và kiểm soát tồn kho hàng đóng gói phục vụ tại bàn.
             </Text>
           </div>
 
@@ -912,7 +912,7 @@ export const FnBInventoryPage: React.FC = () => {
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Đang sẵn sàng bán
+              Đang mở bán
             </span>
             <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg">
               <CheckCircleOutlined />
@@ -950,7 +950,7 @@ export const FnBInventoryPage: React.FC = () => {
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Pha chế tại chỗ
+              Món chế biến / Pha chế
             </span>
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
               <CoffeeOutlined />
@@ -978,8 +978,8 @@ export const FnBInventoryPage: React.FC = () => {
         </div>
 
         {/* Second Row: Stock Filter, Service Type, Photo Status, Sort & Search */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2 xl:gap-2.5">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap">
                 <FilterOutlined /> Trạng thái:
@@ -987,11 +987,11 @@ export const FnBInventoryPage: React.FC = () => {
               <Select
                 value={stockStatusFilter}
                 onChange={(val) => setStockStatusFilter(val)}
-                className="!w-36 !rounded-xl !text-xs"
+                className="!w-32 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả trạng thái" },
-                  { value: "in_stock", label: "Đang sẵn sàng" },
-                  { value: "low_stock", label: "Sắp hết (< Min)" },
+                  { value: "in_stock", label: "Đang mở bán" },
+                  { value: "low_stock", label: "Cảnh báo sắp hết" },
                   { value: "out_of_stock", label: "Tạm ngưng bán" },
                 ]}
               />
@@ -1004,11 +1004,11 @@ export const FnBInventoryPage: React.FC = () => {
               <Select
                 value={serviceTypeFilter}
                 onChange={(val) => setServiceTypeFilter(val)}
-                className="!w-36 !rounded-xl !text-xs"
+                className="!w-32 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả loại hình" },
-                  { value: "made_to_order", label: "☕ Chế biến tươi" },
-                  { value: "packaged", label: "📦 Đóng gói sẵn" },
+                  { value: "made_to_order", label: "☕ Pha chế / Bếp nóng" },
+                  { value: "packaged", label: "📦 Hàng đóng gói" },
                 ]}
               />
             </div>
@@ -1020,11 +1020,11 @@ export const FnBInventoryPage: React.FC = () => {
               <Select
                 value={photoStatusFilter}
                 onChange={(val) => setPhotoStatusFilter(val)}
-                className="!w-32 !rounded-xl !text-xs"
+                className="!w-28 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả ảnh" },
                   { value: "has_image", label: "📷 Có ảnh" },
-                  { value: "no_image", label: "⚠️ Chưa ảnh" },
+                  { value: "no_image", label: "⚠️ Chưa có ảnh" },
                 ]}
               />
             </div>
@@ -1036,7 +1036,7 @@ export const FnBInventoryPage: React.FC = () => {
               <Select
                 value={sortOption}
                 onChange={(val) => setSortOption(val)}
-                className="!w-40 !rounded-xl !text-xs"
+                className="!w-36 !rounded-xl !text-xs"
                 options={[
                   { value: "default", label: "Mặc định hệ thống" },
                   { value: "stock_asc", label: "Tồn kho: Thấp → Cao" },
@@ -1051,7 +1051,7 @@ export const FnBInventoryPage: React.FC = () => {
 
           <div className="flex items-center gap-2 shrink-0">
             {/* Search Input */}
-            <div className="w-full sm:w-48">
+            <div className="w-40 xl:w-44">
               <Input
                 placeholder="Tìm món, mã món..."
                 prefix={<SearchOutlined className="text-slate-400" />}
@@ -1075,7 +1075,7 @@ export const FnBInventoryPage: React.FC = () => {
                     : "!text-slate-600 hover:!text-slate-900"
                 }`}
               >
-                Thẻ Có Ảnh
+                Dạng lưới thẻ
               </Button>
               <Button
                 variant={viewMode === "table" ? "primary" : "ghost"}
@@ -1088,7 +1088,7 @@ export const FnBInventoryPage: React.FC = () => {
                     : "!text-slate-600 hover:!text-slate-900"
                 }`}
               >
-                Danh Sách Bảng
+                Dạng bảng
               </Button>
             </div>
           </div>
@@ -1749,63 +1749,34 @@ export const FnBInventoryPage: React.FC = () => {
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Stock Quantity: Always read-only on menu screen to enforce inventory accounting principles */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Tồn kho quầy ({editingItemData.unit || "phần"}):
-                      </label>
-                      <div className="h-10 px-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between font-mono text-xs font-bold text-slate-900 shadow-2xs">
-                        <span>
-                          {isCreatingNew ? 0 : (editingItemData.stockQuantity || 0)} {editingItemData.unit || "phần"}
-                        </span>
-                        <Tag
-                          color={
-                            isCreatingNew
-                              ? "default"
-                              : editingItemData.stockQuantity === 0
-                                ? "error"
-                                : (editingItemData.stockQuantity || 0) <= (editingItemData.minThreshold || 5)
-                                  ? "warning"
-                                  : "green"
-                          }
-                          className="!text-[10px] !px-2 !py-0.5 !border-0 !m-0 !font-bold"
-                        >
-                          {isCreatingNew
-                            ? "MÓN MỚI (CHƯA NHẬP KHO)"
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tồn kho hiện tại ({editingItemData.unit || "phần"}):
+                    </label>
+                    <div className="h-10 px-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between font-mono text-xs font-bold text-slate-900 shadow-2xs">
+                      <span>
+                        {isCreatingNew ? 0 : (editingItemData.stockQuantity || 0)} {editingItemData.unit || "phần"}
+                      </span>
+                      <Tag
+                        color={
+                          isCreatingNew
+                            ? "default"
                             : editingItemData.stockQuantity === 0
-                              ? "HẾT HÀNG"
-                              : (editingItemData.stockQuantity || 0) <= (editingItemData.minThreshold || 5)
-                                ? "SẮP HẾT"
-                                : "CÒN HÀNG"}
-                        </Tag>
-                      </div>
-                      <span className="text-[10px] text-slate-500 mt-1 block">
-                        * Tồn kho cập nhật qua <strong>Phiếu nhập kho</strong> tại Kho Hàng & Vật Tư.
-                      </span>
-                    </div>
-
-                    {/* Low-stock alert threshold setting */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Cảnh báo khi tồn quầy &le; :
-                      </label>
-                      <Input
-                        type="number"
-                        placeholder="5"
-                        value={editingItemData.minThreshold ?? 5}
-                        onChange={(e) =>
-                          setEditingItemData((prev) => ({
-                            ...prev,
-                            minThreshold: Math.max(0, parseInt(e.target.value) || 0),
-                          }))
+                              ? "error"
+                              : "green"
                         }
-                        className="!h-10 !rounded-xl font-mono text-xs font-bold"
-                      />
-                      <span className="text-[10px] text-slate-500 mt-1 block">
-                        Hệ thống sẽ báo vàng <strong>"SẮP HẾT"</strong> khi tồn kho chạm mức này.
-                      </span>
+                        className="!text-[10px] !px-2 !py-0.5 !border-0 !m-0 !font-bold"
+                      >
+                        {isCreatingNew
+                          ? "MÓN MỚI (CHƯA NHẬP KHO)"
+                          : editingItemData.stockQuantity === 0
+                            ? "HẾT HÀNG"
+                            : "CÒN HÀNG"}
+                      </Tag>
                     </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      * Tồn kho được quản lý tự động qua <strong>Phiếu nhập kho</strong> tại Kho Hàng & Vật Tư.
+                    </span>
                   </div>
                 </div>
               )}
