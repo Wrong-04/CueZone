@@ -56,7 +56,8 @@ interface TournamentItem {
 
 const intentStatusLabels: Record<string, string> = {
   awaiting_payment: "Chờ chuyển khoản · Xem mã",
-  paid_pending: "Đã ghi danh · Chờ chốt suất",
+  // ponytail: intent.status chỉ được tính lại lazy khi mở modal; nhãn giữ trung tính, modal hiện trạng thái chính xác.
+  paid_pending: "Đã nhận chuyển khoản · Xem trạng thái",
   confirmed: "Đã ghi danh · Xem chi tiết",
   refund_required: "Cần hoàn phí · Xem chi tiết",
   reconciliation_required: "Đang đối soát · Xem chi tiết",
@@ -619,7 +620,8 @@ const CustomerTournaments = () => {
                         >
                           <CheckCircleOutlined /> {tourney.status === "finished" ? "Xem kết quả & lịch sử" : "Đã tham gia · Xem chi tiết"}
                         </Button>
-                      ) : tourney.intentStatus ? (
+                      ) : tourney.intentStatus &&
+                        !(tourney.intentStatus === "awaiting_payment" && tourney.status !== "open") ? (
                         <Button
                           variant="outline"
                           size="sm"
@@ -966,7 +968,10 @@ const CustomerTournaments = () => {
             date: registeringTourney.date,
             format: registeringTourney.format,
           }}
-          onClose={() => setRegisteringTourney(null)}
+          onClose={() => {
+            setRegisteringTourney(null);
+            void loadTournaments();
+          }}
           onSuccess={() => void loadTournaments()}
         />
       )}
