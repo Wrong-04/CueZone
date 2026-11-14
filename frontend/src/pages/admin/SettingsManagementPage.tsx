@@ -18,6 +18,7 @@ import {
   EyeOutlined,
   AppstoreOutlined,
   PrinterOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -69,7 +70,6 @@ export interface ClubSettingsData {
 
   // 3. Chính Sách Hội Viên & Điểm Thưởng
   earnPointsRate: number;
-  redeemPointsRate: number;
   memberTiers: MemberTierPolicy[];
 }
 
@@ -95,7 +95,6 @@ const DEFAULT_SETTINGS: ClubSettingsData = {
   printClubLogoOnBill: true,
 
   earnPointsRate: 10000,
-  redeemPointsRate: 100,
   memberTiers: [
     {
       tierKey: "bronze",
@@ -155,12 +154,17 @@ const SettingsManagementPage: React.FC = () => {
           ...DEFAULT_SETTINGS,
           ...parsed,
           totalTables: 26,
-          // Đồng bộ chuẩn 3 cấp bậc thực tế của CLB
-          memberTiers: DEFAULT_SETTINGS.memberTiers,
+          // Đồng bộ chuẩn 3 cấp bậc thực tế của CLB (giữ dữ liệu đã lưu nếu hợp lệ)
+          memberTiers:
+            Array.isArray(parsed.memberTiers) && parsed.memberTiers.length === 3
+              ? parsed.memberTiers
+              : DEFAULT_SETTINGS.memberTiers,
           bankCode: parsed.bankCode || DEFAULT_SETTINGS.bankCode,
           bankName: parsed.bankName || DEFAULT_SETTINGS.bankName,
           bankAccountNo: parsed.bankAccountNo || DEFAULT_SETTINGS.bankAccountNo,
           bankAccountName: parsed.bankAccountName || DEFAULT_SETTINGS.bankAccountName,
+          printVietQROnBill: parsed.printVietQROnBill ?? DEFAULT_SETTINGS.printVietQROnBill,
+          printClubLogoOnBill: parsed.printClubLogoOnBill ?? DEFAULT_SETTINGS.printClubLogoOnBill,
         };
       } catch (e) {
         console.error("Failed to parse settings from storage:", e);
@@ -204,8 +208,36 @@ const SettingsManagementPage: React.FC = () => {
   // Modal xem trước mẫu in hóa đơn
   const [billPreviewVisible, setBillPreviewVisible] = useState<boolean>(false);
 
+  // Modal chỉnh sửa đặc quyền cấp bậc hội viên
+  const [editingTier, setEditingTier] = useState<MemberTierPolicy | null>(null);
+  const [isEditTierModalOpen, setIsEditTierModalOpen] = useState<boolean>(false);
+
+  const handleOpenEditTier = (tier: MemberTierPolicy) => {
+    setEditingTier({ ...tier });
+    setIsEditTierModalOpen(true);
+  };
+
+  const handleSaveTier = () => {
+    if (!editingTier) return;
+    if (!editingTier.tierName.trim()) {
+      message.error("Tên cấp bậc không được để trống!");
+      return;
+    }
+    const updatedTiers = settings.memberTiers.map((t) =>
+      t.tierKey === editingTier.tierKey ? editingTier : t
+    );
+    const newSettings = { ...settings, memberTiers: updatedTiers };
+    setSettings(newSettings);
+    localStorage.setItem("cuezone_admin_settings", JSON.stringify(newSettings));
+    window.dispatchEvent(new Event("cuezone_settings_updated"));
+    setIsEditTierModalOpen(false);
+    setEditingTier(null);
+    message.success(`Đã cập nhật chính sách cấp bậc "${editingTier.tierName}" thành công!`);
+  };
+
   const handleSaveAllSettings = () => {
     localStorage.setItem("cuezone_admin_settings", JSON.stringify(settings));
+    window.dispatchEvent(new Event("cuezone_settings_updated"));
     message.success("Toàn bộ cấu hình hệ thống CueZone đã được lưu thành công!");
   };
 
@@ -219,6 +251,7 @@ const SettingsManagementPage: React.FC = () => {
       onOk: () => {
         setSettings(DEFAULT_SETTINGS);
         localStorage.setItem("cuezone_admin_settings", JSON.stringify(DEFAULT_SETTINGS));
+        window.dispatchEvent(new Event("cuezone_settings_updated"));
         message.success("Đã khôi phục cài đặt mặc định thành công!");
       },
     });
@@ -278,6 +311,22 @@ const SettingsManagementPage: React.FC = () => {
       title: "Đặc quyền bổ sung",
       key: "perks",
       render: (_, r) => <Text className="!text-xs !text-slate-600">{r.perks}</Text>,
+    },
+    {
+      title: "Thao tác",
+      key: "actions",
+      width: 120,
+      render: (_, r) => (
+        <Button
+          size="sm"
+          variant="outline"
+          leftIcon={<EditOutlined />}
+          onClick={() => handleOpenEditTier(r)}
+          className="!text-xs !border-slate-200 !text-slate-700 hover:!border-emerald-500 hover:!text-emerald-700 !rounded-lg"
+        >
+          Chỉnh sửa
+        </Button>
+      ),
     },
   ];
 
@@ -777,75 +826,58 @@ const SettingsManagementPage: React.FC = () => {
               <CrownOutlined className="text-amber-600 text-lg" />
               <div>
                 <Title level={4} className="!text-slate-900 !text-base !font-bold !mb-0">
-                  Tỷ Lệ Tích Điểm & Đổi Thưởng
+                  Chính Sách Tích Điểm Thăng Hạng Hội Viên
                 </Title>
                 <Text className="!text-xs !text-slate-500">
-                  Tự động cộng điểm cho hội viên khi thanh toán hóa đơn bàn chơi hoặc F&B tại quầy POS
+                  Điểm thưởng được tự động cộng dồn khi hội viên thanh toán tại quầy POS để xét nâng hạng thẻ và hưởng quyền lợi chiết khấu
                 </Text>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-xs text-slate-700 block font-bold mb-1">
-                  Tỷ lệ tích lũy điểm tiêu dùng
+            <div className="p-5 bg-gradient-to-r from-emerald-50/80 via-teal-50/40 to-white rounded-2xl border border-emerald-200/90 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Định Mức Tích Lũy Điểm Thưởng Tiêu Dùng
                 </span>
-                <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 block max-w-xl">
+                  Mỗi khi hóa đơn thanh toán tiền giờ hoặc F&B hoàn tất tại quầy thu ngân POS, hệ thống sẽ tự động quy đổi số tiền chi tiêu thành điểm hội viên theo định mức này để tích lũy thăng hạng.
+                </span>
+                <span className="text-[11px] text-emerald-800 font-semibold pt-1 block">
+                  💡 <strong>Ví dụ minh họa:</strong> Hóa đơn 300.000đ sẽ tích được{" "}
+                  <strong className="text-emerald-950 font-bold underline">
+                    {Math.floor(
+                      300000 / (settings.earnPointsRate > 0 ? settings.earnPointsRate : 10000),
+                    ).toLocaleString("vi-VN")}{" "}
+                    điểm
+                  </strong>{" "}
+                  thưởng thăng hạng.
+                </span>
+              </div>
+
+              <div className="shrink-0 bg-white p-3.5 rounded-xl border border-emerald-200 shadow-2xs flex items-center gap-2.5">
+                <div className="w-36">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Số tiền chi tiêu
+                  </label>
                   <Input
                     type="number"
+                    min={1000}
+                    step={1000}
                     value={settings.earnPointsRate.toString()}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
-                        earnPointsRate: parseInt(e.target.value) || 10000,
+                        earnPointsRate: Math.max(1000, parseInt(e.target.value) || 10000),
                       })
                     }
-                    suffix="VNĐ"
+                    suffix="đ"
+                    className="!font-bold !text-slate-800"
                   />
-                  <span className="text-slate-900 text-sm font-bold whitespace-nowrap shrink-0">= 1 Điểm</span>
                 </div>
-                <span className="text-[11px] text-emerald-700 font-semibold mt-1 block">
-                  Ví dụ: Hóa đơn 300.000đ sẽ tích được{" "}
-                  <strong>
-                    {Math.floor(
-                      300000 / (settings.earnPointsRate > 0 ? settings.earnPointsRate : 10000),
-                    ).toLocaleString("vi-VN")}
-                  </strong>{" "}
-                  điểm
-                </span>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-xs text-slate-700 block font-bold mb-1">
-                  Tỷ lệ quy đổi điểm trừ tiền hóa đơn
-                </span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={settings.redeemPointsRate.toString()}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        redeemPointsRate: parseInt(e.target.value) || 100,
-                      })
-                    }
-                    suffix="Điểm"
-                  />
-                  <span className="text-slate-900 text-sm font-bold whitespace-nowrap shrink-0">= 10.000 VNĐ</span>
+                <div className="text-slate-900 text-sm font-black whitespace-nowrap pt-4">
+                  = 1 Điểm
                 </div>
-                <span className="text-[11px] text-amber-800 font-semibold mt-1 block">
-                  Ví dụ: Dùng{" "}
-                  <strong>
-                    {(
-                      (settings.redeemPointsRate > 0 ? settings.redeemPointsRate : 100) * 2
-                    ).toLocaleString("vi-VN")}
-                  </strong>{" "}
-                  điểm sẽ được trừ <strong>20.000đ</strong> vào bill (1 điểm ={" "}
-                  {Math.round(
-                    10000 / (settings.redeemPointsRate > 0 ? settings.redeemPointsRate : 100),
-                  ).toLocaleString("vi-VN")}
-                  đ)
-                </span>
               </div>
             </div>
           </div>
@@ -897,11 +929,17 @@ const SettingsManagementPage: React.FC = () => {
           <div className="text-center pb-2 border-b border-dashed border-slate-400">
             <div className="font-bold text-sm tracking-wider uppercase">{settings.clubName}</div>
             <div className="text-[10px] text-slate-600 italic">{settings.slogan}</div>
-            <div className="text-[11px] mt-1">{settings.address}</div>
-            <div className="text-[11px]">Hotline: {settings.phone}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">
-              Wifi: {settings.wifiSSID} | Pass: {settings.wifiPassword}
-            </div>
+            {settings.printClubLogoOnBill !== false && (
+              <>
+                <div className="text-[11px] mt-1">{settings.address}</div>
+                <div className="text-[11px]">Hotline: {settings.phone}</div>
+                {settings.wifiSSID && (
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    Wifi: {settings.wifiSSID} | Pass: {settings.wifiPassword}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="py-2 border-b border-dashed border-slate-400 space-y-1 text-[11px]">
@@ -938,13 +976,153 @@ const SettingsManagementPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-center pt-2 space-y-1">
-            <div className="text-[10px] text-slate-600">
-              STK: {settings.bankAccountNo} ({settings.bankName?.split(" (")[0] || "Ngân hàng"})
+          {settings.printVietQROnBill !== false && settings.bankAccountNo && (
+            <div className="pt-2 border-t border-dashed border-slate-300 text-center space-y-1">
+              <span className="text-[10px] text-slate-700 font-bold block uppercase tracking-wider">
+                Mã VietQR Thanh Toán
+              </span>
+              <div className="flex justify-center py-1">
+                <img
+                  src={`https://api.vietqr.io/image/${settings.bankCode || "TPB"}-${settings.bankAccountNo}-compact2.jpg?amount=352750&addInfo=HD20260924&accountName=${encodeURIComponent(settings.bankAccountName || "")}`}
+                  alt="VietQR Demo"
+                  className="w-20 h-20 object-contain border border-slate-300 rounded p-1 bg-white"
+                  loading="lazy"
+                />
+              </div>
+              <div className="text-[9.5px] text-slate-700 font-medium">
+                {settings.bankName?.split(" (")[0] || "Ngân hàng"} · STK: <strong>{settings.bankAccountNo}</strong>
+              </div>
+              <div className="text-[9px] text-slate-500">
+                Chủ TK: {settings.bankAccountName}
+              </div>
             </div>
+          )}
+
+          <div className="text-center pt-2 space-y-1 border-t border-slate-200">
             <div className="text-[10px] font-bold">CẢM ƠN QUÝ KHÁCH & HẸN GẶP LẠI!</div>
           </div>
         </div>
+      </Modal>
+
+      {/* ── 8. Modal: Chỉnh Sửa Chính Sách Cấp Bậc Hội Viên ── */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <CrownOutlined className="text-amber-500" />
+            <span>Chỉnh Sửa Chính Sách: {editingTier?.tierName}</span>
+          </div>
+        }
+        open={isEditTierModalOpen}
+        onCancel={() => {
+          setIsEditTierModalOpen(false);
+          setEditingTier(null);
+        }}
+        onOk={handleSaveTier}
+        okText="Lưu chính sách"
+        cancelText="Hủy bỏ"
+        width={520}
+        okButtonProps={{
+          className: "!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !rounded-xl",
+        }}
+      >
+        {editingTier && (
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Tên cấp bậc hiển thị <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                value={editingTier.tierName}
+                onChange={(e) =>
+                  setEditingTier({ ...editingTier, tierName: e.target.value })
+                }
+                placeholder="VD: Hội Viên Vàng (Gold)"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Điểm tối thiểu
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editingTier.minPoints.toString()}
+                  onChange={(e) =>
+                    setEditingTier({
+                      ...editingTier,
+                      minPoints: Math.max(0, parseInt(e.target.value) || 0),
+                    })
+                  }
+                  suffix="điểm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Giảm giá tiền bàn
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={editingTier.tableDiscountPercent.toString()}
+                  onChange={(e) =>
+                    setEditingTier({
+                      ...editingTier,
+                      tableDiscountPercent: Math.min(
+                        100,
+                        Math.max(0, parseInt(e.target.value) || 0)
+                      ),
+                    })
+                  }
+                  suffix="%"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Giảm giá F&B
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={editingTier.fnbDiscountPercent.toString()}
+                  onChange={(e) =>
+                    setEditingTier({
+                      ...editingTier,
+                      fnbDiscountPercent: Math.min(
+                        100,
+                        Math.max(0, parseInt(e.target.value) || 0)
+                      ),
+                    })
+                  }
+                  suffix="%"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Đặc quyền & Quyền lợi bổ sung
+              </label>
+              <Input.TextArea
+                rows={3}
+                value={editingTier.perks}
+                onChange={(e) =>
+                  setEditingTier({ ...editingTier, perks: e.target.value })
+                }
+                placeholder="VD: Giảm 15% tiền bàn, ưu tiên giữ bàn giờ cao điểm, tủ để cơ riêng"
+              />
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900">
+              💡 <strong>Lưu ý nghiệp vụ:</strong> Mức giảm giá sẽ tự động được áp dụng tại máy thu ngân POS khi chọn hội viên đạt cấp bậc này và đồng bộ trên toàn hệ thống.
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

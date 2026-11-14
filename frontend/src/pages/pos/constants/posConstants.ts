@@ -41,6 +41,10 @@ export interface ClubPaymentSettings {
   bankName: string;
   bankAccountNo: string;
   bankAccountName: string;
+  wifiSSID?: string;
+  wifiPassword?: string;
+  printVietQROnBill?: boolean;
+  printClubLogoOnBill?: boolean;
 }
 
 export const getClubPaymentSettings = (): ClubPaymentSettings => {
@@ -52,10 +56,14 @@ export const getClubPaymentSettings = (): ClubPaymentSettings => {
         clubName: parsed.clubName || "CueZone Billiards Club",
         address: parsed.address || "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
         hotline: parsed.hotline || parsed.phone || "0908 888 999",
-        bankCode: parsed.bankCode || "MB",
-        bankName: parsed.bankName || "MB Bank (Ngân hàng TMCP Quân Đội)",
-        bankAccountNo: parsed.bankAccountNo || "0908888999",
-        bankAccountName: parsed.bankAccountName || "CLB BIDA CUEZONE - NGUYEN HAI LONG",
+        bankCode: parsed.bankCode || "TPB",
+        bankName: parsed.bankName || "TPBank (Ngân hàng TMCP Tiên Phong)",
+        bankAccountNo: parsed.bankAccountNo || "0975685609",
+        bankAccountName: parsed.bankAccountName || "NGUYEN QUANG HUY",
+        wifiSSID: parsed.wifiSSID || "CueZone_5G_VIP",
+        wifiPassword: parsed.wifiPassword || "cuezone8888",
+        printVietQROnBill: parsed.printVietQROnBill ?? true,
+        printClubLogoOnBill: parsed.printClubLogoOnBill ?? true,
       };
     }
   } catch {
@@ -65,9 +73,13 @@ export const getClubPaymentSettings = (): ClubPaymentSettings => {
     clubName: "CueZone Billiards Club",
     address: "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
     hotline: "0908 888 999",
-    bankCode: "MB",
-    bankName: "MB Bank (Ngân hàng TMCP Quân Đội)",
-    bankAccountNo: "0908888999",
-    bankAccountName: "CLB BIDA CUEZONE - NGUYEN HAI LONG",
+    bankCode: "TPB",
+    bankName: "TPBank (Ngân hàng TMCP Tiên Phong)",
+    bankAccountNo: "0975685609",
+    bankAccountName: "NGUYEN QUANG HUY",
+    wifiSSID: "CueZone_5G_VIP",
+    wifiPassword: "cuezone8888",
+    printVietQROnBill: true,
+    printClubLogoOnBill: true,
   };
 };
