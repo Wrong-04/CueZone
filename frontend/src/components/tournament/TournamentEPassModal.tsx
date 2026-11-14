@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { isAxiosError } from "axios";
 import {
   TrophyOutlined,
   QrcodeOutlined,
@@ -59,8 +60,13 @@ function TournamentPassCard({
         const url = await QRCode.toDataURL(latest.ticket, { width: 220, margin: 1 });
         if (active) { setPass(latest); setQrSrc(url); }
       })
-      .catch(() => {
-        if (active) setError("Không thể tải vé hợp lệ. Vui lòng tải lại hoặc liên hệ ban tổ chức.");
+      .catch((error: unknown) => {
+        const reason = isAxiosError(error)
+          ? error.response?.data?.message
+          : error instanceof Error ? error.message : undefined;
+        if (active) setError(typeof reason === "string" && reason.trim()
+          ? reason
+          : "Không thể tải vé hợp lệ. Vui lòng tải lại hoặc liên hệ ban tổ chức.");
       });
     return () => { active = false; };
   }, [initialData.tournamentId, revision]);

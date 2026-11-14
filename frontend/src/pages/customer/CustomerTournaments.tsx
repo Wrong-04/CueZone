@@ -248,6 +248,10 @@ const CustomerTournaments = () => {
   const [viewingEPass, setViewingEPass] = useState<TournamentEPassData | null>(null);
   const openPayment = (tournament: TournamentItem) => {
     if (!user) { navigate("/login"); return; }
+    if (tournament.status === "finished") {
+      setActiveMainTab("history");
+      return;
+    }
     setRegisteringTourney(tournament);
   };
   const loadTournaments = useCallback(async () => {
@@ -599,7 +603,7 @@ const CustomerTournaments = () => {
                           onClick={() => openPayment(tourney)}
                           className="!text-xs !rounded-xl"
                         >
-                          <CheckCircleOutlined /> Đã tham gia · Xem chi tiết
+                          <CheckCircleOutlined /> {tourney.status === "finished" ? "Xem kết quả & lịch sử" : "Đã tham gia · Xem chi tiết"}
                         </Button>
                       ) : tourney.status === "open" && !tourney.isFull ? (
                         <Button
@@ -796,7 +800,7 @@ const CustomerTournaments = () => {
                             </span>
                           </div>
 
-                          {item.feePaid && (
+                          {item.feePaid && item.status !== "completed" && (
                             <div className="pt-2 border-t border-slate-200/60 flex justify-end">
                               <Button
                                 variant="outline"
