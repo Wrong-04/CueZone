@@ -38,7 +38,13 @@ import { tableAdminService, pricingAdminService } from "../../services/pos.servi
 
 const { Title, Text } = Typography;
 
-const QUICK_PRICE_PRESETS = [40000, 50000, 60000, 70000, 80000, 100000, 120000];
+const TIME_OPTIONS = Array.from({ length: 49 }, (_, i) => {
+  const totalMinutes = i * 30;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  return { value: timeStr, label: timeStr };
+});
 
 export function getTableTypeLabel(type: TableType | string): string {
   if (type === "carom") return "Bàn Bida Carom (Phăng)";
@@ -124,7 +130,7 @@ export function formatDaysOfWeek(tier: PricingTier): string {
   ) {
     return "Áp dụng: Thứ 2 đến Thứ 6 hàng tuần";
   }
-  return "Áp dụng: Theo lịch cấu hình";
+  return "Áp dụng: Theo lịch";
 }
 
 export const TablesManagementPage: React.FC = () => {
@@ -359,7 +365,7 @@ export const TablesManagementPage: React.FC = () => {
       if (typeof t.floor === "number" && !isNaN(t.floor)) set.add(t.floor);
     });
     const arr = Array.from(set).sort((a, b) => a - b);
-    return arr.length > 0 ? arr : [1, 2];
+    return arr;
   }, [tables]);
 
   const distinctAreas = useMemo(() => {
@@ -474,9 +480,21 @@ export const TablesManagementPage: React.FC = () => {
     setTableName(`Bàn ${tables.length + 1 < 10 ? "0" + (tables.length + 1) : tables.length + 1}`);
     setTableType("pool");
     setTableFloor(distinctFloors[0] ?? 1);
-    setTableArea(distinctAreas[0] ?? "Khu Tiêu Chuẩn");
-    setTablePrice(50000);
+    setTableArea("Phổ thông");
+    setTablePrice(activePricingTier?.prices.standard || 60000);
     setTableModalVisible(true);
+  };
+
+  const handleSelectArea = (areaValue: string) => {
+    setTableArea(areaValue);
+    // Tự động nhảy giá theo khu vực tương ứng
+    if (areaValue === "Phổ thông") {
+      setTablePrice(activePricingTier?.prices.standard || 60000);
+    } else if (areaValue === "Khu VIP") {
+      setTablePrice(activePricingTier?.prices.vip || 120000);
+    } else if (areaValue === "Thi đấu") {
+      setTablePrice(activePricingTier?.prices.match || 100000);
+    }
   };
 
   const handleOpenEditTable = (table: BilliardTable) => {
@@ -511,7 +529,7 @@ export const TablesManagementPage: React.FC = () => {
           floor: Number(tableFloor),
           pricePerHour: Number(tablePrice),
         });
-        message.success(`Đã cập nhật thông số ${tableName} thành công!`);
+        message.success(`Đã lưu bàn ${tableName}!`);
       } else {
         await tableAdminService.create({
           code: tableCode.trim(),
@@ -521,7 +539,7 @@ export const TablesManagementPage: React.FC = () => {
           floor: Number(tableFloor),
           pricePerHour: Number(tablePrice),
         });
-        message.success(`Đã thêm ${tableName} vào danh mục bàn thành công!`);
+        message.success(`Đã thêm bàn ${tableName}!`);
       }
       setTableModalVisible(false);
       await loadData();
@@ -545,9 +563,9 @@ export const TablesManagementPage: React.FC = () => {
     try {
       await tableAdminService.updateStatus(table._id, nextStatus);
       if (!isMaintenance) {
-        message.info(`Đã chuyển ${table.name} sang chế độ bảo trì nỉ!`);
+        message.info(`Đã chuyển ${table.name} sang bảo trì!`);
       } else {
-        message.success(`Đã hoàn tất bảo trì, ${table.name} sẵn sàng hoạt động!`);
+        message.success(`${table.name} sẵn sàng hoạt động!`);
       }
       await loadData();
     } catch (err: any) {
@@ -590,7 +608,7 @@ export const TablesManagementPage: React.FC = () => {
     const isCurrentlyRunning = tier._id === activePricingTier?._id;
     if (isCurrentlyRunning && tier.isActive !== false) {
       message.warning(
-        "Khung giờ này đang áp dụng tính tiền trực tiếp cho khách, không thể tạm ngưng!",
+        "Khung giờ này đang dùng cho bàn đang chơi, không thể tạm ngưng!",
       );
       return;
     }
@@ -599,9 +617,9 @@ export const TablesManagementPage: React.FC = () => {
     try {
       await pricingAdminService.update(tier._id, { isActive: newActiveState });
       if (newActiveState) {
-        message.success(`Đã kích hoạt "${tier.name}" tham gia lịch tính tiền tự động!`);
+        message.success(`Đã bật khung giờ "${tier.name}"!`);
       } else {
-        message.info(`Đã tạm ngưng "${tier.name}" khỏi lịch tính tiền!`);
+        message.info(`Đã tạm ngưng khung giờ "${tier.name}"!`);
       }
       await loadData();
     } catch (err: any) {
@@ -616,6 +634,22 @@ export const TablesManagementPage: React.FC = () => {
   const handleSavePricing = async () => {
     if (!pricingName.trim()) {
       message.warning("Vui lòng nhập tên khung giờ!");
+      return;
+    }
+
+    if (editingPricing && editingPricing._id === activePricingTier?._id) {
+      message.warning("Khung giờ đang dùng cho bàn đang chơi, không thể sửa!");
+      return;
+    }
+
+    const timeRegex = /^([01]?[0-9]|2[0-4]):[0-5][0-9]$/;
+    if (!timeRegex.test(pricingStartTime.trim()) || !timeRegex.test(pricingEndTime.trim())) {
+      message.warning("Vui lòng chọn giờ theo định dạng HH:mm (VD: 08:00, 24:00)");
+      return;
+    }
+
+    if (pricingStandardPrice <= 0 || pricingVipPrice <= 0 || pricingMatchPrice <= 0) {
+      message.warning("Vui lòng nhập đơn giá giờ chơi lớn hơn 0 cho tất cả các khu vực!");
       return;
     }
 
@@ -642,7 +676,7 @@ export const TablesManagementPage: React.FC = () => {
             match: Number(pricingMatchPrice),
           },
         });
-        message.success(`Đã cập nhật biểu giá khung giờ "${pricingName}"!`);
+        message.success(`Đã lưu khung giờ "${pricingName}"!`);
       } else {
         await pricingAdminService.create({
           name: pricingName.trim(),
@@ -657,7 +691,7 @@ export const TablesManagementPage: React.FC = () => {
             match: Number(pricingMatchPrice),
           },
         });
-        message.success(`Đã thêm khung giờ "${pricingName}" vào hệ thống!`);
+        message.success(`Đã thêm khung giờ "${pricingName}"!`);
       }
       setPricingModalVisible(false);
       await loadData();
@@ -673,7 +707,7 @@ export const TablesManagementPage: React.FC = () => {
     if (!deleteTarget) return;
 
     if (deleteTarget.type === "pricing" && deleteTarget.id === activePricingTier?._id) {
-      message.warning("Khung giờ đang áp dụng tính tiền trực tiếp cho khách, không thể xóa!");
+      message.warning("Khung giờ đang dùng cho bàn đang chơi, không thể xóa!");
       setDeleteConfirmVisible(false);
       return;
     }
@@ -832,8 +866,8 @@ export const TablesManagementPage: React.FC = () => {
             <Tooltip
               title={
                 isLocked
-                  ? "Bàn đang có khách chơi hoặc đã đặt, không thể sửa thông số"
-                  : "Chỉnh sửa thông số bàn"
+                  ? "Bàn đang có khách hoặc đã đặt, không thể sửa"
+                  : "Sửa thông tin bàn"
               }
             >
               <span className={isLocked ? "inline-block cursor-not-allowed" : ""}>
@@ -886,8 +920,8 @@ export const TablesManagementPage: React.FC = () => {
             <Tooltip
               title={
                 isLocked
-                  ? "Không thể xóa khi bàn đang có khách chơi hoặc đã đặt trước"
-                  : "Xóa bàn khỏi hệ thống"
+                  ? "Bàn đang có khách chơi hoặc đã đặt, không thể xóa"
+                  : "Xóa bàn"
               }
             >
               <span className={isLocked ? "inline-block cursor-not-allowed" : ""}>
@@ -1168,10 +1202,10 @@ export const TablesManagementPage: React.FC = () => {
                       }`}
                     >
                       <UnorderedListOutlined className="text-xs" />
-                      <span>Bảng</span>
+                      <span>Dạng bảng</span>
                     </button>
                   </Tooltip>
-                  <Tooltip title="Xem dạng thẻ sàn">
+                  <Tooltip title="Xem dạng sơ đồ sàn">
                     <button
                       type="button"
                       onClick={() => setViewMode("grid")}
@@ -1182,7 +1216,7 @@ export const TablesManagementPage: React.FC = () => {
                       }`}
                     >
                       <AppstoreOutlined className="text-xs" />
-                      <span>Thẻ Sàn</span>
+                      <span>Sơ đồ sàn</span>
                     </button>
                   </Tooltip>
                 </div>
@@ -1357,8 +1391,8 @@ export const TablesManagementPage: React.FC = () => {
                               <Tooltip
                                 title={
                                   isLocked
-                                    ? "Bàn đang có khách chơi hoặc đã đặt, không thể sửa thông số"
-                                    : "Chỉnh sửa thông số bàn"
+                                    ? "Bàn đang có khách hoặc đã đặt, không thể sửa"
+                                    : "Sửa thông tin bàn"
                                 }
                               >
                                 <span className={`flex-1 ${isLocked ? "inline-block cursor-not-allowed" : ""}`}>
@@ -1411,8 +1445,8 @@ export const TablesManagementPage: React.FC = () => {
                               <Tooltip
                                 title={
                                   isLocked
-                                    ? "Không thể xóa khi bàn đang có khách chơi hoặc đã đặt trước"
-                                    : "Xóa bàn khỏi hệ thống"
+                                    ? "Bàn đang có khách chơi hoặc đã đặt, không thể xóa"
+                                    : "Xóa bàn"
                                 }
                               >
                                 <span className={isLocked ? "inline-block cursor-not-allowed" : ""}>
@@ -1489,7 +1523,7 @@ export const TablesManagementPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5">
                   <ClockCircleOutlined className="text-emerald-600" />
-                  Sơ Đồ Phân Bổ 24 Giờ Trong Ngày (Dữ Liệu Thực Tế)
+                  Lịch Khung Giờ Trong Ngày (24h)
                 </span>
                 <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-[11px]">
                   <button
@@ -1550,7 +1584,7 @@ export const TablesManagementPage: React.FC = () => {
               {timelineSegments.map((seg, idx) => (
                 <Tooltip
                   key={idx}
-                  title={`${seg.name}: ${seg.startTime} – ${seg.endTime} (${seg.isFallback ? "Tính theo đơn giá chuẩn bàn" : "Áp dụng biểu giá khung giờ"})`}
+                  title={`${seg.name}: ${seg.startTime} – ${seg.endTime}`}
                 >
                   <div
                     style={{ width: `${seg.widthPercent}%` }}
@@ -1661,40 +1695,31 @@ export const TablesManagementPage: React.FC = () => {
 
                   <div className="p-4 space-y-3">
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                      <div className="py-2.5 px-2 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-center">
                         <span className="text-[11px] text-slate-700 font-bold block mb-1">
-                          Bàn Tiêu Chuẩn
+                          Khu Phổ Thông
                         </span>
                         <strong className="text-sm font-black text-slate-900 font-mono">
                           {tier.prices.standard.toLocaleString("vi-VN")}đ
                         </strong>
-                        <span className="text-[10px] text-slate-400 block mt-0.5">
-                          Khu thường (Pool / Carom)
-                        </span>
                       </div>
 
-                      <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80">
+                      <div className="py-2.5 px-2 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col justify-center">
                         <span className="text-[11px] text-amber-900 font-bold block mb-1">
-                          Bàn Khu VIP
+                          Khu VIP
                         </span>
                         <strong className="text-sm font-black text-amber-900 font-mono">
                           {tier.prices.vip.toLocaleString("vi-VN")}đ
                         </strong>
-                        <span className="text-[10px] text-amber-700/80 block mt-0.5">
-                          Pool VIP / Carom VIP
-                        </span>
                       </div>
 
-                      <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200/80">
+                      <div className="py-2.5 px-2 rounded-xl bg-purple-50/70 border border-purple-200/80 flex flex-col justify-center">
                         <span className="text-[11px] text-purple-900 font-bold block mb-1">
-                          Bàn Thi Đấu / Snooker
+                          Khu Thi Đấu
                         </span>
                         <strong className="text-sm font-black text-purple-900 font-mono">
                           {(tier.prices.match ?? tier.prices.vip + 10000).toLocaleString("vi-VN")}đ
                         </strong>
-                        <span className="text-[10px] text-purple-700/80 block mt-0.5">
-                          Bàn Match / 12FT
-                        </span>
                       </div>
                     </div>
 
@@ -1702,22 +1727,37 @@ export const TablesManagementPage: React.FC = () => {
                       <span className="text-slate-500">{formatDaysOfWeek(tier)}</span>
 
                       <Space size={6}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenEditPricing(tier)}
-                          leftIcon={<EditOutlined />}
-                          className="!h-7 !px-2.5 !rounded-lg !text-xs !border-slate-300 hover:!border-emerald-600"
-                        >
-                          Sửa Giá
-                        </Button>
                         <Tooltip
                           title={
                             isTierActive
-                              ? "Khung giờ đang áp dụng tính tiền trực tiếp cho khách, không thể tạm ngưng"
+                              ? "Khung giờ đang dùng cho bàn đang chơi, không thể sửa"
+                              : "Sửa khung giờ và giá"
+                          }
+                        >
+                          <span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={isTierActive}
+                              onClick={() => handleOpenEditPricing(tier)}
+                              leftIcon={<EditOutlined />}
+                              className={`!h-7 !px-2.5 !rounded-lg !text-xs !border-slate-300 ${
+                                isTierActive
+                                  ? "!opacity-50 !cursor-not-allowed !bg-slate-100 !border-slate-200 !text-slate-400"
+                                  : "hover:!border-emerald-600"
+                              }`}
+                            >
+                              Sửa Giá
+                            </Button>
+                          </span>
+                        </Tooltip>
+                        <Tooltip
+                          title={
+                            isTierActive
+                              ? "Khung giờ đang dùng cho bàn đang chơi, không thể tạm ngưng"
                               : isPaused
-                                ? "Kích hoạt lại khung giờ này vào lịch tính tiền tự động"
-                                : "Tạm ngưng khung giờ này (sẽ bỏ qua khi tính tiền)"
+                                ? "Bật lại khung giờ này"
+                                : "Tạm ngưng khung giờ này"
                           }
                         >
                           <span>
@@ -1750,8 +1790,8 @@ export const TablesManagementPage: React.FC = () => {
                         <Tooltip
                           title={
                             isTierActive
-                              ? "Khung giờ đang áp dụng tính tiền cho khách, không thể xóa"
-                              : "Xóa khung giờ khỏi danh mục"
+                              ? "Khung giờ đang dùng cho bàn đang chơi, không thể xóa"
+                              : "Xóa khung giờ"
                           }
                         >
                           <span>
@@ -1794,14 +1834,12 @@ export const TablesManagementPage: React.FC = () => {
         footer={null}
         width={540}
         title={
-          <Space align="center" size={10}>
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-              <AppstoreOutlined className="text-base" />
-            </div>
-            <span className="font-bold text-slate-900 text-base">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <AppstoreOutlined className="text-emerald-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">
               {editingTable ? `Chỉnh Sửa ${editingTable.name}` : "Thêm Bàn Bida Mới"}
             </span>
-          </Space>
+          </div>
         }
       >
         <div className="py-2 space-y-3.5 text-xs">
@@ -1832,7 +1870,7 @@ export const TablesManagementPage: React.FC = () => {
               <Select
                 value={tableType}
                 onChange={(val) => setTableType(val as TableType)}
-                className="!w-full !rounded-xl"
+                className="!w-full !rounded-xl !h-9"
                 options={[
                   { value: "pool", label: "Bàn Bida Lỗ (Pool)" },
                   { value: "carom", label: "Bàn Bida Carom (Phăng)" },
@@ -1846,7 +1884,7 @@ export const TablesManagementPage: React.FC = () => {
               <Select
                 value={tableFloor}
                 onChange={(val) => setTableFloor(Number(val))}
-                className="!w-full !rounded-xl"
+                className="!w-full !rounded-xl !h-9"
                 options={[
                   ...distinctFloors.map((f) => ({
                     value: f,
@@ -1865,59 +1903,34 @@ export const TablesManagementPage: React.FC = () => {
 
           <div>
             <label className="block text-slate-700 font-semibold mb-1">Khu vực đặt bàn:</label>
-            <Input
-              placeholder="VD: Khu VIP, Tầng 1 - Khu A, Khu Hút Thuốc..."
+            <Select
               value={tableArea}
-              onChange={(e) => setTableArea(e.target.value)}
-              className="!h-9 !rounded-xl"
+              onChange={handleSelectArea}
+              className="!w-full !rounded-xl !h-9"
+              options={[
+                { value: "Phổ thông", label: "Khu Phổ Thông" },
+                { value: "Khu VIP", label: "Khu VIP" },
+                { value: "Thi đấu", label: "Khu Thi Đấu" },
+              ]}
             />
-            {distinctAreas.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                <span className="text-[10.5px] text-slate-400 mr-1">Gợi ý nhanh:</span>
-                {distinctAreas.slice(0, 6).map((area) => (
-                  <button
-                    key={area}
-                    type="button"
-                    onClick={() => setTableArea(area)}
-                    className="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 border border-slate-200 transition-colors"
-                  >
-                    {area}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
-          <div>
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
             <div className="flex items-center justify-between mb-1">
-              <label className="text-slate-700 font-semibold">Giá giờ chuẩn (VNĐ/h):</label>
-              <span className="text-[11px] text-slate-400">Chọn nhanh mức giá:</span>
+              <span className="text-slate-700 font-semibold">Đơn giá giờ chơi:</span>
+              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                Cố định theo {tableArea || "Khu vực"}
+              </span>
             </div>
-            <InputNumber
-              min={0}
-              step={500}
-              value={tablePrice}
-              onChange={(val) => setTablePrice(Number(val) || 0)}
-              formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-              parser={(val) => Number(val?.replace(/\$\s?|(,*)/g, "") || 0)}
-              className="!w-full !h-9 !rounded-xl font-mono text-emerald-800 font-bold mb-2"
-            />
-            <div className="flex flex-wrap items-center gap-1.5">
-              {QUICK_PRICE_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setTablePrice(preset)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all ${
-                    tablePrice === preset
-                      ? "bg-emerald-600 text-white shadow-2xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {(preset / 1000).toFixed(0)}k
-                </button>
-              ))}
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-xl font-black font-mono text-emerald-700">
+                {tablePrice.toLocaleString("vi-VN")}đ
+              </span>
+              <span className="text-xs text-slate-500 font-medium">/ giờ</span>
             </div>
+            <p className="text-[11px] text-slate-400 mt-2 mb-0 leading-relaxed">
+              * Giá giờ cố định theo Khu vực. Bạn có thể đổi giá tại tab <strong>Bảng Giá Theo Khung Giờ</strong>.
+            </p>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -1946,16 +1959,14 @@ export const TablesManagementPage: React.FC = () => {
         open={pricingModalVisible}
         onCancel={() => setPricingModalVisible(false)}
         footer={null}
-        width={620}
+        width={580}
         title={
-          <Space align="center" size={10}>
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-              <ClockCircleOutlined className="text-base" />
-            </div>
-            <span className="font-bold text-slate-900 text-base">
-              {editingPricing ? `Cập Nhật ${editingPricing.name}` : "Thêm Khung Giờ Mới"}
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <ClockCircleOutlined className="text-emerald-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">
+              {editingPricing ? `Cập Nhật Khung Giờ` : "Thêm Khung Giờ Mới"}
             </span>
-          </Space>
+          </div>
         }
       >
         <div className="py-2 space-y-3.5 text-xs">
@@ -1969,13 +1980,13 @@ export const TablesManagementPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-700 font-semibold mb-1">Ngày áp dụng:</label>
               <Select
                 value={pricingDayType}
                 onChange={(val) => setPricingDayType(val)}
-                className="!w-full !rounded-xl"
+                className="!w-full !rounded-xl !h-9"
                 options={[
                   { value: "all", label: "Cả tuần (T2–CN)" },
                   { value: "weekday", label: "Ngày thường (T2–T6)" },
@@ -1984,29 +1995,11 @@ export const TablesManagementPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Từ giờ:</label>
-              <Input
-                placeholder="08:00"
-                value={pricingStartTime}
-                onChange={(e) => setPricingStartTime(e.target.value)}
-                className="!h-9 !rounded-xl font-mono text-center"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1">Đến giờ:</label>
-              <Input
-                placeholder="17:00"
-                value={pricingEndTime}
-                onChange={(e) => setPricingEndTime(e.target.value)}
-                className="!h-9 !rounded-xl font-mono text-center"
-              />
-            </div>
-            <div>
               <label className="block text-slate-700 font-semibold mb-1">Trạng thái:</label>
               <Select
                 value={pricingIsActive ? "active" : "inactive"}
                 onChange={(val) => setPricingIsActive(val === "active")}
-                className="!w-full !rounded-xl"
+                className="!w-full !rounded-xl !h-9"
                 options={[
                   { value: "active", label: "Hoạt Động" },
                   { value: "inactive", label: "Tạm Ngưng" },
@@ -2015,10 +2008,35 @@ export const TablesManagementPage: React.FC = () => {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Từ giờ:</label>
+              <Select
+                showSearch
+                value={pricingStartTime}
+                onChange={(val) => setPricingStartTime(val)}
+                className="!w-full !rounded-xl !h-9 font-mono"
+                options={TIME_OPTIONS}
+                placeholder="Chọn giờ bắt đầu"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Đến giờ:</label>
+              <Select
+                showSearch
+                value={pricingEndTime}
+                onChange={(val) => setPricingEndTime(val)}
+                className="!w-full !rounded-xl !h-9 font-mono"
+                options={TIME_OPTIONS}
+                placeholder="Chọn giờ kết thúc"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
-                Bàn Tiêu Chuẩn (đ/h):
+                Khu Phổ Thông (đ/h):
               </label>
               <InputNumber
                 min={0}
@@ -2032,7 +2050,7 @@ export const TablesManagementPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
-                Bàn Khu VIP (đ/h):
+                Khu VIP (đ/h):
               </label>
               <InputNumber
                 min={0}
@@ -2046,7 +2064,7 @@ export const TablesManagementPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-slate-700 font-semibold mb-1 text-xs whitespace-nowrap">
-                Bàn Thi Đấu / Snooker (đ/h):
+                Khu Thi Đấu (đ/h):
               </label>
               <InputNumber
                 min={0}
@@ -2063,8 +2081,7 @@ export const TablesManagementPage: React.FC = () => {
           <div className="p-2.5 rounded-xl bg-blue-50/80 border border-blue-200/80 text-[11px] text-blue-800 flex items-start gap-2">
             <InfoCircleOutlined className="text-blue-600 mt-0.5 shrink-0" />
             <span>
-              <strong>Lưu ý nghiệp vụ:</strong> Mức giá mới sẽ áp dụng cho các lượt mở bàn tiếp theo.
-              Các bàn đang có khách chơi vẫn được giữ nguyên đơn giá niêm yết tại thời điểm mở bàn.
+              <strong>Lưu ý:</strong> Giá mới áp dụng cho các lượt chơi tiếp theo, không đổi giá bàn đang chơi.
             </span>
           </div>
 

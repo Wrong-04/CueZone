@@ -9,6 +9,7 @@ export interface IInvoice extends Document {
   cancelledAt?: Date;
   cancelledBy?: Types.ObjectId;
   cancelReason?: string;
+  isRestocked?: boolean;
 
   receipt: Record<string, any>;
 
@@ -34,6 +35,7 @@ const invoiceSchema = new Schema<IInvoice>(
     cancelledAt: { type: Date },
     cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
     cancelReason: { type: String, trim: true },
+    isRestocked: { type: Boolean, default: false },
 
     receipt: { type: Schema.Types.Mixed, required: true },
   },

@@ -419,8 +419,8 @@ export const tableAdminService = {
       pricePerHour: t.pricePerHour,
       status: t.status,
       isActive: t.isActive !== false,
-      createdAt: t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : "2026-01-01",
-      updatedAt: t.updatedAt ? new Date(t.updatedAt).toISOString().split("T")[0] : "2026-01-01",
+      createdAt: t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : "",
+      updatedAt: t.updatedAt ? new Date(t.updatedAt).toISOString().split("T")[0] : "",
     }));
   },
   async create(table: Partial<BilliardTable>): Promise<any> {
@@ -451,11 +451,11 @@ export const pricingAdminService = {
       startTime: p.startTime,
       endTime: p.endTime,
       daysOfWeek: p.daysOfWeek || [1, 2, 3, 4, 5],
-      prices: p.prices || { standard: 60000, vip: 80000, match: 100000 },
+      prices: p.prices || { standard: 0, vip: 0, match: 0 },
       isActive: p.isActive !== false,
       isCurrentlyActive: p.isCurrentlyActive || false,
-      createdAt: p.createdAt ? new Date(p.createdAt).toISOString().split("T")[0] : "2026-01-01",
-      updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString().split("T")[0] : "2026-01-01",
+      createdAt: p.createdAt ? new Date(p.createdAt).toISOString().split("T")[0] : "",
+      updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString().split("T")[0] : "",
     }));
   },
   async create(tier: Partial<PricingTier>): Promise<any> {

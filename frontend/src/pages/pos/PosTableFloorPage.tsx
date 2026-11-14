@@ -69,6 +69,7 @@ export const PosTableFloorPage: React.FC = () => {
   }, []);
 
   // Filter states
+  const [filterFloor, setFilterFloor] = useState<string>("all");
   const [filterArea, setFilterArea] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -476,6 +477,27 @@ export const PosTableFloorPage: React.FC = () => {
     };
   }, [tables, calculatePlayingDetails, getBookingUpcomingMinutes, getBookingOverdueMinutes]);
 
+  // Dynamic Floor Options (Derives directly from actual table data)
+  const floorOptions = useMemo(() => {
+    const floorMap: Record<number, number> = {};
+    tables.forEach((t) => {
+      const fl = typeof t.floor === "number" && !isNaN(t.floor) ? t.floor : 1;
+      floorMap[fl] = (floorMap[fl] || 0) + 1;
+    });
+
+    const list = [{ value: "all", label: `Tất cả tầng (${tables.length})` }];
+    Object.keys(floorMap)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .forEach((fl) => {
+        list.push({
+          value: String(fl),
+          label: `Tầng ${fl} (${floorMap[fl]})`,
+        });
+      });
+    return list;
+  }, [tables]);
+
   // Dynamic Area Options (Derives directly from actual table data)
   const areaOptions = useMemo(() => {
     const areaMap: Record<string, number> = {};
@@ -539,10 +561,22 @@ export const PosTableFloorPage: React.FC = () => {
   const getTableOptionsForGuest = useCallback(
     (preferredType: string) => {
       if (availableTables.length === 0) return [];
-      const matching = availableTables.filter(
-        (t) => t.typeName === preferredType || !preferredType,
-      );
-      const others = availableTables.filter((t) => t.typeName !== preferredType && preferredType);
+      const isMatch = (t: PosTable) => {
+        if (!preferredType) return true;
+        const pLower = preferredType.toLowerCase();
+        if (t.typeName?.toLowerCase() === pLower) return true;
+        if (pLower.includes("vip") && (t.area?.toLowerCase().includes("vip") || t.name.toLowerCase().includes("vip"))) return true;
+        if (pLower.includes("thi đấu") && (t.area?.toLowerCase().includes("thi đấu") || t.name.toLowerCase().includes("thi đấu"))) return true;
+        return false;
+      };
+
+      const matching = availableTables.filter(isMatch);
+      const others = availableTables.filter((t) => !isMatch(t));
+
+      const formatTableLabel = (t: PosTable) => {
+        const shortType = t.type === "snooker" ? "Snooker" : t.type === "carom" ? "Carom" : "Pool";
+        return `${t.name} • ${t.area || "Phổ thông"} (${shortType} ${(t.pricePerHour / 1000).toFixed(0)}k/h)`;
+      };
 
       const groups: Array<{ label: string; options: Array<{ value: string; label: string }> }> = [];
       if (matching.length > 0) {
@@ -550,7 +584,7 @@ export const PosTableFloorPage: React.FC = () => {
           label: `⭐ Phù hợp nhất (${matching.length} bàn)`,
           options: matching.map((t) => ({
             value: t.id,
-            label: `${t.name} (${t.typeName}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h`,
+            label: formatTableLabel(t),
           })),
         });
       }
@@ -559,7 +593,7 @@ export const PosTableFloorPage: React.FC = () => {
           label: `Bàn loại khác (${others.length} bàn)`,
           options: others.map((t) => ({
             value: t.id,
-            label: `${t.name} (${t.typeName}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h`,
+            label: formatTableLabel(t),
           })),
         });
       }
@@ -571,6 +605,7 @@ export const PosTableFloorPage: React.FC = () => {
   // Filtered tables
   const filteredTables = useMemo(() => {
     return tables.filter((table) => {
+      if (filterFloor !== "all" && String(table.floor ?? 1) !== String(filterFloor)) return false;
       if (filterArea !== "all" && table.area !== filterArea) return false;
       if (filterType !== "all" && table.type !== filterType) return false;
 
@@ -596,6 +631,7 @@ export const PosTableFloorPage: React.FC = () => {
     });
   }, [
     tables,
+    filterFloor,
     filterArea,
     filterType,
     filterStatus,
@@ -635,6 +671,9 @@ export const PosTableFloorPage: React.FC = () => {
         loading={loading}
         saving={saving}
         onReload={() => loadTables()}
+        filterFloor={filterFloor}
+        setFilterFloor={setFilterFloor}
+        floorOptions={floorOptions}
         filterStatus={filterStatus}
         setFilterStatus={setFilterStatus}
         statusPillItems={statusPillItems}
@@ -699,6 +738,7 @@ export const PosTableFloorPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => {
+                setFilterFloor("all");
                 setFilterArea("all");
                 setFilterType("all");
                 setFilterStatus("all");

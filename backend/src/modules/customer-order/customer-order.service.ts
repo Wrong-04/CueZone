@@ -171,8 +171,11 @@ export class CustomerOrderService {
   }
 
   async getQueue() {
+    // Chỉ lấy đơn tác nghiệp trong vòng 24 giờ gần nhất để tránh các đơn tồn đọng từ ca/ngày cũ làm phiền thu ngân
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     return CustomerOrder.find({
       status: { $in: [CustomerOrderStatus.PENDING, CustomerOrderStatus.PREPARING, CustomerOrderStatus.READY] },
+      createdAt: { $gte: since24h },
     }).sort({ createdAt: 1 });
   }
 
@@ -193,8 +196,12 @@ export class CustomerOrderService {
       const currentStatus = current.status as CustomerOrderStatus;
       const allowed: Record<CustomerOrderStatus, CustomerOrderStatus[]> = {
         [CustomerOrderStatus.PENDING]: [CustomerOrderStatus.PREPARING, CustomerOrderStatus.REJECTED],
-        [CustomerOrderStatus.PREPARING]: [CustomerOrderStatus.READY],
-        [CustomerOrderStatus.READY]: [CustomerOrderStatus.SERVED],
+        [CustomerOrderStatus.PREPARING]: [
+          CustomerOrderStatus.READY,
+          CustomerOrderStatus.SERVED,
+          CustomerOrderStatus.REJECTED,
+        ],
+        [CustomerOrderStatus.READY]: [CustomerOrderStatus.SERVED, CustomerOrderStatus.REJECTED],
         [CustomerOrderStatus.SERVED]: [],
         [CustomerOrderStatus.REJECTED]: [],
       };
@@ -253,6 +260,20 @@ export class CustomerOrderService {
           })),
         );
         await table.save({ session });
+      }
+
+      if (
+        currentStatus === CustomerOrderStatus.PREPARING &&
+        nextStatus === CustomerOrderStatus.REJECTED
+      ) {
+        const currentItems = current.items as ICustomerOrderItem[];
+        for (const item of currentItems) {
+          await Product.findByIdAndUpdate(
+            item.productId,
+            { $inc: { stock: item.quantity } },
+            { session },
+          );
+        }
       }
 
       current.status = nextStatus;

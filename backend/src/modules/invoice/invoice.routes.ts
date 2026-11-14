@@ -374,6 +374,17 @@ router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: 
       return res.status(400).json({ success: false, message: "Hóa đơn này đã được hủy trước đó" });
     }
 
+    // 4. Giới hạn thời gian: Chỉ được hủy hóa đơn trong vòng 24 giờ kể từ khi thanh toán
+    const invoiceCreatedAt = currentInvoice.createdAt ? new Date(currentInvoice.createdAt).getTime() : 0;
+    const invoiceAgeHours = (Date.now() - invoiceCreatedAt) / (1000 * 60 * 60);
+    if (invoiceAgeHours > 24) {
+      return res.status(400).json({
+        success: false,
+        message: "Hóa đơn đã quá hạn 24 giờ kể từ khi thanh toán. Không thể hủy hóa đơn của ngày trước để đảm bảo sổ sách kế toán.",
+      });
+    }
+
+    const restock = Boolean(req.body?.restock);
     const userId = (req as any).user?.userId;
 
     try {
@@ -393,6 +404,7 @@ router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: 
     currentInvoice.status = "cancelled";
     currentInvoice.cancelledAt = new Date();
     currentInvoice.cancelReason = reason;
+    currentInvoice.isRestocked = restock;
     if (userId && mongoose.isValidObjectId(userId)) {
       currentInvoice.cancelledBy = new mongoose.Types.ObjectId(userId);
     }
@@ -414,7 +426,8 @@ router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: 
       }
     }
 
-    // 2. Thu hồi điểm tích lũy & hoàn lại số dư ví nếu thanh toán bằng ví
+    // 2. [TẠM NGƯNG] Xử lý ví hội viên (Hệ thống không còn sử dụng ví hội viên - comment lại tránh nhầm lẫn)
+    /*
     const pointsAwarded = Number(currentInvoice.receipt?.pointsAwarded || currentInvoice.receipt?.earnedPoints) || 0;
     const memberId = currentInvoice.receipt?.memberId;
     const customerPhone = currentInvoice.receipt?.customerPhone;
@@ -444,6 +457,21 @@ router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: 
           wallet.balance = (wallet.balance || 0) + finalAmount;
         }
         await wallet.save(sessionOpts);
+      }
+    }
+    */
+
+    // 3. Hoàn lại tồn kho các mặt hàng F&B nếu người quản lý chọn hoàn kho (chỉ khi khách chưa khui/chưa dùng)
+    if (restock && Array.isArray(currentInvoice.receipt?.items)) {
+      for (const item of currentInvoice.receipt.items) {
+        const itemQty = Number(item.quantity || 1) - Number(item.cancelledQuantity || 0);
+        if (item.productId && mongoose.isValidObjectId(item.productId) && itemQty > 0) {
+          await Product.updateOne(
+            { _id: item.productId },
+            { $inc: { currentStock: itemQty } },
+            sessionOpts
+          );
+        }
       }
     }
 

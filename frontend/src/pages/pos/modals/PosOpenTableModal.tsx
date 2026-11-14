@@ -78,6 +78,12 @@ export const PosOpenTableModal: React.FC<PosOpenTableModalProps> = ({
             <strong className="font-bold text-slate-900">{selectedTable?.typeName}</strong>
           </div>
           <div className="flex justify-between">
+            <span>Vị trí:</span>
+            <strong className="font-semibold text-slate-700">
+              Tầng {selectedTable?.floor ?? 1} • {selectedTable?.area || "Khu vực chính"}
+            </strong>
+          </div>
+          <div className="flex justify-between">
             <span>Đơn giá giờ:</span>
             <strong className="font-bold text-emerald-700 font-mono">
               {selectedTable?.pricePerHour.toLocaleString("vi-VN")}đ / giờ

@@ -238,10 +238,15 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
         {/* Dòng 2: Loại bàn & Khu vực bên trái; Tác vụ nhanh Tạm dừng / Chuyển bàn bên phải */}
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div
-            className="text-[10.5px] text-slate-500 leading-tight truncate font-medium flex-1 min-w-0"
-            title={`${table.typeName} • ${table.area || "Khu chính"}`}
+            className="text-[10.5px] text-slate-500 leading-tight truncate font-medium flex-1 min-w-0 flex items-center gap-1.5"
+            title={`Tầng ${table.floor ?? 1} • ${table.typeName} • ${table.area || "Khu chính"}`}
           >
-            {table.typeName} • {table.area || "Khu chính"}
+            <span className="px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-700 font-bold border border-slate-300/80 text-[9.5px] shrink-0">
+              Tầng {table.floor ?? 1}
+            </span>
+            <span className="truncate">
+              {table.typeName} • {table.area || "Khu chính"}
+            </span>
           </div>
 
           {(isPlaying || isPaused) && (

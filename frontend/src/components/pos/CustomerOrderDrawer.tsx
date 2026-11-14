@@ -38,6 +38,20 @@ const statusConfig: Record<
   rejected: { label: "Đã từ chối", color: "error", tagBg: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
+function isAccessoryOrder(order: CustomerOrder): boolean {
+  if (!order.items || order.items.length === 0) return false;
+  const fnbKeywords = [
+    "nước", "trà", "cà phê", "cafe", "bia", "mì", "cơm", "bò", "gà",
+    "xúc xích", "khoai", "nem", "hướng dương", "bánh", "sting", "coca",
+    "pepsi", "redbull", "cam", "chanh", "khô bò", "khô gà", "lon", "chai",
+  ];
+  const hasFnb = order.items.some((item) => {
+    const name = item.name.toLowerCase();
+    return fnbKeywords.some((kw) => name.includes(kw));
+  });
+  return !hasFnb;
+}
+
 const rejectTemplates = [
   "Món tạm hết tồn kho",
   "Hết đá / Nguyên liệu pha chế",
@@ -201,15 +215,29 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
   ) => {
     setBusyOrderId(order._id);
     try {
-      await staffOrderService.updateStatus(order._id, nextStatus, reason);
+      try {
+        await staffOrderService.updateStatus(order._id, nextStatus, reason);
+      } catch (err: any) {
+        // Fallback: nếu order đang là preparing mà chuyển sang served, thử qua ready trước
+        if (order.status === "preparing" && nextStatus === "served") {
+          await staffOrderService.updateStatus(order._id, "ready");
+          await staffOrderService.updateStatus(order._id, "served");
+        } else {
+          throw err;
+        }
+      }
       message.success(
         nextStatus === "preparing"
           ? `Đã xác nhận đơn cho ${order.tableName}! Món đã được cộng vào hóa đơn bàn.`
           : nextStatus === "ready"
             ? `Đã báo xong món cho ${order.tableName}!`
             : nextStatus === "served"
-              ? `Đã hoàn tất phục vụ đơn của ${order.tableName}`
+              ? `Đã hoàn tất đơn của ${order.tableName}`
               : `Đã từ chối đơn của ${order.tableName}`,
+      );
+      // Cập nhật optimistic local state ngay lập tức để đơn biến mất khỏi danh sách chờ/đang làm
+      setOrders((prev) =>
+        prev.map((o) => (o._id === order._id ? { ...o, status: nextStatus } : o)),
       );
       await loadOrders(true);
     } catch (err: unknown) {
@@ -379,6 +407,20 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
                 const isReady = order.status === "ready";
                 const isBusy = busyOrderId === order._id;
                 const statusMeta = statusConfig[order.status] || statusConfig.pending;
+                const isAccessory = isAccessoryOrder(order);
+                const hoursOld = (Date.now() - new Date(order.createdAt).getTime()) / 3600000;
+                const isOldOrder = hoursOld > 24;
+
+                let customStatusLabel = statusMeta.label;
+                let customTagBg = statusMeta.tagBg;
+
+                if (isPreparing && isAccessory) {
+                  customStatusLabel = "Đang chuẩn bị đồ";
+                  customTagBg = "bg-purple-50 text-purple-700 border-purple-200";
+                } else if (isReady && isAccessory) {
+                  customStatusLabel = "Đã lấy đồ xong";
+                  customTagBg = "bg-emerald-50 text-emerald-800 border-emerald-300";
+                }
 
                 return (
                   <div
@@ -386,7 +428,9 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
                     className={`rounded-2xl border transition-all p-3.5 space-y-3 shadow-2xs ${
                       isPending
                         ? "bg-amber-50/40 border-amber-300 ring-1 ring-amber-200"
-                        : "bg-white border-slate-200"
+                        : isOldOrder
+                          ? "bg-slate-50/80 border-slate-300 opacity-90"
+                          : "bg-white border-slate-200"
                     }`}
                   >
                     {/* Header đơn */}
@@ -399,6 +443,11 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
                           <span className="text-[11px] font-mono font-bold text-slate-500">
                             #{order.orderCode}
                           </span>
+                          {isOldOrder && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                              Đơn cũ ({Math.floor(hoursOld / 24)} ngày trước)
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
                           <ClockCircleOutlined className="text-slate-400 text-[10px]" />
@@ -413,9 +462,9 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
                       </div>
 
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusMeta.tagBg}`}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${customTagBg}`}
                       >
-                        {statusMeta.label}
+                        {customStatusLabel}
                       </span>
                     </div>
 
@@ -460,18 +509,18 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <Tooltip title="In phiếu báo Bếp / Bar / Kho (80mm)">
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        <Tooltip title="In phiếu (80mm)">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handlePrintTicket(order)}
                             icon={<PrinterOutlined className="text-slate-600" />}
-                            className="!h-8 !w-8 !p-0 !rounded-xl !border-slate-300 hover:!bg-slate-100"
+                            className="!h-8 !w-8 !p-0 !rounded-xl !border-slate-300 hover:!bg-slate-100 shrink-0"
                           />
                         </Tooltip>
 
-                        {isPending && (
+                        {isOldOrder && !isPending ? (
                           <>
                             <Button
                               variant="outline"
@@ -482,47 +531,96 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
                                 setRejectModalOpen(true);
                               }}
                               leftIcon={<CloseOutlined className="text-rose-500" />}
-                              className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50"
+                              className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50 whitespace-nowrap shrink-0"
                             >
-                              Từ chối
+                              Hủy đơn
                             </Button>
                             <Button
                               variant="primary"
                               size="sm"
                               disabled={isBusy}
-                              onClick={() => void handleUpdateStatus(order, "preparing")}
+                              onClick={() => void handleUpdateStatus(order, "served")}
                               leftIcon={<CheckOutlined />}
-                              className="!h-8 !px-3 !rounded-xl text-xs font-bold !bg-emerald-600 hover:!bg-emerald-700 text-white shadow-2xs"
+                              className="!h-8 !px-3 !rounded-xl text-xs font-bold !bg-emerald-600 hover:!bg-emerald-700 text-white shadow-2xs whitespace-nowrap shrink-0"
                             >
-                              Xác nhận duyệt
+                              Đóng đơn cũ
                             </Button>
                           </>
-                        )}
+                        ) : (
+                          <>
+                            {isPending && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    setTargetRejectOrder(order);
+                                    setRejectModalOpen(true);
+                                  }}
+                                  leftIcon={<CloseOutlined className="text-rose-500" />}
+                                  className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50 whitespace-nowrap shrink-0"
+                                >
+                                  Từ chối
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  disabled={isBusy}
+                                  onClick={() => void handleUpdateStatus(order, "preparing")}
+                                  leftIcon={<CheckOutlined />}
+                                  className="!h-8 !px-3 !rounded-xl text-xs font-bold !bg-emerald-600 hover:!bg-emerald-700 text-white shadow-2xs whitespace-nowrap shrink-0"
+                                >
+                                  Xác nhận duyệt
+                                </Button>
+                              </>
+                            )}
 
-                        {isPreparing && (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            disabled={isBusy}
-                            onClick={() => void handleUpdateStatus(order, "ready")}
-                            leftIcon={<CheckOutlined />}
-                            className="!h-8 !px-3 !rounded-xl text-xs font-bold !bg-blue-600 hover:!bg-blue-700 text-white shadow-2xs"
-                          >
-                            Báo xong món
-                          </Button>
-                        )}
+                            {isPreparing && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={isBusy}
+                                  onClick={() => {
+                                    setTargetRejectOrder(order);
+                                    setRejectModalOpen(true);
+                                  }}
+                                  leftIcon={<CloseOutlined className="text-rose-500" />}
+                                  className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50 whitespace-nowrap shrink-0"
+                                >
+                                  Hủy
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  disabled={isBusy}
+                                  onClick={() => void handleUpdateStatus(order, isAccessory ? "served" : "ready")}
+                                  leftIcon={<CheckOutlined />}
+                                  className={`!h-8 !px-3 !rounded-xl text-xs font-bold text-white shadow-2xs whitespace-nowrap shrink-0 ${
+                                    isAccessory
+                                      ? "!bg-purple-600 hover:!bg-purple-700"
+                                      : "!bg-blue-600 hover:!bg-blue-700"
+                                  }`}
+                                >
+                                  {isAccessory ? "Đã giao tại bàn" : "Báo xong món"}
+                                </Button>
+                              </>
+                            )}
 
-                        {isReady && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={isBusy}
-                            onClick={() => void handleUpdateStatus(order, "served")}
-                            leftIcon={<CheckOutlined className="text-emerald-600" />}
-                            className="!h-8 !px-3 !rounded-xl text-xs font-bold !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50"
-                          >
-                            Đã phục vụ
-                          </Button>
+                            {isReady && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={isBusy}
+                                onClick={() => void handleUpdateStatus(order, "served")}
+                                leftIcon={<CheckOutlined className="text-emerald-600" />}
+                                className="!h-8 !px-3 !rounded-xl text-xs font-bold !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50 whitespace-nowrap shrink-0"
+                              >
+                                Đã phục vụ
+                              </Button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
