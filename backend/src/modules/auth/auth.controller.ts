@@ -75,6 +75,24 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
+export const uploadAvatar = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.userId) {
+      res.status(401).json({ success: false, message: "Không có thông tin xác thực" });
+      return;
+    }
+    if (!req.file || !req.file.buffer) {
+      res.status(400).json({ success: false, message: "Vui lòng chọn ảnh đại diện" });
+      return;
+    }
+    const result = await authService.uploadAvatar(user.userId, req.file.buffer);
+    res.json({ success: true, message: "Cập nhật ảnh đại diện thành công", data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || "Cập nhật ảnh đại diện thất bại" });
+  }
+};
+
 export const refreshToken = async (req: Request, res: Response) => {
   try {
     const tokens = await authService.refreshToken(req.body.refreshToken);

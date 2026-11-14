@@ -116,3 +116,35 @@ export const uploadNewsImage = (buffer: Buffer): Promise<UploadApiResponse> => {
     stream.end(buffer);
   });
 };
+
+export const uploadAvatarImage = (buffer: Buffer): Promise<UploadApiResponse> => {
+  const client = getCloudinaryClient();
+
+  return new Promise((resolve, reject) => {
+    const stream = client.uploader.upload_stream(
+      {
+        folder: "cuezone/avatars",
+        resource_type: "image",
+        allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        transformation: [
+          { width: 500, height: 500, crop: "fill", gravity: "face" },
+          { quality: "auto:good", fetch_format: "auto" },
+        ],
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!result) {
+          reject(new Error("Cloudinary không trả về kết quả tải ảnh đại diện"));
+          return;
+        }
+
+        resolve(result);
+      },
+    );
+
+    stream.end(buffer);
+  });
+};

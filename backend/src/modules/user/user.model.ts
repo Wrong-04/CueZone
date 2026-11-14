@@ -28,6 +28,15 @@ export interface IUser extends Document {
 
   avatar?: string;
 
+  bio?: string;
+
+  favoriteGame?: string;
+
+  notificationSettings?: {
+    bookingReminder?: boolean;
+    tournamentNews?: boolean;
+  };
+
   isActive: boolean;
 
   isLocked: boolean;
@@ -76,6 +85,15 @@ const userSchema = new Schema<IUser>(
     status: { type: String, default: null },
 
     avatar: { type: String },
+
+    bio: { type: String, trim: true, default: "" },
+
+    favoriteGame: { type: String, trim: true, default: "pool" },
+
+    notificationSettings: {
+      bookingReminder: { type: Boolean, default: true },
+      tournamentNews: { type: Boolean, default: true },
+    },
 
     isActive: { type: Boolean, default: true },
 

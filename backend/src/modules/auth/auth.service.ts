@@ -19,6 +19,7 @@ import {
   sendPasswordResetEmail,
   sendWelcomeRegistrationEmail,
 } from "./email.service";
+import { uploadAvatarImage } from "../../config/cloudinary.config";
 
 export interface TokenPayload {
   userId: string;
@@ -224,7 +225,17 @@ export class AuthService {
 
   async updateProfile(
     userId: string,
-    input: { name?: unknown; phone?: unknown },
+    input: {
+      name?: unknown;
+      phone?: unknown;
+      avatar?: unknown;
+      bio?: unknown;
+      favoriteGame?: unknown;
+      notificationSettings?: {
+        bookingReminder?: unknown;
+        tournamentNews?: unknown;
+      };
+    },
   ): Promise<UserWithPermissions> {
     if (!input || typeof input !== "object") {
       throw new Error("Thông tin hồ sơ không hợp lệ");
@@ -255,8 +266,45 @@ export class AuthService {
     }
     user.name = name;
     user.phone = phone;
+
+    if (typeof input.bio === "string") {
+      user.bio = input.bio.trim().slice(0, 500);
+    }
+    if (typeof input.favoriteGame === "string") {
+      user.favoriteGame = input.favoriteGame.trim();
+    }
+    if (typeof input.avatar === "string" && input.avatar.trim()) {
+      user.avatar = input.avatar.trim();
+    }
+    if (input.notificationSettings && typeof input.notificationSettings === "object") {
+      const current = user.notificationSettings || { bookingReminder: true, tournamentNews: true };
+      user.notificationSettings = {
+        bookingReminder:
+          typeof input.notificationSettings.bookingReminder === "boolean"
+            ? input.notificationSettings.bookingReminder
+            : current.bookingReminder ?? true,
+        tournamentNews:
+          typeof input.notificationSettings.tournamentNews === "boolean"
+            ? input.notificationSettings.tournamentNews
+            : current.tournamentNews ?? true,
+      };
+    }
+
     await user.save();
     return this.getProfile(userId);
+  }
+
+  async uploadAvatar(userId: string, buffer: Buffer): Promise<{ avatarUrl: string }> {
+    const user = await User.findById(userId);
+    if (!user || !user.isActive || user.isLocked) {
+      throw new Error("Tài khoản không tồn tại hoặc đã bị khóa");
+    }
+
+    const result = await uploadAvatarImage(buffer);
+    user.avatar = result.secure_url;
+    await user.save();
+
+    return { avatarUrl: result.secure_url };
   }
 
   async sendVerificationCode(dto: RegisterDTO): Promise<{ message: string }> {
