@@ -153,7 +153,17 @@ async function main() {
       },
       adminToken,
     );
-    assert.equal(expiredVoucher.status, 201, expiredVoucher.body.message);
+    assert.equal(expiredVoucher.status, 400);
+    await Voucher.create({
+      code: "EXPIRED1",
+      discountType: "percent",
+      discountValue: 10,
+      minOrderAmount: 0,
+      startsAt: new Date(now.getTime() - 120000),
+      expiresAt: new Date(now.getTime() - 60000),
+      isActive: true,
+      createdBy: admin._id,
+    });
     const expired = await request(
       "/vouchers/validate",
       "POST",
