@@ -51,6 +51,7 @@ interface TournamentItem {
   thirdPrize: string;
   isFull: boolean;
   isRegistered: boolean;
+  intentStatus?: string;
 }
 
 const intentStatusLabels: Record<string, string> = {
@@ -267,7 +268,11 @@ const CustomerTournaments = () => {
     setLoadingTournaments(true);
     setLoadError("");
     try {
-      const result = await tournamentService.getPublicTournaments();
+      const [result, intents] = await Promise.all([
+        tournamentService.getPublicTournaments(),
+        user ? tournamentService.getMyPaymentIntents().catch(() => []) : Promise.resolve([]),
+      ]);
+      const intentByTournament = new Map(intents.map((i) => [i.tournamentId, i.status]));
       setTournaments(
         (result.items || []).map((item) => {
           const card = toTournamentCard(item);
@@ -288,6 +293,7 @@ const CustomerTournaments = () => {
             badge: isFull && card.status === "open" ? "Đã đủ cơ thủ" : card.badge,
             isFull,
             isRegistered,
+            intentStatus: intentByTournament.get(item._id),
           };
         }),
       );
@@ -1067,7 +1073,8 @@ const CustomerTournaments = () => {
                 disabled={Boolean(
                   selectedTournament.status !== "open" ||
                     selectedTournament.isFull ||
-                    selectedTournament.isRegistered,
+                    selectedTournament.isRegistered ||
+                    selectedTournament.intentStatus,
                 )}
                 className="!bg-[#064e3b] hover:!bg-[#047857] !border-[#064e3b] text-white font-bold !rounded-xl"
               >

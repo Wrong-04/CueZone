@@ -98,6 +98,12 @@ export class TournamentPaymentService {
     }
   }
 
+  async myIntents(userId: string) {
+    if (!mongoose.isValidObjectId(userId)) throw paymentError("Mã tài khoản không hợp lệ");
+    const intents: any[] = await Intent.find({ user: userId }, { tournament: 1, status: 1 }).lean();
+    return intents.map(intent => ({ tournamentId: String(intent.tournament), status: intent.status }));
+  }
+
   async status(id: string, userId: string) {
     this.validId(id);
     return mongoose.connection.transaction(async session => {
