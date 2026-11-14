@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { message } from "../../../shared/ui";
 import { posService } from "../../../services/pos.service";
-import { RANK_DISCOUNT_PERCENT } from "../constants/posConstants";
 import type { PosTable, CheckoutReceipt } from "../../../types/pos";
 
 export interface LoyaltyCustomerInfo {
   name: string;
   phone: string;
   rank?: string;
+  discountPercent?: number;
   membershipPoints?: number;
   totalStoreVouchers?: number;
   availableVouchers?: Array<{
@@ -54,6 +54,8 @@ export function usePosCheckout({
       message.warning("Vui lòng nhập số điện thoại hợp lệ (tối thiểu 8 số)");
       setLoyaltyCustomer(null);
       setDiscountPercent(0);
+      setAppliedVoucher(null);
+      setVoucherCode("");
       return;
     }
 
@@ -61,30 +63,39 @@ export function usePosCheckout({
     try {
       const res = await posService.lookupCustomer(phoneTrimmed);
       if (res.success && res.data) {
+        if (loyaltyCustomer?.phone !== res.data.phone) {
+          setAppliedVoucher(null);
+          setVoucherCode("");
+        }
+        const rankDiscount = res.data.discountPercent ?? 0;
         setLoyaltyCustomer({
           name: res.data.name,
           phone: res.data.phone,
           rank: res.data.rank,
+          discountPercent: rankDiscount,
           membershipPoints: res.data.membershipPoints,
           totalStoreVouchers: res.data.totalStoreVouchers,
           availableVouchers: res.data.availableVouchers || [],
         });
-        const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;
         setDiscountPercent(rankDiscount);
         const voucherCount = res.data.availableVouchers?.length || 0;
         message.success(
-          `Đã tìm thấy hội viên ${res.data.name} (Hạng ${res.data.rank || "Standard"})! Tự động áp dụng giảm ${rankDiscount}% tiền giờ${
+          `Đã tìm thấy hội viên ${res.data.name} (Hạng ${res.data.rank})! Tự động áp dụng giảm ${rankDiscount}% tiền giờ${
             voucherCount > 0 ? ` (và ${voucherCount} voucher hội viên)` : ""
           }.`,
         );
       } else {
         setLoyaltyCustomer(null);
         setDiscountPercent(0);
+        setAppliedVoucher(null);
+        setVoucherCode("");
         message.info(res.message || "Không tìm thấy hội viên với số điện thoại này. Áp dụng giá chuẩn.");
       }
     } catch {
       setLoyaltyCustomer(null);
       setDiscountPercent(0);
+      setAppliedVoucher(null);
+      setVoucherCode("");
       message.info("Không tìm thấy hội viên với số điện thoại này.");
     } finally {
       setIsSearchingMember(false);
@@ -105,23 +116,24 @@ export function usePosCheckout({
       setLoyaltyCustomer({
         name: table.currentSession.customerName || "Hội viên CLB",
         phone: sessionPhone,
-        rank: "VIP",
         membershipPoints: 0,
+        discountPercent: 0,
       });
-      setDiscountPercent(10);
+      setDiscountPercent(0);
 
       if (sessionPhone) {
         void posService.lookupCustomer(sessionPhone).then((res) => {
           if (res.success && res.data) {
+            const rankDiscount = res.data.discountPercent ?? 0;
             setLoyaltyCustomer({
               name: res.data.name,
               phone: res.data.phone,
               rank: res.data.rank,
+              discountPercent: rankDiscount,
               membershipPoints: res.data.membershipPoints,
               totalStoreVouchers: res.data.totalStoreVouchers,
               availableVouchers: res.data.availableVouchers || [],
             });
-            const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;
             setDiscountPercent(rankDiscount);
           }
         });

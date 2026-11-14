@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { message } from "../../../shared/ui";
 import { posService } from "../../../services/pos.service";
 import { productService } from "../../../services/product.service";
-import { getFnbCategoryLabel, PACKAGED_CATEGORIES } from "../constants/posConstants";
 import { isFnbItemPrepared } from "../../../utils/fnb";
 import type { PosTable, PosOrderItem } from "../../../types/pos";
 import type { FnbStockItem } from "../PosTableFloorPage";
@@ -40,10 +39,14 @@ export function usePosFnb({
 
   // Dynamic F&B category options
   const fnbCategoryOptions = useMemo(() => {
-    const cats = Array.from(new Set(fnbStock.map((item) => item.category).filter(Boolean)));
+    const labelMap = new Map<string, string>();
+    for (const item of fnbStock) {
+      if (!item.category || labelMap.has(item.category)) continue;
+      labelMap.set(item.category, item.categoryName || item.category);
+    }
     const options = [{ value: "all", label: "Tất cả danh mục" }];
-    for (const c of cats) {
-      options.push({ value: c, label: getFnbCategoryLabel(c) });
+    for (const [value, label] of labelMap.entries()) {
+      options.push({ value, label });
     }
     return options;
   }, [fnbStock]);
@@ -100,7 +103,7 @@ export function usePosFnb({
           code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
           name: p.name,
           category: p.category,
-          categoryName: getFnbCategoryLabel(p.category),
+          categoryName: p.categoryName || p.category,
           price: p.salePrice,
           priceFormatted: `${p.salePrice.toLocaleString("vi-VN")}đ`,
           stockQuantity: p.stock ?? 0,
@@ -220,10 +223,13 @@ export function usePosFnb({
 
   const isPackagedItem = (item?: PosOrderItem | null): boolean => {
     if (!item) return false;
-    const cat = (item.category || "").toLowerCase().trim();
-    if (PACKAGED_CATEGORIES.has(cat)) return true;
-    if (cat === "coffee" || cat === "tea" || cat === "food" || cat === "drink") return false;
-    return true;
+    const matchedStock = fnbStock.find(
+      (s) => s.id === String(item.productId || item.id) || s.name === item.name,
+    );
+    if (matchedStock && matchedStock.isMadeToOrder !== undefined) {
+      return !matchedStock.isMadeToOrder;
+    }
+    return !isFnbItemPrepared(matchedStock || item);
   };
 
   const handleOpenCancelModal = (item: PosOrderItem) => {

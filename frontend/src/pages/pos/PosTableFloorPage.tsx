@@ -11,7 +11,7 @@ import { Button, Modal, message, notification } from "../../shared/ui";
 import { getSocket } from "../../services/socket.service";
 import type { CustomerOrder } from "../../services/customer-order.service";
 
-import { getAreaLabel, getTypeLabel, getFnbCategoryLabel } from "./constants/posConstants";
+import { getAreaLabel, getTypeLabel } from "./constants/posConstants";
 import { usePosWaitlist } from "./hooks/usePosWaitlist";
 import { usePosTransfer } from "./hooks/usePosTransfer";
 import { usePosFnb } from "./hooks/usePosFnb";
@@ -169,17 +169,18 @@ export const PosTableFloorPage: React.FC = () => {
           .filter((p) => !isFnbWarehouseItem(p.name, p.category, p.productType))
           .map((p) => ({
             id: String(p._id),
-          code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
-          name: p.name,
-          category: p.category,
-          categoryName: getFnbCategoryLabel(p.category),
-          price: p.salePrice,
-          priceFormatted: `${p.salePrice.toLocaleString("vi-VN")}đ`,
-          stockQuantity: p.stock ?? 0,
-          minThreshold: 10,
-          unit: (p as any).unit || "Phần",
-          image: p.imageUrl,
-        }));
+            code: p.sku || `PRD-${String(p._id).slice(-4).toUpperCase()}`,
+            name: p.name,
+            category: p.category,
+            categoryName: p.categoryName || p.category,
+            price: p.salePrice,
+            priceFormatted: `${p.salePrice.toLocaleString("vi-VN")}đ`,
+            stockQuantity: p.stock ?? 0,
+            minThreshold: 10,
+            unit: (p as any).unit || "Phần",
+            image: p.imageUrl,
+            isMadeToOrder: p.isMadeToOrder,
+          }));
         setFnbStock(mappedStock);
       }
       setLoadError("");

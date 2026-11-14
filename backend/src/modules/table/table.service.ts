@@ -8,6 +8,7 @@ import { CreateTableDTO, UpdateTableDTO } from "./dto/table.dto";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
 import { emitTableStatusChanged } from "../../utils/socketHolder";
+import { getMemberTier, isVipMemberTier } from "../member/membership.policy";
 
 const notificationService = new NotificationService();
 
@@ -60,9 +61,11 @@ export class TableService {
     }).select("name phone rank elo");
     if (!user) return null;
     const wallet = await Wallet.findOne({ userId: user._id }).select("points");
+    const points = wallet?.points ?? 0;
+    const { tier } = getMemberTier(points);
 
     const now = new Date();
-    const isVipCustomer = user.rank && ["VIP", "Diamond", "Gold", "Silver", "Bạch Kim", "Kim Cương", "Vàng", "Bạc"].includes(user.rank);
+    const isVipCustomer = isVipMemberTier(points);
     const audienceQuery = isVipCustomer
       ? { $in: ["all", "new_member", "vip", null, undefined] }
       : { $in: ["all", "new_member", null, undefined] };
@@ -115,9 +118,12 @@ export class TableService {
       id: String(user._id),
       name: user.name,
       phone: user.phone,
-      rank: user.rank || "Standard",
+      rank: tier.name,
+      membershipTierKey: tier.key,
+      discountPercent: tier.tableDiscountPercent,
+      fnbDiscountPercent: tier.fnbDiscountPercent,
       elo: user.elo || 1000,
-      membershipPoints: wallet?.points ?? 0,
+      membershipPoints: points,
       isMember: true,
       totalStoreVouchers,
       availableVouchers: availableVouchers.map((v) => ({
@@ -163,7 +169,6 @@ export class TableService {
         email,
         password: `cz@${digits.slice(-4)}`,
         role: UserRole.CUSTOMER,
-        rank: "Standard",
         elo: 1000,
         isActive: true,
         isLocked: false,

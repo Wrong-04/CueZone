@@ -31,6 +31,7 @@ export function usePosOpenTable({
     name: string;
     phone: string;
     rank?: string;
+    discountPercent?: number;
   } | null>(null);
   const [isSearchingOpenMember, setIsSearchingOpenMember] = useState<boolean>(false);
 
@@ -46,6 +47,7 @@ export function usePosOpenTable({
             name: res.data.name,
             phone: res.data.phone,
             rank: res.data.rank,
+            discountPercent: res.data.discountPercent,
           });
           setCustomerName(res.data.name);
           setIsMemberCustomer(true);

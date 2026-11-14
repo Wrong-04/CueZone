@@ -88,17 +88,24 @@ export class TournamentService {
     });
   }
 
-  /** Bảng xếp hạng theo ELO; chỉ gồm hội viên đã ghi danh ít nhất một giải. */
+  /** Bảng xếp hạng theo ELO; chỉ gồm hội viên đã xác nhận ghi danh ít nhất một giải công bố. */
   async getLeaderboard(limit = 50) {
-    const tournaments = await Tournament.find({ "players.0": { $exists: true } })
-      .select("players.user players.result")
+    const tournaments = await Tournament.find({
+      status: { $ne: TournamentStatus.DRAFT },
+      "players.0": { $exists: true },
+    })
+      .select("registrationFee players.user players.feePaid players.registrationStatus players.result")
       .lean();
     const stats = new Map<string, { joined: number; won: number }>();
     for (const tournament of tournaments) {
+      const fee = tournament.registrationFee ?? 0;
       for (const player of tournament.players as Array<{
         user: mongoose.Types.ObjectId;
+        feePaid?: boolean;
+        registrationStatus?: string;
         result?: { finalRank?: number };
       }>) {
+        if (!confirmedPlayer(player, fee)) continue;
         const key = String(player.user);
         const entry = stats.get(key) || { joined: 0, won: 0 };
         entry.joined += 1;

@@ -1,5 +1,3 @@
-export { FNB_CATEGORY_LABELS, getFnbCategoryLabel } from "../../../utils/fnb";
-
 export const AREA_LABELS: Record<string, string> = {
   standard: "Khu Phổ Thông",
   vip: "Khu VIP",
@@ -34,22 +32,6 @@ export const DEFAULT_CANCEL_REASONS = [
   "Khác",
 ];
 
-export const RANK_DISCOUNT_PERCENT: Record<string, number> = {
-  Standard: 5,
-  Silver: 5,
-  Gold: 10,
-  VIP: 10,
-  VVIP: 15,
-  Diamond: 15,
-};
-
-export const PACKAGED_CATEGORIES = new Set([
-  "beer",
-  "snack",
-  "equipment",
-  "accessory",
-  "drink_canned",
-]);
 
 export interface ClubPaymentSettings {
   clubName: string;

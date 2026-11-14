@@ -164,6 +164,9 @@ export const posService = {
         name: string;
         phone: string;
         rank: string;
+        membershipTierKey?: string;
+        discountPercent?: number;
+        fnbDiscountPercent?: number;
         elo: number;
         isMember: boolean;
         membershipPoints?: number;
@@ -188,6 +191,9 @@ export const posService = {
         name: string;
         phone: string;
         rank: string;
+        membershipTierKey?: string;
+        discountPercent?: number;
+        fnbDiscountPercent?: number;
         elo: number;
         isMember: boolean;
         membershipPoints?: number;

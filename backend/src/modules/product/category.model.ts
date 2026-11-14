@@ -51,6 +51,8 @@ categorySchema.index({ code: 1 }, { unique: true });
 
 categorySchema.index({ isActive: 1 });
 
+categorySchema.index({ scope: 1, isActive: 1 });
+
 const Category: Model<ICategory> =
   (mongoose.models.Category as Model<ICategory>) ||
   mongoose.model<ICategory>("Category", categorySchema);

@@ -40,7 +40,7 @@ const { RangePicker } = DatePicker;
 export interface InvoiceItemOrder {
   id: string;
   name: string;
-  category: "table_time" | "coffee" | "tea" | "juice" | "beer" | "food" | "snack" | "equipment";
+  category: string;
   quantity: number;
   unit: string;
   price: number;

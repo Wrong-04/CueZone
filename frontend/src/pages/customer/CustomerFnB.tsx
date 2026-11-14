@@ -34,19 +34,12 @@ import {
 } from "../../services/customer-order.service";
 import { getSocket } from "../../services/socket.service";
 import {
-  getCustomerFnbCategoryLabel,
-  getFnbImageUrl,
   isFnbItemOutOfStock,
   isFnbWarehouseItem,
-  resolveFnbCategory,
 } from "../../utils/fnb";
 import { CustomerFnbCategoryPills } from "../../components/customer/CustomerFnbCategoryPills";
 
 const { Title, Text, Paragraph } = Typography;
-
-const getFallbackImage = (item: Product) => {
-  return getFnbImageUrl(item.name, resolveFnbCategory(item.name, item.category));
-};
 
 interface CartItem {
   item: Product;
@@ -194,7 +187,7 @@ export const CustomerFnB: React.FC = () => {
   }, [menuItems]);
 
   const filteredItems = validMenuItems.filter((item) => {
-    const category = resolveFnbCategory(item.name, item.category);
+    const category = item.category;
     const matchesCategory = selectedCategory === "all" || category === selectedCategory;
     const matchesSearch =
       !searchText.trim() ||
@@ -203,20 +196,19 @@ export const CustomerFnB: React.FC = () => {
   });
 
   const categoryOptions = useMemo(() => {
-    const categories = validMenuItems.map((item) => resolveFnbCategory(item.name, item.category));
-    const allCategoriesInItems = Array.from(new Set(categories));
-    const standardOrder = ["coffee", "tea", "juice", "beer", "food", "snack"];
-    const standardPresent = standardOrder.filter((cat) => allCategoriesInItems.includes(cat));
-    const dynamicCategories = allCategoriesInItems.filter((cat) => !standardOrder.includes(cat));
-    const finalCategories = [...standardPresent, ...dynamicCategories];
+    const categories = validMenuItems.map((item) => item.category).filter(Boolean);
+    const finalCategories = Array.from(new Set(categories));
 
     return [
       { key: "all", label: "Tất cả thực đơn", badge: validMenuItems.length },
-      ...finalCategories.map((category) => ({
-        key: category,
-        label: getCustomerFnbCategoryLabel(category),
-        badge: categories.filter((itemCategory) => itemCategory === category).length,
-      })),
+      ...finalCategories.map((category) => {
+        const sampleItem = validMenuItems.find((item) => item.category === category);
+        return {
+          key: category,
+          label: sampleItem?.categoryName || category,
+          badge: categories.filter((itemCategory) => itemCategory === category).length,
+        };
+      }),
     ];
   }, [validMenuItems]);
 
@@ -413,7 +405,7 @@ export const CustomerFnB: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                             <Text className="!text-[11px] !text-emerald-700 font-semibold uppercase tracking-wider block">
-                              {getCustomerFnbCategoryLabel(resolveFnbCategory(item.name, item.category))}
+                              {item.categoryName || item.category || "Món ăn & Đồ uống"}
                             </Text>
                             {item.isMadeToOrder && (
                               <Tag
@@ -442,15 +434,21 @@ export const CustomerFnB: React.FC = () => {
                       </div>
 
                       <div className="aspect-video rounded-xl overflow-hidden mb-3 bg-slate-100">
-                        <Image
-                          src={item.imageUrl || getFallbackImage(item)}
-                          fallback={getFallbackImage(item)}
-                          alt={item.name}
-                          width="100%"
-                          height="100%"
-                          style={{ objectFit: "cover" }}
-                          preview={true}
-                        />
+                        {item.imageUrl ? (
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            width="100%"
+                            height="100%"
+                            style={{ objectFit: "cover" }}
+                            preview={true}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400 gap-1">
+                            <CoffeeOutlined className="text-2xl opacity-40" />
+                            <span className="text-xs font-medium">Chưa có ảnh</span>
+                          </div>
+                        )}
                       </div>
 
                       <Paragraph className="!text-xs !text-slate-500 !mb-0 line-clamp-2 leading-relaxed">

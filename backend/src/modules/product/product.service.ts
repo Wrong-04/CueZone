@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { Product, IProduct } from "./product.model";
 import Category from "./category.model";
 import { CreateProductDTO, UpdateProductDTO } from "./dto/product.dto";
@@ -12,48 +11,38 @@ export class ProductService {
       isActive: true,
     }).sort({ category: 1, name: 1 });
 
-    const rawCategoryValues = products.map((p) => String(p.category || "").trim());
-    const objectIds = rawCategoryValues.filter((c) => mongoose.Types.ObjectId.isValid(c));
-    const catMap = new Map<string, string>();
-
-    if (objectIds.length > 0) {
-      try {
-        const foundCats = await Category.find({ _id: { $in: objectIds } }).lean();
-        foundCats.forEach((c) => {
-          catMap.set(c._id.toString(), c.name || c.code);
-        });
-      } catch (err) {
-        console.error("Lỗi khi tìm danh mục F&B:", err);
-      }
-    }
+    const allCategories = await Category.find().lean();
+    const catMap = new Map<string, { code: string; name: string }>();
+    allCategories.forEach((c) => {
+      const info = { code: c.code, name: c.name || c.code };
+      catMap.set(c._id.toString(), info);
+      if (c.code) catMap.set(String(c.code).toLowerCase(), info);
+    });
 
     return products.map((p) => {
       const rawCat = String(p.category || "").trim();
-      const resolvedCategory = catMap.get(rawCat) || rawCat;
+      const matchedCat = catMap.get(rawCat) || catMap.get(rawCat.toLowerCase());
+      const resolvedCategory = matchedCat?.code || rawCat;
+      const madeToOrder = Boolean(
+        p.isMadeToOrder ??
+          (p as any).isTheMakeToOrder ??
+          (p as any).isthemaketoorder,
+      );
 
       return {
         _id: p._id,
         name: p.name,
         sku: p.sku,
         category: resolvedCategory,
+        categoryName: matchedCat?.name || resolvedCategory,
         productType: p.productType,
         unit: p.unit || "Phần",
         salePrice: p.salePrice,
         imageUrl: p.imageUrl,
         description: p.description,
         stock: p.stock,
-        isMadeToOrder: Boolean(
-          (p as any).isthemaketoorder ??
-          (p as any).isTheMakeToOrder ??
-          p.isMadeToOrder
-        ),
-        isOutOfStock: Boolean(
-          (p as any).isthemaketoorder ??
-          (p as any).isTheMakeToOrder ??
-          p.isMadeToOrder
-        )
-          ? !p.isForSale
-          : p.stock === 0,
+        isMadeToOrder: madeToOrder,
+        isOutOfStock: madeToOrder ? !p.isForSale : p.stock === 0,
       };
     });
   }
@@ -64,11 +53,12 @@ export class ProductService {
     const catMap = new Map<string, string>();
     allCategories.forEach((c) => {
       catMap.set(c._id.toString(), c.name || c.code);
+      if (c.code) catMap.set(String(c.code).toLowerCase(), c.name || c.code);
     });
 
     return products.map((p) => {
       const rawCat = String(p.category || "").trim();
-      const resolvedCatName = catMap.get(rawCat) || rawCat;
+      const resolvedCatName = catMap.get(rawCat) || catMap.get(rawCat.toLowerCase()) || rawCat;
       return {
         ...p,
         categoryName: resolvedCatName,

@@ -39,6 +39,7 @@ import {
 import { Spin } from "antd";
 import type { FnbStockItem } from "../../types";
 import { productService } from "../../services/product.service";
+import { fetchCategories, type Category } from "../../services/catalog-management.service";
 import { isFnbWarehouseItem } from "../../utils/fnb";
 
 const { Title, Text } = Typography;
@@ -48,10 +49,30 @@ const isFreshPreparedCategory = (category: string) => {
   return category === "coffee" || category === "tea" || category === "food";
 };
 
-const getItemPrepType = (category: string) => {
-  if (category === "coffee" || category === "tea") return "fresh_beverage";
+const isItemMadeToOrder = (
+  item: Pick<FnbStockItem, "isMadeToOrder" | "category">,
+): boolean => {
+  return item.isMadeToOrder !== undefined
+    ? Boolean(item.isMadeToOrder)
+    : isFreshPreparedCategory(item.category);
+};
+
+const isItemOutOfStock = (
+  item: Pick<FnbStockItem, "isMadeToOrder" | "category" | "isForSale" | "stockQuantity">,
+): boolean => {
+  if (item.isForSale === false) return true;
+  if (isItemMadeToOrder(item)) return false;
+  return item.stockQuantity <= 0;
+};
+
+const getItemPrepType = (category: string, explicitMadeToOrder?: boolean) => {
+  const madeToOrder =
+    explicitMadeToOrder !== undefined
+      ? explicitMadeToOrder
+      : isFreshPreparedCategory(category);
+  if (!madeToOrder) return "packaged_stock";
   if (category === "food") return "cooked_food";
-  return "packaged_stock";
+  return "fresh_beverage";
 };
 
 const getItemLocationName = (category: string) => {
@@ -90,41 +111,74 @@ export const generateSkuForCategory = (category: string, currentCount: number) =
   return `${prefix}-${num}`;
 };
 
-// Default unit suggestions based on category
-export const getDefaultUnitForCategory = (category: string) => {
-  switch (category) {
-    case "coffee":
-    case "tea":
-      return "Ly";
-    case "juice":
-    case "beer":
-      return "Lon";
-    case "food":
-      return "Đĩa";
-    case "snack":
-      return "Gói";
-    case "equipment":
-      return "Cái";
-    default:
-      return "Phần";
-  }
+// Normalize unit display casing so MongoDB lowercase units ("ly", "lon", "đĩa") match UI options cleanly
+export const normalizeUnitLabel = (unit?: string): string => {
+  const trimmed = String(unit || "").trim();
+  if (!trimmed) return "Phần";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 };
 
-// Common unit options for easy selection without manual typing
-export const getCommonUnitsForCategory = (category: string) => {
-  if (category === "coffee" || category === "tea") {
-    return ["Ly", "Cốc", "Tách", "Bình", "Chai", "Phần"];
+const FALLBACK_GENERAL_UNITS = ["Phần", "Ly", "Lon", "Chai", "Đĩa", "Tô", "Gói", "Hộp", "Cái"];
+
+// Default unit resolved from existing DB items in the same category first, with general fallback
+export const getDefaultUnitForCategory = (category: string, items: FnbStockItem[] = []) => {
+  const catLower = String(category || "").toLowerCase();
+  const unitCounts = new Map<string, number>();
+
+  for (const item of items) {
+    if (String(item.category || "").toLowerCase() !== catLower) continue;
+    const normalized = normalizeUnitLabel(item.unit);
+    unitCounts.set(normalized, (unitCounts.get(normalized) || 0) + 1);
   }
-  if (category === "beer" || category === "juice") {
-    return ["Lon", "Chai", "Ly", "Thùng", "Két", "Hộp"];
+
+  if (unitCounts.size > 0) {
+    let topUnit = "";
+    let topCount = -1;
+    for (const [unit, count] of unitCounts.entries()) {
+      if (count > topCount) {
+        topUnit = unit;
+        topCount = count;
+      }
+    }
+    if (topUnit) return topUnit;
   }
-  if (category === "food") {
-    return ["Đĩa", "Tô", "Phần", "Suất", "Bát", "Mẹt"];
+
+  return "Phần";
+};
+
+// Dynamic unit options aggregated from live DB products in the category/menu, plus general suggestions
+export const getCommonUnitsForCategory = (category: string, items: FnbStockItem[] = []) => {
+  const catLower = String(category || "").toLowerCase();
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  const pushUnit = (raw?: string) => {
+    if (!raw || !raw.trim()) return;
+    const normalized = normalizeUnitLabel(raw);
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(normalized);
+  };
+
+  // 1. Real units used by DB products in the selected category
+  for (const item of items) {
+    if (String(item.category || "").toLowerCase() === catLower) {
+      pushUnit(item.unit);
+    }
   }
-  if (category === "snack") {
-    return ["Gói", "Bịch", "Hộp", "Đĩa", "Phần", "Lon"];
+
+  // 2. Real units used by other F&B products in DB
+  for (const item of items) {
+    pushUnit(item.unit);
   }
-  return ["Cái", "Cục", "Chiếc", "Hộp", "Bao", "Bộ"];
+
+  // 3. General F&B units fallback when DB has no items yet
+  for (const u of FALLBACK_GENERAL_UNITS) {
+    pushUnit(u);
+  }
+
+  return result;
 };
 
 export const FnBInventoryPage: React.FC = () => {
@@ -133,72 +187,69 @@ export const FnBInventoryPage: React.FC = () => {
   const canManageInventory = hasPermission(user, "inventory.manage") || user?.role === "admin";
   // ── 1. STATE & LIVE DATABASE INTEGRATION ──────────────────────────────────
   const [stockList, setStockList] = useState<FnbStockItem[]>([]);
+  const [dbCategories, setDbCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchProductsFromDb = useCallback(async () => {
-    setLoading(true);
+  const fetchProductsFromDb = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const dbProducts = await productService.getAll();
+      const [productsRes, categoriesRes] = await Promise.allSettled([
+        productService.getAll(),
+        fetchCategories(),
+      ]);
+
+      const loadedCategories =
+        categoriesRes.status === "fulfilled" && Array.isArray(categoriesRes.value?.data)
+          ? categoriesRes.value.data.filter((c) => c.scope !== "warehouse" && c.isActive !== false)
+          : [];
+      setDbCategories(loadedCategories);
+
+      const dbCatLookup = new Map<string, Category>();
+      loadedCategories.forEach((c) => {
+        if (c._id) dbCatLookup.set(c._id, c);
+        if (c.code) dbCatLookup.set(c.code.toLowerCase(), c);
+      });
+
+      const dbProducts =
+        productsRes.status === "fulfilled" ? productsRes.value : null;
+
       if (Array.isArray(dbProducts) && dbProducts.length > 0) {
-        const resolveCat = (name: string, rawCat: unknown): FnbStockItem["category"] => {
-          const n = name.toLowerCase();
-          const c = String(rawCat || "").toLowerCase();
-          if (c === "food" || c.includes("ăn") || c.includes("món")) return "food";
-          if (c === "snack" || c.includes("vặt") || n.includes("kem")) return "snack";
-          if (n.includes("cà phê") || n.includes("cafe") || c === "coffee") return "coffee";
-          if (n.includes("trà") || c === "tea") return "tea";
-          if (n.includes("bia") || n.includes("beer") || c === "beer") return "beer";
-          if (c === "drink" || c === "juice") return "juice";
-          if (
-            rawCat &&
-            String(rawCat).trim() &&
-            !/^[0-9a-fA-F]{24}$/.test(String(rawCat).trim()) &&
-            !["drink", "nguyên liệu", "phụ kiện"].includes(String(rawCat).toLowerCase())
-          ) {
-            return String(rawCat).trim();
-          }
-          return "juice";
-        };
-
-        const categoryNameMap: Record<string, string> = {
-          coffee: "Cà Phê",
-          tea: "Trà Trái Cây",
-          juice: "Nước Giải Khát",
-          beer: "Bia & Đồ Có Cồn",
-          food: "Món Ăn Nóng",
-          snack: "Ăn Vặt",
-        };
-
         const mapped: FnbStockItem[] = dbProducts
           .filter((p: any) => !isFnbWarehouseItem(p.name, p.category, p.productType))
           .map((p: any) => {
-            const cat = resolveCat(p.name, p.category);
+            const rawCat = String(p.category || "").trim();
+            const matchedCat = dbCatLookup.get(rawCat) || dbCatLookup.get(rawCat.toLowerCase());
+            const cat = matchedCat?.code || rawCat || "other";
+            const rawMadeToOrder =
+              p.isthemaketoorder ?? p.isTheMakeToOrder ?? p.isMadeToOrder;
             const isMadeToOrder =
-              p.isMadeToOrder !== undefined
-                ? Boolean(p.isMadeToOrder)
+              rawMadeToOrder !== undefined
+                ? Boolean(rawMadeToOrder)
                 : isFreshPreparedCategory(cat);
+            const isForSale = p.isForSale !== false;
+            const parsedStock = Number(p.stock);
+            const stockQuantity = Number.isFinite(parsedStock) ? Math.max(0, parsedStock) : 0;
+
             return {
               id: String(p._id),
               code: p.sku || `MN-${String(p._id).slice(-4)}`,
               name: p.name,
               category: cat,
               categoryName:
-                categoryNameMap[cat] ||
-                (p.categoryName && !/^[0-9a-fA-F]{24}$/.test(p.categoryName) ? p.categoryName : "Món Ăn & Đồ Uống"),
+                matchedCat?.name ||
+                (p.categoryName && !/^[0-9a-fA-F]{24}$/.test(p.categoryName)
+                  ? p.categoryName
+                  : cat || "Món Ăn & Đồ Uống"),
               price: Number(p.salePrice) || 0,
               priceFormatted: `${Number(p.salePrice || 0).toLocaleString("vi-VN")}đ`,
-              stockQuantity: isMadeToOrder
-                ? p.isForSale === false
-                  ? 0
-                  : 999
-                : p.isForSale === false
-                  ? 0
-                  : (Number(p.stock) ?? 20),
+              stockQuantity,
               minThreshold: isMadeToOrder ? 0 : (Number(p.minStock) || 5),
-              unit: p.unit || "Phần",
+              unit: normalizeUnitLabel(p.unit || "Phần"),
               description: p.description || "",
               image: resolveProductImage(p.name, cat, p.imageUrl),
               isMadeToOrder,
+              isForSale,
+              costPrice: Number(p.costPrice) || 0,
             };
           });
         setStockList(mapped);
@@ -209,7 +260,7 @@ export const FnBInventoryPage: React.FC = () => {
       console.warn("Lỗi đồng bộ sản phẩm từ DB:", err);
       message.error("Không thể tải danh sách thực đơn từ hệ thống. Vui lòng thử lại.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -255,7 +306,7 @@ export const FnBInventoryPage: React.FC = () => {
     code: "",
     name: "",
     category: "coffee",
-    categoryName: "Cà Phê",
+    categoryName: "",
     price: 30000,
     unit: "Ly",
     description: "",
@@ -268,23 +319,40 @@ export const FnBInventoryPage: React.FC = () => {
   // ── 2. ACTIONS ────────────────────────────────────────────────────────────
 
   const handleToggleZeroStock = async (item: FnbStockItem) => {
-    const nextQty = item.stockQuantity > 0 ? 0 : Math.max(item.minThreshold + 10, 15);
-    const isNowForSale = nextQty > 0;
+    const madeToOrder = isItemMadeToOrder(item);
+    const currentlyOut = isItemOutOfStock(item);
+
+    // Hàng đóng gói đã hết sạch tồn kho thật -> mở Modal / dẫn nhập kho thay vì gán cứng số ảo
+    if (!madeToOrder && currentlyOut && item.stockQuantity <= 0) {
+      message.info(
+        `Mặt hàng đóng gói "${item.name}" đang có tồn kho = 0. Vui lòng nhập kho tại Kho Hàng trước khi mở bán.`,
+      );
+      if (canManageInventory) {
+        handleOpenEditItemModal(item);
+      }
+      return;
+    }
+
+    const nextForSale = currentlyOut;
 
     setStockList((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, stockQuantity: nextQty } : i)),
+      prev.map((i) => (i.id === item.id ? { ...i, isForSale: nextForSale } : i)),
     );
 
     try {
-      await productService.update(item.id, { isForSale: isNowForSale });
-    } catch (error) {
-      console.warn("Lưu trạng thái món vào DB:", error);
-    }
-
-    if (nextQty === 0) {
-      message.info(`Đã cập nhật: Tạm ngưng phục vụ món "${item.name}".`);
-    } else {
-      message.success(`Đã mở bán lại món "${item.name}" thành công.`);
+      await productService.update(item.id, { isForSale: nextForSale });
+      if (!nextForSale) {
+        message.info(`Đã cập nhật: Tạm ngưng phục vụ món "${item.name}".`);
+      } else {
+        message.success(`Đã mở bán lại món "${item.name}" thành công.`);
+      }
+    } catch (error: any) {
+      setStockList((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, isForSale: item.isForSale } : i)),
+      );
+      message.error(
+        error?.response?.data?.message || error?.message || "Không thể cập nhật trạng thái món.",
+      );
     }
   };
 
@@ -294,21 +362,25 @@ export const FnBInventoryPage: React.FC = () => {
       return;
     }
     setIsCreatingNew(true);
+    const defaultCategory = dbCategories[0]?.code || "coffee";
+    const defaultCategoryName = dbCategories[0]?.name || defaultCategory;
+    const defaultUnit = getDefaultUnitForCategory(defaultCategory, stockList);
     const newId = `fnb-${Date.now().toString().slice(-4)}`;
-    const autoCode = generateSkuForCategory("coffee", stockList.length);
+    const autoCode = generateSkuForCategory(defaultCategory, stockList.length);
     setEditingItemData({
       id: newId,
       code: autoCode,
       name: "",
-      category: "coffee",
-      categoryName: "Cà Phê",
+      category: defaultCategory,
+      categoryName: defaultCategoryName,
       price: 30000,
       priceFormatted: "30.000đ",
       stockQuantity: 0,
       minThreshold: 0,
-      unit: "Ly",
+      unit: defaultUnit,
       image: "",
-      isMadeToOrder: true,
+      isMadeToOrder: isFreshPreparedCategory(defaultCategory),
+      isForSale: true,
       description: "",
     });
     setEditItemModalVisible(true);
@@ -322,8 +394,10 @@ export const FnBInventoryPage: React.FC = () => {
     setIsCreatingNew(false);
     setEditingItemData({
       ...item,
+      unit: normalizeUnitLabel(item.unit || getDefaultUnitForCategory(item.category, stockList)),
       image: item.image || "",
-      isMadeToOrder: item.isMadeToOrder ?? isFreshPreparedCategory(item.category),
+      isMadeToOrder: isItemMadeToOrder(item),
+      isForSale: item.isForSale !== false,
     });
     setEditItemModalVisible(true);
   };
@@ -342,36 +416,42 @@ export const FnBInventoryPage: React.FC = () => {
       return;
     }
 
-    const categoryMap: Record<string, string> = {
-      coffee: "Cà Phê",
-      tea: "Trà Trái Cây",
-      juice: "Nước Ép",
-      beer: "Bia & Đồ Có Cồn",
-      food: "Món Ăn Nóng",
-      snack: "Ăn Vặt",
-    };
-
+    const dbMatchedCat = dbCategories.find(
+      (c) =>
+        c.code.toLowerCase() === String(editingItemData.category || "").toLowerCase() ||
+        c._id === editingItemData.category,
+    );
+    const resolvedCategory = dbMatchedCat?.code || editingItemData.category || dbCategories[0]?.code || "coffee";
     const finalCategoryName =
-      categoryMap[editingItemData.category || "coffee"] || editingItemData.category || "Khác";
+      dbMatchedCat?.name ||
+      editingItemData.categoryName ||
+      resolvedCategory ||
+      "Khác";
     const isMadeToOrder =
       editingItemData.isMadeToOrder !== undefined
         ? Boolean(editingItemData.isMadeToOrder)
-        : isFreshPreparedCategory(editingItemData.category || "coffee");
+        : isFreshPreparedCategory(resolvedCategory);
 
     const itemToSave: FnbStockItem = {
       id: editingItemData.id || `fnb-${Date.now()}`,
-      code: editingItemData.code || "FNB-01",
+      code: (editingItemData.code || "FNB-01").trim(),
       name: editingItemData.name.trim(),
-      category: (editingItemData.category as FnbStockItem["category"]) || "coffee",
+      category: resolvedCategory as FnbStockItem["category"],
       categoryName: finalCategoryName,
       price: Number(editingItemData.price) || 0,
       priceFormatted: `${Number(editingItemData.price || 0).toLocaleString("vi-VN")}đ`,
-      stockQuantity: isMadeToOrder ? 999 : isCreatingNew ? 0 : (Number(editingItemData.stockQuantity) || 0),
-      minThreshold: isMadeToOrder ? 0 : (Number(editingItemData.minThreshold) || 5),
-      unit: editingItemData.unit || (isMadeToOrder ? "Ly" : "Lon"),
+      stockQuantity: isCreatingNew
+        ? 0
+        : Math.max(0, Number(editingItemData.stockQuantity) || 0),
+      minThreshold: isMadeToOrder ? 0 : Math.max(0, Number(editingItemData.minThreshold) ?? 5),
+      unit: normalizeUnitLabel(
+        editingItemData.unit || getDefaultUnitForCategory(resolvedCategory, stockList),
+      ),
       description: editingItemData.description || "",
       image: editingItemData.image?.trim() || "",
       isMadeToOrder,
+      isForSale: editingItemData.isForSale !== false,
+      costPrice: editingItemData.costPrice,
     };
 
     try {
@@ -382,14 +462,13 @@ export const FnBInventoryPage: React.FC = () => {
           category: itemToSave.category,
           productType: "fnb",
           unit: itemToSave.unit,
-          costPrice: Math.round(itemToSave.price * 0.6),
           salePrice: itemToSave.price,
           minStock: itemToSave.minThreshold,
           stock: itemToSave.stockQuantity,
           imageUrl: itemToSave.image,
           description: itemToSave.description,
           isMadeToOrder: itemToSave.isMadeToOrder,
-          isForSale: true,
+          isForSale: itemToSave.isForSale !== false,
           isActive: true,
         });
         if (created?._id) itemToSave.id = String(created._id);
@@ -398,6 +477,8 @@ export const FnBInventoryPage: React.FC = () => {
       } else {
         await productService.update(itemToSave.id, {
           name: itemToSave.name,
+          sku: itemToSave.code,
+          category: itemToSave.category,
           salePrice: itemToSave.price,
           unit: itemToSave.unit,
           stock: itemToSave.stockQuantity,
@@ -405,6 +486,7 @@ export const FnBInventoryPage: React.FC = () => {
           imageUrl: itemToSave.image,
           description: itemToSave.description,
           isMadeToOrder: itemToSave.isMadeToOrder,
+          isForSale: itemToSave.isForSale !== false,
         });
         setStockList((prev) => prev.map((i) => (i.id === itemToSave.id ? itemToSave : i)));
         message.success(`Đã lưu thay đổi món "${itemToSave.name}"!`);
@@ -427,7 +509,7 @@ export const FnBInventoryPage: React.FC = () => {
   };
 
   const handleResetToDefaults = () => {
-    void fetchProductsFromDb();
+    void fetchProductsFromDb(true);
     message.success("Đã làm mới danh sách thực đơn!");
   };
 
@@ -435,19 +517,20 @@ export const FnBInventoryPage: React.FC = () => {
   const filteredItems = useMemo(() => {
     const list = stockList.filter((item) => {
       const matchCat = selectedCategory === "all" || item.category === selectedCategory;
-      const isMadeToOrder = item.isMadeToOrder ?? isFreshPreparedCategory(item.category);
-      const isOutOfStock = item.stockQuantity === 0;
-      const isLowStock = !isMadeToOrder && item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
-      const isInStock = isMadeToOrder ? item.stockQuantity > 0 : item.stockQuantity > item.minThreshold;
+      const madeToOrder = isItemMadeToOrder(item);
+      const outOfStock = isItemOutOfStock(item);
+      const isLowStock =
+        !madeToOrder && !outOfStock && item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
+      const isInStock = !outOfStock && (madeToOrder || item.stockQuantity > item.minThreshold);
 
       let matchStockStatus = true;
       if (stockStatusFilter === "in_stock") matchStockStatus = isInStock;
       if (stockStatusFilter === "low_stock") matchStockStatus = isLowStock;
-      if (stockStatusFilter === "out_of_stock") matchStockStatus = isOutOfStock;
+      if (stockStatusFilter === "out_of_stock") matchStockStatus = outOfStock;
 
       let matchServiceType = true;
-      if (serviceTypeFilter === "made_to_order") matchServiceType = isMadeToOrder;
-      if (serviceTypeFilter === "packaged") matchServiceType = !isMadeToOrder;
+      if (serviceTypeFilter === "made_to_order") matchServiceType = madeToOrder;
+      if (serviceTypeFilter === "packaged") matchServiceType = !madeToOrder;
 
       let matchPhoto = true;
       if (photoStatusFilter === "has_image") matchPhoto = Boolean(item.image?.trim());
@@ -464,9 +547,17 @@ export const FnBInventoryPage: React.FC = () => {
     });
 
     if (sortOption === "stock_asc") {
-      list.sort((a, b) => a.stockQuantity - b.stockQuantity);
+      list.sort((a, b) => {
+        const aVal = isItemMadeToOrder(a) ? (isItemOutOfStock(a) ? -1 : Number.MAX_SAFE_INTEGER) : a.stockQuantity;
+        const bVal = isItemMadeToOrder(b) ? (isItemOutOfStock(b) ? -1 : Number.MAX_SAFE_INTEGER) : b.stockQuantity;
+        return aVal - bVal;
+      });
     } else if (sortOption === "stock_desc") {
-      list.sort((a, b) => b.stockQuantity - a.stockQuantity);
+      list.sort((a, b) => {
+        const aVal = isItemMadeToOrder(a) ? -1 : a.stockQuantity;
+        const bVal = isItemMadeToOrder(b) ? -1 : b.stockQuantity;
+        return bVal - aVal;
+      });
     } else if (sortOption === "price_asc") {
       list.sort((a, b) => a.price - b.price);
     } else if (sortOption === "price_desc") {
@@ -478,44 +569,36 @@ export const FnBInventoryPage: React.FC = () => {
     return list;
   }, [stockList, selectedCategory, stockStatusFilter, serviceTypeFilter, photoStatusFilter, searchQuery, sortOption]);
 
-  // Pill filter items
+  // Pill filter items — driven directly by MongoDB categories + any extra category present in stockList
   const categoryPillItems = useMemo(() => {
-    const standardCategories: Array<{ key: string; label: string }> = [
-      { key: "coffee", label: "Cà phê" },
-      { key: "tea", label: "Trà trái cây" },
-      { key: "juice", label: "Nước giải khát" },
-      { key: "beer", label: "Bia & Đồ có cồn" },
-      { key: "food", label: "Món ăn nóng" },
-      { key: "snack", label: "Ăn vặt" },
-    ];
-    const presentCategories = Array.from(new Set(stockList.map((i) => i.category)));
-    const standardPills = standardCategories
-      .filter((cat) => presentCategories.includes(cat.key as any))
+    const dbPills = dbCategories
+      .filter((c) => c.code !== "drink")
       .map((cat) => ({
-        key: cat.key,
-        label: cat.label,
-        badge: stockList.filter((i) => i.category === cat.key).length,
+        key: cat.code,
+        label: cat.name,
+        badge: stockList.filter((i) => i.category === cat.code).length,
       }));
-    const dynamicCategories = presentCategories.filter(
-      (cat) => !standardCategories.some((sc) => sc.key === cat) && !/^[0-9a-fA-F]{24}$/.test(cat),
-    );
-    const dynamicPills = dynamicCategories.map((cat) => {
-      const sampleItem = stockList.find((i) => i.category === cat);
-      const rawLabel = sampleItem?.categoryName || cat;
-      const displayLabel = /^[0-9a-fA-F]{24}$/.test(rawLabel) ? "Món khác" : rawLabel;
-      return {
-        key: cat,
-        label: displayLabel,
-        badge: stockList.filter((i) => i.category === cat).length,
-      };
-    });
+    const seenKeys = new Set(dbPills.map((p) => p.key.toLowerCase()));
+    const presentCategories = Array.from(new Set(stockList.map((i) => i.category)));
+    const extraPills = presentCategories
+      .filter((cat) => !seenKeys.has(cat.toLowerCase()) && !/^[0-9a-fA-F]{24}$/.test(cat))
+      .map((cat) => {
+        const sampleItem = stockList.find((i) => i.category === cat);
+        const rawLabel = sampleItem?.categoryName || cat;
+        const displayLabel = /^[0-9a-fA-F]{24}$/.test(rawLabel) ? "Món khác" : rawLabel;
+        return {
+          key: cat,
+          label: displayLabel,
+          badge: stockList.filter((i) => i.category === cat).length,
+        };
+      });
 
     return [
       { key: "all", label: "Tất cả thực đơn", badge: stockList.length },
-      ...standardPills,
-      ...dynamicPills,
+      ...dbPills,
+      ...extraPills,
     ];
-  }, [stockList]);
+  }, [stockList, dbCategories]);
 
   // ── 4. TABLE COLUMNS CONFIGURATION ─────────────────────────────────────────
   const tableColumns: TableColumnsType<FnbStockItem> = [
@@ -588,12 +671,9 @@ export const FnBInventoryPage: React.FC = () => {
       key: "stockQuantity",
       width: 180,
       render: (qty: number, record: FnbStockItem) => {
-        const isFresh =
-          record.isMadeToOrder !== undefined
-            ? record.isMadeToOrder
-            : isFreshPreparedCategory(record.category);
-        const isOutOfStock = qty === 0;
-        const isLowStock = qty > 0 && qty <= record.minThreshold;
+        const isFresh = isItemMadeToOrder(record);
+        const isOutOfStock = isItemOutOfStock(record);
+        const isLowStock = !isFresh && !isOutOfStock && qty > 0 && qty <= record.minThreshold;
         const percent = Math.min(100, Math.round((qty / (record.minThreshold * 2.5 || 20)) * 100));
 
         if (isFresh) {
@@ -605,7 +685,7 @@ export const FnBInventoryPage: React.FC = () => {
                 </Tag>
               </div>
               <span className="text-xs text-slate-500">
-                {isOutOfStock ? "Tạm hết nguyên liệu" : "Luôn sẵn sàng phục vụ"}
+                {isOutOfStock ? "Tạm ngưng phục vụ" : "Luôn sẵn sàng phục vụ"}
               </span>
             </div>
           );
@@ -644,7 +724,9 @@ export const FnBInventoryPage: React.FC = () => {
       width: 130,
       align: "center",
       render: (_: unknown, record: FnbStockItem) => {
-        if (record.stockQuantity === 0) {
+        const isFresh = isItemMadeToOrder(record);
+        const outOfStock = isItemOutOfStock(record);
+        if (outOfStock) {
           return (
             <Tag
               color="error"
@@ -654,7 +736,7 @@ export const FnBInventoryPage: React.FC = () => {
             </Tag>
           );
         }
-        if (record.stockQuantity <= record.minThreshold) {
+        if (!isFresh && record.stockQuantity <= record.minThreshold) {
           return (
             <Tag
               color="warning"
@@ -680,11 +762,8 @@ export const FnBInventoryPage: React.FC = () => {
       width: 220,
       align: "right",
       render: (_: unknown, record: FnbStockItem) => {
-        const isFresh =
-          record.isMadeToOrder !== undefined
-            ? record.isMadeToOrder
-            : isFreshPreparedCategory(record.category);
-        const isOutOfStock = record.stockQuantity === 0;
+        const isFresh = isItemMadeToOrder(record);
+        const isOutOfStock = isItemOutOfStock(record);
         return (
           <div className="flex items-center justify-end gap-1.5">
             <Button
@@ -728,11 +807,13 @@ export const FnBInventoryPage: React.FC = () => {
 
   const fnbMetrics = useMemo(() => {
     const totalItems = stockList.length;
-    const availableCount = stockList.filter((i) => i.stockQuantity > 0).length;
-    const lowOrOutCount = stockList.filter((i) => i.stockQuantity <= i.minThreshold).length;
-    const madeToOrderCount = stockList.filter(
-      (i) => (i.isMadeToOrder !== undefined ? i.isMadeToOrder : isFreshPreparedCategory(i.category)),
+    const availableCount = stockList.filter((i) => !isItemOutOfStock(i)).length;
+    const lowOrOutCount = stockList.filter(
+      (i) =>
+        isItemOutOfStock(i) ||
+        (!isItemMadeToOrder(i) && i.stockQuantity <= i.minThreshold),
     ).length;
+    const madeToOrderCount = stockList.filter((i) => isItemMadeToOrder(i)).length;
 
     return {
       totalItems,
@@ -897,65 +978,65 @@ export const FnBInventoryPage: React.FC = () => {
         </div>
 
         {/* Second Row: Stock Filter, Service Type, Photo Status, Sort & Search */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap">
                 <FilterOutlined /> Trạng thái:
               </span>
               <Select
                 value={stockStatusFilter}
                 onChange={(val) => setStockStatusFilter(val)}
-                className="!w-44 !rounded-xl !text-xs"
+                className="!w-36 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả trạng thái" },
                   { value: "in_stock", label: "Đang sẵn sàng" },
-                  { value: "low_stock", label: "Sắp hết hàng (< Min)" },
-                  { value: "out_of_stock", label: "Tạm hết / Ngưng bán" },
+                  { value: "low_stock", label: "Sắp hết (< Min)" },
+                  { value: "out_of_stock", label: "Tạm ngưng bán" },
                 ]}
               />
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap">
                 <CoffeeOutlined /> Loại hình:
               </span>
               <Select
                 value={serviceTypeFilter}
                 onChange={(val) => setServiceTypeFilter(val)}
-                className="!w-40 !rounded-xl !text-xs"
+                className="!w-36 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả loại hình" },
-                  { value: "made_to_order", label: "☕ Chế biến tươi (Order)" },
-                  { value: "packaged", label: "📦 Đóng gói sẵn (Có kho)" },
+                  { value: "made_to_order", label: "☕ Chế biến tươi" },
+                  { value: "packaged", label: "📦 Đóng gói sẵn" },
                 ]}
               />
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap">
                 <PictureOutlined /> Ảnh:
               </span>
               <Select
                 value={photoStatusFilter}
                 onChange={(val) => setPhotoStatusFilter(val)}
-                className="!w-36 !rounded-xl !text-xs"
+                className="!w-32 !rounded-xl !text-xs"
                 options={[
                   { value: "all", label: "Tất cả ảnh" },
-                  { value: "has_image", label: "📷 Đã có ảnh" },
-                  { value: "no_image", label: "⚠️ Chưa có ảnh" },
+                  { value: "has_image", label: "📷 Có ảnh" },
+                  { value: "no_image", label: "⚠️ Chưa ảnh" },
                 ]}
               />
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap">
                 <SortAscendingOutlined /> Sắp xếp:
               </span>
               <Select
                 value={sortOption}
                 onChange={(val) => setSortOption(val)}
-                className="!w-44 !rounded-xl !text-xs"
+                className="!w-40 !rounded-xl !text-xs"
                 options={[
                   { value: "default", label: "Mặc định hệ thống" },
                   { value: "stock_asc", label: "Tồn kho: Thấp → Cao" },
@@ -968,9 +1049,9 @@ export const FnBInventoryPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Search Input */}
-            <div className="w-full sm:w-56">
+            <div className="w-full sm:w-48">
               <Input
                 placeholder="Tìm món, mã món..."
                 prefix={<SearchOutlined className="text-slate-400" />}
@@ -1013,42 +1094,45 @@ export const FnBInventoryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Third Row: Result counter & Reset filter */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+        {/* Third Row: Fixed height Result counter & Reset filter to avoid vertical layout shift */}
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs h-7">
           <div className="text-slate-500 font-medium">
             Đang hiển thị{" "}
             <strong className="text-slate-800 font-bold">{filteredItems.length}</strong> /{" "}
             <span className="text-slate-600">{stockList.length}</span> món
-            {isFilterActive && (
-              <span className="text-emerald-600 ml-1.5 font-semibold">
-                (Đang áp dụng bộ lọc)
-              </span>
-            )}
+            <span
+              className={`text-emerald-600 ml-1.5 font-semibold transition-opacity ${
+                isFilterActive ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+            >
+              (Đang áp dụng bộ lọc)
+            </span>
           </div>
 
-          {isFilterActive && (
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
-            >
-              <ReloadOutlined className="text-[11px]" /> Đặt lại bộ lọc
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            tabIndex={isFilterActive ? 0 : -1}
+            className={`text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 hover:underline cursor-pointer transition-opacity ${
+              isFilterActive ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            <ReloadOutlined className="text-[11px]" /> Đặt lại bộ lọc
+          </button>
         </div>
       </div>
 
       {loading && stockList.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center shadow-xs">
+        <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center shadow-xs min-h-[640px] flex flex-col items-center justify-center">
           <Spin size="large" />
           <div className="mt-3 text-slate-500 font-semibold text-sm">Đang tải thực đơn từ hệ thống...</div>
         </div>
       ) : (
-        <>
+        <div className="min-h-[640px]">
           {viewMode === "grid" && (
             <div>
           {filteredItems.length === 0 ? (
-            <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center">
+            <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center min-h-[360px] flex flex-col items-center justify-center">
               <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-2xl">
                 <SearchOutlined />
               </div>
@@ -1062,13 +1146,16 @@ export const FnBInventoryPage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {filteredItems.map((item) => {
-                const prepType = getItemPrepType(item.category);
+                const isMadeToOrder = isItemMadeToOrder(item);
+                const prepType = getItemPrepType(item.category, isMadeToOrder);
                 const isFreshBeverage = prepType === "fresh_beverage";
                 const isCookedFood = prepType === "cooked_food";
-                const isMadeToOrder = isFreshBeverage || isCookedFood;
-                const isOutOfStock = item.stockQuantity === 0;
+                const isOutOfStock = isItemOutOfStock(item);
                 const isLowStock =
-                  item.stockQuantity > 0 && item.stockQuantity <= item.minThreshold;
+                  !isMadeToOrder &&
+                  !isOutOfStock &&
+                  item.stockQuantity > 0 &&
+                  item.stockQuantity <= item.minThreshold;
                 const percent = Math.min(
                   100,
                   Math.round((item.stockQuantity / (item.minThreshold * 2.5 || 20)) * 100),
@@ -1078,10 +1165,18 @@ export const FnBInventoryPage: React.FC = () => {
                 return (
                   <Card
                     key={item.id}
-                    className="!p-0 !rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between group bg-white h-full relative"
+                    styles={{
+                      body: {
+                        padding: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        height: "100%",
+                      },
+                    }}
+                    className="!p-0 !rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-300 group bg-white h-full relative"
                   >
                     {/* Top Image Container with Quick Edit Pen */}
-                    <div className="relative w-full aspect-[4/3] overflow-hidden bg-slate-100 rounded-t-3xl [&_.ant-image]:!w-full [&_.ant-image]:!h-full [&_.ant-image-img]:!w-full [&_.ant-image-img]:!h-full [&_.ant-image-img]:!object-cover">
+                    <div className="relative w-full aspect-[4/3] shrink-0 overflow-hidden bg-slate-100 rounded-t-3xl [&_.ant-image]:!block [&_.ant-image]:!w-full [&_.ant-image]:!h-full [&_.ant-image-img]:!block [&_.ant-image-img]:!w-full [&_.ant-image-img]:!h-full [&_.ant-image-img]:!object-cover">
                       {item.image ? (
                         <Image
                           src={item.image}
@@ -1327,7 +1422,7 @@ export const FnBInventoryPage: React.FC = () => {
           />
         </div>
       )}
-        </>
+        </div>
       )}
 
       <Modal
@@ -1380,18 +1475,19 @@ export const FnBInventoryPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingItemData((prev) => ({
-                        ...prev,
-                        isMadeToOrder: true,
-                        category:
-                          prev.category === "beer" || prev.category === "equipment"
-                            ? "coffee"
-                            : prev.category,
-                        unit:
-                          prev.unit && ["lon", "chai", "gói", "bao"].includes(prev.unit.toLowerCase())
-                            ? "Ly"
-                            : prev.unit || "Ly",
-                      }));
+                      setEditingItemData((prev) => {
+                        const nextCat = prev.category || dbCategories[0]?.code || "coffee";
+                        const suggestedUnit = getDefaultUnitForCategory(nextCat, stockList);
+                        return {
+                          ...prev,
+                          isMadeToOrder: true,
+                          category: nextCat,
+                          unit:
+                            isCreatingNew || !prev.unit
+                              ? suggestedUnit
+                              : normalizeUnitLabel(prev.unit),
+                        };
+                      });
                     }}
                     className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       isMadeToOrder
@@ -1411,15 +1507,19 @@ export const FnBInventoryPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingItemData((prev) => ({
-                        ...prev,
-                        isMadeToOrder: false,
-                        category: prev.category === "coffee" ? "juice" : prev.category,
-                        unit:
-                          prev.unit && ["ly", "tô", "đĩa"].includes(prev.unit.toLowerCase())
-                            ? "Lon"
-                            : prev.unit || "Lon",
-                      }));
+                      setEditingItemData((prev) => {
+                        const nextCat = prev.category || dbCategories[0]?.code || "juice";
+                        const suggestedUnit = getDefaultUnitForCategory(nextCat, stockList);
+                        return {
+                          ...prev,
+                          isMadeToOrder: false,
+                          category: nextCat,
+                          unit:
+                            isCreatingNew || !prev.unit
+                              ? suggestedUnit
+                              : normalizeUnitLabel(prev.unit),
+                        };
+                      });
                     }}
                     className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       !isMadeToOrder
@@ -1461,7 +1561,7 @@ export const FnBInventoryPage: React.FC = () => {
                       type="button"
                       onClick={() => {
                         const newSku = generateSkuForCategory(
-                          editingItemData.category || "coffee",
+                          editingItemData.category || dbCategories[0]?.code || "coffee",
                           stockList.length,
                         );
                         setEditingItemData((prev) => ({ ...prev, code: newSku }));
@@ -1489,33 +1589,56 @@ export const FnBInventoryPage: React.FC = () => {
                     Danh mục:
                   </label>
                   <Select
-                    value={editingItemData.category || (isMadeToOrder ? "coffee" : "juice")}
+                    value={editingItemData.category || dbCategories[0]?.code || "coffee"}
                     onChange={(val) => {
-                      const newCat = val as FnbStockItem["category"];
-                      const autoUnit = getDefaultUnitForCategory(newCat);
+                      const newCat = val;
+                      const matchedCat = dbCategories.find((c) => c.code === newCat);
+                      const autoUnit = getDefaultUnitForCategory(newCat, stockList);
                       setEditingItemData((prev) => ({
                         ...prev,
                         category: newCat,
+                        categoryName: matchedCat?.name || newCat,
                         unit: autoUnit,
                         code: isCreatingNew ? generateSkuForCategory(newCat, stockList.length) : prev.code,
                       }));
                     }}
                     className="!w-full !rounded-xl !text-xs !h-10"
-                    options={
-                      isMadeToOrder
-                        ? [
-                            { value: "coffee", label: "Cà Phê (Pha chế tại quầy)" },
-                            { value: "tea", label: "Trà Trái Cây & Nước Ép (Pha chế)" },
-                            { value: "food", label: "Món Ăn Nóng (Bếp nấu)" },
-                            { value: "snack", label: "Ăn Vặt & Đồ Chiên Nóng" },
-                            { value: "juice", label: "Đồ Uống Pha Chế Khác" },
-                          ]
-                        : [
-                            { value: "juice", label: "Nước Giải Khát (Lon/Chai)" },
-                            { value: "beer", label: "Bia & Đồ Có Cồn (Lon/Chai)" },
-                            { value: "snack", label: "Ăn Vặt & Bánh Kẹo (Đóng gói)" },
-                          ]
-                    }
+                    options={(() => {
+                      const seen = new Set<string>();
+                      const options: Array<{ value: string; label: string }> = [];
+
+                      for (const cat of dbCategories) {
+                        if (!cat.code || cat.code === "drink") continue;
+                        const key = cat.code.toLowerCase();
+                        if (seen.has(key)) continue;
+                        seen.add(key);
+                        options.push({
+                          value: cat.code,
+                          label: cat.name,
+                        });
+                      }
+
+                      for (const item of stockList) {
+                        if (!item.category || /^[0-9a-fA-F]{24}$/.test(item.category)) continue;
+                        const key = item.category.toLowerCase();
+                        if (seen.has(key)) continue;
+                        seen.add(key);
+                        options.push({
+                          value: item.category,
+                          label: item.categoryName || item.category,
+                        });
+                      }
+
+                      const currentVal = editingItemData.category;
+                      if (currentVal && !seen.has(currentVal.toLowerCase())) {
+                        options.push({
+                          value: currentVal,
+                          label: editingItemData.categoryName || currentVal,
+                        });
+                      }
+
+                      return options;
+                    })()}
                   />
                 </div>
 
@@ -1524,13 +1647,25 @@ export const FnBInventoryPage: React.FC = () => {
                     Đơn vị tính:
                   </label>
                   <Select
-                    value={editingItemData.unit || (isMadeToOrder ? "Ly" : "Lon")}
+                    value={normalizeUnitLabel(
+                      editingItemData.unit || getDefaultUnitForCategory(currentCategory, stockList),
+                    )}
                     onChange={(val) => setEditingItemData((prev) => ({ ...prev, unit: val }))}
                     className="!w-full !rounded-xl !text-xs !h-10"
-                    options={getCommonUnitsForCategory(editingItemData.category || "coffee").map((u) => ({
-                      value: u,
-                      label: u,
-                    }))}
+                    options={(() => {
+                      const baseUnits = getCommonUnitsForCategory(currentCategory, stockList);
+                      const currentUnit = editingItemData.unit
+                        ? normalizeUnitLabel(editingItemData.unit)
+                        : "";
+                      const allUnits =
+                        currentUnit && !baseUnits.some((u) => u.toLowerCase() === currentUnit.toLowerCase())
+                          ? [currentUnit, ...baseUnits]
+                          : baseUnits;
+                      return allUnits.map((u) => ({
+                        value: u,
+                        label: u,
+                      }));
+                    })()}
                   />
                 </div>
 
@@ -1540,12 +1675,14 @@ export const FnBInventoryPage: React.FC = () => {
                   </label>
                   <Input
                     type="number"
+                    min={0}
+                    step={500}
                     placeholder="35000"
-                    value={editingItemData.price || 0}
+                    value={editingItemData.price ?? 0}
                     onChange={(e) =>
                       setEditingItemData((prev) => ({
                         ...prev,
-                        price: parseInt(e.target.value) || 0,
+                        price: Math.max(0, parseInt(e.target.value, 10) || 0),
                       }))
                     }
                     className="!h-10 !rounded-xl font-mono text-xs font-bold"

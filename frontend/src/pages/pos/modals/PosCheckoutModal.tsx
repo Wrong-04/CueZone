@@ -14,7 +14,7 @@ import {
   PrinterOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Modal, Space, Tag, message } from "../../../shared/ui";
-import { getClubPaymentSettings, RANK_DISCOUNT_PERCENT } from "../constants/posConstants";
+import { getClubPaymentSettings } from "../constants/posConstants";
 import { posService } from "../../../services/pos.service";
 import type { PosTable } from "../../../types/pos";
 
@@ -105,15 +105,16 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
       });
       if (res.success && res.data) {
         setCheckoutPhone(res.data.phone);
+        const rankDiscount = res.data.discountPercent ?? 0;
         setLoyaltyCustomer({
           name: res.data.name,
           phone: res.data.phone,
-          rank: res.data.rank || "Standard",
+          rank: res.data.rank,
+          discountPercent: rankDiscount,
           membershipPoints: res.data.membershipPoints || 0,
           totalStoreVouchers: res.data.totalStoreVouchers,
           availableVouchers: res.data.availableVouchers || [],
         });
-        const rankDiscount = RANK_DISCOUNT_PERCENT[res.data.rank || "Standard"] || 10;
         setDiscountPercent(rankDiscount);
         setShowQuickRegister(false);
         setQuickRegName("");
@@ -209,6 +210,8 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                       if (loyaltyCustomer && val.trim() !== loyaltyCustomer.phone) {
                         setLoyaltyCustomer(null);
                         setDiscountPercent(0);
+                        setAppliedVoucher(null);
+                        setVoucherCode("");
                       }
                     }}
                     onPressEnter={onSearchLoyaltyCustomer}
@@ -603,9 +606,7 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
                           setAppliedVoucher(null);
                           setVoucherCode("");
                           if (loyaltyCustomer) {
-                            const rankDiscount =
-                              RANK_DISCOUNT_PERCENT[loyaltyCustomer.rank || "Standard"] || 10;
-                            setDiscountPercent(rankDiscount);
+                            setDiscountPercent(loyaltyCustomer.discountPercent ?? 0);
                           }
                         }}
                         className="text-[10px] text-rose-500 hover:underline cursor-pointer font-sans"

@@ -19,7 +19,12 @@ import { useAuth } from "../../contexts/AuthContext";
 import { posService, bookingService } from "../../services/pos.service";
 import { productService } from "../../services/product.service";
 import { invoiceService } from "../../services/invoice.service";
-import { tournamentService, type TournamentItem } from "../../services/tournament.service";
+import {
+  tournamentService,
+  type TournamentItem,
+  type BracketMatch,
+} from "../../services/tournament.service";
+import { getSocket } from "../../services/socket.service";
 import type { PosTable, BookingRequest } from "../../types/pos";
 import type { ClubInvoice } from "./InvoicesManagementPage";
 import type { FnbStockItem } from "../../types";
@@ -40,19 +45,20 @@ export const AdminDashboard: React.FC = () => {
   const [todayInvoices, setTodayInvoices] = useState<ClubInvoice[]>([]);
   const [invoicesRevenue, setInvoicesRevenue] = useState<number>(0);
   const [invoicesTableFee, setInvoicesTableFee] = useState<number>(0);
-  const [invoicesFnbFee, setInvoicesFnbFee] = useState<number>(0);
   // Tournaments data from database
   const [tournaments, setTournaments] = useState<TournamentItem[]>([]);
+  const [activeBracketMatch, setActiveBracketMatch] = useState<BracketMatch | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [tablesRes, bookingsRes, productsRes, invoicesRes, tournamentsRes] =
         await Promise.allSettled([
           posService.getTables(),
           bookingService.getAll(),
           productService.getAll(),
-          invoiceService.getInvoices({ limit: 50 }),
+          invoiceService.getInvoices({ limit: 100 }),
           tournamentService.getTournaments({ limit: 5 }),
         ]);
 
@@ -91,23 +97,73 @@ export const AdminDashboard: React.FC = () => {
         setTodayInvoices(paidToday);
         const todayPaid = paidToday.reduce((sum: number, inv: any) => sum + (inv.finalTotal || 0), 0);
         const todayTable = paidToday.reduce((sum: number, inv: any) => sum + (inv.tableFee || 0), 0);
-        const todayFnb = paidToday.reduce((sum: number, inv: any) => sum + (inv.fnbFee || 0), 0);
         setInvoicesRevenue(todayPaid);
         setInvoicesTableFee(todayTable);
-        setInvoicesFnbFee(todayFnb);
       }
       if (tournamentsRes.status === "fulfilled" && tournamentsRes.value?.items) {
-        setTournaments(tournamentsRes.value.items);
+        const tourItems = tournamentsRes.value.items;
+        setTournaments(tourItems);
+
+        const targetTour =
+          tourItems.find((t) => t.status === "in_progress") ||
+          tourItems.find((t) => t.status === "bracket_generated") ||
+          tourItems.find((t) => t.status === "registration_open") ||
+          tourItems.find((t) => t.status === "draft") ||
+          tourItems[0] ||
+          null;
+
+        if (
+          targetTour &&
+          (targetTour.status === "in_progress" || targetTour.status === "bracket_generated")
+        ) {
+          try {
+            const bracket = await tournamentService.getBracket(targetTour._id);
+            const allMatches = (bracket.rounds || []).flatMap((r) => r.matches || []);
+            const liveMatch =
+              allMatches.find((m) => m.status === "in_progress") ||
+              allMatches.find(
+                (m) =>
+                  m.status === "scheduled" &&
+                  m.participants.filter((p) => Boolean(p.user?.name)).length >= 2,
+              ) ||
+              [...allMatches].reverse().find((m) => m.status === "completed") ||
+              null;
+            setActiveBracketMatch(liveMatch);
+          } catch {
+            setActiveBracketMatch(null);
+          }
+        } else {
+          setActiveBracketMatch(null);
+        }
       }
     } catch (err) {
       console.warn("Lỗi đồng bộ Dashboard từ API:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void loadDashboardData();
+
+    const socket = getSocket();
+    const handleLiveUpdate = () => {
+      void loadDashboardData(true);
+    };
+
+    socket.on("table:status-changed", handleLiveUpdate);
+    socket.on("table:status_changed", handleLiveUpdate);
+    socket.on("tournament:score_updated", handleLiveUpdate);
+    socket.on("tournament:match_completed", handleLiveUpdate);
+    socket.on("fnb:order_updated", handleLiveUpdate);
+
+    return () => {
+      socket.off("table:status-changed", handleLiveUpdate);
+      socket.off("table:status_changed", handleLiveUpdate);
+      socket.off("tournament:score_updated", handleLiveUpdate);
+      socket.off("tournament:match_completed", handleLiveUpdate);
+      socket.off("fnb:order_updated", handleLiveUpdate);
+    };
   }, [loadDashboardData]);
 
   // Dynamic Shift calculation based on current hour
@@ -145,10 +201,56 @@ export const AdminDashboard: React.FC = () => {
     const secs = Math.floor((totalElapsedMs % 60000) / 1000);
 
     const formattedTime = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-    const playingCost = Math.round((totalMinutes / 60) * table.pricePerHour);
+    const carriedCost = Number((session as any).carriedCost || 0);
+    const playingCost = Math.round((totalMinutes / 60) * table.pricePerHour) + carriedCost;
 
     return { minutes: totalMinutes, cost: playingCost, formattedTime };
   };
+
+  // Classify F&B order/invoice items by matching against live product catalog categories
+  const classifyFnbOrder = useCallback(
+    (rawCategory?: string, itemName?: string, itemId?: string): "drink" | "snack" => {
+      const normalizedName = (itemName || "").trim().toLowerCase();
+      const matchedProduct = fnbStock.find(
+        (p) => (itemId && p.id === itemId) || p.name.trim().toLowerCase() === normalizedName,
+      );
+      const cat = String(rawCategory || matchedProduct?.category || "")
+        .trim()
+        .toLowerCase();
+
+      if (
+        [
+          "snack",
+          "food",
+          "noodle",
+          "fruit",
+          "accessory",
+          "equipment",
+          "ăn vặt",
+          "đồ ăn",
+          "phụ kiện",
+        ].includes(cat)
+      ) {
+        return "snack";
+      }
+      if (
+        ["drink", "coffee", "tea", "juice", "beer", "water", "beverage", "đồ uống", "nước"].includes(
+          cat,
+        )
+      ) {
+        return "drink";
+      }
+      if (
+        /mì|khô bò|khô gà|hướng dương|khoai|xúc xích|bánh|kẹo|bò viên|cơm|phở|trái cây|snack|ăn vặt|lơ|găng|đầu cơ/i.test(
+          normalizedName,
+        )
+      ) {
+        return "snack";
+      }
+      return "drink";
+    },
+    [fnbStock],
+  );
 
   // Floor stats
   const floorStats = useMemo(() => {
@@ -168,11 +270,23 @@ export const AdminDashboard: React.FC = () => {
         const { cost } = calculatePlayingDetails(t);
         totalTempTableRevenue += cost;
         (t.currentSession.orders || []).forEach((order) => {
-          const itemCost = (order.price || 0) * (order.quantity || 1);
-          if (order.category === "drink" || order.category === "coffee") {
-            totalTempDrinkRevenue += itemCost;
-          } else {
+          if ((order as any).status === "cancelled") return;
+          const qty = Math.max(
+            0,
+            Number(order.quantity || 1) - Number((order as any).cancelledQuantity || 0),
+          );
+          if (qty <= 0) return;
+          const itemCost = (order.price || 0) * qty;
+          if (
+            classifyFnbOrder(
+              order.category,
+              order.name,
+              String((order as any).productId || order.id || ""),
+            ) === "snack"
+          ) {
             totalTempSnackRevenue += itemCost;
+          } else {
+            totalTempDrinkRevenue += itemCost;
           }
         });
       }
@@ -205,27 +319,43 @@ export const AdminDashboard: React.FC = () => {
       occupancyRate,
       occupiedTables,
     };
-  }, [tables, currentTime, invoicesRevenue]);
+  }, [tables, currentTime, invoicesRevenue, classifyFnbOrder]);
 
   // Low stock alert items (exclude made to order items)
   const lowStockItems = useMemo(() => {
     return fnbStock.filter((item) => !item.isMadeToOrder && item.stockQuantity <= item.minThreshold);
   }, [fnbStock]);
 
+  // Today YYYY-MM-DD in Vietnam timezone (+07:00)
+  const todayYmd = useMemo(
+    () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10),
+    [],
+  );
+
+  const todayBookings = useMemo(() => {
+    return bookings.filter(
+      (b) => b.date === todayYmd && b.status !== "rejected" && b.status !== "cancelled",
+    );
+  }, [bookings, todayYmd]);
+
   // Customer statistics dynamically derived without arbitrary constants
   const customerStats = useMemo(() => {
-    const activeSessions = tables.filter((t) => t.currentSession);
+    const activeSessions = tables.filter(
+      (t) => (t.status === "playing" || t.status === "paused") && t.currentSession,
+    );
     const memberSessions = activeSessions.filter((t) => t.currentSession?.isMember).length;
+    const guestSessions = activeSessions.length - memberSessions;
+    const bookedTablesCount = tables.filter((t) => t.status === "booked").length;
 
-    // Invoices completed today by club members
-    const invoiceMembers = todayInvoices.filter(
-      (inv) => inv.memberRank && inv.memberRank !== "Normal",
+    // Invoices completed today by club members (exclude walk-in / default rank labels)
+    const invoiceMembers = todayInvoices.filter((inv) =>
+      Boolean(inv.memberRank && !["Normal", "Standard", "Phổ thông"].includes(inv.memberRank)),
     ).length;
     const invoiceGuests = todayInvoices.length - invoiceMembers;
 
     // Total unique verified customers and guests today
-    const totalMembers = memberSessions + invoiceMembers;
-    const totalGuests = (activeSessions.length - memberSessions) + invoiceGuests + bookings.length;
+    const totalMembers = memberSessions + invoiceMembers + bookedTablesCount;
+    const totalGuests = guestSessions + invoiceGuests;
     const totalCustomers = totalMembers + totalGuests;
     const memberPercent =
       totalCustomers > 0 ? Math.round((totalMembers / totalCustomers) * 100) : 0;
@@ -236,7 +366,7 @@ export const AdminDashboard: React.FC = () => {
       guests: totalGuests,
       memberPercent,
     };
-  }, [tables, bookings, todayInvoices]);
+  }, [tables, todayInvoices]);
 
   // Active playing/paused/booked tables for the live cockpit
   const activeTables = useMemo(() => {
@@ -245,16 +375,30 @@ export const AdminDashboard: React.FC = () => {
     );
   }, [tables]);
 
-  // Pending bookings count
-  const pendingBookingsCount = useMemo(() => {
-    return bookings.filter((b) => b.status === "pending").length;
-  }, [bookings]);
-
   // Dynamic revenue category split
   const revenueSplit = useMemo(() => {
+    let paidDrinkRevenue = 0;
+    let paidSnackRevenue = 0;
+
+    todayInvoices.forEach((inv) => {
+      const fnbItems = (inv.items || []).filter((it) => it.category !== "table_time");
+      if (fnbItems.length > 0) {
+        fnbItems.forEach((it) => {
+          const amt = it.subtotal ?? (it.price || 0) * (it.quantity || 1);
+          if (classifyFnbOrder(it.category, it.name, it.id) === "snack") {
+            paidSnackRevenue += amt;
+          } else {
+            paidDrinkRevenue += amt;
+          }
+        });
+      } else if (inv.fnbFee > 0) {
+        paidDrinkRevenue += inv.fnbFee;
+      }
+    });
+
     const totalTable = floorStats.totalTempTableRevenue + invoicesTableFee;
-    const totalDrink = floorStats.totalTempDrinkRevenue + Math.round(invoicesFnbFee * 0.7);
-    const totalSnack = floorStats.totalTempSnackRevenue + Math.round(invoicesFnbFee * 0.3);
+    const totalDrink = floorStats.totalTempDrinkRevenue + paidDrinkRevenue;
+    const totalSnack = floorStats.totalTempSnackRevenue + paidSnackRevenue;
     const grand = totalTable + totalDrink + totalSnack;
 
     if (grand === 0) {
@@ -266,11 +410,12 @@ export const AdminDashboard: React.FC = () => {
     const snackPercent = Math.max(0, 100 - tablePercent - drinkPercent);
 
     return { tablePercent, drinkPercent, snackPercent, hasData: true };
-  }, [floorStats, invoicesTableFee, invoicesFnbFee]);
+  }, [floorStats, invoicesTableFee, todayInvoices, classifyFnbOrder]);
 
   // Hourly peak revenue data dynamically aggregated from invoices and live sessions
   const hourlyData = useMemo(() => {
     const slots = [
+      { hour: "00:00", startH: 0, endH: 8, revenue: 0 },
       { hour: "09:00", startH: 8, endH: 10, revenue: 0 },
       { hour: "11:00", startH: 10, endH: 12, revenue: 0 },
       { hour: "13:00", startH: 12, endH: 14, revenue: 0 },
@@ -307,6 +452,7 @@ export const AdminDashboard: React.FC = () => {
   const activeTournament = useMemo(() => {
     return (
       tournaments.find((t) => t.status === "in_progress") ||
+      tournaments.find((t) => t.status === "bracket_generated") ||
       tournaments.find((t) => t.status === "registration_open") ||
       tournaments.find((t) => t.status === "draft") ||
       tournaments[0] ||
@@ -378,11 +524,11 @@ export const AdminDashboard: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate("/pos")}
+              onClick={() => navigate("/booking")}
               leftIcon={<CalendarOutlined />}
               className="!h-9 !rounded-xl !border-slate-300 !text-slate-700 hover:!border-emerald-600 font-medium !text-xs whitespace-nowrap"
             >
-              Lịch Đặt Bàn {bookings.length > 0 && `(${bookings.length})`}
+              Lịch Đặt Bàn {todayBookings.length > 0 && `(${todayBookings.length})`}
             </Button>
           </div>
         </div>
@@ -524,10 +670,10 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="flex items-baseline gap-2 mb-2">
               <span className="text-2xl sm:text-3xl font-black text-amber-700 font-mono tracking-tight">
-                {lowStockItems.length + pendingBookingsCount} Việc
+                {lowStockItems.length + floorStats.paused} Việc
               </span>
               <Tag
-                color={pendingBookingsCount > 0 ? "orange" : "default"}
+                color={lowStockItems.length + floorStats.paused > 0 ? "orange" : "default"}
                 className="!text-[10px] !px-1.5 !py-0 !border-0 !m-0 !font-bold"
               >
                 CẦN XỬ LÝ
@@ -535,7 +681,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>{pendingBookingsCount} Lịch hẹn chờ duyệt</span>
+              <span>{floorStats.paused} Bàn đang tạm dừng</span>
               <span className="text-amber-700 font-medium">
                 {lowStockItems.length} Món sắp hết kho
               </span>
@@ -590,10 +736,14 @@ export const AdminDashboard: React.FC = () => {
                 activeTables.map((table) => {
                 const { cost, formattedTime } = calculatePlayingDetails(table);
                 const fnbTotal =
-                  table.currentSession?.orders.reduce(
-                    (acc, cur) => acc + cur.price * cur.quantity,
-                    0,
-                  ) || 0;
+                  table.currentSession?.orders.reduce((acc, cur) => {
+                    if ((cur as any).status === "cancelled") return acc;
+                    const qty = Math.max(
+                      0,
+                      Number(cur.quantity || 1) - Number((cur as any).cancelledQuantity || 0),
+                    );
+                    return acc + (cur.price || 0) * qty;
+                  }, 0) || 0;
                 const totalBill = cost + fnbTotal;
                 const isPlaying = table.status === "playing";
                 const isPaused = table.status === "paused";
@@ -672,7 +822,9 @@ export const AdminDashboard: React.FC = () => {
                           ) : (
                             <span>
                               Hẹn khách: <strong>{table.bookedInfo?.customerName || "Khách đặt trước"}</strong>{" "}
-                              {table.bookedInfo?.time ? `(${table.bookedInfo.time})` : ""}
+                              {table.bookedInfo?.time
+                                ? `• Lúc ${table.bookedInfo.time.replace(/\s*\(([^)]+)\)/, " • $1")}`
+                                : ""}
                             </span>
                           )}
                         </div>
@@ -748,7 +900,7 @@ export const AdminDashboard: React.FC = () => {
                     Lịch Đặt Bàn Trong Ngày
                   </Title>
                   <Text className="!text-xs !text-slate-500 block">
-                    {bookings.length} lịch đặt trực tuyến qua website khách hàng
+                    {todayBookings.length} lịch đặt trực tuyến qua website khách hàng
                   </Text>
                 </div>
               </div>
@@ -765,12 +917,12 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="divide-y divide-slate-100">
-              {bookings.length === 0 ? (
+              {todayBookings.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs">
                   Chưa có lịch đặt bàn nào hôm nay
                 </div>
               ) : (
-                bookings.slice(0, 4).map((b) => (
+                todayBookings.slice(0, 4).map((b) => (
                   <div
                     key={b.id}
                     className="p-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors"
@@ -953,48 +1105,98 @@ export const AdminDashboard: React.FC = () => {
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex justify-between">
                   <span className="truncate max-w-[200px]">
-                    {activeTournament?.name || "GIẢI CUEZONE BANK POOL CHAMPIONSHIP"}
+                    {activeBracketMatch
+                      ? `${activeBracketMatch.roundName}${activeBracketMatch.table?.name ? ` • ${activeBracketMatch.table.name}` : ""}`
+                      : activeTournament?.name || "GIẢI CUEZONE BANK POOL CHAMPIONSHIP"}
                   </span>
                   <span className="text-emerald-700 font-mono">
                     RACE TO {activeTournament?.raceToScore || 4}
                   </span>
                 </div>
 
-                {activeTournament?.players && activeTournament.players.length >= 2 ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
-                        {activeTournament.players[0].name.charAt(0)}
+                {activeBracketMatch && activeBracketMatch.participants.length >= 2 ? (() => {
+                  const p1 = activeBracketMatch.participants[0];
+                  const p2 = activeBracketMatch.participants[1];
+                  const p1Name = p1?.user?.name || "Đang chờ cơ thủ";
+                  const p2Name = p2?.user?.name || "Đang chờ cơ thủ";
+                  const showScore =
+                    activeBracketMatch.status === "in_progress" ||
+                    activeBracketMatch.status === "completed";
+                  return (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                          {p1Name.charAt(0)}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
+                            {p1Name}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            Hạt giống #{p1?.seed || 1}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
-                          {activeTournament.players[0].name}
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          Hạt giống #{activeTournament.players[0].seed || 1}
-                        </span>
-                      </div>
-                    </div>
 
-                    <div className="px-3 py-1 bg-white rounded-lg border border-slate-200 font-mono font-black text-lg text-slate-900 shadow-2xs">
-                      VS
-                    </div>
+                      <div className="px-3 py-1 bg-white rounded-lg border border-slate-200 font-mono font-black text-lg text-slate-900 shadow-2xs shrink-0">
+                        {showScore ? `${p1?.score ?? 0} - ${p2?.score ?? 0}` : "VS"}
+                      </div>
 
-                    <div className="flex items-center gap-2 text-right">
-                      <div>
-                        <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
-                          {activeTournament.players[1].name}
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          Hạt giống #{activeTournament.players[1].seed || 2}
-                        </span>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
-                        {activeTournament.players[1].name.charAt(0)}
+                      <div className="flex items-center gap-2 text-right">
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
+                            {p2Name}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            Hạt giống #{p2?.seed || 2}
+                          </span>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                          {p2Name.charAt(0)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : (
+                  );
+                })() : activeTournament?.players && activeTournament.players.length >= 2 ? (() => {
+                  const p1 = activeTournament.players[0];
+                  const p2 = activeTournament.players[activeTournament.players.length - 1];
+                  const p2Seed = p2.seed || activeTournament.players.length;
+                  return (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
+                          {p1.name.charAt(0)}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
+                            {p1.name}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            Hạt giống #{p1.seed || 1}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="px-3 py-1 bg-white rounded-lg border border-slate-200 font-mono font-black text-lg text-slate-900 shadow-2xs">
+                        VS
+                      </div>
+
+                      <div className="flex items-center gap-2 text-right">
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block truncate max-w-[110px]">
+                            {p2.name}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            Hạt giống #{p2Seed}
+                          </span>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                          {p2.name.charAt(0)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })() : (
                   <div className="py-1">
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="text-slate-600">Quy mô giải:</span>

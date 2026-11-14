@@ -9,12 +9,9 @@ import { Button, Image, Input, Modal, Tag } from "../../shared/ui";
 import type { ProductMenu } from "../../services/product.service";
 import { CustomerFnbCategoryPills } from "./CustomerFnbCategoryPills";
 import {
-  getCustomerFnbCategoryLabel,
-  getFnbImageUrl,
   isFnbItemOutOfStock,
   isFnbItemPrepared,
   isFnbWarehouseItem,
-  resolveFnbCategory,
 } from "../../utils/fnb";
 
 interface CustomerFnbMenuModalProps {
@@ -48,31 +45,27 @@ export function CustomerFnbMenuModal({
   }, [items]);
 
   const categoryOptions = useMemo(() => {
-    const allCategoriesInItems = Array.from(
-      new Set(validFnbItems.map((item) => resolveFnbCategory(item.name, item.category))),
+    const finalCategories = Array.from(
+      new Set(validFnbItems.map((item) => item.category).filter(Boolean)),
     );
-    const standardOrder = ["coffee", "tea", "juice", "beer", "food", "snack"];
-    const standardPresent = standardOrder.filter((cat) => allCategoriesInItems.includes(cat));
-    const dynamicCategories = allCategoriesInItems.filter((cat) => !standardOrder.includes(cat));
-    const finalCategories = [...standardPresent, ...dynamicCategories];
 
     return [
       { key: "all", label: "Tất cả thực đơn", badge: validFnbItems.length },
-      ...finalCategories.map((category) => ({
-        key: category,
-        label: getCustomerFnbCategoryLabel(category),
-        badge: validFnbItems.filter((item) => resolveFnbCategory(item.name, item.category) === category)
-          .length,
-      })),
+      ...finalCategories.map((category) => {
+        const sampleItem = validFnbItems.find((item) => item.category === category);
+        return {
+          key: category,
+          label: sampleItem?.categoryName || category,
+          badge: validFnbItems.filter((item) => item.category === category).length,
+        };
+      }),
     ];
   }, [validFnbItems]);
 
   const filteredItems = useMemo(() => {
     const query = searchText.trim().toLocaleLowerCase("vi-VN");
     return validFnbItems.filter((item) => {
-      const matchesCategory =
-        selectedCategory === "all" ||
-        resolveFnbCategory(item.name, item.category) === selectedCategory;
+      const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
       const matchesSearch = !query || item.name.toLocaleLowerCase("vi-VN").includes(query);
       return matchesCategory && matchesSearch;
     });
@@ -127,7 +120,7 @@ export function CustomerFnbMenuModal({
           ) : (
             filteredItems.map((item) => {
               const quantity = selectedQuantities[item._id] || 0;
-              const category = resolveFnbCategory(item.name, item.category);
+              const category = item.category;
               const isPrepared = isFnbItemPrepared(item);
               const isOutOfStock = isFnbItemOutOfStock(item);
               const reachedStockLimit = quantity >= Math.max(0, item.stock ?? 0);
@@ -138,20 +131,25 @@ export function CustomerFnbMenuModal({
                   className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <Image
-                      src={getFnbImageUrl(item.name, category, item.imageUrl)}
-                      alt={item.name}
-                      fallback={getFnbImageUrl(item.name, category)}
-                      preview
-                      width={88}
-                      height={72}
-                      className="!shrink-0 !rounded-lg !object-cover"
-                    />
+                    {item.imageUrl ? (
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.name}
+                        preview
+                        width={88}
+                        height={72}
+                        className="!shrink-0 !rounded-lg !object-cover"
+                      />
+                    ) : (
+                      <div className="w-[88px] h-[72px] shrink-0 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-medium text-slate-400">
+                        Chưa có ảnh
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="truncate text-sm font-bold text-slate-900">{item.name}</span>
                         <Tag color="blue" className="!m-0 !text-[10px]">
-                          {getCustomerFnbCategoryLabel(category)}
+                          {item.categoryName || category}
                         </Tag>
                         {isPrepared ? (
                           <Tag color="purple" className="!m-0 !text-[10px]">

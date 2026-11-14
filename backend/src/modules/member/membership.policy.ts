@@ -55,3 +55,8 @@ export function getMemberTier(points: number) {
 export function getPointsForSpend(amount: number) {
   return Math.floor(amount / MEMBER_EARN_POINTS_RATE);
 }
+
+export function isVipMemberTier(points: number): boolean {
+  const { tier } = getMemberTier(points);
+  return tier.minPoints > 0;
+}
