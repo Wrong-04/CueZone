@@ -52,6 +52,9 @@ interface PosFloorHeaderProps {
   loading: boolean;
   saving: boolean;
   onReload: () => Promise<void>;
+  filterFloor: string;
+  setFilterFloor: (floor: string) => void;
+  floorOptions: Array<{ value: string; label: string }>;
   filterStatus: string;
   setFilterStatus: (status: string) => void;
   statusPillItems: Array<{
@@ -90,6 +93,9 @@ export const PosFloorHeader: React.FC<PosFloorHeaderProps> = ({
   loading,
   saving,
   onReload,
+  filterFloor,
+  setFilterFloor,
+  floorOptions,
   filterStatus,
   setFilterStatus,
   statusPillItems,
@@ -104,6 +110,11 @@ export const PosFloorHeader: React.FC<PosFloorHeaderProps> = ({
   onOrdersUpdated,
   onCheckInFromBooking,
 }) => {
+  const currentFloorCount =
+    filterFloor === "all"
+      ? stats.total
+      : tables.filter((t) => String(t.floor ?? 1) === String(filterFloor)).length;
+
   return (
     <Card
       styles={{ body: { padding: "12px 18px" } }}
@@ -125,7 +136,9 @@ export const PosFloorHeader: React.FC<PosFloorHeaderProps> = ({
             color="green"
             className="!rounded-full !px-2 !py-0.5 !text-[10px] !font-bold !m-0 whitespace-nowrap"
           >
-            TOÀN QUÁN • {stats.total} BÀN
+            {filterFloor === "all"
+              ? `TOÀN QUÁN • ${stats.total} BÀN`
+              : `TẦNG ${filterFloor} • ${currentFloorCount} BÀN`}
           </Tag>
           <Tag
             color={stats.occupancyRate > 70 ? "volcano" : "blue"}
@@ -238,6 +251,13 @@ export const PosFloorHeader: React.FC<PosFloorHeaderProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <Select
+            value={filterFloor}
+            onChange={(val) => setFilterFloor(val as string)}
+            className="w-36 sm:w-40 !text-xs font-semibold"
+            options={floorOptions}
+          />
+
           <Select
             value={filterArea}
             onChange={(val) => setFilterArea(val as string)}

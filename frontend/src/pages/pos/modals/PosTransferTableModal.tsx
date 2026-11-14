@@ -221,7 +221,7 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
                           : "";
                       return {
                         value: t.id,
-                        label: `${t.name} (${typeLabel}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h${diffText}`,
+                        label: `Tầng ${t.floor || 1} • ${t.name} (${typeLabel}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h${diffText}`,
                       };
                     } else {
                       const mins = t.durationMinutes || 0;
@@ -230,7 +230,7 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
                       const durationText = hrs > 0 ? `${hrs}h ${remMins}p` : `${remMins}p`;
                       return {
                         value: t.id,
-                        label: `${t.name} (${typeLabel}) • Khách: ${t.customerName || "Khách lẻ"} • Chơi ${durationText} • ${(t.currentCost || 0).toLocaleString("vi-VN")}đ`,
+                        label: `Tầng ${t.floor || 1} • ${t.name} (${typeLabel}) • Khách: ${t.customerName || "Khách lẻ"} • Chơi ${durationText} • ${(t.currentCost || 0).toLocaleString("vi-VN")}đ`,
                       };
                     }
                   })
@@ -243,7 +243,7 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
                     )
                     .map((t) => ({
                       value: t.id,
-                      label: `${t.name} (${t.typeName}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h`,
+                      label: `Tầng ${t.floor || 1} • ${t.name} (${t.typeName}) • ${t.pricePerHour.toLocaleString("vi-VN")}đ/h`,
                     }))
             }
           />

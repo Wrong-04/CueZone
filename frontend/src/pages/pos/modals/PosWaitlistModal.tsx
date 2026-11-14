@@ -82,7 +82,9 @@ export const PosWaitlistModal: React.FC<PosWaitlistModalProps> = ({
             color={availableTables.length > 0 ? "blue" : "volcano"}
             className="!rounded-full !px-2 !font-bold"
           >
-            Toàn quán: {availableTables.length} bàn trống
+            {availableTables.length > 0
+              ? `Còn ${availableTables.length} bàn trống loại khác`
+              : "Toàn quán đã hết bàn trống"}
           </Tag>
         </div>
       }
@@ -137,24 +139,20 @@ export const PosWaitlistModal: React.FC<PosWaitlistModalProps> = ({
             </div>
             <div>
               <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                Loại bàn mong muốn
+                Nhu cầu bàn mong muốn
               </label>
               <Select
                 value={newWaitType}
                 onChange={(val) => setNewWaitType(String(val))}
                 size="small"
                 className="w-full !rounded-lg"
-                options={(() => {
-                  const types = Array.from(new Set(availableTables.map((t) => t.typeName).filter(Boolean)));
-                  if (types.length === 0) {
-                    return [
-                      { value: "Bàn Bida Lỗ (Pool)", label: "Bàn Bida Lỗ (Pool)" },
-                      { value: "Bàn Bida Carom (Phăng)", label: "Bàn Bida Carom (Phăng)" },
-                      { value: "Bàn Bida Snooker", label: "Bàn Bida Snooker" },
-                    ];
-                  }
-                  return types.map((t) => ({ value: t, label: t }));
-                })()}
+                options={[
+                  { value: "Bàn Bida Lỗ (Pool)", label: "Bàn Bida Lỗ (Pool)" },
+                  { value: "Bàn Bida Carom (Phăng)", label: "Bàn Bida Carom (Phăng)" },
+                  { value: "Bàn Bida Snooker", label: "Bàn Bida Snooker" },
+                  { value: "Bàn VIP", label: "Bàn Khu VIP" },
+                  { value: "Bàn Thi Đấu", label: "Bàn Khu Thi Đấu" },
+                ]}
               />
             </div>
           </div>
@@ -247,41 +245,53 @@ export const PosWaitlistModal: React.FC<PosWaitlistModalProps> = ({
                   </div>
 
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 self-end sm:self-center shrink-0">
-                    <Select
-                      placeholder={
-                        availableTables.length > 0 ? "-- Chọn bàn xếp khách --" : "Hết bàn trống"
-                      }
-                      value={
-                        selectedWaitlistTable[item.id] ||
-                        (availableTables.find((t) => t.typeName === item.preferredType)?.id ??
-                          availableTables[0]?.id)
-                      }
-                      onChange={(val) =>
-                        setSelectedWaitlistTable((prev) => ({ ...prev, [item.id]: String(val) }))
-                      }
-                      disabled={availableTables.length === 0}
-                      className="w-48 sm:w-60 !text-xs !h-8 font-medium"
-                      options={getTableOptionsForGuest(item.preferredType)}
-                    />
+                    {(() => {
+                      const findDefaultId = (preferredType: string) => {
+                        if (!preferredType) return availableTables[0]?.id;
+                        const pLower = preferredType.toLowerCase();
+                        const matched = availableTables.find((t) => {
+                          if (t.typeName?.toLowerCase() === pLower) return true;
+                          if (pLower.includes("vip") && (t.area?.toLowerCase().includes("vip") || t.name.toLowerCase().includes("vip"))) return true;
+                          if (pLower.includes("thi đấu") && (t.area?.toLowerCase().includes("thi đấu") || t.name.toLowerCase().includes("thi đấu"))) return true;
+                          return false;
+                        });
+                        return matched?.id ?? availableTables[0]?.id;
+                      };
+                      const defaultTableId = findDefaultId(item.preferredType);
+                      const chosenId = selectedWaitlistTable[item.id] || defaultTableId;
 
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      disabled={availableTables.length === 0}
-                      onClick={() => {
-                        const chosenId =
-                          selectedWaitlistTable[item.id] ||
-                          (availableTables.find((t) => t.typeName === item.preferredType)?.id ??
-                            availableTables[0]?.id);
-                        if (chosenId) {
-                          onAssignWaitlist(item, chosenId);
-                        }
-                      }}
-                      leftIcon={<PlayCircleOutlined />}
-                      className="!rounded-lg !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-8 shadow-2xs whitespace-nowrap"
-                    >
-                      Xếp Bàn
-                    </Button>
+                      return (
+                        <>
+                          <Select
+                            placeholder={
+                              availableTables.length > 0 ? "-- Chọn bàn xếp khách --" : "Hết bàn trống"
+                            }
+                            value={chosenId}
+                            onChange={(val) =>
+                              setSelectedWaitlistTable((prev) => ({ ...prev, [item.id]: String(val) }))
+                            }
+                            disabled={availableTables.length === 0}
+                            className="w-56 sm:w-72 !text-xs !h-8 font-medium"
+                            options={getTableOptionsForGuest(item.preferredType)}
+                          />
+
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={availableTables.length === 0 || !chosenId}
+                            onClick={() => {
+                              if (chosenId) {
+                                onAssignWaitlist(item, chosenId);
+                              }
+                            }}
+                            leftIcon={<PlayCircleOutlined />}
+                            className="!rounded-lg !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold !text-xs !h-8 shadow-2xs whitespace-nowrap"
+                          >
+                            Xếp Bàn
+                          </Button>
+                        </>
+                      );
+                    })()}
                     <Tooltip title="Xóa khỏi danh sách chờ">
                       <Button
                         variant="outline"
