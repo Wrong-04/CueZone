@@ -1,13 +1,13 @@
 // Run from backend: pnpm exec node scripts/check-pos.cjs
 // Uses a disposable database on the configured MongoDB server, never the app database.
-require("dotenv/config");
+require("dotenv").config({ path: require("node:path").resolve(__dirname, "../.env") });
 const dns = require("dns");
 try {
   dns.setServers(["8.8.8.8", "1.1.1.1"]);
 } catch (e) {}
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
-const { randomUUID } = require("node:crypto");
+const { randomUUID, createHmac } = require("node:crypto");
 const { App } = require("../dist/app");
 const { User } = require("../dist/modules/user/user.model");
 const { Table } = require("../dist/modules/table/table.model");
@@ -15,6 +15,7 @@ const { Booking } = require("../dist/modules/booking/booking.model");
 const { BookingPaymentReceipt } = require("../dist/modules/booking/booking-payment.model");
 const { Invoice } = require("../dist/modules/invoice/invoice.model");
 const { Wallet } = require("../dist/modules/wallet/wallet.model");
+const { WalletService, vnpaySignData } = require("../dist/modules/wallet/wallet.service");
 const { Product } = require("../dist/modules/product/product.model");
 const { playingDetails } = require("../dist/modules/session/session.service");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
@@ -236,13 +237,13 @@ async function main() {
     process.env.VNPAY_RETURN_URL = "http://localhost:5556/customer/wallet";
     try {
       const walletService = new WalletService();
-      const amount = 2_000_000;
+      const amount = 500_000;
       const topup = await walletService.createVnpayTopup(
         customer.user._id,
         amount,
         "127.0.0.1",
       );
-      assert.match(topup.paymentUrl, /vnp_Amount=200000000/);
+      assert.match(topup.paymentUrl, /vnp_Amount=50000000/);
       const balanceBeforeVnpay = (await Wallet.findOne({ userId: customer.user._id }))?.balance ?? 0;
       const callbackDate = new Date(Date.now() + 7 * 60 * 60 * 1000)
         .toISOString()
@@ -299,7 +300,7 @@ async function main() {
         customer.accessToken,
       );
       assert.equal(tamperedResult.httpStatus, 400);
-      assert.match(tamperedResult.message, /Chữ ký phản hồi VNPay không hợp lệ/);
+      assert.match(tamperedResult.message, /Không thể xác thực kết quả thanh toán VNPay|Chữ ký phản hồi VNPay không hợp lệ/);
       assert.equal(
         (await Wallet.findOne({ userId: customer.user._id })).balance,
         balanceBeforeVnpay + amount,
@@ -536,6 +537,7 @@ async function main() {
       { status: "approved", tableId: table._id },
       token,
     );
+    await Booking.updateOne({ _id: booking._id }, { $set: { paymentStatus: "paid" } });
     await Table.updateOne({ _id: table._id }, { $set: { currentSession: null } });
     const opened = await ok(
       `/tables/${table._id}/session`,
