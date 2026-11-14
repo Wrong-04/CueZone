@@ -31,6 +31,9 @@ import {
   StopOutlined,
   CheckCircleFilled,
   ExclamationCircleFilled,
+  PlusCircleOutlined,
+  AppstoreOutlined,
+  CoffeeOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -54,6 +57,7 @@ import { stockCheckService, type StockCheckSession } from "../../services/stock-
 import {
   fetchProducts,
   fetchCategories,
+  createProduct,
   setProductActiveStatus,
   type Category,
 } from "../../services/catalog-management.service";
@@ -512,6 +516,172 @@ export const WarehouseInventoryPage: React.FC = () => {
     setAlertModalVisible(false);
   };
 
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+
+  // Modal Thêm vật tư / mặt hàng mới vào kho
+  const [isAddMaterialModalOpen, setIsAddMaterialModalOpen] = useState(false);
+  const [isSavingNewMaterial, setIsSavingNewMaterial] = useState(false);
+  const [newMaterialForm, setNewMaterialForm] = useState({
+    name: "",
+    sku: "",
+    category: "accessory",
+    productType: "accessory" as "accessory" | "ingredient" | "fnb",
+    unit: "cây",
+    costPrice: 0,
+    minStock: 5,
+    location: "Kệ Gậy & Phụ Kiện",
+    description: "",
+  });
+
+  const handleOpenAddMaterialModal = () => {
+    const defaultCat =
+      availableCategories.find((c) => c.scope === "warehouse") || availableCategories[0];
+    const catCode = defaultCat?.code || "accessory";
+    const pType: "accessory" | "ingredient" | "fnb" =
+      catCode === "ingredient" ? "ingredient" : "accessory";
+    const autoSku = `${catCode === "ingredient" ? "ING" : "ACC"}-${String(stockList.length + 1).padStart(3, "0")}`;
+
+    setNewMaterialForm({
+      name: "",
+      sku: autoSku,
+      category: catCode,
+      productType: pType,
+      unit: pType === "accessory" ? "cây" : "kg",
+      costPrice: 0,
+      minStock: 5,
+      location: pType === "accessory" ? "Kệ Gậy & Phụ Kiện" : "Kho Nguyên Liệu",
+      description: "",
+    });
+    setIsAddMaterialModalOpen(true);
+  };
+
+  const handleProductTypeChange = (pType: "accessory" | "ingredient" | "fnb") => {
+    let matchedCat = "";
+    let defaultUnit = "cái";
+    let defaultLocation = "Kho Tổng";
+    let prefix = "MAT";
+
+    if (pType === "accessory") {
+      matchedCat =
+        availableCategories.find(
+          (c) => (c.scope === "warehouse" || c.code === "accessory") && c.code !== "ingredient",
+        )?.code || "accessory";
+      defaultUnit = "cây";
+      defaultLocation = "Kệ Gậy & Phụ Kiện";
+      prefix = "ACC";
+    } else if (pType === "ingredient") {
+      matchedCat =
+        availableCategories.find(
+          (c) => c.code === "ingredient" || c.name.toLowerCase().includes("nguyên liệu"),
+        )?.code || "ingredient";
+      defaultUnit = "kg";
+      defaultLocation = "Kho Nguyên Liệu";
+      prefix = "ING";
+    } else {
+      // Đồ đóng gói: Chỉ các mặt hàng đóng gói lưu kho (Nước giải khát, Bia, Ăn vặt)
+      const packagedCat = availableCategories.find((c) => {
+        const code = (c.code || "").toLowerCase();
+        return (
+          code === "juice" ||
+          code === "beer" ||
+          code === "snack" ||
+          code === "soft_drink" ||
+          code === "drink"
+        );
+      });
+      matchedCat = packagedCat?.code || "juice";
+      defaultUnit = "lon";
+      defaultLocation = "Kho Đồ Uống";
+      prefix = "FNB";
+    }
+
+    const autoSku = `${prefix}-${String(stockList.length + 1).padStart(3, "0")}`;
+
+    setNewMaterialForm((prev) => ({
+      ...prev,
+      productType: pType,
+      category: matchedCat,
+      unit: defaultUnit,
+      location: defaultLocation,
+      sku: autoSku,
+    }));
+  };
+
+  // Danh mục phân loại phù hợp theo từng loại hàng (Không lẫn lộn món pha chế vào đồ đóng gói)
+  const displayedCategories = useMemo(() => {
+    if (newMaterialForm.productType === "accessory") {
+      const list = availableCategories.filter(
+        (c) =>
+          (c.scope === "warehouse" || c.code === "accessory" || c.code === "equipment") &&
+          c.code !== "ingredient",
+      );
+      return list.length > 0 ? list : availableCategories.filter((c) => c.code === "accessory");
+    }
+    if (newMaterialForm.productType === "ingredient") {
+      const list = availableCategories.filter(
+        (c) => c.code === "ingredient" || c.name.toLowerCase().includes("nguyên liệu"),
+      );
+      return list.length > 0 ? list : availableCategories.filter((c) => c.code === "ingredient");
+    }
+    // "fnb" (Đồ đóng gói): Chỉ các mặt hàng đóng gói bán sẵn lưu kho (Nước giải khát, Bia, Ăn vặt)
+    // Loại trừ các món chế biến tại chỗ (Cà phê pha, Trà trái cây, Món ăn nóng từ bếp) và Phụ kiện kho
+    return availableCategories.filter((c) => {
+      const code = (c.code || "").toLowerCase();
+      const name = (c.name || "").toLowerCase();
+      if (c.scope === "warehouse") return false;
+      if (code === "coffee" || code === "tea" || code === "food") return false;
+      if (
+        name.includes("cà phê") ||
+        name.includes("trà") ||
+        name.includes("nóng") ||
+        name.includes("chế biến")
+      ) {
+        return false;
+      }
+      return true; // Giữ lại: Nước giải khát (juice), Bia & Đồ có cồn (beer), Ăn vặt (snack)
+    });
+  }, [availableCategories, newMaterialForm.productType]);
+
+  const handleSaveNewMaterial = async () => {
+    if (!newMaterialForm.name.trim()) {
+      message.warning("Vui lòng nhập tên mặt hàng!");
+      return;
+    }
+    if (!newMaterialForm.sku.trim()) {
+      message.warning("Vui lòng nhập mã hàng!");
+      return;
+    }
+
+    setIsSavingNewMaterial(true);
+    try {
+      const res = await createProduct({
+        name: newMaterialForm.name.trim(),
+        sku: newMaterialForm.sku.trim().toUpperCase(),
+        category: newMaterialForm.category,
+        productType: newMaterialForm.productType,
+        unit: newMaterialForm.unit.trim() || "cái",
+        costPrice: Number(newMaterialForm.costPrice) || 0,
+        salePrice: 0,
+        minStock: Number(newMaterialForm.minStock) || 0,
+        description: newMaterialForm.description.trim(),
+        isForSale: newMaterialForm.productType === "fnb",
+        isMadeToOrder: false,
+      });
+
+      if (res && res.success === false) {
+        throw new Error(res.message || "Không thể tạo mặt hàng mới");
+      }
+
+      message.success(`Đã thêm "${newMaterialForm.name}" thành công!`);
+      setIsAddMaterialModalOpen(false);
+      window.dispatchEvent(new Event("catalog-updated"));
+    } catch (err: any) {
+      message.error(err.response?.data?.message || err.message || "Lỗi thêm mặt hàng mới!");
+    } finally {
+      setIsSavingNewMaterial(false);
+    }
+  };
+
   // Main navigation tabs with URL search params support
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab") || "stock";
@@ -534,14 +704,12 @@ export const WarehouseInventoryPage: React.FC = () => {
     let isMounted = true;
     const loadRealProducts = async () => {
       try {
-        const [res, catRes] = await Promise.allSettled([
-          fetchProducts(),
-          fetchCategories(),
-        ]);
+        const [res, catRes] = await Promise.allSettled([fetchProducts(), fetchCategories()]);
 
         if (isMounted && res.status === "fulfilled" && res.value && Array.isArray(res.value.data)) {
           const inactiveCategorySet = new Set<string>();
           if (catRes.status === "fulfilled" && catRes.value && Array.isArray(catRes.value.data)) {
+            setAvailableCategories(catRes.value.data.filter((c: Category) => c.isActive !== false));
             catRes.value.data.forEach((c: Category) => {
               if (c.isActive === false) {
                 if (c._id) inactiveCategorySet.add(String(c._id));
@@ -921,7 +1089,9 @@ export const WarehouseInventoryPage: React.FC = () => {
     dayjs().startOf("month"),
     dayjs().endOf("day"),
   ]);
-  const [reportPreset, setReportPreset] = useState<"today" | "7days" | "thisMonth" | null>("thisMonth");
+  const [reportPreset, setReportPreset] = useState<"today" | "7days" | "thisMonth" | null>(
+    "thisMonth",
+  );
   const [reportCategory, setReportCategory] = useState<string>("all");
   const [reportSearch, setReportSearch] = useState<string>("");
   const [reportLoading, setReportLoading] = useState<boolean>(false);
@@ -997,7 +1167,7 @@ export const WarehouseInventoryPage: React.FC = () => {
         options: operationalAreas,
       },
       {
-        label: "Bàn bida trong quán",
+        label: `Bàn bida trong quán (${billiardTables.length} bàn thực tế từ MongoDB)`,
         options: tableOptions,
       },
     ];
@@ -1079,7 +1249,10 @@ export const WarehouseInventoryPage: React.FC = () => {
       const cat = (i.category || "").toLowerCase();
       const sku = (i.sku || "").toUpperCase();
       return (
-        (cat === "beverage" || cat === "drink" || sku.startsWith("DRK") || sku.startsWith("BEER")) &&
+        (cat === "beverage" ||
+          cat === "drink" ||
+          sku.startsWith("DRK") ||
+          sku.startsWith("BEER")) &&
         !isAccessory(i) &&
         !isIngredient(i)
       );
@@ -1106,7 +1279,10 @@ export const WarehouseInventoryPage: React.FC = () => {
       disabled: i.stockQty === 0,
     });
 
-    const groups: { label: string; options: { value: string; label: string; disabled: boolean }[] }[] = [];
+    const groups: {
+      label: string;
+      options: { value: string; label: string; disabled: boolean }[];
+    }[] = [];
 
     if (accessories.length > 0) {
       groups.push({
@@ -1152,7 +1328,12 @@ export const WarehouseInventoryPage: React.FC = () => {
   // Kiểm tra mối liên hệ hợp lý giữa Địa điểm tiếp nhận và Mặt hàng xuất kho
   const isTargetTable = useMemo(() => {
     const tgt = (transferForm.target || "").toLowerCase();
-    return tgt.includes("bàn") || tgt.includes("ban ") || tgt.includes("tủ cơ") || tgt.includes("bảo trì");
+    return (
+      tgt.includes("bàn") ||
+      tgt.includes("ban ") ||
+      tgt.includes("tủ cơ") ||
+      tgt.includes("bảo trì")
+    );
   }, [transferForm.target]);
 
   const selectedTransferItem = useMemo(() => {
@@ -1257,7 +1438,10 @@ export const WarehouseInventoryPage: React.FC = () => {
         setReportItems(res.items);
       }
     } catch (err) {
-      console.warn("Lỗi khi tải báo cáo xuất nhập tồn từ máy chủ, chuyển sang chế độ dự phòng:", err);
+      console.warn(
+        "Lỗi khi tải báo cáo xuất nhập tồn từ máy chủ, chuyển sang chế độ dự phòng:",
+        err,
+      );
       // Fallback: tính toán từ stockList và slipsList thực tế (loại bỏ món chế biến tại quán)
       const validStock = stockList.filter((item) => !isMakeToOrderProduct(item));
       const slipsInPeriod = slipsList.filter((s) => isSlipInDateRange(s.date, reportRange));
@@ -1430,7 +1614,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       // Đóng modal NGAY LẬP TỨC để loại bỏ độ trễ và ngăn chặn click lần 2
       setInwardModalVisible(false);
       message.success(
-        `Đã lập phiếu nhập kho & cập nhật trực tiếp vào MongoDB! Cộng thêm +${inwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
+        `Đã lập phiếu nhập kho! Cộng thêm +${inwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
       );
 
       // Re-fetch sản phẩm và phiếu nhập kho song song trong nền từ MongoDB
@@ -1489,8 +1673,8 @@ export const WarehouseInventoryPage: React.FC = () => {
         });
       }
     } catch (err: any) {
-      console.error("Lỗi cập nhật phiếu nhập kho lên MongoDB:", err);
-      message.error(err?.message || "Không thể cập nhật phiếu nhập kho vào MongoDB.");
+      console.error("Lỗi cập nhật phiếu nhập kho:", err);
+      message.error(err?.message || "Không thể lưu phiếu nhập kho. Vui lòng thử lại.");
     } finally {
       setIsSubmittingInward(false);
     }
@@ -1633,7 +1817,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       // Đóng modal NGAY LẬP TỨC để loại bỏ delay và ngăn click lần 2
       setWasteModalVisible(false);
       message.success(
-        `Đã ghi nhận báo hỏng phụ kiện thành công! Trừ -${wasteForm.qty} ${targetItem.unit} "${targetItem.name}" trên MongoDB.`,
+        `Đã ghi nhận báo hỏng phụ kiện! Đã trừ -${wasteForm.qty} ${targetItem.unit} "${targetItem.name}".`,
       );
 
       // Re-fetch tồn kho và danh sách báo hao mòn song song từ MongoDB
@@ -1721,8 +1905,12 @@ export const WarehouseInventoryPage: React.FC = () => {
       content: (
         <div className="py-2 text-sm text-slate-600">
           <p className="mb-2">
-            Bạn có chắc chắn muốn {nextActive ? "bật hoạt động lại" : "tạm ngưng lưu thông"} mặt hàng{" "}
-            <strong className="text-slate-900 font-bold">"{record.name}" ({record.sku})</strong>?
+            Bạn có chắc chắn muốn {nextActive ? "bật hoạt động lại" : "tạm ngưng lưu thông"} mặt
+            hàng{" "}
+            <strong className="text-slate-900 font-bold">
+              "{record.name}" ({record.sku})
+            </strong>
+            ?
           </p>
           <p className="text-xs text-slate-500 mb-0">
             {nextActive
@@ -1742,7 +1930,8 @@ export const WarehouseInventoryPage: React.FC = () => {
           : "!bg-rose-600 hover:!bg-rose-700 !rounded-xl !h-9 !px-5 !font-bold shadow-xs",
       },
       cancelButtonProps: {
-        className: "!rounded-xl !h-9 !px-4 !border-slate-300 hover:!border-slate-400 !font-semibold text-slate-700",
+        className:
+          "!rounded-xl !h-9 !px-4 !border-slate-300 hover:!border-slate-400 !font-semibold text-slate-700",
       },
       onOk: async () => {
         try {
@@ -1862,9 +2051,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       title: "Mã hàng",
       dataIndex: "sku",
       key: "sku",
-      width: 130,
+      width: 145,
       render: (sku: string) => (
-        <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md border border-slate-200">
+        <span className="font-mono font-bold text-xs bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md border border-slate-200 whitespace-nowrap inline-block shrink-0">
           {sku}
         </span>
       ),
@@ -2075,10 +2264,10 @@ export const WarehouseInventoryPage: React.FC = () => {
       title: "Mã Phiếu",
       dataIndex: "slipCode",
       key: "slipCode",
-      width: 140,
+      width: 175,
       render: (code: string, record: InventorySlip) => (
         <span
-          className={`font-mono font-black text-xs px-2 py-0.5 rounded border ${
+          className={`font-mono font-black text-xs px-2.5 py-1 rounded-md border whitespace-nowrap inline-block shrink-0 ${
             record.type === "inward"
               ? "text-emerald-800 bg-emerald-50 border-emerald-200"
               : record.type === "waste"
@@ -2093,9 +2282,9 @@ export const WarehouseInventoryPage: React.FC = () => {
     {
       title: "Thời Gian",
       key: "time",
-      width: 150,
+      width: 165,
       render: (_: unknown, record: InventorySlip) => (
-        <span className="text-xs text-slate-600">
+        <span className="text-xs text-slate-600 whitespace-nowrap inline-block">
           {record.date} • {record.createdTime}
         </span>
       ),
@@ -2211,9 +2400,9 @@ export const WarehouseInventoryPage: React.FC = () => {
       title: "Mã hàng",
       dataIndex: "sku",
       key: "sku",
-      width: 110,
+      width: 145,
       render: (sku: string) => (
-        <span className="font-mono font-bold text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+        <span className="font-mono font-bold text-xs text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 whitespace-nowrap inline-block shrink-0">
           {sku}
         </span>
       ),
@@ -2409,7 +2598,9 @@ export const WarehouseInventoryPage: React.FC = () => {
   // Client-side filter cho tab Báo cáo (áp dụng sau khi fetch/fallback)
   const filteredReportItems = useMemo(() => {
     return reportItems.filter((item) => {
-      const allowed = (CATEGORY_MAP[reportCategory] || [reportCategory]).map((c) => c.toLowerCase());
+      const allowed = (CATEGORY_MAP[reportCategory] || [reportCategory]).map((c) =>
+        c.toLowerCase(),
+      );
       const itemCat = (item.category || "").toLowerCase().trim();
       const matchCat = reportCategory === "all" || allowed.includes(itemCat);
       const q = reportSearch.toLowerCase().trim();
@@ -2446,9 +2637,8 @@ export const WarehouseInventoryPage: React.FC = () => {
                 CUEZONE WAREHOUSE
               </Tag>
             </div>
-            <Text className="!text-xs sm:!text-sm !text-slate-500 max-w-2xl block">
-              Kiểm soát tồn kho vật tư bida chuyên dụng (cơ, bóng, nỉ, lơ), đồ uống F&B, lịch sử
-              xuất nhập và kiểm kê định kỳ.
+            <Text className="!text-xs sm:!text-sm !text-slate-500 block leading-relaxed [text-wrap:balance]">
+              Kiểm soát tồn kho vật tư bida (cơ, bóng, nỉ, lơ), đồ uống F&amp;B, lịch sử xuất nhập và kiểm kê định kỳ.
             </Text>
           </div>
         </div>
@@ -2481,7 +2671,9 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono truncate">
                 {metrics.totalValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Tổng giá trị vốn lưu kho thực tế</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                Tổng giá trị vốn lưu kho thực tế
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
             </div>
 
@@ -2519,7 +2711,9 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono truncate">
                 {metrics.lowStockCount} mặt hàng
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Mặt hàng chạm ngưỡng cần nhập thêm</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                Mặt hàng chạm ngưỡng cần nhập thêm
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
             </div>
 
@@ -2536,7 +2730,9 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
                 {metrics.totalSlips} chứng từ
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Hồ sơ phiếu nhập, xuất và xuất hủy</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                Hồ sơ phiếu nhập, xuất và xuất hủy
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
             </div>
           </div>
@@ -2553,6 +2749,17 @@ export const WarehouseInventoryPage: React.FC = () => {
                   phụ kiện bida và F&amp;B.
                 </p>
               </div>
+              {isAdmin && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<PlusOutlined />}
+                  onClick={handleOpenAddMaterialModal}
+                  className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold shrink-0 shadow-sm"
+                >
+                  Thêm mặt hàng
+                </Button>
+              )}
             </div>
 
             {/* Toolbar lọc và tìm kiếm */}
@@ -2645,7 +2852,9 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono truncate">
                 {inwardMetrics.totalValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Vốn nhập hàng trong kỳ được chọn</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                Vốn nhập hàng trong kỳ được chọn
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
             </div>
 
@@ -2662,7 +2871,9 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-cyan-600 font-mono truncate">
                 {inwardMetrics.totalSlips} phiếu
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Đã ghi sổ nhập kho chính thức</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                Đã ghi sổ nhập kho chính thức
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
             </div>
 
@@ -2722,13 +2933,15 @@ export const WarehouseInventoryPage: React.FC = () => {
                   size="sm"
                   leftIcon={<PlusOutlined />}
                   onClick={() => {
-                    const currentItem = stockList.find((i) => i.sku === inwardForm.sku) || stockList[0];
+                    const currentItem =
+                      stockList.find((i) => i.sku === inwardForm.sku) || stockList[0];
                     if (currentItem) {
                       setInwardForm((prev) => ({
                         ...prev,
                         sku: currentItem.sku,
                         unitPrice: currentItem.costPrice || 0,
-                        supplier: currentItem.supplier || prev.supplier || (suppliers[0]?.name ?? ""),
+                        supplier:
+                          currentItem.supplier || prev.supplier || (suppliers[0]?.name ?? ""),
                       }));
                     }
                     setInwardModalVisible(true);
@@ -2835,7 +3048,9 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-cyan-600 font-mono truncate">
                 {outwardMetrics.transferValue.toLocaleString("vi-VN")} đ
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Xuất ra quầy bar & bàn bida phục vụ</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                Xuất ra quầy bar & bàn bida phục vụ
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
             </div>
 
@@ -2871,7 +3086,9 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
                 {outwardMetrics.totalSlips} chứng từ
               </div>
-              <div className="text-xs text-slate-400 mt-2 truncate">Hồ sơ xuất cấp phát và xuất hủy kho</div>
+              <div className="text-xs text-slate-400 mt-2 truncate">
+                Hồ sơ xuất cấp phát và xuất hủy kho
+              </div>
               <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
             </div>
 
@@ -2915,7 +3132,8 @@ export const WarehouseInventoryPage: React.FC = () => {
                     onClick={() => {
                       if (
                         accessoryStockList.length > 0 &&
-                        (!wasteForm.sku || !accessoryStockList.some((it) => it.sku === wasteForm.sku))
+                        (!wasteForm.sku ||
+                          !accessoryStockList.some((it) => it.sku === wasteForm.sku))
                       ) {
                         setWasteForm((prev) => ({ ...prev, sku: accessoryStockList[0].sku }));
                       }
@@ -3043,7 +3261,9 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <div className="text-2xl sm:text-3xl font-black text-slate-800 font-mono truncate">
                     {stockCheckList.length} đợt
                   </div>
-                  <div className="text-xs text-slate-400 mt-2 truncate">Toàn bộ hồ sơ kiểm kê đối soát</div>
+                  <div className="text-xs text-slate-400 mt-2 truncate">
+                    Toàn bộ hồ sơ kiểm kê đối soát
+                  </div>
                   <div className="absolute top-0 right-0 left-0 h-1 bg-indigo-500" />
                 </div>
 
@@ -3067,7 +3287,9 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <div className="text-2xl sm:text-3xl font-black text-amber-600 font-mono truncate">
                     {stockCheckList.filter((s) => s.status === "draft").length} đợt
                   </div>
-                  <div className="text-xs text-slate-400 mt-2 truncate">Đang kiểm đếm thực tế tại quán</div>
+                  <div className="text-xs text-slate-400 mt-2 truncate">
+                    Đang kiểm đếm thực tế tại quán
+                  </div>
                   <div className="absolute top-0 right-0 left-0 h-1 bg-amber-500" />
                 </div>
 
@@ -3091,7 +3313,9 @@ export const WarehouseInventoryPage: React.FC = () => {
                   <div className="text-2xl sm:text-3xl font-black text-blue-600 font-mono truncate">
                     {stockCheckList.filter((s) => s.status === "submitted").length} đợt
                   </div>
-                  <div className="text-xs text-slate-400 mt-2 truncate">Đã nộp biên bản đối soát</div>
+                  <div className="text-xs text-slate-400 mt-2 truncate">
+                    Đã nộp biên bản đối soát
+                  </div>
                   <div className="absolute top-0 right-0 left-0 h-1 bg-blue-500" />
                 </div>
 
@@ -3241,7 +3465,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                           return (
                             <tr key={check._id} className="hover:bg-slate-50/80 transition-colors">
                               <td className="px-5 py-4 font-mono font-bold text-xs text-slate-800">
-                                <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                                <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 whitespace-nowrap inline-block shrink-0">
                                   {check.checkCode}
                                 </span>
                               </td>
@@ -4262,6 +4486,11 @@ export const WarehouseInventoryPage: React.FC = () => {
               <label className="text-xs font-bold text-slate-700">
                 Địa điểm / Bộ phận tiếp nhận:
               </label>
+              <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
+                {billiardTables.length > 0
+                  ? `Đồng bộ ${billiardTables.length} bàn thực tế từ MongoDB`
+                  : "Bộ phận vận hành"}
+              </span>
             </div>
             <Select
               showSearch
@@ -4280,7 +4509,11 @@ export const WarehouseInventoryPage: React.FC = () => {
               <div className="mt-2 p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl text-amber-900 text-[11px] leading-relaxed flex items-start gap-2">
                 <span className="text-amber-600 font-bold text-xs shrink-0">💡 Lưu ý:</span>
                 <span>
-                  Bạn đang xuất <strong>đồ ăn/uống</strong> cấp phát cho <strong>Bàn bida</strong>. Thông thường đối với bàn bida, phiếu cấp phát xuất kho dùng để bổ sung <em>phụ kiện &amp; vật tư bàn</em> (cơ, bóng, nỉ, lơ...). Nếu khách chơi tại bàn gọi đồ uống/đồ ăn, bạn nên order trực tiếp trên máy <strong>POS</strong> để tự động trừ tồn kho và ghi nhận doanh thu hóa đơn.
+                  Bạn đang xuất <strong>đồ ăn/uống</strong> cấp phát cho <strong>Bàn bida</strong>.
+                  Thông thường đối với bàn bida, phiếu cấp phát xuất kho dùng để bổ sung{" "}
+                  <em>phụ kiện &amp; vật tư bàn</em> (cơ, bóng, nỉ, lơ...). Nếu khách chơi tại bàn
+                  gọi đồ uống/đồ ăn, bạn nên order trực tiếp trên máy <strong>POS</strong> để tự
+                  động trừ tồn kho và ghi nhận doanh thu hóa đơn.
                 </span>
               </div>
             )}
@@ -4765,6 +4998,236 @@ export const WarehouseInventoryPage: React.FC = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal Thêm Mặt Hàng Mới Vào Kho */}
+      <Modal
+        open={isAddMaterialModalOpen}
+        onCancel={() => !isSavingNewMaterial && setIsAddMaterialModalOpen(false)}
+        footer={null}
+        width={560}
+        title={
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+            <PlusCircleOutlined className="text-emerald-600 text-lg" />
+            <span className="font-black text-slate-900 text-base">Thêm Mặt Hàng Mới</span>
+          </div>
+        }
+      >
+        <div className="py-4 space-y-4 text-xs">
+          {/* Phân loại hàng */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">Loại hàng:</label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleProductTypeChange("accessory")}
+                className={`py-2 px-3 rounded-xl border text-center font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  newMaterialForm.productType === "accessory"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700 font-bold shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <AppstoreOutlined className="text-sm" />
+                <span>Phụ kiện bida</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleProductTypeChange("ingredient")}
+                className={`py-2 px-3 rounded-xl border text-center font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  newMaterialForm.productType === "ingredient"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700 font-bold shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <CoffeeOutlined className="text-sm" />
+                <span>Nguyên liệu pha chế</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleProductTypeChange("fnb")}
+                className={`py-2 px-3 rounded-xl border text-center font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  newMaterialForm.productType === "fnb"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700 font-bold shadow-2xs"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <InboxOutlined className="text-sm" />
+                <span>Đồ đóng gói</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tên & Mã hàng */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Tên mặt hàng: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                placeholder="VD: Cơ bida Adam, Nỉ Andy 988, Hạt cà phê Robusta..."
+                value={newMaterialForm.name}
+                onChange={(e) => setNewMaterialForm((prev) => ({ ...prev, name: e.target.value }))}
+                className="!rounded-xl !text-xs !h-9"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Mã hàng: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                placeholder="VD: ACC-020"
+                value={newMaterialForm.sku}
+                onChange={(e) => setNewMaterialForm((prev) => ({ ...prev, sku: e.target.value }))}
+                className="!rounded-xl !text-xs !h-9 font-mono font-bold"
+              />
+            </div>
+          </div>
+
+          {/* Danh mục & Đơn vị tính */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Danh mục: <span className="text-rose-500">*</span>
+              </label>
+              <Select
+                value={newMaterialForm.category}
+                onChange={(val) => setNewMaterialForm((prev) => ({ ...prev, category: val }))}
+                className="!w-full !rounded-xl !text-xs !h-9"
+                options={displayedCategories.map((c) => ({
+                  value: c.code || c._id,
+                  label: c.name,
+                }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Đơn vị tính: <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                placeholder="VD: cây, cái, bộ, kg, hộp, lon..."
+                value={newMaterialForm.unit}
+                onChange={(e) => setNewMaterialForm((prev) => ({ ...prev, unit: e.target.value }))}
+                className="!rounded-xl !text-xs !h-9"
+              />
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {(newMaterialForm.productType === "accessory"
+                  ? ["cây", "bộ", "cái", "hộp", "viên", "mét"]
+                  : newMaterialForm.productType === "ingredient"
+                    ? ["kg", "g", "lít", "chai", "hộp", "gói"]
+                    : ["lon", "chai", "gói", "hộp", "ly"]
+                ).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => setNewMaterialForm((prev) => ({ ...prev, unit: u }))}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                      newMaterialForm.unit === u
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                        : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                    }`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Giá vốn, Tồn tối thiểu & Vị trí */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Giá vốn dự kiến:
+              </label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={newMaterialForm.costPrice}
+                onChange={(e) =>
+                  setNewMaterialForm((prev) => ({
+                    ...prev,
+                    costPrice: Math.max(0, Number(e.target.value) || 0),
+                  }))
+                }
+                suffix="đ"
+                className="!rounded-xl !text-xs !h-9 font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Tồn tối thiểu:</label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="5"
+                value={newMaterialForm.minStock}
+                onChange={(e) =>
+                  setNewMaterialForm((prev) => ({
+                    ...prev,
+                    minStock: Math.max(0, Number(e.target.value) || 0),
+                  }))
+                }
+                className="!rounded-xl !text-xs !h-9 font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Vị trí:</label>
+              <Input
+                placeholder="VD: Kệ gậy, Kho tổng..."
+                value={newMaterialForm.location}
+                onChange={(e) =>
+                  setNewMaterialForm((prev) => ({ ...prev, location: e.target.value }))
+                }
+                className="!rounded-xl !text-xs !h-9"
+              />
+            </div>
+          </div>
+
+          {/* Ghi chú */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú:</label>
+            <Input.TextArea
+              rows={2}
+              placeholder="Nhập ghi chú thêm nếu có..."
+              value={newMaterialForm.description}
+              onChange={(e) =>
+                setNewMaterialForm((prev) => ({ ...prev, description: e.target.value }))
+              }
+              className="!rounded-xl !text-xs"
+            />
+          </div>
+
+          <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex items-center gap-2">
+            <span className="text-emerald-600 font-bold shrink-0">Lưu ý:</span>
+            <span>
+              Mặt hàng mới tạo sẽ có tồn kho là 0. Bạn hãy sang tab Nhập kho để tạo phiếu nhập số
+              lượng thực tế.
+            </span>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="md"
+              disabled={isSavingNewMaterial}
+              onClick={() => setIsAddMaterialModalOpen(false)}
+              className="!rounded-xl !text-xs"
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={isSavingNewMaterial}
+              disabled={isSavingNewMaterial}
+              onClick={handleSaveNewMaterial}
+              className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
+            >
+              {isSavingNewMaterial ? "Đang lưu..." : "Lưu mặt hàng"}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
