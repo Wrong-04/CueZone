@@ -49,25 +49,25 @@ export const getClubPaymentSettings = (): ClubPaymentSettings => {
     if (saved) {
       const parsed = JSON.parse(saved);
       return {
-        clubName: parsed.clubName || "CUEZONE BILLIARDS LOUNGE",
-        address: parsed.address || "123 Đường Số 7, P. Bình Trị Đông B, Q. Bình Tân, TP. HCM",
-        hotline: parsed.hotline || "0908 888 999",
+        clubName: parsed.clubName || "CueZone Billiards Club",
+        address: parsed.address || "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
+        hotline: parsed.hotline || parsed.phone || "0908 888 999",
         bankCode: parsed.bankCode || "MB",
         bankName: parsed.bankName || "MB Bank (Ngân hàng TMCP Quân Đội)",
         bankAccountNo: parsed.bankAccountNo || "0908888999",
-        bankAccountName: parsed.bankAccountName || "CLB BIDA CUEZONE",
+        bankAccountName: parsed.bankAccountName || "CLB BIDA CUEZONE - NGUYEN HAI LONG",
       };
     }
   } catch {
     // fallback
   }
   return {
-    clubName: "CUEZONE BILLIARDS LOUNGE",
-    address: "123 Đường Số 7, P. Bình Trị Đông B, Q. Bình Tân, TP. HCM",
+    clubName: "CueZone Billiards Club",
+    address: "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
     hotline: "0908 888 999",
     bankCode: "MB",
     bankName: "MB Bank (Ngân hàng TMCP Quân Đội)",
     bankAccountNo: "0908888999",
-    bankAccountName: "CLB BIDA CUEZONE",
+    bankAccountName: "CLB BIDA CUEZONE - NGUYEN HAI LONG",
   };
 };
