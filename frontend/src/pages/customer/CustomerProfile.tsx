@@ -170,6 +170,8 @@ export const CustomerProfile: React.FC = () => {
     type: "booking" | "tournament",
     nextVal: boolean,
   ) => {
+    const prevBooking = notifyBooking;
+    const prevTournament = notifyTournament;
     const nextSettings = {
       bookingReminder: type === "booking" ? nextVal : notifyBooking,
       tournamentNews: type === "tournament" ? nextVal : notifyTournament,
@@ -178,9 +180,14 @@ export const CustomerProfile: React.FC = () => {
     if (type === "tournament") setNotifyTournament(nextVal);
 
     try {
-      await updateProfile({ notificationSettings: nextSettings });
+      await updateProfile({
+        name: user?.name || name,
+        notificationSettings: nextSettings,
+      });
       message.success("Đã cập nhật cài đặt thông báo!");
     } catch (err: any) {
+      if (type === "booking") setNotifyBooking(prevBooking);
+      if (type === "tournament") setNotifyTournament(prevTournament);
       message.error(err.message || "Không thể cập nhật cài đặt thông báo");
     }
   };
