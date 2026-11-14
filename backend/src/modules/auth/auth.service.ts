@@ -240,32 +240,37 @@ export class AuthService {
     if (!input || typeof input !== "object") {
       throw new Error("Thông tin hồ sơ không hợp lệ");
     }
-    const name = typeof input.name === "string" ? input.name.trim() : "";
-    if (!name || name.length > 120) {
-      throw new Error("Họ và tên phải có từ 1 đến 120 ký tự");
-    }
-
-    let phone: string | undefined;
-    if (input.phone !== undefined && input.phone !== null && String(input.phone).trim()) {
-      phone = String(input.phone).trim().replace(/[\s().-]/g, "");
-      const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
-      if (!phoneRegex.test(phone)) {
-        throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
-      }
-      phone = normalizePhone(phone);
-      const existingPhone = await User.findOne({
-        phone: { $regex: phonePattern(phone)! },
-        _id: { $ne: userId },
-      }).select("_id");
-      if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
-    }
 
     const user = await User.findById(userId);
     if (!user || !user.isActive || user.isLocked) {
       throw new Error("Tài khoản không còn hoạt động");
     }
-    user.name = name;
-    user.phone = phone;
+
+    if (input.name !== undefined) {
+      const name = typeof input.name === "string" ? input.name.trim() : "";
+      if (!name || name.length > 120) {
+        throw new Error("Họ và tên phải có từ 1 đến 120 ký tự");
+      }
+      user.name = name;
+    }
+
+    if (input.phone !== undefined) {
+      let phone: string | undefined;
+      if (input.phone !== null && String(input.phone).trim()) {
+        phone = String(input.phone).trim().replace(/[\s().-]/g, "");
+        const phoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+        if (!phoneRegex.test(phone)) {
+          throw new Error("Số điện thoại không đúng định dạng (VD: 0912345678 hoặc +84912345678)");
+        }
+        phone = normalizePhone(phone);
+        const existingPhone = await User.findOne({
+          phone: { $regex: phonePattern(phone)! },
+          _id: { $ne: userId },
+        }).select("_id");
+        if (existingPhone) throw new Error("Số điện thoại đã được sử dụng");
+      }
+      user.phone = phone;
+    }
 
     if (typeof input.bio === "string") {
       user.bio = input.bio.trim().slice(0, 500);
