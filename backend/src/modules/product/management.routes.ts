@@ -365,7 +365,7 @@ router.post(
     const product = await Product.create({
       name,
       sku,
-      category: categoryId,
+      category: categoryDoc.code || String(categoryId),
       productType,
       unit,
       costPrice,
@@ -375,8 +375,6 @@ router.post(
       description: normalizeString(body.description),
       isForSale: body.isForSale !== false,
       isMadeToOrder: isMakeToOrder,
-      isTheMakeToOrder: isMakeToOrder,
-      isthemaketoorder: isMakeToOrder,
       isActive: true,
     });
 
@@ -459,7 +457,7 @@ router.put(
         return sendError(res, 400, "Danh mục không tồn tại.");
       }
 
-      updates.category = foundCategory._id;
+      updates.category = foundCategory.code || String(foundCategory._id);
 
       if (!body.productType) {
         const code = String(foundCategory.code || "").toLowerCase();
@@ -499,11 +497,9 @@ router.put(
       body.isMadeToOrder !== undefined
     ) {
       const isMakeToOrder = Boolean(
-        body.isthemaketoorder ?? body.isTheMakeToOrder ?? body.isMadeToOrder
+        body.isMadeToOrder ?? body.isTheMakeToOrder ?? body.isthemaketoorder
       );
       updates.isMadeToOrder = isMakeToOrder;
-      updates.isTheMakeToOrder = isMakeToOrder;
-      updates.isthemaketoorder = isMakeToOrder;
     }
 
     const updated = await Product.findByIdAndUpdate(

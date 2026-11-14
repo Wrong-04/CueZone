@@ -199,8 +199,34 @@ export default function VoucherManagementPage() {
     event.preventDefault();
     setSaving(true);
 
-    if (!form.isUnlimitedExpiry && form.startsAt && form.expiresAt) {
-      if (new Date(form.startsAt) >= new Date(form.expiresAt)) {
+    const nowMs = Date.now();
+    const minAllowedStartMs = nowMs - 5 * 60 * 1000;
+    if (form.startsAt) {
+      const startMs = new Date(form.startsAt).getTime();
+      if (!editing) {
+        if (startMs < minAllowedStartMs) {
+          message.error("Thời gian bắt đầu không được nằm trong quá khứ");
+          setSaving(false);
+          return;
+        }
+      } else {
+        const origStartMs = new Date(editing.startsAt).getTime();
+        if (Math.abs(startMs - origStartMs) > 60_000 && startMs < minAllowedStartMs) {
+          message.error("Thời gian bắt đầu mới không được nằm trong quá khứ");
+          setSaving(false);
+          return;
+        }
+      }
+    }
+
+    if (!form.isUnlimitedExpiry && form.expiresAt) {
+      const endMs = new Date(form.expiresAt).getTime();
+      if (endMs <= nowMs) {
+        message.error("Thời gian kết thúc phải lớn hơn thời điểm hiện tại");
+        setSaving(false);
+        return;
+      }
+      if (form.startsAt && new Date(form.startsAt).getTime() >= endMs) {
         message.error("Thời gian bắt đầu phải trước thời gian hết hạn");
         setSaving(false);
         return;
@@ -277,30 +303,28 @@ export default function VoucherManagementPage() {
     message.success(`Đã sao chép mã: ${code}`);
   };
 
-  // Thống kê nhanh
+  // Thống kê nhanh — dùng chung getVoucherStatus() để đồng bộ với bộ lọc bảng
   const stats = useMemo(() => {
     let active = 0;
     let inactive = 0;
     let expired = 0;
+    let upcoming = 0;
     let totalUses = 0;
 
-    const now = new Date();
     for (const v of vouchers) {
       totalUses += v.usageCount || 0;
-      if (!v.isActive) {
+      const status = getVoucherStatus(v);
+      if (status.key === "active") {
+        active++;
+      } else if (status.key === "inactive") {
         inactive++;
+      } else if (status.key === "upcoming") {
+        upcoming++;
       } else {
-        const exp = v.expiresAt ? new Date(v.expiresAt) : null;
-        if (exp && !isNaN(exp.getTime()) && now > exp) {
-          expired++;
-        } else if (v.maxUses && v.usageCount >= v.maxUses) {
-          expired++;
-        } else {
-          active++;
-        }
+        expired++;
       }
     }
-    return { total: vouchers.length, active, inactive, expired, totalUses };
+    return { total: vouchers.length, active, inactive, expired, upcoming, totalUses };
   }, [vouchers]);
 
   // Bộ lọc danh sách
@@ -323,6 +347,7 @@ export default function VoucherManagementPage() {
         const status = getVoucherStatus(v);
         if (statusFilter === "active" && status.key !== "active") return false;
         if (statusFilter === "inactive" && status.key !== "inactive") return false;
+        if (statusFilter === "upcoming" && status.key !== "upcoming") return false;
         if (statusFilter === "expired" && status.key !== "expired" && status.key !== "out_of_quota") return false;
       }
 
@@ -394,6 +419,7 @@ export default function VoucherManagementPage() {
           <div className="mt-2 text-2xl font-bold text-slate-700">{stats.inactive + stats.expired}</div>
           <div className="mt-1 text-[11px] text-slate-400">
             {stats.inactive} tạm dừng · {stats.expired} hết hạn
+            {stats.upcoming > 0 ? ` · ${stats.upcoming} sắp bắt đầu` : ""}
           </div>
         </div>
 
@@ -428,6 +454,7 @@ export default function VoucherManagementPage() {
                 options={[
                   { value: "all", label: "Tất cả trạng thái" },
                   { value: "active", label: "Đang hoạt động" },
+                  { value: "upcoming", label: "Sắp bắt đầu" },
                   { value: "inactive", label: "Tạm dừng" },
                   { value: "expired", label: "Đã hết hạn / Hết lượt" },
                 ]}
@@ -718,6 +745,7 @@ export default function VoucherManagementPage() {
               <label className="space-y-1 text-xs font-semibold text-slate-700 block">
                 Hình thức giảm giá <span className="text-rose-500">*</span>
                 <Select
+                  disabled={Boolean(editing && editing.usageCount > 0)}
                   value={form.discountType}
                   onChange={(value) => setForm({ ...form, discountType: value })}
                   options={[
@@ -734,12 +762,19 @@ export default function VoucherManagementPage() {
                   required
                   type="number"
                   min={1}
+                  step={form.discountType === "fixed" ? 500 : 1}
                   max={form.discountType === "percent" ? 100 : undefined}
+                  disabled={Boolean(editing && editing.usageCount > 0)}
                   value={form.discountValue}
                   onChange={(event) => setForm({ ...form, discountValue: event.target.value })}
                   placeholder={form.discountType === "percent" ? "VD: 20" : "VD: 50.000"}
-                  className="!rounded-lg"
+                  className={`!rounded-lg ${editing && editing.usageCount > 0 ? "bg-slate-100 text-slate-500 cursor-not-allowed" : ""}`}
                 />
+                {editing && editing.usageCount > 0 && (
+                  <span className="text-[10px] text-amber-600 block">
+                    Đã khóa do voucher đã có {editing.usageCount} lượt dùng (vẫn sửa được mô tả, hạn dùng & số lượt)
+                  </span>
+                )}
               </label>
 
               <label className="space-y-1 text-xs font-semibold text-slate-700 block">
@@ -747,7 +782,7 @@ export default function VoucherManagementPage() {
                 <Input
                   type="number"
                   min={0}
-                  step={1000}
+                  step={500}
                   disabled={form.discountType === "fixed"}
                   value={form.discountType === "fixed" ? "" : form.maxDiscountAmount}
                   onChange={(event) => setForm({ ...form, maxDiscountAmount: event.target.value })}
@@ -786,7 +821,7 @@ export default function VoucherManagementPage() {
                   required
                   type="number"
                   min={0}
-                  step={1000}
+                  step={500}
                   value={form.minOrderAmount}
                   onChange={(event) => setForm({ ...form, minOrderAmount: event.target.value })}
                   placeholder="0đ = Áp dụng mọi đơn"
@@ -841,6 +876,7 @@ export default function VoucherManagementPage() {
                 <Input
                   required
                   type="datetime-local"
+                  min={!editing ? localDateTime(new Date(Date.now() - 5 * 60 * 1000)) : undefined}
                   value={form.startsAt}
                   onChange={(event) => setForm({ ...form, startsAt: event.target.value })}
                   className="!rounded-lg"
@@ -857,6 +893,7 @@ export default function VoucherManagementPage() {
                   <Input
                     required
                     type="datetime-local"
+                    min={localDateTime(new Date())}
                     value={form.expiresAt}
                     onChange={(event) => setForm({ ...form, expiresAt: event.target.value })}
                     className="!rounded-lg"

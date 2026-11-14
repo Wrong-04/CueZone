@@ -984,6 +984,7 @@ export class SessionService {
       const voucher = await new VoucherService().validate(
         voucherCode,
         quote.subtotal - quote.membershipDiscountAmount,
+        user.phone,
       );
       quote.voucherCode = voucher.code;
       quote.voucherDiscountAmount = voucher.discountAmount;

@@ -98,7 +98,7 @@ export interface FnbStockItem {
   code: string;
   name: string;
   description?: string;
-  category: "coffee" | "tea" | "juice" | "beer" | "food" | "snack" | "equipment" | (string & {});
+  category: string;
   categoryName: string;
   price: number;
   priceFormatted: string;

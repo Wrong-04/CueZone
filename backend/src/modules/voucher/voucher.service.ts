@@ -6,6 +6,86 @@ import {
   VoucherUsage,
   IVoucher,
 } from "./voucher.model";
+import { User, UserRole } from "../user/user.model";
+import { Wallet } from "../wallet/wallet.model";
+import { isVipMemberTier } from "../member/membership.policy";
+
+function buildPhoneMatchCondition(customerPhone?: string, customerId?: Types.ObjectId) {
+  const conditions: Record<string, unknown>[] = [];
+  if (customerId) {
+    conditions.push({ customerId });
+  }
+  if (customerPhone && typeof customerPhone === "string" && customerPhone.trim()) {
+    const trimmed = customerPhone.trim();
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length >= 8) {
+      const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+      conditions.push({ customerPhone: { $regex: phonePattern } });
+    } else {
+      conditions.push({ customerPhone: trimmed });
+    }
+  }
+  return conditions;
+}
+
+async function assertVipAudienceEligible(
+  voucher: IVoucher,
+  customerPhone?: string,
+  customerId?: Types.ObjectId,
+  session?: ClientSession,
+) {
+  if (voucher.targetAudience !== "vip") return;
+
+  const userFilters: Record<string, unknown>[] = [];
+  if (customerId) userFilters.push({ _id: customerId });
+  if (customerPhone && typeof customerPhone === "string" && customerPhone.trim()) {
+    const trimmed = customerPhone.trim();
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length >= 8) {
+      const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
+      userFilters.push({ phone: { $regex: phonePattern } });
+    } else {
+      userFilters.push({ phone: trimmed });
+    }
+  }
+
+  if (userFilters.length === 0) {
+    throw httpError(
+      "Mã ưu đãi này chỉ dành cho Hội viên VIP (Hạng Bạc trở lên). Vui lòng nhập SĐT hội viên để xác nhận.",
+      422,
+      "VOUCHER_VIP_ONLY",
+    );
+  }
+
+  const query = User.findOne({
+    $or: userFilters,
+    role: UserRole.CUSTOMER,
+    isActive: true,
+    isLocked: false,
+  }).select("_id");
+  if (session) query.session(session);
+  const member = await query;
+
+  if (!member) {
+    throw httpError(
+      "Mã ưu đãi này chỉ dành cho Hội viên VIP (Hạng Bạc trở lên)",
+      422,
+      "VOUCHER_VIP_ONLY",
+    );
+  }
+
+  const walletQuery = Wallet.findOne({ userId: member._id }).select("points");
+  if (session) walletQuery.session(session);
+  const wallet = await walletQuery;
+
+  if (!isVipMemberTier(wallet?.points ?? 0)) {
+    throw httpError(
+      "Mã ưu đãi này chỉ dành cho Hội viên VIP (Hạng Bạc trở lên)",
+      422,
+      "VOUCHER_VIP_ONLY",
+    );
+  }
+}
 
 const httpError = (message: string, httpCode = 400, code?: string) =>
   Object.assign(new Error(message), { httpCode, code });
@@ -64,12 +144,15 @@ function validateInput(input: VoucherInput, partial = false) {
       input.maxDiscountAmount !== undefined &&
       input.maxDiscountAmount !== null &&
       input.maxDiscountAmount !== "" &&
-      (!Number.isSafeInteger(Number(input.maxDiscountAmount)) || Number(input.maxDiscountAmount) < 0)
+      (!Number.isSafeInteger(Number(input.maxDiscountAmount)) ||
+        Number(input.maxDiscountAmount) < 0)
     ) {
       throw httpError("Mức giảm tối đa phải là số nguyên không âm");
     }
     updates.maxDiscountAmount =
-      input.maxDiscountAmount === null || input.maxDiscountAmount === "" || input.maxDiscountAmount === undefined
+      input.maxDiscountAmount === null ||
+      input.maxDiscountAmount === "" ||
+      input.maxDiscountAmount === undefined
         ? undefined
         : Number(input.maxDiscountAmount);
   }
@@ -120,7 +203,12 @@ function validateInput(input: VoucherInput, partial = false) {
   if (!partial || input.targetAudience !== undefined) {
     const validAudiences = ["all", "new_member", "vip"];
     const aud = input.targetAudience;
-    if (aud !== undefined && aud !== null && aud !== "" && !validAudiences.includes(aud as string)) {
+    if (
+      aud !== undefined &&
+      aud !== null &&
+      aud !== "" &&
+      !validAudiences.includes(aud as string)
+    ) {
       throw httpError("Đối tượng áp dụng không hợp lệ");
     }
     updates.targetAudience = aud || "all";
@@ -133,9 +221,13 @@ function validateInput(input: VoucherInput, partial = false) {
     updates.isActive = true;
   }
 
-  const discountType = (updates.discountType as VoucherDiscountType | undefined);
+  const discountType = updates.discountType as VoucherDiscountType | undefined;
   const discountValue = updates.discountValue as number | undefined;
-  if (discountType === VoucherDiscountType.PERCENT && discountValue !== undefined && discountValue > 100) {
+  if (
+    discountType === VoucherDiscountType.PERCENT &&
+    discountValue !== undefined &&
+    discountValue > 100
+  ) {
     throw httpError("Mức giảm theo phần trăm không được vượt quá 100%");
   }
   const startsAt = updates.startsAt as Date | undefined;
@@ -148,8 +240,10 @@ function validateInput(input: VoucherInput, partial = false) {
 
 function assertValidAt(voucher: IVoucher, subtotal: number, now = new Date()) {
   if (!voucher.isActive) throw httpError("Voucher đã bị ngừng hoạt động", 422, "VOUCHER_INACTIVE");
-  if (voucher.startsAt > now) throw httpError("Voucher chưa đến thời gian sử dụng", 422, "VOUCHER_NOT_STARTED");
-  if (voucher.expiresAt && voucher.expiresAt <= now) throw httpError("Voucher đã hết hạn", 422, "VOUCHER_EXPIRED");
+  if (voucher.startsAt > now)
+    throw httpError("Voucher chưa đến thời gian sử dụng", 422, "VOUCHER_NOT_STARTED");
+  if (voucher.expiresAt && voucher.expiresAt <= now)
+    throw httpError("Voucher đã hết hạn", 422, "VOUCHER_EXPIRED");
   if (voucher.maxUses !== undefined && voucher.usageCount >= voucher.maxUses) {
     throw httpError("Voucher đã hết lượt sử dụng", 422, "VOUCHER_EXHAUSTED");
   }
@@ -194,8 +288,20 @@ export class VoucherService {
   }
 
   async create(input: VoucherInput, createdBy: string) {
-    if (!mongoose.isValidObjectId(createdBy)) throw httpError("Tài khoản quản lý không hợp lệ", 401);
+    if (!mongoose.isValidObjectId(createdBy))
+      throw httpError("Tài khoản quản lý không hợp lệ", 401);
     const updates = validateInput(input);
+
+    const now = new Date();
+    const minAllowedStart = new Date(now.getTime() - 5 * 60 * 1000);
+    if ((updates.startsAt as Date) < minAllowedStart) {
+      throw httpError("Thời gian bắt đầu không được nằm trong quá khứ");
+    }
+    const expiresAt = updates.expiresAt as Date | null | undefined;
+    if (expiresAt && expiresAt <= now) {
+      throw httpError("Thời gian hết hạn phải lớn hơn thời điểm hiện tại");
+    }
+
     const duplicate = await Voucher.exists({ code: updates.code });
     if (duplicate) throw httpError("Mã voucher đã tồn tại", 409, "VOUCHER_CODE_EXISTS");
     try {
@@ -211,32 +317,57 @@ export class VoucherService {
   async update(id: string, input: VoucherInput, updatedBy?: string) {
     if (!mongoose.isValidObjectId(id)) throw httpError("Mã voucher không hợp lệ");
     const updates = validateInput(input, true);
-    if (Object.keys(updates).length === 0) throw httpError("Không có thông tin voucher cần cập nhật");
+    if (Object.keys(updates).length === 0)
+      throw httpError("Không có thông tin voucher cần cập nhật");
     if (updates.code && (await Voucher.exists({ code: updates.code, _id: { $ne: id } }))) {
       throw httpError("Mã voucher đã tồn tại", 409, "VOUCHER_CODE_EXISTS");
     }
     const voucher = await Voucher.findById(id);
     if (!voucher) throw httpError("Không tìm thấy voucher", 404);
-    if (voucher.usageCount > 0 && (updates.discountType || updates.discountValue)) {
+
+    const isChangingType =
+      updates.discountType !== undefined && updates.discountType !== voucher.discountType;
+    const isChangingValue =
+      updates.discountValue !== undefined &&
+      Number(updates.discountValue) !== voucher.discountValue;
+    if (voucher.usageCount > 0 && (isChangingType || isChangingValue)) {
       throw httpError("Không thể đổi loại hoặc giá trị giảm sau khi voucher đã được sử dụng", 409);
     }
+
+    const now = new Date();
+    const prevStartsAtMs = new Date(voucher.startsAt).getTime();
+    if (
+      updates.startsAt instanceof Date &&
+      Math.abs(updates.startsAt.getTime() - prevStartsAtMs) > 60_000 &&
+      updates.startsAt.getTime() < now.getTime() - 5 * 60 * 1000
+    ) {
+      throw httpError("Thời gian bắt đầu mới không được nằm trong quá khứ");
+    }
+    if (updates.expiresAt instanceof Date && updates.expiresAt <= now) {
+      throw httpError("Thời gian hết hạn phải lớn hơn thời điểm hiện tại");
+    }
+    if (
+      updates.isActive === true &&
+      updates.expiresAt === undefined &&
+      voucher.expiresAt &&
+      voucher.expiresAt <= now
+    ) {
+      throw httpError(
+        "Voucher đã hết hạn, vui lòng gia hạn thời gian kết thúc trước khi kích hoạt lại",
+      );
+    }
+
     if (!voucher.createdBy && updatedBy && mongoose.isValidObjectId(updatedBy)) {
       voucher.createdBy = new Types.ObjectId(updatedBy);
     }
     Object.assign(voucher, updates);
-    if (
-      voucher.maxUses !== undefined &&
-      voucher.maxUses < voucher.usageCount
-    ) {
+    if (voucher.maxUses !== undefined && voucher.maxUses < voucher.usageCount) {
       throw httpError("Số lượt tối đa không được thấp hơn số lượt đã sử dụng", 409);
     }
     if (voucher.expiresAt && voucher.startsAt >= voucher.expiresAt) {
       throw httpError("Thời gian bắt đầu phải trước thời gian hết hạn");
     }
-    if (
-      voucher.discountType === VoucherDiscountType.PERCENT &&
-      voucher.discountValue > 100
-    ) {
+    if (voucher.discountType === VoucherDiscountType.PERCENT && voucher.discountValue > 100) {
       throw httpError("Mức giảm theo phần trăm không được vượt quá 100%");
     }
     try {
@@ -279,11 +410,7 @@ export class VoucherService {
           voucherId: voucher._id,
           customerPhone: { $regex: phonePattern },
         });
-        const alreadyReserved = await VoucherReservation.findOne({
-          voucherId: voucher._id,
-          customerPhone: { $regex: phonePattern },
-        });
-        if (alreadyUsed || alreadyReserved) {
+        if (alreadyUsed) {
           throw httpError(
             `Hội viên này đã sử dụng mã ${voucher.code} trước đó. Mỗi khách hàng chỉ được dùng 1 lần.`,
             422,
@@ -350,11 +477,7 @@ export class VoucherService {
       _id: voucher._id,
       isActive: true,
       startsAt: { $lte: now },
-      $or: [
-        { expiresAt: { $exists: false } },
-        { expiresAt: null },
-        { expiresAt: { $gt: now } },
-      ],
+      $or: [{ expiresAt: { $exists: false } }, { expiresAt: null }, { expiresAt: { $gt: now } }],
     };
     if (voucher.maxUses !== undefined) filter.usageCount = { $lt: voucher.maxUses };
     const reservedVoucher = await Voucher.findOneAndUpdate(
@@ -422,11 +545,7 @@ export class VoucherService {
     return { code: reservation.code, discountAmount: reservation.discountAmount };
   }
 
-  async releaseReservation(
-    sessionId: string,
-    codeValue: unknown,
-    session: ClientSession,
-  ) {
+  async releaseReservation(sessionId: string, codeValue: unknown, session: ClientSession) {
     const code = normalizedCode(codeValue);
     const reservation = await VoucherReservation.findOne({ sessionId, code }).session(session);
     if (!reservation) return false;
@@ -460,27 +579,18 @@ export class VoucherService {
     const voucher = await Voucher.findOne({ code }).session(session);
     if (!voucher) throw httpError("Không tìm thấy mã voucher", 404, "VOUCHER_NOT_FOUND");
     assertValidAt(voucher, subtotal);
+    await assertVipAudienceEligible(voucher, data.customerPhone, data.customerId, session);
 
     // Kiểm tra xem khách hàng này đã từng sử dụng mã này chưa (mỗi khách dùng 1 lần)
-    if (data.customerPhone || data.customerId) {
-      const condition: any[] = [];
-      if (data.customerId) condition.push({ customerId: data.customerId });
-      if (data.customerPhone) {
-        const digits = data.customerPhone.replace(/\D/g, "");
-        if (digits.length >= 8) {
-          const phonePattern = `^\\+?${digits.split("").join("[\\s().-]*")}$`;
-          condition.push({ customerPhone: { $regex: phonePattern } });
-        } else {
-          condition.push({ customerPhone: data.customerPhone });
-        }
-      }
+    const usageConditions = buildPhoneMatchCondition(data.customerPhone, data.customerId);
+    if (usageConditions.length > 0) {
       const existingUsage = await VoucherUsage.findOne({
         voucherId: voucher._id,
-        $or: condition,
+        $or: usageConditions,
       }).session(session);
       const existingReservation = await VoucherReservation.findOne({
         voucherId: voucher._id,
-        $or: condition,
+        $or: usageConditions,
       }).session(session);
 
       if (existingUsage || existingReservation) {
@@ -509,7 +619,8 @@ export class VoucherService {
       { $inc: { usageCount: 1 } },
       { new: true, session },
     );
-    if (!updated) throw httpError("Voucher vừa hết lượt sử dụng hoặc đã hết hạn", 422, "VOUCHER_UNAVAILABLE");
+    if (!updated)
+      throw httpError("Voucher vừa hết lượt sử dụng hoặc đã hết hạn", 422, "VOUCHER_UNAVAILABLE");
     await VoucherUsage.create(
       [
         {

@@ -9,13 +9,13 @@ import {
   SyncOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Modal, Space } from "../../../shared/ui";
-import { RANK_DISCOUNT_PERCENT } from "../constants/posConstants";
 import type { PosTable } from "../../../types/pos";
 
 export interface MemberLookupInfo {
   name: string;
   phone: string;
   rank?: string;
+  discountPercent?: number;
 }
 
 interface PosOpenTableModalProps {
@@ -197,11 +197,11 @@ export const PosOpenTableModal: React.FC<PosOpenTableModalProps> = ({
                   <span className="whitespace-nowrap">Hội viên:</span>
                   <span className="truncate">{openModalMemberInfo.name}</span>
                   <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-bold whitespace-nowrap">
-                    Hạng {openModalMemberInfo.rank || "VIP"}
+                    Hạng {openModalMemberInfo.rank}
                   </span>
                 </div>
                 <div className="text-[11px] text-emerald-700 font-medium whitespace-nowrap">
-                  ⭐ Đã nhận diện! Tự động giảm {RANK_DISCOUNT_PERCENT[openModalMemberInfo.rank || "Standard"] || 10}% tiền giờ khi thanh toán
+                  ⭐ Đã nhận diện! Tự động giảm {openModalMemberInfo.discountPercent ?? 0}% tiền giờ khi thanh toán
                 </div>
               </div>
             </div>

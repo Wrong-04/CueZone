@@ -6,7 +6,7 @@ export interface IProduct extends Document {
   name: string;
 
   sku: string;
-  category: "accessory" | "drink" | "food" | "snack" | "ingredient" | string;
+  category: string;
   productType: ProductType;
   unit: string;
 
@@ -29,8 +29,6 @@ export interface IProduct extends Document {
   isActive: boolean;
 
   isMadeToOrder?: boolean;
-  isTheMakeToOrder?: boolean;
-  isthemaketoorder?: boolean;
 
   createdAt: Date;
 
@@ -80,11 +78,11 @@ const ProductSchema = new mongoose.Schema<IProduct>(
     isActive: { type: Boolean, default: true },
 
     isMadeToOrder: { type: Boolean, default: false },
-    isTheMakeToOrder: { type: Boolean, default: false },
-    isthemaketoorder: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
+
+ProductSchema.index({ productType: 1, isActive: 1, isForSale: 1, category: 1 });
 
 export const Product =
   mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema);

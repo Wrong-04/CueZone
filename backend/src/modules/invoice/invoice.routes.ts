@@ -6,6 +6,7 @@ import { requirePermission } from "../../middlewares/auth.middleware";
 import { Voucher, VoucherUsage } from "../voucher/voucher.model";
 import { Wallet } from "../wallet/wallet.model";
 import { User } from "../user/user.model";
+import { Product } from "../product/product.model";
 
 const router = Router();
 const invoicesRead = requirePermission("invoices", "read");
@@ -81,8 +82,15 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
       .sort({ createdAt: -1 })
       .lean();
 
-    const allTables = await Table.find({}).select("name code type").lean();
+    const [allTables, allProducts] = await Promise.all([
+      Table.find({}).select("name code type").lean(),
+      Product.find({}).select("name category productType").lean(),
+    ]);
     const tableMap = new Map<string, any>(allTables.map((t) => [String(t._id), t]));
+    const productById = new Map<string, any>(allProducts.map((p: any) => [String(p._id), p]));
+    const productByName = new Map<string, any>(
+      allProducts.map((p: any) => [String(p.name || "").trim().toLowerCase(), p]),
+    );
 
     // Map into normalized frontend ClubInvoice objects
     const mappedInvoices = rawInvoices.map((inv: any) => {
@@ -153,15 +161,33 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
       const durationText = formatDurationNice(receipt.durationFormatted, receipt.durationMinutes);
 
       // Build items array
-      const items = (receipt.orders || inv.items || []).map((it: any, idx: number) => ({
-        id: it.id || String(idx),
-        name: it.name || it.description || "Dịch vụ",
-        category: it.type === "table_time" ? "table_time" : "coffee",
-        quantity: it.quantity || 1,
-        unit: it.unit || "Phần",
-        price: it.price || it.unitPrice || 0,
-        subtotal: it.subtotal || it.amount || 0,
-      }));
+      const items = (receipt.orders || inv.items || [])
+        .filter((it: any) => it.status !== "cancelled")
+        .map((it: any, idx: number) => {
+          const itemName = it.name || it.description || "Dịch vụ";
+          const refProd =
+            (it.productId && productById.get(String(it.productId))) ||
+            productByName.get(String(itemName).trim().toLowerCase());
+          const resolvedCategory =
+            it.type === "table_time" || it.category === "table_time"
+              ? "table_time"
+              : String(it.category || refProd?.category || "drink").toLowerCase();
+          const effectiveQty = Math.max(
+            0,
+            Number(it.quantity || 1) - Number(it.cancelledQuantity || 0),
+          );
+          const unitPrice = Number(it.price || it.unitPrice || 0);
+          return {
+            id: it.id || String(idx),
+            name: itemName,
+            category: resolvedCategory,
+            quantity: effectiveQty,
+            unit: it.unit || "Phần",
+            price: unitPrice,
+            subtotal: Number(it.subtotal ?? it.amount ?? unitPrice * effectiveQty),
+          };
+        })
+        .filter((it: any) => it.quantity > 0);
 
       const dateStr = new Date(inv.createdAt).toLocaleString("vi-VN", {
         day: "2-digit",
