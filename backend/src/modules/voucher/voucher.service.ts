@@ -11,6 +11,14 @@ import { Wallet } from "../wallet/wallet.model";
 import { isVipMemberTier } from "../member/membership.policy";
 import { phonePattern } from "../../utils/phone";
 
+// ============================================================================
+// PHẦN 1: HÀM TIỆN ÍCH & RÀNG BUỘC HỘI VIÊN (HELPERS & ELIGIBILITY)
+// ============================================================================
+
+/**
+ * Xây dựng điều kiện truy vấn đối soát khách hàng dựa trên ID hoặc Số điện thoại.
+ * Hỗ trợ regex chuẩn hóa đầu số điện thoại (+84 / 0).
+ */
 function buildPhoneMatchCondition(customerPhone?: string, customerId?: Types.ObjectId) {
   const conditions: Record<string, unknown>[] = [];
   if (customerId) {
@@ -28,6 +36,11 @@ function buildPhoneMatchCondition(customerPhone?: string, customerId?: Types.Obj
   return conditions;
 }
 
+/**
+ * Kiểm tra điều kiện áp dụng cho đối tượng khách hàng VIP:
+ * Nếu voucher yêu cầu đối tượng 'vip', khách hàng phải là tài khoản hoạt động
+ * và có điểm tích lũy trong ví đạt từ hạng Bạc (Silver) trở lên.
+ */
 async function assertVipAudienceEligible(
   voucher: IVoucher,
   customerPhone?: string,
@@ -56,6 +69,7 @@ async function assertVipAudienceEligible(
     );
   }
 
+  // Truy vấn thông tin người dùng từ database
   const query = User.findOne({
     $or: userFilters,
     role: UserRole.CUSTOMER,
@@ -73,6 +87,7 @@ async function assertVipAudienceEligible(
     );
   }
 
+  // Kiểm tra điểm ví để xác định hạng hội viên
   const walletQuery = Wallet.findOne({ userId: member._id }).select("points");
   if (session) walletQuery.session(session);
   const wallet = await walletQuery;
@@ -86,9 +101,13 @@ async function assertVipAudienceEligible(
   }
 }
 
+/**
+ * Helper tạo đối tượng Error kèm mã HTTP và code định danh
+ */
 const httpError = (message: string, httpCode = 400, code?: string) =>
   Object.assign(new Error(message), { httpCode, code });
 
+// Dữ liệu đầu vào khi tạo hoặc cập nhật voucher
 export interface VoucherInput {
   code?: unknown;
   description?: unknown;
@@ -103,10 +122,24 @@ export interface VoucherInput {
   targetAudience?: unknown;
 }
 
+// ============================================================================
+// PHẦN 2: KIỂM TRA TÍNH HỢP LỆ & THUẬT TOÁN TÍNH GIẢM GIÁ (VALIDATION & CALCULATION)
+// ============================================================================
+
+/**
+ * Chuẩn hóa mã voucher: viết hoa, xóa khoảng trắng thừa đầu cuối
+ */
 function normalizedCode(value: unknown) {
   return typeof value === "string" ? value.trim().toUpperCase() : "";
 }
 
+/**
+ * Xác thực toàn bộ dữ liệu đầu vào khi tạo/sửa voucher:
+ * - Định dạng mã: 3-32 ký tự chữ, số, dấu gạch ngang/dưới
+ * - Loại giảm giá: phần trăm (1-100%) hoặc tiền cố định (VNĐ)
+ * - Mức giảm tối đa (nếu có trần) và giá trị đơn hàng tối thiểu
+ * - Ràng buộc thời gian: ngày bắt đầu phải trước ngày hết hạn
+ */
 function validateInput(input: VoucherInput, partial = false) {
   const updates: Record<string, unknown> = {};
   const code = normalizedCode(input.code);
@@ -237,6 +270,13 @@ function validateInput(input: VoucherInput, partial = false) {
   return updates;
 }
 
+/**
+ * Kiểm tra điều kiện áp dụng tại thời điểm thanh toán:
+ * - Trạng thái hoạt động (isActive)
+ * - Nằm trong khoảng thời gian có hiệu lực [startsAt, expiresAt]
+ * - Chưa vượt quá số lượt dùng tối đa (maxUses)
+ * - Giá trị hóa đơn đạt mức tối thiểu (minOrderAmount)
+ */
 function assertValidAt(voucher: IVoucher, subtotal: number, now = new Date()) {
   if (!voucher.isActive) throw httpError("Voucher đã bị ngừng hoạt động", 422, "VOUCHER_INACTIVE");
   if (voucher.startsAt > now)
@@ -258,6 +298,12 @@ function assertValidAt(voucher: IVoucher, subtotal: number, now = new Date()) {
   }
 }
 
+/**
+ * Thuật toán tính số tiền giảm giá thực tế:
+ * - Giảm theo %: (subtotal * discountValue) / 100, bị giới hạn bởi maxDiscountAmount (nếu có).
+ * - Giảm số tiền cố định: trừ thẳng discountValue.
+ * - Đảm bảo số tiền giảm không vượt quá tổng giá trị đơn hàng.
+ */
 export function calculateVoucherDiscount(voucher: IVoucher, subtotal: number) {
   let rawDiscount =
     voucher.discountType === VoucherDiscountType.PERCENT
@@ -274,11 +320,20 @@ export function calculateVoucherDiscount(voucher: IVoucher, subtotal: number) {
   return Math.min(subtotal, rawDiscount);
 }
 
+// ============================================================================
+// PHẦN 3: VOUCHERSERVICE - QUẢN LÝ DANH MỤC VÀ LỊCH SỬ SỬ DỤNG
+// ============================================================================
 export class VoucherService {
+  /**
+   * Lấy toàn bộ danh sách voucher sắp xếp mới nhất
+   */
   async list() {
     return Voucher.find().sort({ createdAt: -1 }).lean();
   }
 
+  /**
+   * Lấy chi tiết một voucher theo ID
+   */
   async getById(id: string) {
     if (!mongoose.isValidObjectId(id)) throw httpError("Mã voucher không hợp lệ");
     const voucher = await Voucher.findById(id);
@@ -286,6 +341,12 @@ export class VoucherService {
     return voucher;
   }
 
+  /**
+   * Tạo voucher mới:
+   * - Kiểm tra mã duy nhất
+   * - Ràng buộc ngày bắt đầu không nằm ở quá khứ
+   * - Gán ID người tạo (createdBy)
+   */
   async create(input: VoucherInput, createdBy: string) {
     if (!mongoose.isValidObjectId(createdBy))
       throw httpError("Tài khoản quản lý không hợp lệ", 401);
@@ -313,6 +374,11 @@ export class VoucherService {
     }
   }
 
+  /**
+   * Cập nhật thông tin voucher:
+   * - Khóa sửa loại hoặc giá trị giảm nếu voucher đã phát sinh lượt dùng
+   * - Kiểm tra lại tính hợp lệ của mốc thời gian bắt đầu và kết thúc
+   */
   async update(id: string, input: VoucherInput, updatedBy?: string) {
     if (!mongoose.isValidObjectId(id)) throw httpError("Mã voucher không hợp lệ");
     const updates = validateInput(input, true);
@@ -380,6 +446,10 @@ export class VoucherService {
     return voucher;
   }
 
+  /**
+   * Xóa voucher khỏi hệ thống:
+   * Nếu voucher đã có lượt sử dụng thực tế, chặn xóa và yêu cầu chuyển trạng thái ngừng hoạt động
+   */
   async remove(id: string) {
     const voucher = await this.getById(id);
     if (voucher.usageCount > 0) {
@@ -388,12 +458,23 @@ export class VoucherService {
     await voucher.deleteOne();
   }
 
+  /**
+   * Tra cứu lịch sử sử dụng của một voucher cụ thể
+   */
   async getUsageHistory(id: string) {
     if (!mongoose.isValidObjectId(id)) throw httpError("Mã voucher không hợp lệ");
     if (!(await Voucher.exists({ _id: id }))) throw httpError("Không tìm thấy voucher", 404);
     return VoucherUsage.find({ voucherId: id }).sort({ usedAt: -1 }).lean();
   }
 
+  // ============================================================================
+  // PHẦN 4: NGHIỆP VỤ POS CHECKOUT - KIỂM TRA, GIỮ CHỖ & SỬ DỤNG VOUCHER
+  // ============================================================================
+
+  /**
+   * Xác thực mã voucher tại quầy POS trước khi tạo hóa đơn:
+   * Kiểm tra điều kiện áp dụng, hạn dùng và xác minh mỗi khách hàng chỉ dùng 1 lần
+   */
   async validate(codeValue: unknown, subtotal: number, customerPhone?: string) {
     const code = normalizedCode(codeValue);
     if (!code) throw httpError("Vui lòng nhập mã voucher", 422, "VOUCHER_REQUIRED");
@@ -428,6 +509,10 @@ export class VoucherService {
     };
   }
 
+  /**
+   * Giữ chỗ voucher trong phiên checkout đang chờ xử lý:
+   * Tăng usageCount tạm thời và tạo VoucherReservation để tránh 2 nhân viên cùng áp 1 voucher lượt cuối.
+   */
   async reserve(
     codeValue: unknown,
     subtotal: number,
@@ -493,6 +578,10 @@ export class VoucherService {
     return { code: voucher.code, discountAmount };
   }
 
+  /**
+   * Đổi lượt giữ chỗ thành lượt sử dụng chính thức khi hóa đơn hoàn tất thanh toán:
+   * Chuyển VoucherReservation sang VoucherUsage và xóa reservation.
+   */
   async redeemReserved(
     codeValue: unknown,
     subtotal: number,
@@ -533,6 +622,10 @@ export class VoucherService {
     return { code: reservation.code, discountAmount: reservation.discountAmount };
   }
 
+  /**
+   * Hủy lượt giữ chỗ voucher (khi hủy đơn thanh toán hoặc đổi voucher khác):
+   * Giảm usageCount trở lại và xóa reservation.
+   */
   async releaseReservation(sessionId: string, codeValue: unknown, session: ClientSession) {
     const code = normalizedCode(codeValue);
     const reservation = await VoucherReservation.findOne({ sessionId, code }).session(session);
@@ -549,6 +642,10 @@ export class VoucherService {
     return true;
   }
 
+  /**
+   * Áp dụng voucher trực tiếp vào hóa đơn (không qua bước giữ chỗ):
+   * Tăng lượt sử dụng, lưu bản ghi VoucherUsage và trả về số tiền được giảm.
+   */
   async redeem(
     codeValue: unknown,
     subtotal: number,
