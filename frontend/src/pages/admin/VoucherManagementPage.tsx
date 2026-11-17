@@ -21,6 +21,10 @@ import {
   type VoucherUsage,
 } from "../../services/voucher.service";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & HÀM TIỆN ÍCH FORM (TYPES & HELPERS)
+// ============================================================================
+
 type VoucherForm = {
   code: string;
   description: string;
@@ -142,6 +146,9 @@ function getVoucherStatus(voucher: Voucher): {
   return { key: "active", label: "Đang hoạt động", color: "green" };
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT QUẢN LÝ VOUCHER - STATE & EFFECTS
+// ============================================================================
 export default function VoucherManagementPage() {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [form, setForm] = useState<VoucherForm>(emptyForm);
@@ -156,6 +163,7 @@ export default function VoucherManagementPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
 
+  // Tải danh sách voucher từ server
   const loadVouchers = useCallback(async () => {
     setLoading(true);
     try {
@@ -172,24 +180,32 @@ export default function VoucherManagementPage() {
     return () => window.clearTimeout(initialLoad);
   }, [loadVouchers]);
 
+  // ============================================================================
+  // PHẦN 3: CÁC HÀM XỬ LÝ SỰ KIỆN & GỌI API (HANDLERS)
+  // ============================================================================
+
+  // Mở modal tạo mới voucher
   const openCreateModal = () => {
     setEditing(null);
     setForm(emptyForm());
     setModalOpen(true);
   };
 
+  // Mở modal chỉnh sửa voucher hiện có
   const openEditModal = (voucher: Voucher) => {
     setEditing(voucher);
     setForm(toForm(voucher));
     setModalOpen(true);
   };
 
+  // Đóng modal và reset form
   const closeModal = () => {
     setModalOpen(false);
     setEditing(null);
     setForm(emptyForm());
   };
 
+  // Tự động sinh mã voucher ngẫu nhiên (tiền tố CZ + 4 ký tự)
   const generateRandomCode = () => {
     const prefix = "CZ";
     const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -356,9 +372,12 @@ export default function VoucherManagementPage() {
     });
   }, [vouchers, searchTerm, typeFilter, statusFilter]);
 
+  // ============================================================================
+  // PHẦN 4: GIAO DIỆN HIỂN THỊ (RENDER UI)
+  // ============================================================================
   return (
     <div className="space-y-6 p-4 md:p-6 bg-slate-50 min-h-screen">
-      {/* Tiêu đề & Nút thao tác đầu trang */}
+      {/* Khối 1: Tiêu đề trang & Nút thao tác chính */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
@@ -687,6 +706,9 @@ export default function VoucherManagementPage() {
       </Card>
 
       {/* Modal Thêm mới / Cập nhật Voucher */}
+      {/* ===================================================================== */}
+      {/* Khối 4: Modal Thêm mới / Chỉnh sửa thông tin Voucher                   */}
+      {/* ===================================================================== */}
       <Modal
         open={modalOpen}
         onCancel={closeModal}
@@ -788,8 +810,8 @@ export default function VoucherManagementPage() {
                 <Input
                   required
                   type="number"
-                  min={1}
-                  step={form.discountType === "fixed" ? 1000 : 1}
+                  min={form.discountType === "fixed" ? 1000 : 1}
+                  step="any"
                   max={form.discountType === "percent" ? 100 : undefined}
                   disabled={Boolean(editing && editing.usageCount > 0)}
                   value={form.discountValue}
@@ -814,7 +836,7 @@ export default function VoucherManagementPage() {
                 <Input
                   type="number"
                   min={0}
-                  step={1000}
+                  step="any"
                   disabled={form.discountType === "fixed"}
                   value={form.discountType === "fixed" ? "" : form.maxDiscountAmount}
                   onChange={(event) => setForm({ ...form, maxDiscountAmount: event.target.value })}
@@ -836,7 +858,7 @@ export default function VoucherManagementPage() {
                   required
                   type="number"
                   min={0}
-                  step={1000}
+                  step="any"
                   value={form.minOrderAmount}
                   onChange={(event) => setForm({ ...form, minOrderAmount: event.target.value })}
                   placeholder="0đ = Áp dụng mọi hóa đơn"
@@ -984,6 +1006,9 @@ export default function VoucherManagementPage() {
       </Modal>
 
       {/* Modal Lịch sử sử dụng */}
+      {/* ===================================================================== */}
+      {/* Khối 5: Modal Lịch sử các lần áp dụng Voucher                          */}
+      {/* ===================================================================== */}
       <Modal
         open={Boolean(usageVoucher)}
         onCancel={() => setUsageVoucher(null)}

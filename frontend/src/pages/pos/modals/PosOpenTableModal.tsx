@@ -11,6 +11,10 @@ import {
 import { Button, Input, Modal, Space } from "../../../shared/ui";
 import type { PosTable } from "../../../types/pos";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & PROPS MODAL MỞ BÀN
+// ============================================================================
+
 export interface MemberLookupInfo {
   name: string;
   phone: string;
@@ -38,6 +42,9 @@ interface PosOpenTableModalProps {
   getBookingUpcomingMinutes: (timeStr?: string) => number;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT MODAL MỞ BÀN & NHẬN BÀN ĐẶT CỌC (CHECK-IN)
+// ============================================================================
 export const PosOpenTableModal: React.FC<PosOpenTableModalProps> = ({
   open,
   onClose,

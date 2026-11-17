@@ -9,6 +9,10 @@ import clsx from "clsx";
 import { Button, Input, Modal, Select, Space, Tag } from "../../../shared/ui";
 import type { PosTable } from "../../../types/pos";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA PROPS MODAL CHUYỂN BÀN & GỘP BÀN
+// ============================================================================
+
 interface PosTransferTableModalProps {
   open: boolean;
   onClose: () => void;
@@ -28,6 +32,9 @@ interface PosTransferTableModalProps {
   loadError?: any;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT MODAL CHUYỂN BÀN (TRANSFER) & GỘP BÀN (MERGE)
+// ============================================================================
 export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
   open,
   onClose,

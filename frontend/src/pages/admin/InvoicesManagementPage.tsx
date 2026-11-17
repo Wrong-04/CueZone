@@ -35,7 +35,9 @@ import {
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & CẤU HÌNH IN (INTERFACES & PRINT CONFIG)
+// ============================================================================
 
 export interface InvoiceItemOrder {
   id: string;
@@ -121,10 +123,13 @@ const getClubSettings = (): ClubInfoSettings => {
   };
 };
 
+// ============================================================================
+// PHẦN 2: COMPONENT QUẢN LÝ HÓA ĐƠN - STATE & BỘ LỌC TÌM KIẾM
+// ============================================================================
 export const InvoicesManagementPage: React.FC = () => {
   const clubSettings = useMemo(() => getClubSettings(), []);
 
-  // ── 1. STATE & LIVE API INTEGRATION ──────────────────────────────────────
+  // State danh sách hóa đơn và chỉ số doanh thu thực tế từ Backend
   const [invoicesList, setInvoicesList] = useState<ClubInvoice[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [liveMetrics, setLiveMetrics] = useState({
@@ -298,8 +303,11 @@ export const InvoicesManagementPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [fetchInvoices]);
 
-  // ── 2. ACTIONS ────────────────────────────────────────────────────────────
-  // Lệnh in hóa đơn nhiệt khổ 80mm chuẩn máy in POS quầy thu ngân
+  // ============================================================================
+  // PHẦN 3: CÁC HÀM XỬ LÝ DỮ LIỆU & GỌI API (DATA FETCHING & ACTIONS)
+  // ============================================================================
+
+  // In hóa đơn nhiệt khổ 80mm chuẩn máy in quầy POS
   const handlePrintBill = () => {
     if (!selectedInvoice) return;
     const printWindow = window.open("", "_blank", "width=420,height=650");
@@ -880,9 +888,12 @@ export const InvoicesManagementPage: React.FC = () => {
     },
   ];
 
+  // ============================================================================
+  // PHẦN 4: GIAO DIỆN HIỂN THỊ (RENDER UI)
+  // ============================================================================
   return (
     <div className="space-y-6 pb-12">
-      {/* ── COMMAND HEADER & SUMMARY METRICS ──────────────────────────────── */}
+      {/* Khối 1: Header trang & Thẻ thống kê KPI doanh thu thực tế */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-50 via-teal-50 to-transparent rounded-full blur-3xl pointer-events-none opacity-60 -mr-20 -mt-20" />
 
@@ -1185,6 +1196,9 @@ export const InvoicesManagementPage: React.FC = () => {
         />
       </div>
 
+      {/* ===================================================================== */}
+      {/* Khối 4: Modal Chi tiết hóa đơn & In lại phiếu thanh toán               */}
+      {/* ===================================================================== */}
       <Modal
         open={Boolean(selectedInvoice)}
         onCancel={() => setSelectedInvoice(null)}
@@ -1410,7 +1424,9 @@ export const InvoicesManagementPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* ── MODAL XÁC NHẬN HỦY HÓA ĐƠN ──────────────────────────────────── */}
+      {/* ===================================================================== */}
+      {/* Khối 5: Modal Xác nhận hủy hóa đơn & Hoàn tác giao dịch                */}
+      {/* ===================================================================== */}
       <Modal
         open={cancelModalOpen}
         onCancel={() => {

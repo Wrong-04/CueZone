@@ -11,10 +11,20 @@ import { Product } from "../product/product.model";
 const router = Router();
 const invoicesRead = requirePermission("invoices", "read");
 
+// ============================================================================
+// PHẦN 1: HÀM TIỆN ÍCH ĐỊNH DẠNG DỮ LIỆU HÓA ĐƠN (FORMATTERS & HELPERS)
+// ============================================================================
+
+/**
+ * Chuẩn hóa chuỗi dữ liệu (trim khoảng trắng)
+ */
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * Rút gọn mã hóa đơn dài (UUID) thành mã hiển thị ngắn gọn (VD: HD-A1B2C3)
+ */
 function formatShortInvoiceCode(rawCode: string, id: string): string {
   if (!rawCode) return `HD-${id.slice(-6).toUpperCase()}`;
   if (rawCode.startsWith("HD-") && rawCode.length > 15) {
@@ -24,6 +34,9 @@ function formatShortInvoiceCode(rawCode: string, id: string): string {
   return rawCode;
 }
 
+/**
+ * Định dạng thời lượng chơi thân thiện (ngày, giờ, phút)
+ */
 function formatDurationNice(rawDuration: string | undefined, durationMinutes?: number): string {
   if (!rawDuration && !durationMinutes) return "0 phút";
   if (durationMinutes && durationMinutes > 0) {
@@ -63,7 +76,9 @@ function formatDurationNice(rawDuration: string | undefined, durationMinutes?: n
   return "0 phút";
 }
 
-// ── GET /api/v1/invoices ──────────────────────────────────────────────────────
+// ============================================================================
+// PHẦN 2: API TRA CỨU DANH SÁCH & THỐNG KÊ DOANH THU (GET /api/v1/invoices)
+// ============================================================================
 router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const search = normalizeString(req.query.search);
@@ -349,7 +364,9 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
   }
 });
 
-// ── GET /api/v1/invoices/:id ──────────────────────────────────────────────────
+// ============================================================================
+// PHẦN 3: API XEM CHI TIẾT HÓA ĐƠN (GET /api/v1/invoices/:id)
+// ============================================================================
 router.get("/:id", invoicesRead, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
@@ -383,7 +400,15 @@ router.get("/:id", invoicesRead, async (req: Request, res: Response, next: NextF
   }
 });
 
-// ── POST /api/v1/invoices/:id/cancel (Hủy hóa đơn & hoàn tác điểm/voucher) ───────
+// ============================================================================
+// PHẦN 4: API HỦY HÓA ĐƠN & HOÀN TÁC GIAO DỊCH (POST /api/v1/invoices/:id/cancel)
+// Quy trình ACID Transaction:
+// 1. Kiểm tra quyền hạn và lý do hủy hóa đơn
+// 2. Chuyển trạng thái hóa đơn sang 'cancelled', ghi nhận người hủy và thời gian
+// 3. Hoàn lại số dư ví (nếu đã thanh toán bằng ví hội viên)
+// 4. Giải phóng lượt dùng voucher (nếu có áp dụng voucher)
+// 5. Hoàn lại số lượng nguyên vật liệu vào kho (nếu có tùy chọn hoàn kho)
+// ============================================================================
 router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: Request, res: Response, next: NextFunction) => {
   let session: mongoose.ClientSession | null = null;
   let useSession = true;
@@ -535,7 +560,10 @@ router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: 
   }
 });
 
-// ── POST /api/v1/invoices/quick (Tạo hóa đơn lẻ bán mang về / vãng lai) ────────
+// ============================================================================
+// PHẦN 5: API TẠO HÓA ĐƠN BÁN LẺ F&B TẠI QUẦY (POST /api/v1/invoices/quick)
+// Phục vụ khách vãng lai chỉ mua nước/đồ ăn mang về mà không sử dụng bàn bida
+// ============================================================================
 router.post("/quick", requirePermission("pos", "operate"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const body = req.body || {};

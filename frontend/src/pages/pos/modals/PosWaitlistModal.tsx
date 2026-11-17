@@ -11,6 +11,11 @@ import type { PosTable } from "../../../types/pos";
 
 const { Text } = Typography;
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & PROPS MODAL (TYPES & PROPS)
+// ============================================================================
+
+/** Bản ghi một khách hàng trong danh sách chờ bàn */
 export interface WaitlistItem {
   id: string;
   _id?: string;
@@ -43,6 +48,9 @@ interface PosWaitlistModalProps {
   getTableOptionsForGuest: (preferredType: string) => any[];
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT MODAL QUẢN LÝ DANH SÁCH CHỜ BÀN (WAITLIST MODAL)
+// ============================================================================
 export const PosWaitlistModal: React.FC<PosWaitlistModalProps> = ({
   open,
   onClose,

@@ -6,6 +6,14 @@ import { isFnbItemPrepared } from "../../../utils/fnb";
 import type { PosTable, PosOrderItem } from "../../../types/pos";
 import type { FnbStockItem } from "../PosTableFloorPage";
 
+// ============================================================================
+// HOOK QUẢN LÝ GỌI MÓN F&B TẠI BÀN & HỦY MÓN HOÀN KHO (USE POS FNB)
+// Nghiệp vụ:
+// - Lọc và tìm kiếm thực đơn ăn uống theo danh mục
+// - Thêm món vào bàn chơi, kiểm tra tồn kho tức thì
+// - Hủy món đã gọi kèm lý do và hoàn trả tồn kho nếu chưa chế biến
+// ============================================================================
+
 interface UsePosFnbProps {
   selectedTable: PosTable | null;
   setSelectedTable: (table: PosTable | null) => void;

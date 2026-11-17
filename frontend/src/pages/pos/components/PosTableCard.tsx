@@ -16,6 +16,10 @@ import {
 import { Button, Card, Tag, Tooltip } from "../../../shared/ui";
 import type { PosTable } from "../../../types/pos";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & PROPS THẺ BÀN (CARD PROPS)
+// ============================================================================
+
 export interface PosTableCardProps {
   table: PosTable;
   calculatePlayingDetails: (table: PosTable) => any;
@@ -37,6 +41,9 @@ export interface PosTableCardProps {
   onOpenOrderDrawerForTable: (tableId: string) => void;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT THẺ BÀN BIDA - TÍNH TOÁN DỮ LIỆU & THỜI LƯỢNG
+// ============================================================================
 export const PosTableCard: React.FC<PosTableCardProps> = ({
   table,
   calculatePlayingDetails,
@@ -94,6 +101,9 @@ export const PosTableCard: React.FC<PosTableCardProps> = ({
   const isGenericBooked = isBooked && !isHoldingForBooking && !hasAdvanceBooking && !isExpiredHold;
   const displayTableName = table.name.replace(/\s*•\s*.*$/, "");
 
+  // ============================================================================
+  // PHẦN 3: GIAO DIỆN HIỂN THỊ THẺ BÀN (RENDER CARD UI)
+  // ============================================================================
   return (
     <Card
       key={table.id}

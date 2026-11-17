@@ -4,6 +4,10 @@ import { Button, Modal, message } from "../../../shared/ui";
 import { getClubReceiptSettings } from "../constants/posConstants";
 import type { PosOrderItem } from "../../../types/pos";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & PROPS PHIẾU THANH TOÁN (RECEIPT MODAL)
+// ============================================================================
+
 export interface PaidSummary {
   invoiceCode: string;
   tableName: string;
@@ -43,6 +47,9 @@ interface PosReceiptModalProps {
   paidSummary: any;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT XEM & IN PHIẾU THANH TOÁN HÓA ĐƠN POS (NHIỆT 80MM)
+// ============================================================================
 export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
   open,
   onClose,

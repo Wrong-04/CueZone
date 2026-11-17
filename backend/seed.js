@@ -17,6 +17,117 @@ function formatHHMM(date) {
   return `${hours}:${mins}`;
 }
 
+const ADDITIONAL_DEMO_USERS = [
+  {
+    "_id": "6af896048285d0164985832e",
+    "name": "Trần Văn Quản Trị",
+    "email": "admin2@cuezone.com",
+    "role": "admin",
+    "phone": "0901234502",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Phó chủ nhiệm CLB"
+  },
+  {
+    "_id": "6af896048285d0164985832f",
+    "name": "Lê Thị Quản Lý",
+    "email": "admin3@cuezone.com",
+    "role": "admin",
+    "phone": "0901234503",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Giám sát vận hành"
+  },
+  {
+    "_id": "6af896048285d01649858330",
+    "name": "Phạm Hùng Cường",
+    "email": "admin4@cuezone.com",
+    "role": "admin",
+    "phone": "0901234504",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Trưởng ban chuyên môn"
+  },
+  {
+    "_id": "6af896048285d01649858334",
+    "name": "Hoàng Thị Mai",
+    "email": "staff3@cuezone.com",
+    "role": "staff",
+    "phone": "0902345603",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Nhân viên quầy & order"
+  },
+  {
+    "_id": "6af896048285d01649858335",
+    "name": "Đặng Tuấn Anh",
+    "email": "staff4@cuezone.com",
+    "role": "staff",
+    "phone": "0902345604",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Nhân viên kỹ thuật bàn"
+  },
+  {
+    "_id": "6af896048285d01649858336",
+    "name": "Lê Hoàng Phúc",
+    "email": "staff5@cuezone.com",
+    "role": "staff",
+    "phone": "0902345605",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Nhân viên phục vụ bàn"
+  },
+  {
+    "_id": "6af896048285d0164985833d",
+    "name": "Dương Quốc Hoàng (VIP Vàng)",
+    "email": "customer_gold@cuezone.com",
+    "role": "customer",
+    "phone": "0988000111",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Cơ thủ chuyên nghiệp"
+  },
+  {
+    "_id": "6af896048285d0164985833e",
+    "name": "Lê Hoàng Bách (VIP Bạc)",
+    "email": "customer_silver@cuezone.com",
+    "role": "customer",
+    "phone": "0988000222",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Hội viên thân thiết"
+  },
+  {
+    "_id": "6af896048285d0164985833f",
+    "name": "Trần Đình Trọng (VIP Đồng)",
+    "email": "customer_bronze@cuezone.com",
+    "role": "customer",
+    "phone": "0988000333",
+    "branch": "CueZone Club - Cơ sở 1",
+    "position": "Hội viên mới"
+  }
+];
+
+const ADDITIONAL_DEMO_WALLETS = [
+  {
+    "_id": "6af896156738a46f86254172",
+    "userId": "6af896048285d0164985833d",
+    "balance": 0,
+    "points": 5000,
+    "status": "active",
+    "transactions": []
+  },
+  {
+    "_id": "6af896156738a46f86254173",
+    "userId": "6af896048285d0164985833e",
+    "balance": 0,
+    "points": 2500,
+    "status": "active",
+    "transactions": []
+  },
+  {
+    "_id": "6af896156738a46f86254174",
+    "userId": "6af896048285d0164985833f",
+    "balance": 0,
+    "points": 800,
+    "status": "active",
+    "transactions": []
+  }
+];
+
 async function runSeed() {
   if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed ở production.");
   if (!process.argv.includes("--yes")) {
@@ -32,8 +143,35 @@ async function runSeed() {
   const todayVn = new Date(now + 7 * 3600000).toISOString().slice(0, 10);
 
   for (const [name, raw] of Object.entries(SEED_DATA)) {
+    // Bỏ qua các collection rác/mồ côi không còn dùng
+    if (name === "audit_logs" || name === "wallet_transactions" || name === "voucherreservations") {
+      continue;
+    }
     const docs = EJSON.deserialize(raw);
-    if (name === "users") docs.forEach((u) => (u.password = passwordHash));
+    if (name === "users") {
+      ADDITIONAL_DEMO_USERS.forEach((u) => {
+        docs.push({
+          ...u,
+          _id: new mongoose.Types.ObjectId(u._id),
+          isActive: true,
+          isLocked: false,
+          points: 0,
+        });
+      });
+      docs.forEach((u) => (u.password = passwordHash));
+    }
+    if (name === "wallets") {
+      ADDITIONAL_DEMO_WALLETS.forEach((w) => {
+        docs.push({
+          ...w,
+          _id: new mongoose.Types.ObjectId(w._id),
+          userId: new mongoose.Types.ObjectId(w.userId),
+        });
+      });
+      docs.forEach((w) => {
+        w.balance = 0; // Đã bỏ ví hội viên, chỉ giữ points & tier
+      });
+    }
 
     if (name === "products") {
       docs.forEach((p) => {
@@ -263,6 +401,11 @@ async function runSeed() {
             time: "16:00",
             bookingId: "book-demo-03",
           };
+        } else if (code === "STD-08") {
+          tbl.status = "maintenance";
+          tbl.currentSession = null;
+          tbl.bookedInfo = null;
+          tbl.maintenanceReason = "Bảo trì định kỳ: Thay mặt nỉ Simonis 860 & cân chỉnh băng";
         } else {
           // 18 tables: AVAILABLE
           tbl.status = "available";
@@ -273,10 +416,31 @@ async function runSeed() {
     }
 
     if (name === "bookings") {
+      const cleanNames = [
+        "Nguyễn Văn An",
+        "Trần Quốc Đạt",
+        "Lê Bảo Nam",
+        "Phạm Hải Đăng",
+        "Hoàng Minh Quân",
+        "Vũ Tuấn Kiệt",
+        "Bùi Thế Hùng",
+        "Đỗ Quang Dũng",
+      ];
+      let nameIdx = 0;
       for (const b of docs) {
+        if (
+          !b.customerName ||
+          b.customerName.length < 3 ||
+          /^(dai|đại|ddai|d|da|gg|hai)$/i.test(b.customerName.trim())
+        ) {
+          b.customerName = cleanNames[nameIdx % cleanNames.length];
+          nameIdx++;
+        }
         if (b.status === "approved" || b.status === "pending") {
           b.date = todayVn;
           b.bookingDate = new Date();
+        } else {
+          b.date = new Date(now - 86400000).toISOString().slice(0, 10);
         }
       }
     }
@@ -9158,66 +9322,6 @@ const SEED_DATA = {
       gameType: null,
       minPlayers: null,
       prizePoolAmount: null,
-    },
-    {
-      _id: { $oid: "6ae99d880e1f16fc6bd6b7b7" },
-      gameType: null,
-      minPlayers: null,
-      prizePoolAmount: null,
-      name: "Test",
-      description: "Giải đấu Bank Pool chuẩn WPA/BCA tranh tài cúp vàng CueZone",
-      startDate: { $date: { $numberLong: "1792890000000" } },
-      endDate: { $date: { $numberLong: "1793199600000" } },
-      registrationDeadline: { $date: { $numberLong: "1792861140000" } },
-      maxPlayers: { $numberInt: "16" },
-      registrationFee: { $numberInt: "150000" },
-      prizePool: "10.000.000đ + Cúp Vàng",
-      firstPrize: "5.000.000đ",
-      secondPrize: "3.000.000đ",
-      thirdPrize: "1.000.000đ x 2",
-      status: "draft",
-      format: "Single Elimination",
-      raceToScore: { $numberInt: "5" },
-      assignedTables: ["Bàn Match 13", "Bàn Match 14"],
-      createdBy: { $oid: "6abc9f730691bb822f449b44" },
-      players: [],
-      createdAt: { $date: { $numberLong: "1793695112397" } },
-      groups: [],
-      rounds: [],
-      prizes: [],
-      updatedAt: { $date: { $numberLong: "1793695112397" } },
-      __v: { $numberInt: "0" },
-    },
-    {
-      _id: { $oid: "6ae9f9ab22c045aa8bf7f844" },
-      gameType: null,
-      minPlayers: null,
-      prizePoolAmount: null,
-      name: "test 2",
-      description: "Giải đấu Bank Pool chuẩn WPA/BCA tranh tài cúp vàng CueZone",
-      startDate: { $date: { $numberLong: "1795021200000" } },
-      endDate: { $date: { $numberLong: "1795798800000" } },
-      registrationDeadline: { $date: { $numberLong: "1794258000000" } },
-      maxPlayers: { $numberInt: "16" },
-      registrationFee: { $numberInt: "150000" },
-      prizePool: "10.000.000đ + Cúp Vàng",
-      firstPrize: "5.000.000đ",
-      secondPrize: "3.000.000đ",
-      thirdPrize: "1.000.000đ x 2",
-      status: "registration_open",
-      format: "Single Elimination",
-      raceToScore: { $numberInt: "10" },
-      assignedTables: ["Bàn Match 13", "Bàn Match 14"],
-      createdBy: { $oid: "6abc9f730691bb822f449b44" },
-      players: [],
-      createdAt: { $date: { $numberLong: "1793718699175" } },
-      groups: [],
-      rounds: [],
-      prizes: [],
-      updatedAt: { $date: { $numberLong: "1794236797353" } },
-      __v: { $numberInt: "2" },
-      paymentReconciliationRequired: false,
-      paymentRevision: { $numberInt: "1" },
     },
   ],
   users: [

@@ -4,6 +4,14 @@ import { waitlistService } from "../../../services/waitlist.service";
 import { getSocket } from "../../../services/socket.service";
 import type { PosTable } from "../../../types/pos";
 
+// ============================================================================
+// HOOK QUẢN LÝ DANH SÁCH CHỜ BÀN (USE POS WAITLIST)
+// Nghiệp vụ:
+// - Tiếp nhận khách đến quán khi hết bàn vào hàng đợi
+// - Lắng nghe sự kiện socket thời gian thực khi danh sách chờ cập nhật
+// - Tự động đề xuất bàn trống phù hợp với nhu cầu khách (Pool, Carom, VIP)
+// ============================================================================
+
 export interface WaitlistEntry {
   id: string;
   _id?: string;

@@ -19,6 +19,10 @@ import { tournamentService, type ClubBankInfo } from "../../../services/tourname
 import type { CheckoutReceipt, PosTable } from "../../../types/pos";
 import { getSepayQrUrl } from "../../../utils/sepay-qr";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & PROPS MODAL THANH TOÁN POS
+// ============================================================================
+
 interface PosCheckoutModalProps {
   open: boolean;
   onClose: () => void;
@@ -50,6 +54,9 @@ interface PosCheckoutModalProps {
   loadError?: any;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT MODAL THANH TOÁN - STATE & TÍNH TOÁN CHIẾT KHẤU
+// ============================================================================
 export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
   open,
   onClose,
@@ -159,6 +166,9 @@ export const PosCheckoutModal: React.FC<PosCheckoutModalProps> = ({
     }
   };
 
+  // ============================================================================
+  // PHẦN 3: GIAO DIỆN MODAL THANH TOÁN (RENDER CHECKOUT MODAL UI)
+  // ============================================================================
   return (
     <Modal
       open={open}

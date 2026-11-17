@@ -3,6 +3,15 @@ import { message } from "../../../shared/ui";
 import { posService } from "../../../services/pos.service";
 import type { PosTable, CheckoutReceipt } from "../../../types/pos";
 
+// ============================================================================
+// HOOK QUẢN LÝ THANH TOÁN, TÍNH TIỀN & IN PHIẾU (USE POS CHECKOUT)
+// Nghiệp vụ:
+// - Tổng hợp tiền giờ theo biểu phí nhiều khung giờ + tiền F&B
+// - Tra cứu tích điểm hội viên & áp dụng mã giảm giá (voucher)
+// - Hỗ trợ các hình thức thanh toán: Tiền mặt, Chuyển khoản VietQR, Thẻ
+// - Hoàn tất thanh toán ACID và mở modal in phiếu thanh toán nhiệt 80mm
+// ============================================================================
+
 export interface LoyaltyCustomerInfo {
   name: string;
   phone: string;

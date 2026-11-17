@@ -4,6 +4,14 @@ import { posService } from "../../../services/pos.service";
 import { waitlistService } from "../../../services/waitlist.service";
 import type { PosTable, BookingRequest } from "../../../types/pos";
 
+// ============================================================================
+// HOOK QUẢN LÝ MỞ BÀN, NHẬN LỊCH HẸN & TRA CỨU HỘI VIÊN (USE POS OPEN TABLE)
+// Nghiệp vụ:
+// - Mở bàn mới bắt đầu tính giờ chơi
+// - Tự động tra cứu hội viên theo số điện thoại để áp dụng ưu đãi
+// - Nhận khách check-in từ lịch đặt trước (booking) hoặc danh sách chờ
+// ============================================================================
+
 interface UsePosOpenTableProps {
   selectedTable: PosTable | null;
   setSelectedTable: (table: PosTable | null) => void;
