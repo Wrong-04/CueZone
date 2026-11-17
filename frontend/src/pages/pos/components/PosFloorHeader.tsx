@@ -24,6 +24,10 @@ import type { CustomerOrder } from "../../../services/customer-order.service";
 
 const { Title } = Typography;
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & PROPS THANH ĐIỀU HƯỚNG POS
+// ============================================================================
+
 export interface PosFloorStats {
   total: number;
   playing: number;
@@ -75,6 +79,9 @@ interface PosFloorHeaderProps {
   onCheckInFromBooking: (tableId: string, booking: BookingRequest) => void;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT THANH HEADER ĐIỀU HÀNH & BỘ LỌC SƠ ĐỒ BÀN
+// ============================================================================
 export const PosFloorHeader: React.FC<PosFloorHeaderProps> = ({
   stats,
   tables,

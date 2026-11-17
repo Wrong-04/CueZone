@@ -1,3 +1,10 @@
+// ============================================================================
+// HẰNG SỐ & TIỆN ÍCH DÙNG CHUNG CHO HỆ THỐNG POS (POS CONSTANTS & SETTINGS)
+// ============================================================================
+
+// ============================================================================
+// PHẦN 1: TÊN HIỂN THỊ KHU VỰC & LOẠI BÀN (AREA & TABLE TYPE LABELS)
+// ============================================================================
 export const AREA_LABELS: Record<string, string> = {
   standard: "Khu Phổ Thông",
   vip: "Khu VIP",
@@ -22,6 +29,9 @@ export const getTypeLabel = (typeKey?: string): string => {
   return TABLE_TYPE_LABELS[key] || typeKey;
 };
 
+// ============================================================================
+// PHẦN 2: DANH MỤC LÝ DO HỦY MÓN F&B (CANCEL REASONS)
+// ============================================================================
 export const DEFAULT_CANCEL_REASONS = [
   "Khách đổi ý / Chưa dùng",
   "Khách đổi sang món khác",
@@ -33,6 +43,9 @@ export const DEFAULT_CANCEL_REASONS = [
 ];
 
 
+// ============================================================================
+// PHẦN 3: CẤU HÌNH THÔNG TIN IN PHIẾU THANH TOÁN NHIỆT (RECEIPT PRINT SETTINGS)
+// ============================================================================
 export interface ClubReceiptSettings {
   clubName: string;
   address: string;

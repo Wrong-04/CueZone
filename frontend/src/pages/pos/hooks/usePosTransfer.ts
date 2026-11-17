@@ -3,6 +3,14 @@ import { message } from "../../../shared/ui";
 import { posService } from "../../../services/pos.service";
 import type { PosTable, EligibleMoveTargetsResponse } from "../../../types/pos";
 
+// ============================================================================
+// HOOK QUẢN LÝ CHUYỂN BÀN CHƠI & GHÉP HÓA ĐƠN (USE POS TRANSFER)
+// Nghiệp vụ:
+// - Lấy danh sách bàn đích hợp lệ để chuyển hoặc ghép
+// - Chuyển toàn bộ thời gian chơi và dịch vụ F&B sang bàn trống
+// - Gộp phiên chơi của 2 bàn đang hoạt động lại thành một hóa đơn
+// ============================================================================
+
 interface UsePosTransferProps {
   tables: PosTable[];
   selectedTable: PosTable | null;

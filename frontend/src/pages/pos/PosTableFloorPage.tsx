@@ -28,6 +28,10 @@ import PosCheckoutModal from "./modals/PosCheckoutModal";
 import PosReceiptModal from "./modals/PosReceiptModal";
 import PosWaitlistModal from "./modals/PosWaitlistModal";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & INTERFACES (TYPES & DATA MODELS)
+// ============================================================================
+
 export interface FnbStockItem {
   id: string;
   code: string;
@@ -42,6 +46,10 @@ export interface FnbStockItem {
   image?: string;
   isMadeToOrder?: boolean;
 }
+
+// ============================================================================
+// PHẦN 2: COMPONENT SƠ ĐỒ BÀN POS - STATE & ĐỒNG BỘ REALTIME SOCKET.IO
+// ============================================================================
 
 export const PosTableFloorPage: React.FC = () => {
   const [tables, setTables] = useState<PosTable[]>([]);
@@ -247,7 +255,11 @@ export const PosTableFloorPage: React.FC = () => {
     setPendingOrdersByTable(map);
   }, []);
 
-  // 1. Hook: Waitlist
+  // ============================================================================
+  // PHẦN 3: CÁC HOOKS NGHIỆP VỤ & HÀM XỬ LÝ THAO TÁC BÀN (ACTION HANDLERS)
+  // ============================================================================
+
+  // 1. Hook quản lý danh sách chờ (Waitlist)
   const waitlistHook = usePosWaitlist({
     tables,
     onSelectTableForWaitlist: (targetTable, name, phone, note) => {
@@ -650,9 +662,12 @@ export const PosTableFloorPage: React.FC = () => {
     }
   };
 
+  // ============================================================================
+  // PHẦN 4: GIAO DIỆN HIỂN THỊ SƠ ĐỒ BÀN POS (RENDER UI)
+  // ============================================================================
   return (
     <div className="space-y-4 max-w-full overflow-hidden min-w-0">
-      {/* 1. Header & Filters */}
+      {/* Khối 1: Header tổng quan & Thống kê trạng thái bàn */}
       <PosFloorHeader
         stats={stats}
         tables={tables}
@@ -760,7 +775,9 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       )}
 
-      {/* 5. Table Grid */}
+      {/* ===================================================================== */}
+      {/* Khối 2: Lưới hiển thị các thẻ bàn bida (Grid of Table Cards)          */}
+      {/* ===================================================================== */}
       {!loading && !loadError && filteredTables.length > 0 && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(285px,1fr))] gap-3.5">
           {filteredTables.map((table) => (
@@ -791,7 +808,9 @@ export const PosTableFloorPage: React.FC = () => {
         </div>
       )}
 
-      {/* 6. Modals */}
+      {/* ===================================================================== */}
+      {/* Khối 3: Hệ thống Modals thao tác nghiệp vụ tại bàn                    */}
+      {/* ===================================================================== */}
       <PosOpenTableModal
         open={openTableHook.openModalVisible}
         onClose={() => openTableHook.setOpenModalVisible(false)}

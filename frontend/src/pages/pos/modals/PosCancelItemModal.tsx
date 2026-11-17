@@ -5,6 +5,10 @@ import { Button, Input, Modal, Space, Tag } from "../../../shared/ui";
 import { DEFAULT_CANCEL_REASONS } from "../constants/posConstants";
 import type { PosOrderItem } from "../../../types/pos";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA PROPS MODAL HỦY MÓN & HOÀN KHO
+// ============================================================================
+
 interface PosCancelItemModalProps {
   open: boolean;
   onClose: () => void;
@@ -22,6 +26,9 @@ interface PosCancelItemModalProps {
   loading: boolean;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT MODAL HỦY MÓN TẠI BÀN (KÈM TÙY CHỌN HOÀN KHO)
+// ============================================================================
 export const PosCancelItemModal: React.FC<PosCancelItemModalProps> = ({
   open,
   onClose,

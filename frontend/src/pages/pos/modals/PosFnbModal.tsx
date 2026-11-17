@@ -13,6 +13,10 @@ import { Button, Input, Modal, Select, Space, Tag } from "../../../shared/ui";
 import type { PosOrderItem, PosTable } from "../../../types/pos";
 import { isFnbItemPrepared } from "../../../utils/fnb";
 
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & PROPS MODAL GỌI MÓN F&B TẠI BÀN
+// ============================================================================
+
 export interface PosProductItem {
   id: string;
   name: string;
@@ -55,6 +59,9 @@ interface PosFnbModalProps {
   loading: boolean;
 }
 
+// ============================================================================
+// PHẦN 2: COMPONENT MODAL GỌI MÓN & TỒN KHO NGUYÊN LIỆU TẠI BÀN
+// ============================================================================
 export const PosFnbModal: React.FC<PosFnbModalProps> = ({
   open,
   onClose,
