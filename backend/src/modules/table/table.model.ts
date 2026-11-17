@@ -194,7 +194,7 @@ const tableSchema = new Schema<ITable>(
                 fnbDiscountPercent: { type: Number, required: true, min: 0, max: 100 },
                 membershipDiscountAmount: { type: Number, required: true, min: 0 },
                 voucherDiscountAmount: { type: Number, required: true, min: 0 },
-                paymentMethod: { type: String, trim: true, default: "transfer" },
+                paymentMethod: { type: String, trim: true },
                 requestedAt: { type: Date, required: true },
               },
               { _id: false },

@@ -35,7 +35,9 @@ import {
 
 const { Title, Text } = Typography;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ============================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & DỮ LIỆU MẶC ĐỊNH (TYPES & DEFAULTS)
+// ============================================================================
 
 export interface MemberTierPolicy {
   tierKey: string;
@@ -139,7 +141,9 @@ export const POPULAR_BANKS = [
   { code: "HDB", name: "HDBank (Ngân hàng TMCP Phát triển TP.HCM)" },
 ];
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ============================================================================
+// PHẦN 2: COMPONENT QUẢN LÝ CÀI ĐẶT HỆ THỐNG - STATE & DATA SYNC
+// ============================================================================
 
 const SettingsManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -430,7 +434,9 @@ const SettingsManagementPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 3. Navigation Tabs Bar (3 Tab Rõ Ràng, Thực Chất 100%) ── */}
+      {/* ===================================================================== */}
+      {/* PHẦN 3: GIAO DIỆN CÁC TAB CÀI ĐẶT (RENDER UI TABS)                    */}
+      {/* ===================================================================== */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
         <Button
           size="sm"
@@ -475,7 +481,9 @@ const SettingsManagementPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* ── 4. Tab 1: Thông Tin CLB & Thương Hiệu ── */}
+      {/* --------------------------------------------------------------------- */}
+      {/* Tab 1: Thông tin cơ sở & Quy định chung của Câu lạc bộ                */}
+      {/* --------------------------------------------------------------------- */}
       {activeTab === "general" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -678,7 +686,9 @@ const SettingsManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── 5. Tab 2: Cổng Thanh Toán VietQR & Tùy Chọn In Bill ── */}
+      {/* --------------------------------------------------------------------- */}
+      {/* Tab 2: Cổng thanh toán VietQR & Cấu hình in mã QR trên Bill           */}
+      {/* --------------------------------------------------------------------- */}
       {activeTab === "vietqr" && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
@@ -818,7 +828,9 @@ const SettingsManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── 6. Tab 3: Chính Sách Hội Viên & Điểm Thưởng ── */}
+      {/* --------------------------------------------------------------------- */}
+      {/* Tab 3: Chính sách tích điểm & 3 cấp bậc thành viên (Đồng - Bạc - Vàng) */}
+      {/* --------------------------------------------------------------------- */}
       {activeTab === "membership" && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">

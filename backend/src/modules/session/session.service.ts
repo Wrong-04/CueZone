@@ -16,6 +16,10 @@ import { NotificationType } from "../notification/notification.model";
 import { CustomerOrder, CustomerOrderStatus } from "../customer-order/customer-order.model";
 import { normalizePhone, phonePattern } from "../../utils/phone";
 
+// ============================================================================
+// PHẦN 1: THUẬT TOÁN TÍNH TIỀN GIỜ & PHÂN BỔ KHUNG GIỜ (PRICING TIERS & TIME SPLIT)
+// ============================================================================
+
 export interface SplitTimeSlot {
   tierName: string;
   startTime: string;
@@ -27,6 +31,9 @@ export interface SplitTimeSlot {
 
 const notifications = new NotificationService();
 
+/**
+ * Kiểm tra phiên chơi hiện tại có thuộc về khách hàng đang đăng nhập không
+ */
 export function sessionBelongsToCustomer(
   current: { customerId?: unknown; customerPhone?: string },
   customer: { _id: unknown; phone?: string },
@@ -39,6 +46,10 @@ export function sessionBelongsToCustomer(
   );
 }
 
+/**
+ * Xác định đơn giá giờ chơi hiện tại theo khung giờ (Tiêu chuẩn, Cao điểm, Đêm, Cuối tuần)
+ * và phân loại theo hạng bàn (Bàn Phổ thông, Bàn VIP, Bàn Thi đấu)
+ */
 export function getCurrentTierPrice(
   table: { code?: string; area?: string; pricePerHour: number },
   pricingTiers: IPricingTier[] = [],
@@ -288,6 +299,17 @@ export function playingDetails(
 export class SessionService {
   private readonly walletService = new WalletService();
 
+  // ============================================================================
+  // PHẦN 2: KHỞI TẠO & ĐIỀU KHIỂN PHIÊN CHƠI (OPEN & PAUSE SESSION)
+  // ============================================================================
+
+  /**
+   * Mở bàn tính giờ:
+   * 1. Kiểm tra trạng thái bàn (phải là available hoặc booked đến giờ hẹn)
+   * 2. Nếu check-in từ lịch hẹn: xác nhận tiền cọc đã đóng và gán thông tin khách
+   * 3. Khởi tạo phiên chơi currentSession với giờ bắt đầu, biểu giá và tiền cọc
+   * 4. Bắn socket realtime cập nhật sơ đồ bàn cho toàn hệ thống
+   */
   async open(tableId: string, input: any) {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       throw Object.assign(new Error("Thông tin mở bàn không hợp lệ"), { httpCode: 400 });
@@ -461,6 +483,15 @@ export class SessionService {
     return result;
   }
 
+  // ============================================================================
+  // PHẦN 3: NGHIỆP VỤ CHUYỂN BÀN & GỘP BÀN (MOVE & MERGE TABLE)
+  // ============================================================================
+
+  /**
+   * Lấy danh sách các bàn đủ điều kiện để chuyển bàn hoặc gộp bàn:
+   * - Chuyển bàn: Bàn đích phải là bàn trống (available) và không vướng lịch đặt sắp tới.
+   * - Gộp bàn: Bàn đích phải là bàn đang chơi (playing) và cùng phiên hoạt động.
+   */
   async getEligibleMoveTargets(tableId: string, action: "transfer" | "merge" = "transfer") {
     if (!mongoose.isValidObjectId(tableId)) {
       throw Object.assign(new Error("Mã bàn không hợp lệ"), { httpCode: 400 });
@@ -753,6 +784,14 @@ export class SessionService {
     return result.target;
   }
 
+  // ============================================================================
+  // PHẦN 4: GỌI MÓN F&B TẠI BÀN & ĐỐI SOÁT TỒN KHO (ORDERING & STOCK RESTOCK)
+  // ============================================================================
+
+  /**
+   * Hủy món trong danh sách order tại bàn:
+   * Nếu món chưa chế biến/phục vụ, hỗ trợ tự động hoàn trả số lượng vào kho nguyên vật liệu.
+   */
   async cancelOrderItem(
     tableId: string,
     input: {
@@ -864,6 +903,13 @@ export class SessionService {
     return result;
   }
 
+  // ============================================================================
+  // PHẦN 5: YÊU CẦU THANH TOÁN TỪ PHÍA KHÁCH HÀNG (CUSTOMER SELF-CHECKOUT)
+  // ============================================================================
+
+  /**
+   * Lấy lịch sử các phiên chơi của khách hàng
+   */
   async getCustomerSessions(customerId: string) {
     if (!mongoose.isValidObjectId(customerId))
       throw Object.assign(new Error("Tài khoản không hợp lệ"), { httpCode: 401 });
@@ -1073,10 +1119,9 @@ export class SessionService {
         fnbDiscountPercent: quote.tier.fnbDiscountPercent,
         membershipDiscountAmount: quote.membershipDiscountAmount,
         voucherDiscountAmount,
-        paymentMethod:
-          typeof (input as any).paymentMethod === "string" && (input as any).paymentMethod.trim()
-            ? (input as any).paymentMethod.trim()
-            : "transfer",
+        ...(typeof (input as any).paymentMethod === "string" && (input as any).paymentMethod.trim()
+          ? { paymentMethod: (input as any).paymentMethod.trim() }
+          : {}),
         requestedAt: new Date(),
       };
       await table.save({ session });
@@ -1125,7 +1170,7 @@ export class SessionService {
           customerName: customer?.name ?? table.currentSession!.customerName,
           customerPhone: customer?.phone ?? table.currentSession!.customerPhone,
           voucherCode: pending.voucherCode,
-          paymentMethod: (pending as any).paymentMethod || "transfer",
+          ...((pending as any).paymentMethod ? { paymentMethod: (pending as any).paymentMethod } : {}),
           requestedAt: pending.requestedAt,
           totalDue: pending.estimatedTotalDue,
           sessionStart: table.currentSession!.sessionStart,
@@ -1295,6 +1340,19 @@ export class SessionService {
     };
   }
 
+  // ============================================================================
+  // PHẦN 6: THANH TOÁN CHỐT HÓA ĐƠN & GIẢI PHÓNG BÀN (POS CHECKOUT & INVOICING)
+  // Quy trình Transaction ACID:
+  // 1. Tính toán tiền giờ theo thuật toán đa khung giờ thực tế
+  // 2. Tổng hợp tiền F&B và dịch vụ
+  // 3. Áp dụng Voucher hợp lệ (kiểm tra hạn, trần giảm, điều kiện đơn tối thiểu)
+  // 4. Áp dụng chiết khấu hạng hội viên (Standard, Silver, Gold, Diamond)
+  // 5. Cấn trừ tiền cọc đã đóng trước đó
+  // 6. Xử lý thanh toán (Tiền mặt, VietQR, Ví hội viên, Tiền mặt + QR)
+  // 7. Lưu hóa đơn Invoice vĩnh viễn với receipt snapshot
+  // 8. Giải phóng bàn về available hoặc booked (nếu có lịch hẹn kế tiếp)
+  // 9. Bắn socket realtime cập nhật sơ đồ bàn
+  // ============================================================================
   async checkout(tableId: string, input: any) {
     const validPaymentMethods = [
       "cash",
