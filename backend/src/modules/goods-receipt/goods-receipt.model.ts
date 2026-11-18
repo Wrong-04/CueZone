@@ -55,7 +55,6 @@ const goodsReceiptSchema = new Schema<IGoodsReceipt>(
   },
 );
 
-goodsReceiptSchema.index({ receiptNumber: 1 });
 goodsReceiptSchema.index({ status: 1 });
 goodsReceiptSchema.index({ supplier: 1 });
 goodsReceiptSchema.index({ createdAt: -1 });

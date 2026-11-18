@@ -24,6 +24,19 @@
 - Implementation, bug fixing, or change handover: Read skill
   `.claude/skills/cuezone-delivery/SKILL.md` and follow its procedure.
 
+## Frontend Engineering Conventions
+
+- **Standard 4-Layer Architecture in `.tsx` files**:
+  1. `Imports`: Group in order: External libraries (`react`, `@ant-design/icons`...) -> Internal hooks/utils/services -> Sub-components/Modals -> Types/Styles.
+  2. `Types & Interfaces`: Define at the top of the file (or extract into a dedicated `types/` directory).
+  3. `Constants & Helpers`: Define constants, status dictionaries, templates, and format functions **outside the component** to prevent memory re-allocation on every render.
+  4. `Main Component`: Structure top-down: `Props & State Hooks` -> `Derived State (useMemo)` -> `Event Handlers (useCallback / actions)` -> `Effects (useEffect)` -> `Early Returns` -> `Main Render JSX`.
+- **Module Splitting Threshold**: When a `.tsx` file exceeds 400 lines or contains multiple complex modals/tables, modularize into a feature folder:
+  `[feature]/` containing `components/` (sub-views, cards, tables), `modals/` (popups, forms, confirmation dialogs), and `types/` (interfaces, constants, formatters).
+- **UI Copywriting & Anti-Orphan Text**:
+  - Use natural, friendly Vietnamese for end-users; avoid leaking backend/technical jargon to the UI (e.g., avoid "database", "ACID", "audit trail", "business warning", "F&B inventory restocking").
+  - Prevent orphan words: All action buttons, table column headers, and status tags must include `whitespace-nowrap` to prevent awkward text wrapping on compact screens.
+
 ## Mandatory Verification
 
 - Run `pnpm build` before handover; for frontend changes, also run `pnpm --filter frontend lint`.
