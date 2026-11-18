@@ -362,10 +362,16 @@ export const PosTableFloorPage: React.FC = () => {
     }
   };
 
-  // Handle URL query searchParams
+  // Xử lý tham số điều hướng qua URL query (?drawer=booking | orders hoặc ?tableId=...)
   useEffect(() => {
-    if (searchParams.get("drawer") === "booking") {
+    const drawerParam = searchParams.get("drawer");
+    if (drawerParam === "booking") {
       setBookingDrawerOpen(true);
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    if (drawerParam === "orders") {
+      setOrderDrawerOpen(true);
       setSearchParams({}, { replace: true });
       return;
     }
