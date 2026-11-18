@@ -288,11 +288,6 @@ const AdminLayout = () => {
     if (location.pathname === path) return true;
     if (path === "/pos" && location.pathname === "/admin/pos") return true;
     if (path === "/dashboard" && location.pathname === "/admin") return true;
-    if (
-      path === "/invoices" &&
-      (location.pathname === "/wallet-topups" || location.pathname === "/tournament-fees")
-    )
-      return true;
     if (path === "/reports" && location.pathname === "/table-performance") return true;
     if (
       path === "/inventory" &&

@@ -64,16 +64,6 @@ export interface ClubReceiptSettings {
 export type DatePresetKey = "all" | "today" | "yesterday" | "this_week" | "this_month" | "custom";
 export type SortByOption = "newest" | "oldest" | "amount_desc" | "amount_asc" | "duration_desc";
 
-export interface ClubMetrics {
-  totalRevenue: number;
-  totalInvoices: number;
-  tableHoursRevenue: number;
-  fnbRevenue: number;
-  discountTotal: number;
-  cancelledInvoicesCount: number;
-  cancelledInvoicesAmount: number;
-}
-
 export const CANCEL_REASONS_QUICK = [
   "Nhập nhầm hình thức thanh toán",
   "Thu ngân tính nhầm tiền giờ / món",

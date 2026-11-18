@@ -13,7 +13,6 @@ export type PermissionKey =
   | "inventory.manage"
   | "suppliers.manage"
   | "tournaments.manage"
-  | "wallet.operate"
   | "vouchers.manage"
   | "pricing.manage"
   | "reports.read"
@@ -34,8 +33,6 @@ const LANDING_PAGES: { path: string; permission: PermissionKey }[] = [
   { path: "/stock-catalog", permission: "inventory.read" },
   { path: "/goods-receipts", permission: "inventory.manage" },
   { path: "/tournaments", permission: "tournaments.manage" },
-  { path: "/booking", permission: "bookings.manage" },
-  { path: "/fnb-orders", permission: "fnb_orders.manage" },
   { path: "/invoices", permission: "invoices.read" },
   { path: "/fnb", permission: "products.manage" },
   { path: "/suppliers", permission: "suppliers.manage" },

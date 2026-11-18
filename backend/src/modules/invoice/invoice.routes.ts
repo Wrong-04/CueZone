@@ -4,7 +4,6 @@ import { Invoice } from "./invoice.model";
 import { Table, TableStatus } from "../table/table.model";
 import { requirePermission } from "../../middlewares/auth.middleware";
 import { Voucher, VoucherUsage } from "../voucher/voucher.model";
-import { Wallet } from "../wallet/wallet.model";
 import { User } from "../user/user.model";
 import { Product } from "../product/product.model";
 
@@ -390,9 +389,8 @@ router.get("/:id", invoicesRead, async (req: Request, res: Response, next: NextF
 // Quy trình ACID Transaction:
 // 1. Kiểm tra quyền hạn và lý do hủy hóa đơn
 // 2. Chuyển trạng thái hóa đơn sang 'cancelled', ghi nhận người hủy và thời gian
-// 3. Hoàn lại số dư ví (nếu đã thanh toán bằng ví hội viên)
-// 4. Giải phóng lượt dùng voucher (nếu có áp dụng voucher)
-// 5. Hoàn lại số lượng nguyên vật liệu vào kho (nếu có tùy chọn hoàn kho)
+// 3. Giải phóng lượt dùng voucher (nếu có áp dụng voucher)
+// 4. Hoàn lại số lượng nguyên vật liệu vào kho (nếu có tùy chọn hoàn kho)
 // ============================================================================
 router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: Request, res: Response, next: NextFunction) => {
   let session: mongoose.ClientSession | null = null;
@@ -470,42 +468,7 @@ router.post("/:id/cancel", requirePermission("invoices", "manage"), async (req: 
       }
     }
 
-    // 2. [TẠM NGƯNG] Xử lý ví hội viên (Hệ thống không còn sử dụng ví hội viên - comment lại tránh nhầm lẫn)
-    /*
-    const pointsAwarded = Number(currentInvoice.receipt?.pointsAwarded || currentInvoice.receipt?.earnedPoints) || 0;
-    const memberId = currentInvoice.receipt?.memberId;
-    const customerPhone = currentInvoice.receipt?.customerPhone;
-    const rawMethod = String(currentInvoice.receipt?.paymentMethod || "").toLowerCase();
-    const isWalletPayment = ["wallet", "member_balance", "cuezone_pay"].includes(rawMethod);
-    const finalAmount = Number(currentInvoice.receipt?.finalAmount) || 0;
-
-    let targetUserId: any = null;
-    if (memberId && mongoose.isValidObjectId(memberId)) {
-      targetUserId = memberId;
-    } else if (customerPhone) {
-      const foundUser = await User.findOne({ phone: customerPhone }, null, sessionOpts).select("_id");
-      if (foundUser) {
-        targetUserId = foundUser._id;
-      }
-    }
-
-    if (targetUserId) {
-      const wallet = await Wallet.findOne({ userId: targetUserId }, null, sessionOpts);
-      if (wallet) {
-        // Thu hồi điểm thưởng
-        if (pointsAwarded > 0) {
-          wallet.points = Math.max(0, (wallet.points || 0) - pointsAwarded);
-        }
-        // Hoàn tiền ví nếu khách thanh toán bằng ví hội viên
-        if (isWalletPayment && finalAmount > 0) {
-          wallet.balance = (wallet.balance || 0) + finalAmount;
-        }
-        await wallet.save(sessionOpts);
-      }
-    }
-    */
-
-    // 3. Hoàn lại tồn kho các mặt hàng F&B nếu người quản lý chọn hoàn kho (chỉ khi khách chưa khui/chưa dùng)
+    // 2. Hoàn lại tồn kho các mặt hàng F&B nếu người quản lý chọn hoàn kho (chỉ khi khách chưa khui/chưa dùng)
     if (restock && Array.isArray(currentInvoice.receipt?.items)) {
       for (const item of currentInvoice.receipt.items) {
         const itemQty = Number(item.quantity || 1) - Number(item.cancelledQuantity || 0);

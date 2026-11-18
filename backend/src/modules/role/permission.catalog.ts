@@ -59,11 +59,6 @@ export const PERMISSION_CATALOG = [
     actions: [{ key: "manage", label: "Tạo/sửa giải, đối soát lệ phí" }],
   },
   {
-    module: "wallet",
-    label: "Ví hội viên",
-    actions: [{ key: "operate", label: "Đối soát yêu cầu nạp ví" }],
-  },
-  {
     module: "vouchers",
     label: "Voucher",
     actions: [{ key: "manage", label: "Tạo, sửa, xóa voucher" }],
@@ -103,7 +98,6 @@ const POS_STAFF_DEFAULTS: IPermission[] = [
   { module: "fnb_orders", actions: ["manage"] },
   { module: "products", actions: ["manage"] },
   { module: "tournaments", actions: ["manage"] },
-  { module: "wallet", actions: ["operate"] },
 ];
 
 // Mặc định giữ đúng hành vi của các middleware cũ (requirePosStaff, requireInventoryRead,
@@ -154,7 +148,13 @@ export async function getEffectivePermissions(role: string): Promise<IPermission
   if (role === UserRole.ADMIN) return ALL_PERMISSIONS;
   if (!(CONFIGURABLE_ROLES as readonly string[]).includes(role)) return [];
   const doc = await Role.findOne({ name: role, rbacVersion: RBAC_VERSION }).lean();
-  return doc ? doc.permissions : DEFAULT_ROLE_PERMISSIONS[role] || [];
+  const raw = doc ? doc.permissions : DEFAULT_ROLE_PERMISSIONS[role] || [];
+  return raw
+    .map((p) => ({
+      module: p.module,
+      actions: (p.actions || []).filter((a) => isValidPermission(p.module, a)),
+    }))
+    .filter((p) => p.actions.length > 0);
 }
 
 export function hasPermission(perms: IPermission[], module: string, action: string): boolean {
