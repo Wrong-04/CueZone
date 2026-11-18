@@ -154,33 +154,20 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
       if (rawPaymentMethod === "split" || rawPaymentMethod === "cash_qr") {
         pMethod = "split";
       } else if (
-        rawPaymentMethod.includes("vietqr") ||
-        rawPaymentMethod.includes("vnpay") ||
-        rawPaymentMethod.includes("qr") ||
-        rawPaymentMethod.includes("bank") ||
-        rawPaymentMethod.includes("card") ||
-        rawPaymentMethod.includes("transfer")
+        rawPaymentMethod === "cash" ||
+        rawPaymentMethod.includes("tiền mặt")
       ) {
-        pMethod = "vietqr";
-      } else if (
-        rawPaymentMethod.includes("wallet") ||
-        rawPaymentMethod.includes("cuezone_pay") ||
-        rawPaymentMethod.includes("member_balance") ||
-        rawPaymentMethod.includes("ví")
-      ) {
-        pMethod = "wallet";
-      } else {
         pMethod = "cash";
+      } else {
+        // Hệ thống chuẩn chỉ gồm Tiền mặt và Chuyển khoản (VietQR / Ngân hàng)
+        // Mọi hình thức chuyển khoản, quét mã hoặc dữ liệu ví/thẻ cũ đều quy về VietQR / Ngân Hàng
+        pMethod = "vietqr";
       }
 
       const methodMap: Record<string, string> = {
-        cash: "Tiền Mặt",
+        cash: "Tiền mặt",
         vietqr: "VietQR / Ngân Hàng",
-        card: "Thẻ Ngân Hàng",
-        cuezone_pay: "Ví CueZone Pay",
-        wallet: "Ví Hội Viên",
-        member_balance: "Ví Hội Viên",
-        split: "Tiền Mặt + QR",
+        split: "Tiền mặt + Chuyển khoản",
       };
 
       const rawCode = inv.invoiceNumber || receipt.invoiceCode || `HD-${String(inv._id).slice(-6).toUpperCase()}`;
@@ -298,12 +285,10 @@ router.get("/", invoicesRead, async (req: Request, res: Response, next: NextFunc
     if (paymentMethod && paymentMethod !== "all") {
       if (paymentMethod === "cash") {
         allCombined = allCombined.filter((inv) => inv.paymentMethod === "cash");
-      } else if (paymentMethod === "vietqr") {
-        allCombined = allCombined.filter((inv) => ["vietqr", "card"].includes(inv.paymentMethod));
+      } else if (paymentMethod === "vietqr" || paymentMethod === "banking") {
+        allCombined = allCombined.filter((inv) => inv.paymentMethod !== "cash");
       } else if (paymentMethod === "split") {
         allCombined = allCombined.filter((inv) => inv.paymentMethod === "split");
-      } else if (paymentMethod === "wallet") {
-        allCombined = allCombined.filter((inv) => ["cuezone_pay", "wallet", "member_balance"].includes(inv.paymentMethod));
       }
     }
 
