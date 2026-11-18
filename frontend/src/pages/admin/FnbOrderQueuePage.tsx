@@ -1,22 +1,34 @@
-import { useCallback, useEffect, useState } from "react";
+// ============================================================================
+// 1. IMPORTS
+// ============================================================================
+// 1.1 Thư viện bên ngoài & Icons
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
-  CheckOutlined,
   ClockCircleOutlined,
   ReloadOutlined,
   ShoppingOutlined,
-  PrinterOutlined,
-  CloseOutlined,
-  InfoCircleOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { Button, Card, Tag, Modal, Input, message, Tooltip } from "../../shared/ui";
-import CustomerPaymentRequests from "../../components/pos/CustomerPaymentRequests";
+
+// 1.2 Hooks, utils, services nội bộ
+import { Button, Input, message } from "../../shared/ui";
 import {
   staffOrderService,
   type CustomerOrder,
   type CustomerOrderStatus,
 } from "../../services/customer-order.service";
+import { getSocket } from "../../services/socket.service";
 
-const statusLabels: Record<CustomerOrderStatus, { text: string; color: string }> = {
+// 1.3 Sub-components, Modals & Tiện ích in ấn
+import { FnbQueueKpiCards, type FnbQueueMetrics } from "./fnb-queue/components/FnbQueueKpiCards";
+import { FnbQueueOrderCard } from "./fnb-queue/components/FnbQueueOrderCard";
+import { FnbQueueRejectModal } from "./fnb-queue/modals/FnbQueueRejectModal";
+import { printKitchenTicket } from "./fnb-queue/utils/print-ticket.utils";
+
+// ============================================================================
+// 3. CONSTANTS & MAPPINGS
+// ============================================================================
+const STATUS_LABELS: Record<CustomerOrderStatus, { text: string; color: string }> = {
   pending: { text: "Chờ xác nhận", color: "gold" },
   preparing: { text: "Đang chuẩn bị", color: "blue" },
   ready: { text: "Sẵn sàng phục vụ", color: "cyan" },
@@ -24,35 +36,78 @@ const statusLabels: Record<CustomerOrderStatus, { text: string; color: string }>
   rejected: { text: "Đã từ chối", color: "error" },
 };
 
-const nextStatus: Partial<Record<CustomerOrderStatus, CustomerOrderStatus>> = {
+const NEXT_STATUS: Partial<Record<CustomerOrderStatus, CustomerOrderStatus>> = {
   pending: "preparing",
   preparing: "ready",
   ready: "served",
 };
 
-const rejectTemplates = [
+const REJECT_TEMPLATES = [
   "Món tạm hết tồn kho",
   "Hết đá / Nguyên liệu pha chế",
   "Quầy Bar/Bếp đang quá tải",
   "Quán sắp đến giờ chốt ca",
 ];
 
-function money(value: number) {
-  return `${value.toLocaleString("vi-VN")}đ`;
-}
-
+// ============================================================================
+// 4. MAIN COMPONENT: HÀNG ĐỢI XỬ LÝ ĐƠN F&B TẠI BÀN (REAL-TIME KITCHEN QUEUE)
+// ============================================================================
 export default function FnbOrderQueuePage() {
+  // ── 4.1 State: Danh sách đơn hàng, Tải dữ liệu, Tìm kiếm ───────────────────
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
-  // Reject modal state
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  // ── 4.2 State: Modal từ chối đơn hàng ─────────────────────────────────────
+  const [rejectModalOpen, setRejectModalOpen] = useState<boolean>(false);
   const [targetRejectOrder, setTargetRejectOrder] = useState<CustomerOrder | null>(null);
-  const [selectedRejectTemplate, setSelectedRejectTemplate] = useState<string>(rejectTemplates[0]);
+  const [selectedRejectTemplate, setSelectedRejectTemplate] = useState<string>(REJECT_TEMPLATES[0]);
   const [customRejectReason, setCustomRejectReason] = useState<string>("");
 
+  // ── 4.3 Derived State: Tính toán chỉ số KPI hàng đợi bếp & bar ────────────
+  const metrics: FnbQueueMetrics = useMemo(() => {
+    return {
+      total: orders.length,
+      pending: orders.filter((o) => o.status === "pending").length,
+      preparing: orders.filter((o) => o.status === "preparing").length,
+      ready: orders.filter((o) => o.status === "ready").length,
+    };
+  }, [orders]);
+
+  // Phân chia danh sách đơn theo trạng thái
+  const pendingOrders = useMemo(
+    () => orders.filter((o) => o.status === "pending"),
+    [orders],
+  );
+  const activeOrders = useMemo(
+    () => orders.filter((o) => o.status === "preparing" || o.status === "ready"),
+    [orders],
+  );
+
+  const q = searchQuery.toLowerCase().trim();
+  const filteredPendingOrders = useMemo(() => {
+    if (!q) return pendingOrders;
+    return pendingOrders.filter(
+      (o) =>
+        o.tableName.toLowerCase().includes(q) ||
+        String(o.orderCode).toLowerCase().includes(q) ||
+        o.items.some((it) => it.name.toLowerCase().includes(q)),
+    );
+  }, [pendingOrders, q]);
+
+  const filteredActiveOrders = useMemo(() => {
+    if (!q) return activeOrders;
+    return activeOrders.filter(
+      (o) =>
+        o.tableName.toLowerCase().includes(q) ||
+        String(o.orderCode).toLowerCase().includes(q) ||
+        o.items.some((it) => it.name.toLowerCase().includes(q)),
+    );
+  }, [activeOrders, q]);
+
+  // ── 4.4 Action Handlers (Nạp đơn, Cập nhật trạng thái, Từ chối đơn) ────────
   const loadOrders = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     setError("");
@@ -64,15 +119,6 @@ export default function FnbOrderQueuePage() {
       if (showLoading) setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    const initialLoad = window.setTimeout(() => void loadOrders(), 0);
-    const interval = window.setInterval(() => void loadOrders(false), 15000);
-    return () => {
-      window.clearTimeout(initialLoad);
-      window.clearInterval(interval);
-    };
-  }, [loadOrders]);
 
   const updateStatus = async (
     order: CustomerOrder,
@@ -100,6 +146,13 @@ export default function FnbOrderQueuePage() {
     }
   };
 
+  const handleOpenRejectModal = (order: CustomerOrder) => {
+    setTargetRejectOrder(order);
+    setSelectedRejectTemplate(REJECT_TEMPLATES[0]);
+    setCustomRejectReason("");
+    setRejectModalOpen(true);
+  };
+
   const handleConfirmReject = async () => {
     if (!targetRejectOrder) return;
     const finalReason = customRejectReason.trim() || selectedRejectTemplate;
@@ -109,279 +162,145 @@ export default function FnbOrderQueuePage() {
     setCustomRejectReason("");
   };
 
-  const handlePrintTicket = (order: CustomerOrder) => {
-    const printWindow = window.open("", "_blank", "width=380,height=560");
-    if (!printWindow) {
-      message.warning("Vui lòng cho phép mở popup để in phiếu order");
-      return;
+  // ── 4.5 Effects (Nạp dữ liệu & Socket thời gian thực) ─────────────────────
+  useEffect(() => {
+    void loadOrders();
+
+    const socket = getSocket();
+    if (socket) {
+      const handleRealtimeOrder = () => {
+        void loadOrders(false);
+      };
+
+      socket.on("customer-order:new", handleRealtimeOrder);
+      socket.on("customer-order:status_changed", handleRealtimeOrder);
+
+      return () => {
+        socket.off("customer-order:new", handleRealtimeOrder);
+        socket.off("customer-order:status_changed", handleRealtimeOrder);
+      };
     }
-    const itemsHtml = order.items
-      .map(
-        (item) => `
-        <tr style="border-bottom: 1px dashed #bbb;">
-          <td style="padding: 7px 0; font-weight: bold; font-size: 13px;">${item.name}</td>
-          <td style="padding: 7px 0; text-align: center; font-size: 15px; font-weight: 900;">x${item.quantity}</td>
-        </tr>`,
-      )
-      .join("");
+  }, [loadOrders]);
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Phiếu Bếp / Kho - ${order.tableName}</title>
-          <style>
-            body { font-family: monospace, sans-serif; padding: 12px; max-width: 280px; margin: 0 auto; color: #000; }
-            h2 { text-align: center; margin: 0; font-size: 17px; }
-            p { margin: 4px 0; font-size: 11px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-            .divider { border-top: 1px dashed #000; margin: 8px 0; }
-            .badge { font-size: 15px; font-weight: bold; text-align: center; background: #e5e7eb; padding: 5px; border-radius: 4px; margin: 6px 0; }
-          </style>
-        </head>
-        <body>
-          <h2>CUEZONE CLUB</h2>
-          <p style="text-align: center; font-size: 11px;">PHIẾU ORDER TẠI BÀN (BẾP / BAR / KHO)</p>
-          <div class="divider"></div>
-          <div class="badge">${order.tableName}</div>
-          <p>Mã đơn: <strong>#${order.orderCode}</strong></p>
-          <p>Giờ gọi: ${new Date(order.createdAt).toLocaleTimeString("vi-VN")} (${new Date(order.createdAt).toLocaleDateString("vi-VN")})</p>
-          ${order.note ? `<p style="background: #fef3c7; padding: 4px; border: 1px solid #fde68a;">Ghi chú: <strong>${order.note}</strong></p>` : ""}
-          <div class="divider"></div>
-          <table>
-            <thead>
-              <tr style="border-bottom: 1px solid #000; text-align: left; font-size: 11px;">
-                <th>TÊN MÓN / PHỤ KIỆN</th>
-                <th style="text-align: center;">SL</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-          <div class="divider"></div>
-          <p style="text-align: center; font-size: 10px;">--- Vui lòng chuẩn bị và giao ra bàn ---</p>
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
+  // ── 4.6 Main Render JSX ───────────────────────────────────────────────────
   return (
-    <div className="space-y-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-6 p-4 md:p-6 bg-slate-50 min-h-screen">
+      {/* ── 1. TIÊU ĐỀ TRANG VÀ THANH TÌM KIẾM ────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 mb-0">
-            <ShoppingOutlined className="text-emerald-600" /> Tiếp Nhận Đơn Order & Dịch Vụ Tại Bàn
-          </h1>
-          <p className="mt-1 text-xs text-slate-500">
-            Xác nhận món & phụ kiện trước khi tự động trừ kho và cộng vào hóa đơn phiên bàn.
+          <div className="flex items-center gap-2">
+            <ShoppingOutlined className="text-emerald-600 text-2xl" />
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight whitespace-nowrap">
+              Hàng Đợi Món Bếp & Bar
+            </h1>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Nhận yêu cầu gọi món từ mã QR tại bàn bida thời gian thực. Bếp và quầy Bar làm món theo thứ tự.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <CustomerPaymentRequests />
-          <Button variant="outline" leftIcon={<ReloadOutlined />} onClick={() => void loadOrders()}>
-            Tải lại
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="w-64">
+            <Input
+              placeholder="Tìm theo bàn, mã đơn, tên món..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              prefix={<SearchOutlined className="text-slate-400" />}
+              allowClear
+              className="!rounded-xl text-xs !h-10"
+            />
+          </div>
+          <Button
+            variant="outline"
+            icon={<ReloadOutlined />}
+            onClick={() => void loadOrders()}
+            disabled={loading}
+            className="!rounded-xl !h-10 text-xs font-semibold !border-slate-200 whitespace-nowrap"
+          >
+            Làm mới
           </Button>
         </div>
       </div>
 
+      {/* Thông báo lỗi nếu có */}
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-700">
           {error}
         </div>
       )}
 
-      {loading ? (
-        <Card className="!rounded-2xl !border-slate-200">
-          <p className="py-8 text-center text-slate-500">Đang tải danh sách đơn...</p>
-        </Card>
-      ) : orders.length === 0 ? (
-        <Card className="!rounded-2xl !border-slate-200">
-          <p className="py-8 text-center text-slate-500">Hiện không có đơn nào cần xử lý.</p>
-        </Card>
-      ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {orders.map((order) => {
-            const next = nextStatus[order.status];
-            const meta = statusLabels[order.status] || statusLabels.pending;
-            return (
-              <Card
+      {/* ── 2. CỤM THẺ KPI HÀNG ĐỢI BẾP & BAR CHUẨN DESIGN SYSTEM ──────────── */}
+      <FnbQueueKpiCards metrics={metrics} />
+
+      {/* ── 3. KHỐI ĐƠN MỚI CHỜ DUYỆT ─────────────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+          <ClockCircleOutlined className="text-amber-500" />
+          <span className="whitespace-nowrap">Món Mới Khách Gọi ({filteredPendingOrders.length})</span>
+        </div>
+
+        {filteredPendingOrders.length === 0 ? (
+          <div className="py-8 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+            {searchQuery ? "Không tìm thấy đơn món nào khớp với từ khóa." : "Hiện không có đơn nào đang chờ nhận."}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredPendingOrders.map((order) => (
+              <FnbQueueOrderCard
                 key={order._id}
-                className={`!rounded-2xl border transition-all ${
-                  order.status === "pending"
-                    ? "!border-amber-300 !bg-amber-50/20 ring-1 ring-amber-200"
-                    : "!border-slate-200 !bg-white"
-                }`}
-                title={
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-700 text-white text-xs font-black">
-                        {order.tableName}
-                      </span>
-                      <span className="font-mono text-xs font-bold text-slate-500">
-                        #{order.orderCode}
-                      </span>
-                    </div>
-                    <Tag color={meta.color}>{meta.text}</Tag>
-                  </div>
-                }
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <ClockCircleOutlined />
-                    <span>
-                      {new Date(order.createdAt).toLocaleTimeString("vi-VN")}{" "}
-                      ({new Date(order.createdAt).toLocaleDateString("vi-VN")})
-                    </span>
-                  </div>
+                order={order}
+                isPending={true}
+                busy={busyId === order._id}
+                onOpenReject={handleOpenRejectModal}
+                onPrint={printKitchenTicket}
+                onUpdateStatus={updateStatus}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
-                  <div className="divide-y divide-slate-100 rounded-xl bg-slate-50 px-3">
-                    {order.items.map((item, idx) => (
-                      <div key={`${item.productId}-${idx}`} className="flex justify-between gap-3 py-2 text-xs">
-                        <span className="font-medium text-slate-800">
-                          <strong>{item.quantity}x</strong> {item.name}
-                        </span>
-                        <span className="font-mono font-semibold text-slate-700">
-                          {money(item.unitPrice * item.quantity)}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between py-2.5 text-xs font-bold border-t border-slate-200">
-                      <span className="text-slate-600">Tổng cộng tiền món:</span>
-                      <span className="font-mono text-sm text-emerald-700">{money(order.totalAmount)}</span>
-                    </div>
-                  </div>
-
-                  {order.note && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-2.5 text-xs text-amber-900 flex items-start gap-1.5">
-                      <InfoCircleOutlined className="text-amber-600 shrink-0 mt-0.5" />
-                      <span>
-                        <strong>Ghi chú:</strong> {order.note}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100 gap-2">
-                    <Tooltip title="In phiếu báo Bếp / Bar / Kho (80mm)">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePrintTicket(order)}
-                        icon={<PrinterOutlined className="text-slate-600" />}
-                        className="!h-8 !px-2.5 !rounded-xl !border-slate-300 hover:!bg-slate-100 text-xs font-semibold"
-                      >
-                        In phiếu
-                      </Button>
-                    </Tooltip>
-
-                    <div className="flex items-center gap-1.5">
-                      {order.status === "pending" && (
-                        <Button
-                          variant="danger-outline"
-                          size="sm"
-                          disabled={busyId === order._id}
-                          onClick={() => {
-                            setTargetRejectOrder(order);
-                            setRejectModalOpen(true);
-                          }}
-                          leftIcon={<CloseOutlined className="text-rose-500" />}
-                          className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50"
-                        >
-                          Từ chối
-                        </Button>
-                      )}
-                      {next && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          loading={busyId === order._id}
-                          leftIcon={<CheckOutlined />}
-                          onClick={() => void updateStatus(order, next)}
-                          className={`!h-8 !px-3 !rounded-xl text-xs font-bold text-white shadow-2xs ${
-                            order.status === "pending"
-                              ? "!bg-emerald-600 hover:!bg-emerald-700"
-                              : order.status === "preparing"
-                                ? "!bg-blue-600 hover:!bg-blue-700"
-                                : "!bg-emerald-600 hover:!bg-emerald-700"
-                          }`}
-                        >
-                          {order.status === "pending"
-                            ? "Xác nhận duyệt"
-                            : order.status === "preparing"
-                              ? "Báo xong món"
-                              : "Đã phục vụ"}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+      {/* ── 4. KHỐI ĐƠN ĐANG CHUẨN BỊ & SẴN SÀNG PHỤC VỤ ──────────────────── */}
+      <div className="space-y-3 pt-4">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+          <ShoppingOutlined className="text-sky-600" />
+          <span className="whitespace-nowrap">Món Đang Làm & Chờ Mang Ra ({filteredActiveOrders.length})</span>
         </div>
-      )}
 
-      {/* Modal từ chối đơn kèm lý do nhanh */}
-      <Modal
+        {filteredActiveOrders.length === 0 ? (
+          <div className="py-8 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+            {searchQuery ? "Không có món nào đang làm khớp với tìm kiếm." : "Hiện không có món nào đang trong quá trình chế biến / phục vụ."}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredActiveOrders.map((order) => (
+              <FnbQueueOrderCard
+                key={order._id}
+                order={order}
+                isPending={false}
+                statusLabel={STATUS_LABELS[order.status]}
+                nextStatus={NEXT_STATUS[order.status]}
+                busy={busyId === order._id}
+                onOpenReject={handleOpenRejectModal}
+                onPrint={printKitchenTicket}
+                onUpdateStatus={updateStatus}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── 5. MODAL TỪ CHỐI ĐƠN HÀNG ─────────────────────────────────────── */}
+      <FnbQueueRejectModal
         open={rejectModalOpen}
-        onCancel={() => {
-          setRejectModalOpen(false);
-          setTargetRejectOrder(null);
-        }}
-        onOk={() => void handleConfirmReject()}
-        okText="Xác nhận từ chối"
-        cancelText="Hủy bỏ"
-        title={
-          <span className="text-rose-700 font-bold flex items-center gap-2">
-            <CloseOutlined />
-            <span>Từ Chối Đơn Order {targetRejectOrder?.tableName}</span>
-          </span>
-        }
-      >
-        <div className="space-y-4 py-2 text-xs">
-          <p className="text-slate-600 mb-0">
-            Vui lòng chọn hoặc nhập lý do từ chối để hệ thống gửi thông báo rõ ràng cho khách:
-          </p>
-
-          <div className="space-y-2">
-            <label className="font-bold text-slate-700 block">Chọn lý do phổ biến:</label>
-            <div className="grid grid-cols-1 gap-1.5">
-              {rejectTemplates.map((template) => (
-                <button
-                  key={template}
-                  type="button"
-                  onClick={() => setSelectedRejectTemplate(template)}
-                  className={`text-left p-2.5 rounded-xl border transition cursor-pointer text-xs ${
-                    selectedRejectTemplate === template
-                      ? "bg-rose-50 border-rose-400 text-rose-900 font-bold ring-1 ring-rose-300"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {template}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="font-bold text-slate-700 block">Hoặc nhập lý do chi tiết khác:</label>
-            <Input.TextArea
-              rows={2}
-              value={customRejectReason}
-              onChange={(e) => setCustomRejectReason(e.target.value)}
-              placeholder="Ví dụ: Bàn đang chờ tính tiền trả bàn..."
-              className="!rounded-xl"
-            />
-          </div>
-        </div>
-      </Modal>
+        targetOrder={targetRejectOrder}
+        selectedTemplate={selectedRejectTemplate}
+        customReason={customRejectReason}
+        templates={REJECT_TEMPLATES}
+        onClose={() => setRejectModalOpen(false)}
+        onSelectTemplate={setSelectedRejectTemplate}
+        onChangeCustomReason={setCustomRejectReason}
+        onConfirmReject={handleConfirmReject}
+      />
     </div>
   );
 }
