@@ -98,7 +98,7 @@ export const AdminDashboard: React.FC = () => {
               variant="secondary"
               size="md"
               leftIcon={<CalendarOutlined />}
-              onClick={() => navigate("/bookings")}
+              onClick={() => navigate("/pos?drawer=booking")}
               className="!bg-slate-100 hover:!bg-slate-200 !text-slate-700 !rounded-xl !font-semibold whitespace-nowrap"
             >
               Lịch Đặt Bàn
@@ -134,7 +134,7 @@ export const AdminDashboard: React.FC = () => {
         <div className="lg:col-span-7">
           <TodayBookingsWidget
             todayBookings={bookings}
-            onNavigateBooking={() => navigate("/bookings")}
+            onNavigateBooking={() => navigate("/pos?drawer=booking")}
           />
         </div>
         <div className="lg:col-span-5">

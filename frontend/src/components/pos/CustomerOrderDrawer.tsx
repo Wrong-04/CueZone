@@ -1,24 +1,12 @@
+// ============================================================================
+// 1. IMPORTS
+// ============================================================================
+// 1.1 Thư viện bên ngoài
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  BellOutlined,
-  CheckOutlined,
-  ClockCircleOutlined,
-  CloseOutlined,
-  InfoCircleOutlined,
-  ShoppingOutlined,
-  SyncOutlined,
-  PrinterOutlined,
-} from "@ant-design/icons";
-import {
-  Button,
-  Drawer,
-  Input,
-  Modal,
-  Space,
-  Tooltip,
-  message,
-  notification,
-} from "../../shared/ui";
+import { BellOutlined, ShoppingOutlined, SyncOutlined } from "@ant-design/icons";
+
+// 1.2 UI Components, Services & Tiện ích nội bộ
+import { Button, Drawer, Tooltip, message, notification } from "../../shared/ui";
 import {
   staffOrderService,
   type CustomerOrder,
@@ -27,54 +15,56 @@ import {
 import { getSocket } from "../../services/socket.service";
 import { playOrderChime } from "../../utils/sound";
 
-const statusConfig: Record<
-  CustomerOrderStatus,
-  { label: string; color: string; tagBg: string }
-> = {
-  pending: { label: "Chờ xác nhận", color: "orange", tagBg: "bg-amber-50 text-amber-800 border-amber-300" },
-  preparing: { label: "Đang pha chế / Bếp", color: "blue", tagBg: "bg-blue-50 text-blue-800 border-blue-200" },
-  ready: { label: "Sẵn sàng phục vụ", color: "cyan", tagBg: "bg-emerald-50 text-emerald-800 border-emerald-300" },
-  served: { label: "Đã phục vụ", color: "default", tagBg: "bg-slate-100 text-slate-600 border-slate-200" },
-  rejected: { label: "Đã từ chối", color: "error", tagBg: "bg-rose-50 text-rose-700 border-rose-200" },
-};
+// 1.3 Sub-components & Modals
+import { CustomerOrderCard } from "./customer-order/CustomerOrderCard";
+import { CustomerOrderRejectModal } from "./customer-order/CustomerOrderRejectModal";
 
-function isAccessoryOrder(order: CustomerOrder): boolean {
-  if (!order.items || order.items.length === 0) return false;
-  const fnbKeywords = [
-    "nước", "trà", "cà phê", "cafe", "bia", "mì", "cơm", "bò", "gà",
-    "xúc xích", "khoai", "nem", "hướng dương", "bánh", "sting", "coca",
-    "pepsi", "redbull", "cam", "chanh", "khô bò", "khô gà", "lon", "chai",
-  ];
-  const hasFnb = order.items.some((item) => {
-    const name = item.name.toLowerCase();
-    return fnbKeywords.some((kw) => name.includes(kw));
-  });
-  return !hasFnb;
-}
-
-const rejectTemplates = [
-  "Món tạm hết tồn kho",
-  "Hết đá / Nguyên liệu pha chế",
-  "Quầy Bar/Bếp đang quá tải",
-  "Quán sắp đến giờ chốt ca",
-];
-
-interface Props {
+// ============================================================================
+// 2. TYPES & INTERFACES
+// ============================================================================
+interface CustomerOrderDrawerProps {
   onOrdersUpdated?: (orders: CustomerOrder[]) => void;
   externalOpen?: boolean;
   onExternalOpenChange?: (open: boolean) => void;
   filterTableId?: string | null;
 }
 
-export const CustomerOrderDrawer: React.FC<Props> = ({
+type OrderFilterTab = "all" | "pending" | "preparing" | "ready";
+
+// ============================================================================
+// 3. CONSTANTS & HELPERS
+// ============================================================================
+const REJECT_TEMPLATES = [
+  "Món tạm hết tồn kho",
+  "Hết đá / Nguyên liệu pha chế",
+  "Quầy Bar/Bếp đang quá tải",
+  "Quán sắp đến giờ chốt ca",
+];
+
+// ============================================================================
+// 4. MAIN COMPONENT: DRAWER PHÊ DUYỆT ĐƠN GỌI MÓN TRỰC TUYẾN TRÊN POS
+// Đồng bộ đơn khách gọi từ mã QR tại bàn theo thời gian thực qua WebSocket + Polling
+// ============================================================================
+export const CustomerOrderDrawer: React.FC<CustomerOrderDrawerProps> = ({
   onOrdersUpdated,
   externalOpen,
   onExternalOpenChange,
   filterTableId,
 }) => {
+  // ── 4.1 Props & Hooks (State) ─────────────────────────────────────────────
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<OrderFilterTab>("all");
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+
+  // State modal từ chối đơn gọi món
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [targetRejectOrder, setTargetRejectOrder] = useState<CustomerOrder | null>(null);
+  const [selectedRejectTemplate, setSelectedRejectTemplate] = useState<string>(
+    REJECT_TEMPLATES[0],
+  );
+  const [customRejectReason, setCustomRejectReason] = useState<string>("");
 
   const drawerOpen = externalOpen !== undefined ? externalOpen : internalOpen;
   const setDrawerOpen = (open: boolean) => {
@@ -85,98 +75,96 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
     }
   };
 
-  const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "preparing" | "ready">("all");
-  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
-
-  const handlePrintTicket = (order: CustomerOrder) => {
-    const printWindow = window.open("", "_blank", "width=380,height=560");
-    if (!printWindow) {
-      message.warning("Vui lòng cho phép mở popup để in phiếu order");
-      return;
-    }
-    const itemsHtml = order.items
-      .map(
-        (item) => `
-        <tr style="border-bottom: 1px dashed #bbb;">
-          <td style="padding: 7px 0; font-weight: bold; font-size: 13px;">${item.name}</td>
-          <td style="padding: 7px 0; text-align: center; font-size: 15px; font-weight: 900;">x${item.quantity}</td>
-        </tr>`,
-      )
-      .join("");
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Phiếu Bếp / Kho - ${order.tableName}</title>
-          <style>
-            body { font-family: monospace, sans-serif; padding: 12px; max-width: 280px; margin: 0 auto; color: #000; }
-            h2 { text-align: center; margin: 0; font-size: 17px; }
-            p { margin: 4px 0; font-size: 11px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-            .divider { border-top: 1px dashed #000; margin: 8px 0; }
-            .badge { font-size: 15px; font-weight: bold; text-align: center; background: #e5e7eb; padding: 5px; border-radius: 4px; margin: 6px 0; }
-          </style>
-        </head>
-        <body>
-          <h2>CUEZONE CLUB</h2>
-          <p style="text-align: center; font-size: 11px;">PHIẾU ORDER TẠI BÀN (BẾP / BAR / KHO)</p>
-          <div class="divider"></div>
-          <div class="badge">${order.tableName}</div>
-          <p>Mã đơn: <strong>#${order.orderCode}</strong></p>
-          <p>Giờ gọi: ${new Date(order.createdAt).toLocaleTimeString("vi-VN")} (${new Date(order.createdAt).toLocaleDateString("vi-VN")})</p>
-          ${order.note ? `<p style="background: #fef3c7; padding: 4px; border: 1px solid #fde68a;">Ghi chú: <strong>${order.note}</strong></p>` : ""}
-          <div class="divider"></div>
-          <table>
-            <thead>
-              <tr style="border-bottom: 1px solid #000; text-align: left; font-size: 11px;">
-                <th>TÊN MÓN / PHỤ KIỆN</th>
-                <th style="text-align: center;">SL</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-          <div class="divider"></div>
-          <p style="text-align: center; font-size: 10px;">--- Vui lòng chuẩn bị và giao ra bàn ---</p>
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
-  // Reject modal state
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [targetRejectOrder, setTargetRejectOrder] = useState<CustomerOrder | null>(null);
-  const [selectedRejectTemplate, setSelectedRejectTemplate] = useState<string>(rejectTemplates[0]);
-  const [customRejectReason, setCustomRejectReason] = useState<string>("");
-
+  // ── 4.2 Derived State (useMemo) ───────────────────────────────────────────
   const pendingCount = useMemo(
     () => orders.filter((o) => o.status === "pending").length,
     [orders],
   );
 
-  const loadOrders = useCallback(async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
-    try {
-      const data = await staffOrderService.getQueue();
-      setOrders(data);
-      onOrdersUpdated?.(data);
-    } catch {
-      // Bỏ qua lỗi ngầm nếu là silent polling
-    } finally {
-      if (!isSilent) setLoading(false);
+  // Lọc đơn theo bàn được chọn (nếu mở từ nút trên card bàn) và theo tab trạng thái
+  const filteredOrders = useMemo(() => {
+    let list = orders;
+    if (filterTableId) {
+      list = list.filter((o) => o.tableId === filterTableId || o.tableCode === filterTableId);
     }
-  }, [onOrdersUpdated]);
+    if (activeFilter === "all") return list;
+    return list.filter((o) => o.status === activeFilter);
+  }, [orders, activeFilter, filterTableId]);
 
-  // Khởi tạo polling và lắng nghe Socket.io realtime
+  // ── 4.3 Event Handlers (Nạp đơn, Cập nhật trạng thái, Từ chối đơn) ────────
+  const loadOrders = useCallback(
+    async (isSilent = false) => {
+      if (!isSilent) setLoading(true);
+      try {
+        const data = await staffOrderService.getQueue();
+        setOrders(data);
+        onOrdersUpdated?.(data);
+      } catch {
+        // Bỏ qua lỗi ngầm nếu là silent polling
+      } finally {
+        if (!isSilent) setLoading(false);
+      }
+    },
+    [onOrdersUpdated],
+  );
+
+  const handleUpdateStatus = async (
+    order: CustomerOrder,
+    nextStatus: CustomerOrderStatus,
+    reason?: string,
+  ) => {
+    setBusyOrderId(order._id);
+    try {
+      try {
+        await staffOrderService.updateStatus(order._id, nextStatus, reason);
+      } catch (err: any) {
+        // Fallback: nếu order đang ở preparing mà chuyển thẳng sang served, đi tuần tự qua ready
+        if (order.status === "preparing" && nextStatus === "served") {
+          await staffOrderService.updateStatus(order._id, "ready");
+          await staffOrderService.updateStatus(order._id, "served");
+        } else {
+          throw err;
+        }
+      }
+      message.success(
+        nextStatus === "preparing"
+          ? `Đã xác nhận đơn cho ${order.tableName}! Món đã được cộng vào hóa đơn bàn.`
+          : nextStatus === "ready"
+            ? `Đã báo xong món cho ${order.tableName}!`
+            : nextStatus === "served"
+              ? `Đã hoàn tất đơn của ${order.tableName}`
+              : `Đã từ chối đơn của ${order.tableName}`,
+      );
+      // Cập nhật lạc quan state cục bộ ngay lập tức trước khi đồng bộ lại từ server
+      setOrders((prev) =>
+        prev.map((o) => (o._id === order._id ? { ...o, status: nextStatus } : o)),
+      );
+      await loadOrders(true);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "Không thể cập nhật trạng thái đơn";
+      message.error(errorMsg);
+    } finally {
+      setBusyOrderId(null);
+    }
+  };
+
+  const handleOpenRejectModal = (order: CustomerOrder) => {
+    setTargetRejectOrder(order);
+    setSelectedRejectTemplate(REJECT_TEMPLATES[0]);
+    setCustomRejectReason("");
+    setRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!targetRejectOrder) return;
+    const finalReason = customRejectReason.trim() || selectedRejectTemplate;
+    setRejectModalOpen(false);
+    await handleUpdateStatus(targetRejectOrder, "rejected", finalReason);
+    setTargetRejectOrder(null);
+    setCustomRejectReason("");
+  };
+
+  // ── 4.4 Effects (Polling định kỳ 15s & Lắng nghe WebSocket thời gian thực) ─
   useEffect(() => {
     void loadOrders();
     const interval = setInterval(() => void loadOrders(true), 15000);
@@ -208,68 +196,17 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
     };
   }, [loadOrders]);
 
-  const handleUpdateStatus = async (
-    order: CustomerOrder,
-    nextStatus: CustomerOrderStatus,
-    reason?: string,
-  ) => {
-    setBusyOrderId(order._id);
-    try {
-      try {
-        await staffOrderService.updateStatus(order._id, nextStatus, reason);
-      } catch (err: any) {
-        // Fallback: nếu order đang là preparing mà chuyển sang served, thử qua ready trước
-        if (order.status === "preparing" && nextStatus === "served") {
-          await staffOrderService.updateStatus(order._id, "ready");
-          await staffOrderService.updateStatus(order._id, "served");
-        } else {
-          throw err;
-        }
-      }
-      message.success(
-        nextStatus === "preparing"
-          ? `Đã xác nhận đơn cho ${order.tableName}! Món đã được cộng vào hóa đơn bàn.`
-          : nextStatus === "ready"
-            ? `Đã báo xong món cho ${order.tableName}!`
-            : nextStatus === "served"
-              ? `Đã hoàn tất đơn của ${order.tableName}`
-              : `Đã từ chối đơn của ${order.tableName}`,
-      );
-      // Cập nhật optimistic local state ngay lập tức để đơn biến mất khỏi danh sách chờ/đang làm
-      setOrders((prev) =>
-        prev.map((o) => (o._id === order._id ? { ...o, status: nextStatus } : o)),
-      );
-      await loadOrders(true);
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : "Không thể cập nhật trạng thái đơn";
-      message.error(errorMsg);
-    } finally {
-      setBusyOrderId(null);
-    }
-  };
-
-  const handleConfirmReject = async () => {
-    if (!targetRejectOrder) return;
-    const finalReason = customRejectReason.trim() || selectedRejectTemplate;
-    setRejectModalOpen(false);
-    await handleUpdateStatus(targetRejectOrder, "rejected", finalReason);
-    setTargetRejectOrder(null);
-    setCustomRejectReason("");
-  };
-
-  const filteredOrders = useMemo(() => {
-    let list = orders;
-    if (filterTableId) {
-      list = list.filter((o) => o.tableId === filterTableId || o.tableCode === filterTableId);
-    }
-    if (activeFilter === "all") return list;
-    return list.filter((o) => o.status === activeFilter);
-  }, [orders, activeFilter, filterTableId]);
-
+  // ── 4.5 Main Render JSX ───────────────────────────────────────────────────
   return (
     <>
-      {/* Nút bấm hiển thị Badge đỏ cam trên thanh công cụ POS */}
-      <Tooltip title={pendingCount > 0 ? `Có ${pendingCount} đơn gọi món cần duyệt ngay!` : "Danh sách đơn gọi món trực tuyến tại bàn"}>
+      {/* Nút mở Drawer & Badge đếm số đơn chờ duyệt trên thanh POS */}
+      <Tooltip
+        title={
+          pendingCount > 0
+            ? `Có ${pendingCount} đơn gọi món cần duyệt ngay!`
+            : "Danh sách đơn gọi món trực tuyến tại bàn"
+        }
+      >
         <Button
           variant={pendingCount > 0 ? "primary" : "outline"}
           size="sm"
@@ -279,10 +216,14 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
           }}
           leftIcon={
             <ShoppingOutlined
-              className={pendingCount > 0 ? "text-amber-300 animate-bounce text-sm" : "text-amber-600 text-sm"}
+              className={
+                pendingCount > 0
+                  ? "text-amber-300 animate-bounce text-sm"
+                  : "text-amber-600 text-sm"
+              }
             />
           }
-          className={`!rounded-xl !text-xs !h-8 !px-3 font-bold transition-all shadow-2xs ${
+          className={`!rounded-xl !text-xs !h-8 !px-3 font-bold transition-all shadow-2xs whitespace-nowrap ${
             pendingCount > 0
               ? "!bg-gradient-to-r !from-amber-600 !to-rose-600 hover:!from-amber-700 hover:!to-rose-700 !border-none text-white animate-pulse"
               : "!border-amber-200 !bg-amber-50/70 !text-amber-900 hover:!bg-amber-100"
@@ -295,24 +236,22 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
             </span>
           ) : (
             orders.length > 0 && (
-              <span className="ml-1 text-[11px] text-amber-700 font-medium">
-                ({orders.length})
-              </span>
+              <span className="ml-1 text-[11px] text-amber-700 font-medium">({orders.length})</span>
             )
           )}
         </Button>
       </Tooltip>
 
-      {/* Drawer trượt từ bên phải */}
+      {/* Drawer danh sách đơn gọi món */}
       <Drawer
         title={
           <div className="flex items-center justify-between gap-3 pr-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center font-bold text-base">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center font-bold text-base shrink-0">
                 <ShoppingOutlined />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-sm leading-tight">
+                <h3 className="font-bold text-slate-900 text-sm leading-tight whitespace-nowrap">
                   Tiếp Nhận Đơn Order & Dịch Vụ Tại Bàn
                 </h3>
                 <p className="text-[11px] text-slate-500 font-normal">
@@ -325,7 +264,7 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
               size="sm"
               onClick={() => void loadOrders()}
               icon={<SyncOutlined spin={loading} className="text-xs" />}
-              className="!h-7 !px-2 !rounded-lg text-xs"
+              className="!h-7 !px-2 !rounded-lg text-xs whitespace-nowrap"
             >
               Làm mới
             </Button>
@@ -337,55 +276,40 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
         onClose={() => setDrawerOpen(false)}
       >
         <div className="space-y-4">
-          {/* Tabs bộ lọc trạng thái */}
+          {/* 4 Tab lọc trạng thái đơn */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl overflow-x-auto text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setActiveFilter("all")}
-              className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center whitespace-nowrap ${
-                activeFilter === "all"
-                  ? "bg-white text-slate-900 shadow-2xs font-bold"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              Tất cả ({orders.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter("pending")}
-              className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center whitespace-nowrap ${
-                activeFilter === "pending"
-                  ? "bg-amber-500 text-white shadow-2xs font-bold"
-                  : "text-slate-600 hover:text-amber-800"
-              }`}
-            >
-              Chờ duyệt ({pendingCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter("preparing")}
-              className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center whitespace-nowrap ${
-                activeFilter === "preparing"
-                  ? "bg-blue-600 text-white shadow-2xs font-bold"
-                  : "text-slate-600 hover:text-blue-800"
-              }`}
-            >
-              Đang làm ({orders.filter((o) => o.status === "preparing").length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter("ready")}
-              className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center whitespace-nowrap ${
-                activeFilter === "ready"
-                  ? "bg-emerald-600 text-white shadow-2xs font-bold"
-                  : "text-slate-600 hover:text-emerald-800"
-              }`}
-            >
-              Sẵn sàng ({orders.filter((o) => o.status === "ready").length})
-            </button>
+            {(
+              [
+                { key: "all", label: `Tất cả (${orders.length})`, activeClass: "bg-white text-slate-900" },
+                { key: "pending", label: `Chờ duyệt (${pendingCount})`, activeClass: "bg-amber-500 text-white" },
+                {
+                  key: "preparing",
+                  label: `Đang làm (${orders.filter((o) => o.status === "preparing").length})`,
+                  activeClass: "bg-blue-600 text-white",
+                },
+                {
+                  key: "ready",
+                  label: `Sẵn sàng (${orders.filter((o) => o.status === "ready").length})`,
+                  activeClass: "bg-emerald-600 text-white",
+                },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveFilter(tab.key)}
+                className={`flex-1 py-1.5 px-2 rounded-lg transition-all text-center whitespace-nowrap ${
+                  activeFilter === tab.key
+                    ? `${tab.activeClass} shadow-2xs font-bold`
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {/* Danh sách đơn hàng */}
+          {/* Danh sách thẻ đơn hàng */}
           {loading && orders.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-400 space-y-2">
               <SyncOutlined spin className="text-xl text-amber-500" />
@@ -401,298 +325,38 @@ export const CustomerOrderDrawer: React.FC<Props> = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredOrders.map((order) => {
-                const isPending = order.status === "pending";
-                const isPreparing = order.status === "preparing";
-                const isReady = order.status === "ready";
-                const isBusy = busyOrderId === order._id;
-                const statusMeta = statusConfig[order.status] || statusConfig.pending;
-                const isAccessory = isAccessoryOrder(order);
-                const hoursOld = (Date.now() - new Date(order.createdAt).getTime()) / 3600000;
-                const isOldOrder = hoursOld > 24;
-
-                let customStatusLabel = statusMeta.label;
-                let customTagBg = statusMeta.tagBg;
-
-                if (isPreparing && isAccessory) {
-                  customStatusLabel = "Đang chuẩn bị đồ";
-                  customTagBg = "bg-purple-50 text-purple-700 border-purple-200";
-                } else if (isReady && isAccessory) {
-                  customStatusLabel = "Đã lấy đồ xong";
-                  customTagBg = "bg-emerald-50 text-emerald-800 border-emerald-300";
-                }
-
-                return (
-                  <div
-                    key={order._id}
-                    className={`rounded-2xl border transition-all p-3.5 space-y-3 shadow-2xs ${
-                      isPending
-                        ? "bg-amber-50/40 border-amber-300 ring-1 ring-amber-200"
-                        : isOldOrder
-                          ? "bg-slate-50/80 border-slate-300 opacity-90"
-                          : "bg-white border-slate-200"
-                    }`}
-                  >
-                    {/* Header đơn */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-lg bg-emerald-700 text-white text-xs font-black tracking-tight">
-                            {order.tableName}
-                          </span>
-                          <span className="text-[11px] font-mono font-bold text-slate-500">
-                            #{order.orderCode}
-                          </span>
-                          {isOldOrder && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">
-                              Đơn cũ ({Math.floor(hoursOld / 24)} ngày trước)
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                          <ClockCircleOutlined className="text-slate-400 text-[10px]" />
-                          <span>
-                            {new Date(order.createdAt).toLocaleTimeString("vi-VN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}{" "}
-                            ({new Date(order.createdAt).toLocaleDateString("vi-VN")})
-                          </span>
-                        </div>
-                      </div>
-
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${customTagBg}`}
-                      >
-                        {customStatusLabel}
-                      </span>
-                    </div>
-
-                    {/* Danh sách món */}
-                    <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-2.5 space-y-1.5 text-xs">
-                      {order.items.map((item, idx) => (
-                        <div
-                          key={`${order._id}-${idx}`}
-                          className="flex items-center justify-between gap-2"
-                        >
-                          <div className="min-w-0 flex items-center gap-1.5">
-                            <span className="font-black text-slate-800 text-xs">
-                              {item.quantity}x
-                            </span>
-                            <span className="truncate text-slate-800 font-medium">
-                              {item.name}
-                            </span>
-                          </div>
-                          <span className="font-mono text-slate-600 shrink-0 font-semibold text-[11px]">
-                            {(item.unitPrice * item.quantity).toLocaleString("vi-VN")}đ
-                          </span>
-                        </div>
-                      ))}
-
-                      {/* Ghi chú của khách nếu có */}
-                      {order.note && (
-                        <div className="pt-1.5 mt-1 border-t border-slate-200/80 text-[11px] text-amber-900 bg-amber-50/90 p-1.5 rounded-lg flex items-start gap-1.5">
-                          <InfoCircleOutlined className="text-amber-600 text-xs shrink-0 mt-0.5" />
-                          <span>
-                            <strong>Ghi chú:</strong> {order.note}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Tổng tiền và Nút thao tác */}
-                    <div className="flex items-center justify-between pt-1">
-                      <div>
-                        <span className="text-[10px] text-slate-400 block">Tổng tiền món:</span>
-                        <span className="font-mono font-black text-sm text-emerald-700">
-                          {order.totalAmount.toLocaleString("vi-VN")}đ
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                        <Tooltip title="In phiếu (80mm)">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePrintTicket(order)}
-                            icon={<PrinterOutlined className="text-slate-600" />}
-                            className="!h-8 !w-8 !p-0 !rounded-xl !border-slate-300 hover:!bg-slate-100 shrink-0"
-                          />
-                        </Tooltip>
-
-                        {isOldOrder && !isPending ? (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={isBusy}
-                              onClick={() => {
-                                setTargetRejectOrder(order);
-                                setRejectModalOpen(true);
-                              }}
-                              leftIcon={<CloseOutlined className="text-rose-500" />}
-                              className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50 whitespace-nowrap shrink-0"
-                            >
-                              Hủy đơn
-                            </Button>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              disabled={isBusy}
-                              onClick={() => void handleUpdateStatus(order, "served")}
-                              leftIcon={<CheckOutlined />}
-                              className="!h-8 !px-3 !rounded-xl text-xs font-bold !bg-emerald-600 hover:!bg-emerald-700 text-white shadow-2xs whitespace-nowrap shrink-0"
-                            >
-                              Đóng đơn cũ
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            {isPending && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isBusy}
-                                  onClick={() => {
-                                    setTargetRejectOrder(order);
-                                    setRejectModalOpen(true);
-                                  }}
-                                  leftIcon={<CloseOutlined className="text-rose-500" />}
-                                  className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50 whitespace-nowrap shrink-0"
-                                >
-                                  Từ chối
-                                </Button>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  disabled={isBusy}
-                                  onClick={() => void handleUpdateStatus(order, "preparing")}
-                                  leftIcon={<CheckOutlined />}
-                                  className="!h-8 !px-3 !rounded-xl text-xs font-bold !bg-emerald-600 hover:!bg-emerald-700 text-white shadow-2xs whitespace-nowrap shrink-0"
-                                >
-                                  Xác nhận duyệt
-                                </Button>
-                              </>
-                            )}
-
-                            {isPreparing && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isBusy}
-                                  onClick={() => {
-                                    setTargetRejectOrder(order);
-                                    setRejectModalOpen(true);
-                                  }}
-                                  leftIcon={<CloseOutlined className="text-rose-500" />}
-                                  className="!h-8 !px-2.5 !rounded-xl text-xs font-semibold !text-rose-600 !border-rose-200 hover:!bg-rose-50 whitespace-nowrap shrink-0"
-                                >
-                                  Hủy
-                                </Button>
-                                <Button
-                                  variant="primary"
-                                  size="sm"
-                                  disabled={isBusy}
-                                  onClick={() => void handleUpdateStatus(order, isAccessory ? "served" : "ready")}
-                                  leftIcon={<CheckOutlined />}
-                                  className={`!h-8 !px-3 !rounded-xl text-xs font-bold text-white shadow-2xs whitespace-nowrap shrink-0 ${
-                                    isAccessory
-                                      ? "!bg-purple-600 hover:!bg-purple-700"
-                                      : "!bg-blue-600 hover:!bg-blue-700"
-                                  }`}
-                                >
-                                  {isAccessory ? "Đã giao tại bàn" : "Báo xong món"}
-                                </Button>
-                              </>
-                            )}
-
-                            {isReady && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isBusy}
-                                onClick={() => void handleUpdateStatus(order, "served")}
-                                leftIcon={<CheckOutlined className="text-emerald-600" />}
-                                className="!h-8 !px-3 !rounded-xl text-xs font-bold !border-emerald-300 !text-emerald-700 hover:!bg-emerald-50 whitespace-nowrap shrink-0"
-                              >
-                                Đã phục vụ
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {filteredOrders.map((order) => (
+                <CustomerOrderCard
+                  key={order._id}
+                  order={order}
+                  isBusy={busyOrderId === order._id}
+                  onUpdateStatus={(o, status) => void handleUpdateStatus(o, status)}
+                  onOpenReject={handleOpenRejectModal}
+                />
+              ))}
             </div>
           )}
         </div>
       </Drawer>
 
-      {/* Modal từ chối đơn kèm lý do nhanh */}
-      <Modal
+      {/* Modal chọn hoặc nhập lý do từ chối đơn */}
+      <CustomerOrderRejectModal
         open={rejectModalOpen}
-        onCancel={() => {
+        targetOrder={targetRejectOrder}
+        selectedTemplate={selectedRejectTemplate}
+        customReason={customRejectReason}
+        templates={REJECT_TEMPLATES}
+        onClose={() => {
           setRejectModalOpen(false);
           setTargetRejectOrder(null);
         }}
-        onOk={() => void handleConfirmReject()}
-        okText="Xác nhận từ chối"
-        cancelText="Hủy bỏ"
-        okButtonProps={{ danger: true }}
-        title={
-          <Space align="center" size={8}>
-            <CloseOutlined className="text-rose-600" />
-            <span className="font-bold text-slate-900 text-sm">
-              Từ chối đơn gọi món - {targetRejectOrder?.tableName}
-            </span>
-          </Space>
-        }
-      >
-        <div className="py-3 space-y-3.5 text-xs">
-          <p className="text-slate-600">
-            Khách sẽ nhận được thông báo về lý do từ chối đơn món này. Vui lòng chọn lý do nhanh:
-          </p>
-
-          <div className="space-y-1.5">
-            {rejectTemplates.map((template) => (
-              <div
-                key={template}
-                onClick={() => {
-                  setSelectedRejectTemplate(template);
-                  setCustomRejectReason("");
-                }}
-                className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                  selectedRejectTemplate === template && !customRejectReason
-                    ? "bg-rose-50/70 border-rose-300 text-rose-950 font-bold"
-                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                <span>{template}</span>
-                {selectedRejectTemplate === template && !customRejectReason && (
-                  <CheckOutlined className="text-rose-600 text-xs" />
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div>
-            <label className="block text-slate-700 font-semibold mb-1">
-              Hoặc nhập lý do khác:
-            </label>
-            <Input.TextArea
-              rows={2}
-              placeholder="Nhập lý do cụ thể gửi tới khách..."
-              value={customRejectReason}
-              onChange={(e) => setCustomRejectReason(e.target.value)}
-              className="!rounded-xl text-xs"
-            />
-          </div>
-        </div>
-      </Modal>
+        onSelectTemplate={(tmpl) => {
+          setSelectedRejectTemplate(tmpl);
+          setCustomRejectReason("");
+        }}
+        onChangeCustomReason={setCustomRejectReason}
+        onConfirm={() => void handleConfirmReject()}
+      />
     </>
   );
 };

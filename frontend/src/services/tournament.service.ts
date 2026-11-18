@@ -73,16 +73,6 @@ export interface TournamentItem {
   paymentReconciliationRequired?: boolean;
 }
 
-export interface PendingTournamentFee {
-  tournamentId: string;
-  tournamentName: string;
-  startDate: string;
-  amount: number;
-  player: Omit<TournamentPlayer, "user"> & {
-    user: { _id: string; name: string; email: string; phone?: string };
-  };
-}
-
 export interface CreateTournamentPayload {
   name: string;
   description?: string;
@@ -276,22 +266,6 @@ export const tournamentService = {
     );
     if (!data.success) throw new Error(data.message || "Không thể tải danh sách giải đấu");
     return data.data || { items: [], total: 0 };
-  },
-
-  async getPendingFees(): Promise<PendingTournamentFee[]> {
-    const { data } = await api.get<ApiResponse<PendingTournamentFee[]>>(
-      "/tournaments/pending-fees",
-    );
-    if (!data.success) throw new Error(data.message || "Không thể tải lệ phí giải đấu đang chờ");
-    return data.data || [];
-  },
-
-  async confirmPlayerFee(tournamentId: string, userId: string) {
-    const { data } = await api.patch<ApiResponse<TournamentItem>>(
-      `/tournaments/${tournamentId}/players/${userId}/fee`,
-    );
-    if (!data.success) throw new Error(data.message || "Không thể xác nhận lệ phí");
-    return data.data!;
   },
 
   async getTournaments(params?: {

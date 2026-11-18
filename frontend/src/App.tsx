@@ -12,7 +12,6 @@ import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import VoucherManagementPage from "./pages/admin/VoucherManagementPage";
-import FnbOrderQueuePage from "./pages/admin/FnbOrderQueuePage";
 import StockCatalogPage from "./pages/admin/StockCatalogPage";
 import GoodsReceiptPage from "./pages/admin/GoodsReceiptPage";
 import InventoryReportPage from "./pages/admin/InventoryReportPage";
@@ -40,7 +39,6 @@ import { getHomePath, hasPermission, STAFF_ROLES, type PermissionKey } from "./u
 
 import {
   TablesPage,
-  BookingPage,
   TournamentsPage,
   FnBPage,
   InventoryPage,
@@ -149,11 +147,11 @@ const AppRoutes = () => {
 
         <Route
           path="/booking"
-          element={
-            <ProtectedRoute permission="bookings.manage">
-              <BookingPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/pos?drawer=booking" replace />}
+        />
+        <Route
+          path="/bookings"
+          element={<Navigate to="/pos?drawer=booking" replace />}
         />
 
         <Route
@@ -215,11 +213,7 @@ const AppRoutes = () => {
 
         <Route
           path="/fnb-orders"
-          element={
-            <ProtectedRoute permission="fnb_orders.manage">
-              <FnbOrderQueuePage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/pos?drawer=orders" replace />}
         />
 
         {/* 3. Supplier management - integrated into /inventory?tab=suppliers */}

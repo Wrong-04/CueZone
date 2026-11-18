@@ -1,10 +1,8 @@
 export { default as TablesPage } from "./admin/TablesManagementPage";
-export { default as BookingPage } from "./admin/BookingManagementPage";
 export { default as TournamentsPage } from "./admin/AdminTournamentsPage";
 export { default as FnBPage } from "./admin/FnBInventoryPage";
 export { default as InventoryPage } from "./admin/WarehouseInventoryPage";
 export { default as InvoicesPage } from "./admin/InvoicesManagementPage";
-export { default as ReportsPage } from "./admin/ReportsAnalyticsPage";
 export { default as EmployeesPage } from "./admin/EmployeesPage";
 export { default as NewsPage } from "./admin/NewsManagementPage";
 export { default as SettingsPage } from "./admin/SettingsManagementPage";
