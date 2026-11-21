@@ -259,6 +259,12 @@ export const posService = {
 };
 
 export const bookingService = {
+  /**
+   * Lấy danh sách bàn theo khung giờ và loại bàn.
+   * [LUỒNG MỚI]: Backend trả về tất cả bàn (cả bàn đã đặt hoặc đang chơi) kèm theo:
+   * - isAvailable: boolean (true nếu bàn trống, false nếu đã được đặt/đang chơi)
+   * - unavailableReason: "booked" | "playing" | null (lý do không khả dụng)
+   */
   async getAvailableTables(input: {
     date: string;
     time: string;
