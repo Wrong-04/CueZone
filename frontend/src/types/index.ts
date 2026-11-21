@@ -78,6 +78,9 @@ export interface BilliardTable {
   status: TableStatus;
   isActive: boolean;
   pricingTier?: string;
+  // Các thuộc tính trạng thái khả dụng phục vụ luồng đặt bàn
+  isAvailable?: boolean;
+  unavailableReason?: "booked" | "playing" | null;
   createdAt: string;
   updatedAt: string;
 }

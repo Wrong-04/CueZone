@@ -37,6 +37,16 @@ import { isFnbWarehouseItem } from "../../utils/fnb";
 
 const { Title, Paragraph } = Typography;
 
+// =========================================================================================
+// KIỂU DỮ LIỆU (INTERFACES)
+// =========================================================================================
+
+/**
+ * Cấu trúc thông tin mỗi bàn bida hiển thị trên giao diện đặt bàn
+ * [LƯU Ý LUỒNG MỚI]:
+ * - isAvailable: Cho biết bàn có đang trống trong khung giờ đã chọn hay không.
+ * - unavailableReason: "booked" (đã có khách đặt trước) | "playing" (đang có khách chơi tại quán) | null (bàn trống).
+ */
 interface BookingTableItem {
   id: string;
   code: string;
@@ -48,8 +58,13 @@ interface BookingTableItem {
   isTournament: boolean;
   price: number;
   priceFormatted: string;
+  isAvailable: boolean;                          // Bàn có thể đặt hay không
+  unavailableReason: "booked" | "playing" | null; // Lý do không thể đặt (đã đặt hoặc đang chơi)
 }
 
+/**
+ * Thông tin giao dịch thanh toán tiền cọc qua cổng SePay VietQR
+ */
 interface BookingPaymentInfo {
   reference: string;
   status: "awaiting_payment" | "paid" | "expired" | "cancelled" | "refund_required";
@@ -61,6 +76,7 @@ interface BookingPaymentInfo {
   qrUrl?: string | null;
 }
 
+// Danh mục phân loại bàn phục vụ bộ lọc (Filter)
 const TABLE_CATEGORIES = [
   { key: "", label: "Tất Cả Loại Bàn" },
   { key: "vip", label: "Bàn VIP" },
@@ -70,6 +86,9 @@ const TABLE_CATEGORIES = [
   { key: "snooker", label: "Bida Snooker" },
 ];
 
+/**
+ * Kiểm tra xem bàn có phải là bàn thi đấu chuẩn giải đấu hay không
+ */
 function isTournamentTable(table: { area?: string; code?: string }) {
   const area = table.area?.trim().toLowerCase() || "";
   return (
@@ -85,20 +104,29 @@ export const CustomerBooking = () => {
   const preSelectedParam = searchParams.get("table") || "";
   const [now] = useState(() => Date.now());
 
-  const [tablesList, setTablesList] = useState<BookingTableItem[]>([]);
-  const [loadingTables, setLoadingTables] = useState<boolean>(true);
-  const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam);
+  // ---------------------------------------------------------------------------------------
+  // CÁC STATE QUẢN LÝ DỮ LIỆU ĐẶT BÀN
+  // ---------------------------------------------------------------------------------------
+  const [tablesList, setTablesList] = useState<BookingTableItem[]>([]); // Danh sách bàn lấy từ API
+  const [loadingTables, setLoadingTables] = useState<boolean>(true);   // Trạng thái đang tải danh sách bàn
+  const [selectedTableId, setSelectedTableId] = useState<string>(preSelectedParam); // ID bàn khách đang chọn
+  
+  // [LUỒNG MỚI]: State lưu bàn không khả dụng mà khách vừa bấm vào -> hiển thị Pop-up thông báo
+  const [unavailablePopupTable, setUnavailablePopupTable] = useState<BookingTableItem | null>(null);
+
   const [tableType, setTableType] = useState<
     "" | "vip" | "match" | "pool" | "carom" | "snooker"
-  >("");
-  const [name, setName] = useState<string>(user?.name || "");
-  const [phone, setPhone] = useState<string>(user?.phone || "");
+  >(""); // Loại bàn đang lọc
+  const [name, setName] = useState<string>(user?.name || "");   // Tên khách hàng
+  const [phone, setPhone] = useState<string>(user?.phone || ""); // Số điện thoại liên hệ
 
+  // Tự động điền họ tên & số điện thoại nếu khách đã đăng nhập tài khoản
   useEffect(() => {
     if (user?.name && !name.trim()) setName(user.name);
     if (user?.phone && !phone.trim()) setPhone(user.phone);
   }, [user?.name, user?.phone, name, phone]);
 
+  // Danh sách các ngày cho phép đặt trước (Hôm nay, Ngày mai, Ngày kia)
   const dateOptions = useMemo(() => {
     const formatVn = (daysOffset: number) => {
       const d = new Date(now + 7 * 3600000 + daysOffset * 86400000);
@@ -135,6 +163,7 @@ export const CustomerBooking = () => {
 
   const isToday = date === todayIso;
 
+  // Danh sách các khung giờ 30 phút trong ngày; nếu là "Hôm nay" thì tự động lọc bỏ các giờ trong quá khứ
   const timeOptions = useMemo(() => {
     const slots: { value: string; label: string }[] = [];
     const currentH = new Date().getHours();
@@ -152,7 +181,7 @@ export const CustomerBooking = () => {
     return slots;
   }, [isToday]);
 
-  // Tự động ghim khung giờ hợp lệ nếu giờ đang chọn bị quá hạn
+  // Tự động ghim khung giờ hợp lệ đầu tiên nếu khung giờ đang chọn bị quá hạn
   useEffect(() => {
     const validSlot = timeOptions[0];
     const currentSlotObj = timeOptions.find((slot) => slot.value === time);
@@ -161,21 +190,25 @@ export const CustomerBooking = () => {
     }
   }, [timeOptions, time]);
 
-  const [duration, setDuration] = useState<number>(2);
-  const [note, setNote] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
-  const [availabilityVersion, setAvailabilityVersion] = useState<number>(0);
-  const [menuItems, setMenuItems] = useState<ProductMenu[]>([]);
-  const [loadingMenu, setLoadingMenu] = useState(true);
-  const [showFnbMenuModal, setShowFnbMenuModal] = useState(false);
-  const [selectedFnb, setSelectedFnb] = useState<Record<string, number>>({});
-  const [confirmedBooking, setConfirmedBooking] = useState<any>(null);
-  const [paymentIntent, setPaymentIntent] = useState<BookingPaymentInfo | null>(null);
+  const [duration, setDuration] = useState<number>(2);                               // Thời lượng chơi (mặc định 2 tiếng)
+  const [note, setNote] = useState<string>("");                                       // Ghi chú của khách
+  const [loading, setLoading] = useState<boolean>(false);                             // Loading khi bấm nút Đặt bàn
+  const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);           // Modal hiển thị mã QR cọc SePay
+  const [availabilityVersion, setAvailabilityVersion] = useState<number>(0);         // Trigger để reload danh sách bàn khi có thay đổi
+  const [menuItems, setMenuItems] = useState<ProductMenu[]>([]);                     // Danh sách món F&B
+  const [loadingMenu, setLoadingMenu] = useState(true);                              // Loading thực đơn F&B
+  const [showFnbMenuModal, setShowFnbMenuModal] = useState(false);                   // Modal chọn món F&B đặt trước
+  const [selectedFnb, setSelectedFnb] = useState<Record<string, number>>({});         // Món F&B khách đã chọn kèm số lượng
+  const [confirmedBooking, setConfirmedBooking] = useState<any>(null);               // Thông tin đơn sau khi đã thanh toán cọc thành công
+  const [paymentIntent, setPaymentIntent] = useState<BookingPaymentInfo | null>(null);// Thông tin cọc SePay (mã QR, số tiền, hạn 5 phút)
   const [paymentCheckError, setPaymentCheckError] = useState("");
   const [cancellingPayment, setCancellingPayment] = useState(false);
   const [confirmingCancelPayment, setConfirmingCancelPayment] = useState(false);
 
+  // ---------------------------------------------------------------------------------------
+  // EFFECT: Polling kiểm tra trạng thái thanh toán tiền cọc mỗi 3 giây
+  // Khi khách quét mã QR VietQR chuyển khoản, SePay nhận tiền -> API trả về status: "paid"
+  // ---------------------------------------------------------------------------------------
   useEffect(() => {
     if (!paymentIntent?.reference) return;
     const deadline = new Date(paymentIntent.deadline).getTime();
@@ -226,6 +259,9 @@ export const CustomerBooking = () => {
     };
   }, [paymentIntent?.deadline, paymentIntent?.reference, paymentIntent?.status]);
 
+  // ---------------------------------------------------------------------------------------
+  // EFFECT: Tải danh mục thực đơn đồ uống & đồ ăn vặt F&B
+  // ---------------------------------------------------------------------------------------
   useEffect(() => {
     let active = true;
     const loadMenu = () => {
@@ -257,6 +293,10 @@ export const CustomerBooking = () => {
     };
   }, []);
 
+  // ---------------------------------------------------------------------------------------
+  // EFFECT: Lắng nghe sự kiện Socket.io thời gian thực
+  // Khi có khách khác vừa đặt bàn hoặc nhân viên mở bàn ở quầy POS -> Tự động reload danh sách
+  // ---------------------------------------------------------------------------------------
   useEffect(() => {
     const socket = getSocket();
     const refreshAvailability = () => setAvailabilityVersion((version) => version + 1);
@@ -282,6 +322,12 @@ export const CustomerBooking = () => {
     };
   }, []);
 
+  // ---------------------------------------------------------------------------------------
+  // EFFECT [TRỌNG TÂM LUỒNG MỚI]: Tải danh sách bàn theo Ngày, Giờ, Thời lượng
+  // - Gọi API getAvailableTables: Server trả về TẤT CẢ các bàn kèm cờ `isAvailable` và `unavailableReason`
+  // - Ánh xạ dữ liệu: Bàn trống -> isAvailable: true | Bàn bận -> isAvailable: false
+  // - Tự động chọn bàn trống đầu tiên nếu bàn trước đó không còn hợp lệ
+  // ---------------------------------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
     const timer = setTimeout(async () => {
@@ -332,6 +378,9 @@ export const CustomerBooking = () => {
                 isTournament,
                 price: table.pricePerHour,
                 priceFormatted: `${table.pricePerHour.toLocaleString("vi-VN")}đ/h`,
+                // [LUỒNG MỚI]: Cập nhật trạng thái bàn khả dụng hay không
+                isAvailable: table.isAvailable !== false,
+                unavailableReason: table.unavailableReason ?? null,
               };
             });
           setTablesList(mapped);
@@ -342,7 +391,9 @@ export const CustomerBooking = () => {
             const retainedTable = mapped.find(
               (table) => table.id === current || table.code === current,
             );
-            return (retainedTable || preselected || mapped[0])?.id || "";
+            // Ưu tiên giữ bàn đang chọn nếu còn trống, nếu không thì chọn bàn trống đầu tiên
+            const firstAvailable = mapped.find((table) => table.isAvailable);
+            return (retainedTable || preselected || firstAvailable || mapped[0])?.id || "";
           });
         }
       } catch (err) {
@@ -363,21 +414,38 @@ export const CustomerBooking = () => {
     };
   }, [date, time, duration, tableType, preSelectedParam, availabilityVersion]);
 
+  // ---------------------------------------------------------------------------------------
+  // TÍNH TOÁN CHI PHÍ & THÔNG TIN BÀN ĐANG ĐƯỢC CHỌN
+  // ---------------------------------------------------------------------------------------
+  
+  // [LUỒNG MỚI]: Bàn được chọn để đặt bắt buộc phải là bàn có `isAvailable: true`
+  // Khách bấm vào bàn bận sẽ chỉ hiện pop-up thông báo chứ không gán vào selectedTable
   const selectedTable =
-    tablesList.find((t) => t.id === selectedTableId || t.code === selectedTableId) ||
-    tablesList[0] ||
+    tablesList.find((t) => (t.id === selectedTableId || t.code === selectedTableId) && t.isAvailable) ||
+    tablesList.find((t) => t.isAvailable) ||
     null;
+
+  // Tiền giờ chơi dự kiến = giá theo giờ * số giờ
   const totalCost = selectedTable ? selectedTable.price * duration : 0;
+
+  // Danh sách các món F&B khách đã chọn số lượng > 0
   const preOrderItems = Object.entries(selectedFnb)
     .filter(([, quantity]) => quantity > 0)
     .map(([productId, quantity]) => ({ productId, quantity }));
+
+  // Tổng tiền món F&B đặt trước
   const preOrderTotal = preOrderItems.reduce((sum, item) => {
     const product = menuItems.find((menuItem) => menuItem._id === item.productId);
     return sum + (product?.salePrice || 0) * item.quantity;
   }, 0);
+
+  // Tổng tạm tính = Tiền giờ chơi + Tiền F&B
   const estimatedTotal = totalCost + preOrderTotal;
+
+  // Tiền đặt cọc bắt buộc = 50% tổng tạm tính
   const depositEstimate = Math.ceil(estimatedTotal / 2);
 
+  // Hàm tăng/giảm số lượng món F&B
   const updateFnbQuantity = (productId: string, delta: number) => {
     setSelectedFnb((current) => {
       const quantity = Math.max(0, (current[productId] || 0) + delta);
@@ -390,8 +458,19 @@ export const CustomerBooking = () => {
     });
   };
 
+  /**
+   * =======================================================================================
+   * XỬ LÝ SUBMIT ĐẶT BÀN (TẠO ĐƠN & TẠO MÃ QR SEPAY)
+   * 1. Kiểm tra họ tên, số điện thoại hợp lệ (chuẩn SĐT di động Việt Nam).
+   * 2. Kiểm tra bàn đã chọn: Bắt buộc phải là bàn TRỐNG (isAvailable: true).
+   * 3. Kiểm tra giờ hẹn phải ở tương lai.
+   * 4. Gọi API createPublic: Backend tạo Booking và trả về paymentIntent (link VietQR).
+   * 5. Mở Modal hiển thị mã QR SePay để khách chuyển khoản cọc trong 5 phút.
+   * =======================================================================================
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Nếu đang có yêu cầu cọc chờ thanh toán thì mở lại Modal
     if (paymentIntent?.status === "awaiting_payment") {
       setShowSuccessModal(true);
       return;
@@ -411,6 +490,11 @@ export const CustomerBooking = () => {
     }
     if (!selectedTable) {
       message.warning("Vui lòng chọn một bàn bida!");
+      return;
+    }
+    // [LUỒNG MỚI]: Ngăn chặn việc gửi yêu cầu đặt cho bàn đã có người đặt hoặc đang chơi
+    if (!selectedTable.isAvailable) {
+      message.warning("Bàn này đã được đặt hoặc đang có khách chơi. Vui lòng chọn bàn trống!");
       return;
     }
 
@@ -437,7 +521,7 @@ export const CustomerBooking = () => {
       setPaymentIntent(booking.payment);
       setPaymentCheckError("");
       setConfirmingCancelPayment(false);
-      setShowSuccessModal(true);
+      setShowSuccessModal(true); // Mở Modal chuyển khoản QR
       setAvailabilityVersion((version) => version + 1);
       message.info("Vui lòng chuyển khoản tiền cọc trong 5 phút để giữ khung giờ.");
     } catch (err: any) {
@@ -477,6 +561,9 @@ export const CustomerBooking = () => {
     }
   };
 
+  /**
+   * Xử lý khi khách bấm nút "Hủy yêu cầu đặt cọc" trong Modal
+   */
   const handleCancelDeposit = async () => {
     if (!paymentIntent?.reference || paymentIntent.status !== "awaiting_payment") return;
     setCancellingPayment(true);
@@ -565,7 +652,7 @@ export const CustomerBooking = () => {
                   <ClockCircleOutlined />
                 </div>
                 <div className="font-bold text-slate-800 text-sm">
-                  Không còn bàn trống cho khung giờ {time} ({selectedDateLabel})
+                  Không có bàn nào khả dụng cho khung giờ {time} ({selectedDateLabel})
                 </div>
                 <p className="text-slate-500 max-w-sm mx-auto">
                   Quý khách vui lòng đổi sang khung giờ khác hoặc ngày mai ở form bên phải để xem các bàn còn trống.
@@ -575,14 +662,25 @@ export const CustomerBooking = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {tablesList.map((t) => {
                   const isSelected = t.id === selectedTableId || t.code === selectedTableId;
+                  const isUnavailable = !t.isAvailable; // Bàn đã có khách đặt hoặc đang chơi
                   return (
                     <div
                       key={t.id}
-                      onClick={() => setSelectedTableId(t.id)}
-                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
-                        isSelected
-                          ? "bg-emerald-50/90 border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs"
-                          : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80"
+                      onClick={() => {
+                        // [LUỒNG MỚI]: Nếu bàn không khả dụng -> Mở Modal thông báo cho khách biết lý do
+                        // Nếu bàn còn trống -> Cho phép chọn bàn để đặt
+                        if (isUnavailable) {
+                          setUnavailablePopupTable(t);
+                        } else {
+                          setSelectedTableId(t.id);
+                        }
+                      }}
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden ${
+                        isUnavailable
+                          ? "bg-slate-50 border-slate-200 opacity-80 hover:border-slate-300" // Kiểu hiển thị mờ cho bàn không khả dụng
+                          : isSelected
+                            ? "bg-emerald-50/90 border-emerald-600 ring-2 ring-emerald-500/30 shadow-xs" // Kiểu bàn đang được chọn
+                            : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80" // Kiểu bàn trống mặc định
                       }`}
                     >
                       <div>
@@ -601,12 +699,12 @@ export const CustomerBooking = () => {
                                 THI ĐẤU
                               </span>
                             )}
-                            {isSelected && (
+                            {!isUnavailable && isSelected && (
                               <CheckCircleOutlined className="text-emerald-600 text-sm" />
                             )}
                           </span>
                         </div>
-                        <span className={`font-black text-sm block ${isSelected ? "text-emerald-900" : "text-slate-900"}`}>
+                        <span className={`font-black text-sm block ${isSelected && !isUnavailable ? "text-emerald-900" : "text-slate-900"}`}>
                           {t.name}
                         </span>
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase mt-0.5">
@@ -621,13 +719,43 @@ export const CustomerBooking = () => {
                         )}
                       </div>
 
+                      {/* Hiển thị giá tiền và nhãn trạng thái bàn */}
                       <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                         <span className="font-bold text-emerald-700">{t.priceFormatted}</span>
-                        <span className="text-[10px] text-emerald-600 font-semibold">Bàn trống</span>
+                        {/* [LUỒNG MỚI]: Phân biệt hiển thị Bàn trống vs Đã được đặt / Đang chơi */}
+                        {isUnavailable ? (
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            t.unavailableReason === "playing"
+                              ? "text-blue-700 bg-blue-50"
+                              : "text-rose-700 bg-rose-50"
+                          }`}>
+                            {t.unavailableReason === "playing" ? "Đang chơi" : "Đã được đặt"}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-600 font-semibold">Bàn trống</span>
+                        )}
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* [LUỒNG MỚI]: Chú thích (Legend) để khách hàng dễ phân biệt màu sắc các trạng thái bàn */}
+            {!loadingTables && tablesList.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 mt-2">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-400" />
+                  Bàn trống (có thể đặt)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded-sm bg-rose-50 border border-rose-300" />
+                  Đã được đặt trước
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded-sm bg-blue-50 border border-blue-300" />
+                  Đang có khách chơi
+                </span>
               </div>
             )}
 
@@ -843,6 +971,63 @@ export const CustomerBooking = () => {
         confirmLabel="Lưu lựa chọn"
       />
 
+      {/* ================================================================================= */}
+      {/* [LUỒNG MỚI]: POP-UP THÔNG BÁO KHI KHÁCH B BẤM VÀO BÀN ĐÃ CÓ NGƯỜI ĐẶT / ĐANG CHƠI */}
+      {/* Giúp khách nắm bắt rõ bàn này hiện không thể đặt và hướng dẫn chọn bàn trống khác   */}
+      {/* ================================================================================= */}
+      <Modal
+        open={!!unavailablePopupTable}
+        onCancel={() => setUnavailablePopupTable(null)}
+        footer={[
+          <Button
+            key="close"
+            variant="primary"
+            onClick={() => setUnavailablePopupTable(null)}
+            className="!text-xs !bg-slate-800 hover:!bg-slate-900 !border-slate-800 text-white font-bold !rounded-xl"
+          >
+            Đã hiểu
+          </Button>,
+        ]}
+        title={
+          <Space align="center" size={8}>
+            {unavailablePopupTable?.unavailableReason === "playing" ? (
+              <ClockCircleOutlined className="text-blue-600 text-lg" />
+            ) : (
+              <InfoCircleOutlined className="text-rose-600 text-lg" />
+            )}
+            <span className="text-slate-900 font-bold">
+              {unavailablePopupTable?.unavailableReason === "playing"
+                ? "Bàn đang có khách chơi"
+                : "Bàn đã được đặt trước"}
+            </span>
+          </Space>
+        }
+      >
+        <div className="space-y-3 py-2 text-xs text-slate-700">
+          <div className={`rounded-xl border p-4 space-y-1.5 ${
+            unavailablePopupTable?.unavailableReason === "playing"
+              ? "border-blue-200 bg-blue-50 text-blue-900"
+              : "border-rose-200 bg-rose-50 text-rose-900"
+          }`}>
+            <div className="font-bold text-sm">
+              {unavailablePopupTable?.name} ({unavailablePopupTable?.code})
+            </div>
+            <p className="mb-0">
+              {unavailablePopupTable?.unavailableReason === "playing"
+                ? "Bàn này hiện đang có khách chơi. Vui lòng chọn bàn khác hoặc đặt vào khung giờ sau để được phục vụ."
+                : "Bàn này đã được khách khác đặt trước cho khung giờ bạn chọn. Vui lòng chọn một bàn khác hoặc đổi sang khung giờ khác."}
+            </p>
+          </div>
+          <p className="text-slate-500 mb-0">
+            Các bàn hiển thị nhãn <strong className="text-emerald-700">Bàn trống</strong> vẫn còn chỗ — hãy chọn một trong số đó để tiếp tục đặt bàn.
+          </p>
+        </div>
+      </Modal>
+
+      {/* ================================================================================= */}
+      {/* MODAL THANH TOÁN TIỀN CỌC QUA VIETQR / KẾT QUẢ ĐẶT BÀN                            */}
+      {/* Hiển thị mã QR ngân hàng từ cổng SePay trong 5 phút. Tự động kiểm tra trạng thái    */}
+      {/* ================================================================================= */}
       <Modal
         open={showSuccessModal}
         onCancel={() => {

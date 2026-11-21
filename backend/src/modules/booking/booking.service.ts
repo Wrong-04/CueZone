@@ -17,12 +17,31 @@ import {
 
 const notificationService = new NotificationService();
 
+// =========================================================================================
+// CÁC HẰNG SỐ CẤU HÌNH NGHIỆP VỤ ĐẶT BÀN
+// =========================================================================================
+// Các trạng thái đặt bàn được tính là đang hoạt động / chiếm chỗ
 const ACTIVE_BOOKING_STATUSES = ["pending", "approved", "confirmed", "checked_in"];
+
+// Giới hạn thời gian tối thiểu để khách được tự hủy lịch: trước giờ chơi ít nhất 2 tiếng (2 giờ * 60 phút * 60 giây * 1000ms)
 const CANCELLATION_CUTOFF_MS = 2 * 60 * 60 * 1000;
+
+// Thời gian tối đa giữ chỗ để khách quét mã thanh toán tiền cọc: 5 phút
 const PAYMENT_HOLD_MS = 5 * 60 * 1000;
+
+// Lý do hệ thống tự hủy đơn khi quá hạn thanh toán cọc
 const PAYMENT_EXPIRY_REASON = "Hết hạn chờ thanh toán tiền cọc";
 
+/**
+ * Hàm tính toán khoảng thời gian (Start Time -> End Time) của một lịch đặt bàn
+ * @param date Ngày đặt dạng chuỗi (YYYY-MM-DD)
+ * @param time Giờ đặt dạng chuỗi (HH:mm) theo múi giờ Việt Nam (+07:00)
+ * @param duration Số giờ chơi dự kiến (ví dụ: 1h, 2h...)
+ * @param allowPast Cho phép giờ trong quá khứ hay không (mặc định false - phải đặt ở tương lai)
+ * @returns { startDate: Date, endDate: Date } Thời điểm bắt đầu và kết thúc
+ */
 function getBookingInterval(date: string, time: string, duration: number, allowPast = false) {
+  // Tạo đối tượng Date với múi giờ Việt Nam UTC+7
   const startDate = new Date(`${date}T${time}:00+07:00`);
   if (
     !Number.isFinite(startDate.getTime()) ||
@@ -30,15 +49,21 @@ function getBookingInterval(date: string, time: string, duration: number, allowP
   ) {
     throw new Error("Ngày giờ đặt bàn không hợp lệ");
   }
+  // Kiểm tra thời gian đặt phải nằm ở tương lai (không cho đặt lùi về quá khứ)
   if (!allowPast && startDate.getTime() <= Date.now()) {
     throw new Error("Ngày giờ đặt bàn phải ở tương lai (giờ Việt Nam)");
   }
   return {
     startDate,
+    // Giờ kết thúc = giờ bắt đầu + (thời lượng chơi * số mili-giây mỗi giờ)
     endDate: new Date(startDate.getTime() + duration * 60 * 60 * 1000),
   };
 }
 
+/**
+ * Hàm trích xuất khoảng thời gian (Start Date, End Date) từ một bản ghi đặt bàn đã lưu trong CSDL
+ * @param booking Bản ghi đơn đặt bàn từ MongoDB
+ */
 function getStoredBookingInterval(booking: any) {
   const startDate = booking.startDate
     ? new Date(booking.startDate)
@@ -49,6 +74,10 @@ function getStoredBookingInterval(booking: any) {
   return { startDate, endDate };
 }
 
+/**
+ * Hàm kiểm tra tính hợp lệ và chuẩn hóa dữ liệu đầu vào khi tạo đơn đặt bàn
+ * Validate: Họ tên khách, Số điện thoại, ID bàn, Ngày, Giờ, Thời lượng chơi, Món F&B đặt trước
+ */
 export function bookingInput(input: any) {
   const tableRef = input.table || input.tableId;
   const deposit = input.deposit ?? 0;
@@ -84,6 +113,7 @@ export function bookingInput(input: any) {
   ) {
     throw new Error("Thông tin đặt bàn không hợp lệ");
   }
+  // Đảm bảo không trùng lặp cùng một món ăn/đồ uống trong danh sách đặt trước
   if (new Set(preOrderItems.map((item: any) => String(item.productId))).size !== preOrderItems.length) {
     throw new Error("Mỗi món chỉ được xuất hiện một lần trong danh sách đặt trước");
   }
@@ -107,29 +137,44 @@ export function bookingInput(input: any) {
 }
 
 export class BookingService {
+  /**
+   * Băm mã QR Token bằng thuật toán SHA-256 để lưu trữ an toàn trong CSDL (tránh lộ token gốc)
+   */
   private hashQrToken(token: string) {
     return createHash("sha256").update(token).digest("hex");
   }
 
+  /**
+   * Tạo chuỗi ngẫu nhiên 32 bytes (64 ký tự hex) làm mã bảo mật QR Check-in cho khách
+   */
   private createQrToken() {
     return randomBytes(32).toString("hex");
   }
 
+  /**
+   * Giải mã và xác thực mã QR khi khách hàng đưa cho nhân viên quét tại quầy lễ tân để nhận bàn
+   * @param tokenValue Chuỗi token từ mã QR
+   * @returns Thông tin lịch đặt và bàn tương ứng nếu hợp lệ
+   */
   async resolveQrToken(tokenValue: unknown) {
     if (typeof tokenValue !== "string" || !/^[a-f0-9]{64}$/.test(tokenValue)) {
       throw new Error("Mã QR đặt bàn không hợp lệ");
     }
+    // Tìm đơn đặt bàn có mã hash khớp và đang ở trạng thái 'approved' (đã duyệt/đã cọc)
     const booking = await Booking.findOne({
       qrTokenHash: this.hashQrToken(tokenValue),
       status: "approved",
     }).select("+qrTokenHash");
     if (!booking) throw new Error("Mã QR không hợp lệ, đã hủy hoặc lịch đã được nhận bàn");
+
+    // Kiểm tra xem lịch đặt đã quá hạn sử dụng hay chưa
     const { endDate } = getStoredBookingInterval(booking);
     if (!Number.isFinite(endDate.getTime()) || endDate.getTime() <= Date.now()) {
       throw new Error("Mã QR đặt bàn đã hết thời hạn sử dụng");
     }
     const table = await Table.findById(booking.table).select("code name");
     if (!table) throw new Error("Không tìm thấy bàn của lịch đặt");
+
     return {
       bookingId: String(booking._id),
       customerName: booking.customerName,
@@ -147,6 +192,9 @@ export class BookingService {
     };
   }
 
+  /**
+   * Cấp phát mã QR Check-in mới cho khách hàng từ tài khoản của họ
+   */
   async issueQrToken(customerId: string, bookingId: string) {
     if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(bookingId)) {
       throw new Error("Lịch đặt bàn không hợp lệ");
@@ -161,6 +209,16 @@ export class BookingService {
     return { qrToken: token };
   }
 
+  /**
+   * Kiểm tra xung đột khung giờ chơi trên cùng 1 bàn
+   * Thuật toán: Hai khoảng thời gian [A, B] và [C, D] trùng nhau khi và chỉ khi A < D và B > C
+   * @param tableId ID bàn cần kiểm tra
+   * @param startDate Thời điểm bắt đầu của lượt đặt mới
+   * @param endDate Thời điểm kết thúc của lượt đặt mới
+   * @param session Phiên giao dịch MongoDB (nếu có)
+   * @param excludeBookingId Bỏ qua đơn đặt hiện tại (dùng khi cập nhật đơn)
+   * @returns true nếu có xung đột trùng giờ, false nếu khung giờ còn trống
+   */
   private async hasSlotConflict(
     tableId: string,
     startDate: Date,
@@ -179,6 +237,7 @@ export class BookingService {
     if (session) query = query.session(session);
     const bookings = await query;
     return bookings.some((booking) => {
+      // Nếu đơn đang chờ thanh toán cọc nhưng đã quá 5 phút thì không tính là chiếm chỗ nữa
       if (
         booking.paymentStatus === "awaiting_payment" &&
         booking.paymentExpiresAt &&
@@ -187,6 +246,7 @@ export class BookingService {
         return false;
       }
       const interval = getStoredBookingInterval(booking);
+      // Điều kiện giao nhau của 2 khoảng thời gian: interval.startDate < endDate && interval.endDate > startDate
       return (
         Number.isFinite(interval.startDate.getTime()) &&
         Number.isFinite(interval.endDate.getTime()) &&
@@ -196,12 +256,23 @@ export class BookingService {
     });
   }
 
+  /**
+   * =========================================================================================
+   * [LUỒNG MỚI ĐẶT BÀN]: Lấy danh sách bàn theo khung giờ khách đã chọn
+   * - Quy tắc cũ: Chỉ trả về bàn trống, bàn đã có người đặt sẽ bị ẩn hoàn toàn khỏi danh sách.
+   * - Quy tắc mới: Trả về TẤT CẢ các bàn (trừ bàn bảo trì).
+   *   + Mỗi bàn kèm trường `isAvailable` (true: bàn trống, false: đã có khách đặt / đang chơi).
+   *   + Kèm trường `unavailableReason`: "booked" (đã có khách đặt trước) hoặc "playing" (đang có khách chơi trực tiếp).
+   *   + Khi khách khác (Khách B) xem trên web, bàn vẫn hiển thị kèm nhãn trạng thái và khi bấm vào sẽ pop-up thông báo.
+   * =========================================================================================
+   */
   async getAvailableTables(input: {
     date: string;
     time: string;
     duration: number;
     type?: string;
   }) {
+    // 1. Kiểm tra định dạng dữ liệu đầu vào
     if (
       typeof input.date !== "string" ||
       !/^\d{4}-\d{2}-\d{2}$/.test(input.date) ||
@@ -214,7 +285,11 @@ export class BookingService {
     ) {
       throw new Error("Khung giờ tìm bàn không hợp lệ");
     }
+
+    // 2. Tự động dọn dẹp các đơn cọc quá hạn 5 phút trước khi truy vấn
     await this.expirePendingPayments();
+
+    // 3. Tính khoảng thời gian khách muốn đặt
     const { startDate, endDate } = getBookingInterval(
       input.date,
       input.time,
@@ -222,6 +297,8 @@ export class BookingService {
       true,
     );
     if (startDate.getTime() <= Date.now()) return [];
+
+    // 4. Lấy tất cả bàn đang hoạt động (loại trừ các bàn bảo trì hư hỏng)
     const tableFilter: Record<string, any> = {
       isActive: true,
       status: { $ne: TableStatus.MAINTENANCE },
@@ -240,14 +317,20 @@ export class BookingService {
       }).format(new Date(now)) === input.date;
 
     const tableIds = tables.map((t) => t._id);
+
+    // 5. Tìm các lịch đặt đang hoạt động của các bàn này
     const activeBookings = await Booking.find({
       table: { $in: tableIds },
       status: { $in: ACTIVE_BOOKING_STATUSES },
     }).select("table date time duration startDate endDate");
 
-    const conflictingTableIds = new Set<string>();
+    // Map lưu lý do không khả dụng của từng bàn: tableId -> "booked" | "playing"
+    const conflictingTableMap = new Map<string, string>();
+
+    // 6. Kiểm tra xem bàn nào bị trùng lịch hẹn trước (Conflicting Bookings)
     for (const booking of activeBookings) {
       const interval = getStoredBookingInterval(booking);
+      // Bỏ qua các đơn đang chờ thanh toán cọc nhưng đã hết hạn 5 phút
       if (
         booking.paymentStatus === "awaiting_payment" &&
         booking.paymentExpiresAt &&
@@ -255,17 +338,19 @@ export class BookingService {
       ) {
         continue;
       }
+      // Nếu có sự giao nhau về thời gian giữa lịch đã đặt và lịch khách đang xem
       if (
         Number.isFinite(interval.startDate.getTime()) &&
         Number.isFinite(interval.endDate.getTime()) &&
         interval.startDate < endDate &&
         interval.endDate > startDate
       ) {
-        conflictingTableIds.add(String(booking.table));
+        conflictingTableMap.set(String(booking.table), "booked");
       }
     }
 
-    // Nếu khách đặt lịch hôm nay và giờ bắt đầu trong vòng 60 phút tới, bàn đang có khách chơi trực tiếp không thể nhận đặt
+    // 7. Nếu khách đặt lịch cho ngày hôm nay và giờ bắt đầu sắp đến (trong vòng 60 phút tới),
+    // kiểm tra xem bàn có đang có khách chơi tại quán hay không
     if (isToday && startDate.getTime() <= now + 60 * 60 * 1000) {
       for (const table of tables) {
         if (
@@ -273,14 +358,25 @@ export class BookingService {
           table.status === TableStatus.PAUSED ||
           Boolean(table.currentSession)
         ) {
-          conflictingTableIds.add(String(table._id));
+          conflictingTableMap.set(String(table._id), "playing");
         }
       }
     }
 
-    return tables.filter((table) => !conflictingTableIds.has(String(table._id)));
+    // 8. Trả về toàn bộ danh sách bàn kèm cờ trạng thái để frontend hiển thị và xử lý pop-up
+    return tables.map((table) => {
+      const reason = conflictingTableMap.get(String(table._id));
+      return {
+        ...table.toObject(),
+        isAvailable: !reason, // true nếu không bị xung đột (bàn trống)
+        unavailableReason: reason ?? null, // "booked" nếu đã có người đặt, "playing" nếu đang chơi
+      };
+    });
   }
 
+  /**
+   * Lấy toàn bộ danh sách đơn đặt bàn trong hệ thống (dành cho quản lý/thu ngân xem báo cáo)
+   */
   async getAll() {
     const list = await Booking.find()
       .populate("customer")
@@ -310,6 +406,10 @@ export class BookingService {
     });
   }
 
+  /**
+   * Lấy danh sách lịch sử đặt bàn của một tài khoản khách hàng cụ thể
+   * @param customerId ID người dùng (Customer)
+   */
   async getCustomerBookings(customerId: string) {
     if (!mongoose.isValidObjectId(customerId)) {
       throw new Error("Tài khoản khách hàng không hợp lệ");
@@ -329,21 +429,43 @@ export class BookingService {
     });
   }
 
+  /**
+   * =========================================================================================
+   * HÀM TẠO ĐƠN ĐẶT BÀN MỚI (CREATE BOOKING)
+   * - Hỗ trợ cả đặt trực tiếp (thu ngân tạo) và đặt trực tuyến (khách tự đặt có cọc SePay).
+   * - Dùng MongoDB Transaction đảm bảo tính toàn vẹn dữ liệu (Atomic):
+   *   + Khóa bàn, kiểm tra xung đột khung giờ.
+   *   + Trừ tạm thời tồn kho các món F&B đóng gói sẵn (không phải pha chế theo yêu cầu).
+   *   + Tính tiền cọc: 50% tổng dự kiến (tiền giờ chơi + tiền món F&B).
+   *   + Nếu yêu cầu cọc: tạo mã tham chiếu thanh toán (CB...), thời hạn giữ chỗ 5 phút.
+   * =========================================================================================
+   * @param input Dữ liệu form đặt bàn
+   * @param customerId ID khách hàng (nếu đã đăng nhập)
+   * @param initialStatus Trạng thái khởi tạo ("pending" hoặc "approved")
+   * @param requireDeposit Có yêu cầu thanh toán cọc SePay hay không (khách vãng lai online: true)
+   */
   async create(
     input: any,
     customerId?: string,
     initialStatus: "pending" | "approved" = "approved",
     requireDeposit = false,
   ) {
+    // 1. Quét dọn các đơn cọc quá hạn trước khi tạo đơn mới
     if (requireDeposit) await this.expirePendingPayments();
+    
+    // 2. Validate và chuẩn hóa dữ liệu
     const dto = bookingInput(input);
     const paymentConfig = requireDeposit ? sepayConfig() : null;
+    // Mã tham chiếu SePay dạng CB + 24 ký tự hex ngẫu nhiên
     const paymentReference = requireDeposit
       ? `CB${randomBytes(12).toString("hex").toUpperCase()}`
       : undefined;
+    // Thời hạn giữ chỗ: 5 phút kể từ thời điểm tạo
     const paymentExpiresAt = requireDeposit
       ? new Date(Date.now() + PAYMENT_HOLD_MS)
       : undefined;
+
+    // 3. Kiểm tra tài khoản khách hàng nếu có truyền customerId
     const associatedCustomer =
       customerId && mongoose.isValidObjectId(customerId)
         ? await User.findOne({
@@ -361,7 +483,10 @@ export class BookingService {
       throw new Error("Vui lòng đăng nhập tài khoản khách hàng để đặt bàn");
     }
     const qrToken = requireDeposit ? undefined : this.createQrToken();
+
+    // 4. Bắt đầu Transaction để tránh tình trạng tranh chấp (Race condition)
     const result = await mongoose.connection.transaction(async (session) => {
+      // 4.1. Tìm bàn và tăng bookingVersion để tạo lock
       const table = await Table.findOneAndUpdate(
         {
           _id: dto.table,
@@ -375,9 +500,13 @@ export class BookingService {
         { new: true, session },
       );
       if (!table) throw new Error("Bàn không còn trống, vui lòng tải lại");
+
+      // 4.2. Kiểm tra xem khung giờ có bị trùng với lịch khác không
       if (await this.hasSlotConflict(String(table._id), dto.startDate, dto.endDate, session)) {
         throw new Error("Khung giờ này đã có người đặt, vui lòng chọn thời gian khác");
       }
+
+      // 4.3. Xử lý các món F&B đặt trước
       let preOrderItems: Array<{
         productId: mongoose.Types.ObjectId;
         name: string;
@@ -415,6 +544,8 @@ export class BookingService {
             isMadeToOrder,
           };
         });
+
+        // Trừ kho tạm thời đối với món đóng gói sẵn nếu không qua cổng cọc SePay
         for (const item of preOrderItems) {
           if (!item.isMadeToOrder && !requireDeposit) {
             const reserved = await Product.findOneAndUpdate(
@@ -431,6 +562,8 @@ export class BookingService {
           }
         }
       }
+
+      // 4.4. Tính toán chi phí dự kiến và số tiền đặt cọc (50%)
       const hasInventoryReserved =
         !requireDeposit && preOrderItems.some((item) => !item.isMadeToOrder);
       const estimatedCost = table.pricePerHour * dto.duration;
@@ -442,6 +575,8 @@ export class BookingService {
       if (!Number.isSafeInteger(depositAmount) || depositAmount <= 0) {
         throw new Error("Số tiền đặt cọc không hợp lệ");
       }
+
+      // 4.5. Lưu bản ghi Booking vào CSDL MongoDB
       const [booking] = await Booking.create(
         [
           {
@@ -466,6 +601,8 @@ export class BookingService {
         ],
         { session },
       );
+
+      // 4.6. Nếu không cần cọc (đặt tại quầy), cập nhật trạng thái bàn thành BOOKED ngay
       if (!requireDeposit && initialStatus === "approved") {
         if (table.status === TableStatus.AVAILABLE) {
           table.status = TableStatus.BOOKED;
@@ -480,6 +617,8 @@ export class BookingService {
       }
       return { booking, table };
     });
+
+    // 5. Phát sự kiện Socket.io thông báo thay đổi trạng thái bàn cho toàn hệ thống
     if (!requireDeposit && initialStatus === "approved") {
       emitTableStatusChanged({
         tableId: String(result.table._id),
@@ -487,6 +626,8 @@ export class BookingService {
         table: result.table,
       });
     }
+
+    // 6. Gửi thông báo đến tài khoản khách hàng
     if (!requireDeposit && associatedCustomerId) {
       await notificationService
         .createForUser(associatedCustomerId, {
@@ -500,6 +641,8 @@ export class BookingService {
         })
         .catch((error) => console.error("Không thể gửi thông báo đặt bàn cho khách:", error));
     }
+
+    // 7. Gửi thông báo đến nhân viên quầy
     if (!requireDeposit) {
       await notificationService
         .create({
@@ -514,6 +657,8 @@ export class BookingService {
           console.error("Không thể gửi thông báo lịch đặt bàn cho nhân viên:", error),
         );
     }
+
+    // 8. Đóng gói dữ liệu trả về cho Frontend (kèm theo mã VietQR nếu cần cọc)
     const bookingData = result.booking.toObject ? result.booking.toObject() : result.booking;
     delete bookingData.qrTokenHash;
     const payment = requireDeposit && paymentConfig && paymentReference && paymentExpiresAt
@@ -542,6 +687,13 @@ export class BookingService {
     };
   }
 
+  /**
+   * Tạo đường dẫn mã QR VietQR theo chuẩn Napas để khách hàng quét mã chuyển khoản qua App ngân hàng
+   * @param bankCode Mã ngân hàng (ví dụ: MB, VCB, ICB...)
+   * @param accountNumber Số tài khoản nhận tiền
+   * @param amount Số tiền cần chuyển khoản (tiền cọc 50%)
+   * @param reference Nội dung chuyển khoản (bắt đầu bằng CB...)
+   */
   private buildPaymentQrUrl(
     bankCode: string,
     accountNumber: string,
@@ -561,10 +713,16 @@ export class BookingService {
     return qr.toString();
   }
 
+  /**
+   * Truy vấn trạng thái thanh toán tiền cọc (dành cho Frontend polling kiểm tra mỗi 3 giây)
+   * @param reference Mã tham chiếu chuyển khoản (CB...)
+   * @returns Trạng thái thanh toán: 'awaiting_payment' (chờ chuyển khoản), 'paid' (đã thanh toán thành công), 'expired' (hết hạn), 'cancelled' (đã hủy)
+   */
   async getPublicPaymentStatus(reference: string) {
     if (!/^CB[A-F0-9]{24}$/.test(reference)) {
       throw paymentError("Mã thanh toán đặt bàn không hợp lệ");
     }
+    // Dọn dẹp các đơn cọc quá hạn trước khi trả về
     await this.expirePendingPayments();
     const booking = await Booking.findOne({ paymentReference: reference }).populate("table");
     if (!booking) throw paymentError("Không tìm thấy yêu cầu thanh toán đặt bàn", 404);
@@ -601,6 +759,11 @@ export class BookingService {
     };
   }
 
+  /**
+   * Khách hàng chủ động hủy yêu cầu đặt cọc trong lúc đang chờ thanh toán
+   * Giải phóng khung giờ đặt bàn và hoàn trả tồn kho F&B nếu có
+   * @param reference Mã tham chiếu chuyển khoản (CB...)
+   */
   async cancelPublicPayment(reference: string) {
     if (!/^CB[A-F0-9]{24}$/.test(reference)) {
       throw paymentError("Mã thanh toán đặt bàn không hợp lệ");
@@ -671,6 +834,16 @@ export class BookingService {
     return { reference, status: result.status };
   }
 
+  /**
+   * =========================================================================================
+   * HÀM XỬ LÝ WEBHOOK TỰ ĐỘNG TỪ CỔNG THANH TOÁN SEPAY
+   * - Khi khách quét mã QR VietQR và chuyển tiền cọc thành công, SePay bắn webhook về API này.
+   * - Kiểm tra chữ ký xác thực (API Key header).
+   * - Kiểm tra số tiền chuyển khớp với tiền cọc, đúng mã tham chiếu CB...
+   * - Tự động cập nhật Booking thành 'approved', tiền cọc 'paid'.
+   * - Tự động chuyển trạng thái bàn thành 'BOOKED' và phát Socket.io tới mọi máy POS & Khách hàng.
+   * =========================================================================================
+   */
   async handleSepayWebhook(header: string | undefined, body: unknown) {
     verifySepayAuthorization(header);
     const receipt = sepayReceipt(body);
@@ -919,6 +1092,10 @@ export class BookingService {
     return true;
   }
 
+  /**
+   * Quét và tự động hủy các đơn đặt bàn đang chờ thanh toán cọc nhưng đã quá thời hạn giữ chỗ (5 phút)
+   * Hoàn trả lại số lượng tồn kho của các món F&B đã giữ trước đó
+   */
   async expirePendingPayments() {
     const expired = await Booking.find({
       status: "pending",
@@ -966,6 +1143,15 @@ export class BookingService {
     return released;
   }
 
+  /**
+   * Khách hàng tự hủy lịch đặt bàn từ trang Lịch sử & Hóa đơn của mình
+   * Ràng buộc nghiệp vụ: Chỉ cho phép hủy trước giờ nhận bàn ít nhất 2 tiếng (CANCELLATION_CUTOFF_MS)
+   * Khi hủy thành công:
+   * - Bàn được trả về trạng thái AVAILABLE
+   * - Xóa thông tin bookedInfo trên bàn
+   * - Hoàn trả tồn kho F&B nếu có
+   * - Phát socket cập nhật giao diện ngay lập tức
+   */
   async cancelCustomerBooking(customerId: string, id: string, reason?: string) {
     if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(id)) {
       throw new Error("Yêu cầu hủy đặt bàn không hợp lệ");
@@ -1040,6 +1226,12 @@ export class BookingService {
     return result.booking;
   }
 
+  /**
+   * Quản trị viên / Thu ngân cập nhật trạng thái đơn đặt bàn (Duyệt hoặc Từ chối)
+   * - Nếu Duyệt (approved): gán bàn, chuyển trạng thái bàn sang BOOKED và lưu bookedInfo.
+   * - Nếu Từ chối (rejected): yêu cầu nhập lý do từ chối, giải phóng bàn và hoàn trả tồn kho F&B.
+   * - Gửi thông báo trực tiếp qua hệ thống Notification cho khách hàng biết kết quả.
+   */
   async update(id: string, input: any) {
     const inputTableId = input.tableId || input.table;
     if (
