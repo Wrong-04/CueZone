@@ -212,6 +212,15 @@ export const CustomerProfile: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Input chọn ảnh đại diện đặt ở cấp trang để nút camera trên banner hoạt động ở mọi tab */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleAvatarFileChange}
+      />
+
       {/* Thẻ Hội Viên Điện Tử (VIP Membership Card Banner) */}
       <div className="rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white p-6 sm:p-9 border border-slate-800 shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-full opacity-10 bg-radial-gradient pointer-events-none" />
@@ -358,17 +367,10 @@ export const CustomerProfile: React.FC = () => {
                         loading={isUploadingAvatar}
                         leftIcon={<CameraOutlined />}
                         onClick={() => fileInputRef.current?.click()}
-                        className="!text-xs !h-8 !rounded-lg !font-semibold"
+                        className="!text-xs !h-8 !rounded-lg !font-semibold whitespace-nowrap"
                       >
                         {user?.avatar ? "Đổi Ảnh Khác" : "Tải Ảnh Lên"}
                       </Button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={handleAvatarFileChange}
-                      />
                     </div>
                   </div>
 
