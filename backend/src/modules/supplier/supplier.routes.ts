@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express";
+import type { Types } from "mongoose";
 
 import Supplier from "./supplier.model";
+import GoodsReceipt from "../goods-receipt/goods-receipt.model";
 import { requirePermission } from "../../middlewares/auth.middleware";
 
 const router = Router();
@@ -119,9 +121,36 @@ router.get("/", async (req: Request, res: Response) => {
       Supplier.countDocuments(filter),
     ]);
 
+    const receiptTotals = data.length
+      ? await GoodsReceipt.aggregate<{
+          _id: Types.ObjectId;
+          receiptCount: number;
+          totalAmount: number;
+          lastReceiptAt: Date | null;
+        }>([
+          { $match: { supplier: { $in: data.map(({ _id }) => _id) }, status: "completed" } },
+          {
+            $group: {
+              _id: "$supplier",
+              receiptCount: { $sum: 1 },
+              totalAmount: { $sum: "$totalAmount" },
+              lastReceiptAt: { $max: "$completedAt" },
+            },
+          },
+        ])
+      : [];
+    const statsBySupplier = new Map(receiptTotals.map(({ _id, ...stats }) => [String(_id), stats]));
+
     return res.json({
       success: true,
-      data,
+      data: data.map((supplier) => ({
+        ...supplier,
+        receiptStats: statsBySupplier.get(String(supplier._id)) ?? {
+          receiptCount: 0,
+          totalAmount: 0,
+          lastReceiptAt: null,
+        },
+      })),
       pagination: {
         page,
         limit,

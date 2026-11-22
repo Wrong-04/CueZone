@@ -1,9 +1,16 @@
 import api from "./api";
 import axios from "axios";
 
+export type SupplierReceiptStats = {
+  receiptCount: number;
+  totalAmount: number;
+  lastReceiptAt: string | null;
+};
+
 export type Supplier = {
   _id: string;
   name: string;
+  receiptStats?: SupplierReceiptStats;
   contactPerson?: string;
   phone?: string;
   email?: string;

@@ -93,6 +93,7 @@ export async function fetchGoodsReceipts(
     limit?: number;
     status?: string;
     search?: string;
+    supplierId?: string;
   } = {},
 ): Promise<{ data: GoodsReceipt[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
   const query = new URLSearchParams();
@@ -103,6 +104,10 @@ export async function fetchGoodsReceipts(
 
   if (params.status && params.status !== "all") {
     query.set("status", params.status);
+  }
+
+  if (params.supplierId) {
+    query.set("supplierId", params.supplierId);
   }
 
   query.set("page", String(params.page || 1));

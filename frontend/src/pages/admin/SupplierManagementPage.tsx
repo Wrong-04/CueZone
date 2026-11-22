@@ -1,5 +1,5 @@
-import { PlusOutlined, PlusCircleOutlined } from "@ant-design/icons";
-import { Button, Modal } from "../../shared/ui";
+import { HistoryOutlined, PlusOutlined, PlusCircleOutlined } from "@ant-design/icons";
+import { Alert, Button, Drawer, Modal, Pagination, Spin, Tag } from "../../shared/ui";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import {
@@ -31,6 +31,9 @@ import {
   restoreSupplier,
   type Supplier,
 } from "../../services/supplier.service";
+import { fetchGoodsReceipts } from "../../services/goods-receipt.service";
+import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission } from "../../utils/permissions";
 
 type SupplierForm = {
   name: string;
@@ -51,6 +54,17 @@ type SupplierStatusInfo = {
 
 const inputClass =
   "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:cursor-not-allowed disabled:bg-slate-50";
+
+const receiptCurrency = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" });
+const receiptPageSize = 10;
+
+function formatReceiptDate(value: string) {
+  return new Date(value).toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -166,6 +180,8 @@ function IconButton({
 }
 
 export default function SupplierManagementPage({ embedded = false }: { embedded?: boolean }) {
+  const { user } = useAuth();
+  const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
@@ -516,6 +532,8 @@ export default function SupplierManagementPage({ embedded = false }: { embedded?
                 <th className="px-4 py-4">Điện thoại</th>
                 <th className="px-4 py-4">Email</th>
                 <th className="px-4 py-4">Địa chỉ</th>
+                <th scope="col" className="px-4 py-4 text-right whitespace-nowrap">Số phiếu</th>
+                <th scope="col" className="px-4 py-4 text-right whitespace-nowrap">Đã nhập</th>
                 <th className="px-4 py-4">Trạng thái</th>
                 <th className="px-5 py-4 text-center">Thao tác</th>
               </tr>
@@ -524,7 +542,7 @@ export default function SupplierManagementPage({ embedded = false }: { embedded?
             <tbody className="divide-y divide-slate-100">
               {loading && suppliers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16">
+                  <td colSpan={9} className="px-5 py-16">
                     <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
                       <Loader2 size={30} className="animate-spin text-emerald-600" />
                       <p className="text-sm font-medium text-slate-600">
@@ -545,7 +563,12 @@ export default function SupplierManagementPage({ embedded = false }: { embedded?
                   return (
                     <tr
                       key={supplier._id}
-                      className="group transition-colors hover:bg-emerald-50/30"
+                      onClick={(event) => {
+                        if (event.target instanceof Element && !event.target.closest("button, a")) {
+                          setHistorySupplier(supplier);
+                        }
+                      }}
+                      className="group cursor-pointer transition-colors hover:bg-emerald-50/30"
                     >
                       <td className="px-5 py-4">
                         <div className="flex min-w-0 items-center gap-3">
@@ -623,12 +646,25 @@ export default function SupplierManagementPage({ embedded = false }: { embedded?
                         )}
                       </td>
 
+                      <td className="px-4 py-4 text-right tabular-nums text-text-main">
+                        {(supplier.receiptStats?.receiptCount ?? 0).toLocaleString("vi-VN")}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-right tabular-nums text-text-main">
+                        {receiptCurrency.format(supplier.receiptStats?.totalAmount ?? 0)}
+                      </td>
                       <td className="px-4 py-4">
                         <StatusBadge active={active} />
                       </td>
 
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-2">
+                          <IconButton
+                            title={`Xem lịch sử nhập hàng: ${supplier.name}`}
+                            onClick={() => setHistorySupplier(supplier)}
+                          >
+                            <HistoryOutlined aria-hidden="true" />
+                          </IconButton>
+
                           <IconButton
                             title="Chỉnh sửa nhà cung cấp"
                             onClick={() => openEditModal(supplier)}
@@ -658,7 +694,7 @@ export default function SupplierManagementPage({ embedded = false }: { embedded?
 
               {!loading && suppliers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16">
+                  <td colSpan={9} className="px-5 py-16">
                     <div className="mx-auto flex max-w-sm flex-col items-center text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
                         {loadError ? <AlertCircle size={32} /> : <PackageOpen size={32} />}
@@ -730,7 +766,51 @@ export default function SupplierManagementPage({ embedded = false }: { embedded?
         </div>
       </section>
 
-      {/* Create / Edit modal */}
+      <Drawer
+        open={historySupplier !== null}
+        onClose={() => setHistorySupplier(null)}
+        size="min(560px, 100vw)"
+        title="Lịch sử nhập hàng"
+        closable={{ "aria-label": "Đóng lịch sử nhập hàng" }}
+        destroyOnHidden
+      >
+        {historySupplier && (
+          <>
+            <h2 className="mb-3 break-words text-lg font-semibold text-text-main">
+              {historySupplier.name}
+            </h2>
+            <dl className="mb-5 grid grid-cols-2 gap-3 rounded-xl border border-border-standard bg-neutral-bg p-4 sm:grid-cols-3">
+              <div>
+                <dt className="text-sm text-text-secondary">Phiếu hoàn tất</dt>
+                <dd className="font-semibold tabular-nums">
+                  {(historySupplier.receiptStats?.receiptCount ?? 0).toLocaleString("vi-VN")}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm text-text-secondary">Đã nhập</dt>
+                <dd className="break-words font-semibold tabular-nums">
+                  {receiptCurrency.format(historySupplier.receiptStats?.totalAmount ?? 0)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm text-text-secondary">Nhập gần nhất</dt>
+                <dd className="font-semibold">
+                  {historySupplier.receiptStats?.lastReceiptAt
+                    ? formatReceiptDate(historySupplier.receiptStats.lastReceiptAt)
+                    : "—"}
+                </dd>
+              </div>
+            </dl>
+            {hasPermission(user, "inventory.read") ? (
+              <SupplierReceiptList key={historySupplier._id} supplierId={historySupplier._id} />
+            ) : (
+              <Alert type="info" showIcon title="Bạn không có quyền xem phiếu nhập" />
+            )}
+          </>
+        )}
+      </Drawer>
+
+      {/* Form thêm hoặc chỉnh sửa */}
       {modal && (
         <SupplierModal
           key={editing?._id ?? "new-supplier"}
@@ -743,6 +823,91 @@ export default function SupplierManagementPage({ embedded = false }: { embedded?
         />
       )}
     </div>
+  );
+}
+
+function SupplierReceiptList({ supplierId }: { supplierId: string }) {
+  const [page, setPage] = useState(1);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof fetchGoodsReceipts>>>();
+  const [retryKey, setRetryKey] = useState(0);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetchGoodsReceipts({ supplierId, page, limit: receiptPageSize })
+      .then((response) => {
+        if (active) setResult(response);
+      })
+      .catch((cause: unknown) => {
+        if (active) setLoadError(getErrorMessage(cause, "Không thể tải lịch sử nhập hàng."));
+      });
+    return () => {
+      active = false;
+    };
+  }, [supplierId, page, retryKey]);
+
+  const receipts = result?.pagination.page === page ? result.data : undefined;
+  const total = result?.pagination.total ?? 0;
+
+  return (
+    <>
+      {loadError ? (
+        <Alert
+          type="error"
+          showIcon
+          title={loadError}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoadError("");
+                setRetryKey((key) => key + 1);
+              }}
+            >
+              Thử lại
+            </Button>
+          }
+        />
+      ) : !receipts ? (
+        <div role="status" className="flex items-center justify-center gap-2 p-6 text-text-secondary">
+          <Spin size="small" /> Đang tải phiếu nhập…
+        </div>
+      ) : !receipts.length ? (
+        <p className="p-6 text-center text-text-secondary">Chưa có phiếu nhập nào từ nhà cung cấp này</p>
+      ) : (
+        <ul className="divide-y divide-border-divider">
+          {receipts.map((receipt) => (
+            <li key={receipt._id} className="flex flex-wrap items-start justify-between gap-2 py-3">
+              <div>
+                <p className="font-semibold text-text-main">{receipt.receiptNumber}</p>
+                <time dateTime={receipt.createdAt} className="text-sm text-text-secondary">
+                  {formatReceiptDate(receipt.createdAt)}
+                </time>
+              </div>
+              <div className="text-right">
+                <Tag color={receipt.status === "completed" ? "success" : "warning"} className="!me-0">
+                  {receipt.status === "completed" ? "Hoàn tất" : "Nháp"}
+                </Tag>
+                <p className="mt-1 font-semibold tabular-nums">{receiptCurrency.format(receipt.totalAmount)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {total > receiptPageSize && (
+        <Pagination
+          current={page}
+          pageSize={receiptPageSize}
+          total={total}
+          unit="phiếu nhập"
+          onChange={(nextPage) => {
+            setLoadError("");
+            setPage(nextPage);
+          }}
+        />
+      )}
+    </>
   );
 }
 
