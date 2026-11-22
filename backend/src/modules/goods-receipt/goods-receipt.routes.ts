@@ -271,7 +271,8 @@ router.put("/:id", requireProductManager, async (req: Request, res: Response) =>
       if (receipt.kind !== "opening") {
         return res.status(400).json({ success: false, message: "Vui lòng chọn nhà cung cấp." });
       }
-      unsetSupplier = true; // phiếu tồn đầu kỳ được bỏ nhà cung cấp
+      // Phiếu tồn đầu kỳ được bỏ nhà cung cấp; chỉ $unset khi phiếu đang có nhà cung cấp
+      unsetSupplier = Boolean(receipt.supplier);
     }
 
     if (items !== undefined) {
@@ -347,7 +348,9 @@ router.put("/:id", requireProductManager, async (req: Request, res: Response) =>
     const updated = await GoodsReceipt.findOneAndUpdate(
       { _id: req.params.id, status: "draft" },
       unsetSupplier ? { $set: update, $unset: { supplier: 1 } } : { $set: update },
-      { new: true, runValidators: true },
+      // Update validator của Mongoose không có `this` khi $unset field `required` có điều kiện,
+      // nên bỏ qua validator ở nhánh này (supplier không bắt buộc với phiếu tồn đầu kỳ).
+      { new: true, runValidators: !unsetSupplier },
     );
     if (!updated) {
       return res.status(409).json({ success: false, message: "Phiếu đã được hoàn tất, không thể cập nhật." });

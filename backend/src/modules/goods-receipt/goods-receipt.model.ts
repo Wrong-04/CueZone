@@ -48,8 +48,8 @@ const goodsReceiptSchema = new Schema<IGoodsReceipt>(
     supplier: {
       type: Schema.Types.ObjectId,
       ref: "Supplier",
-      required: function (this: { kind?: string }) {
-        return this.kind !== "opening";
+      required: function (this: { kind?: string } | undefined) {
+        return this?.kind !== "opening";
       },
     },
     items: { type: [goodsReceiptItemSchema], required: true },
