@@ -4233,7 +4233,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               className="!w-full !rounded-xl !text-xs !h-10"
               options={[
                 { value: "all", label: "Toàn bộ kho hàng (Tất cả mặt hàng)" },
-                { value: "accessory", label: "Phụ kiện bida (Cơ, lơ, bao tay, nỉ, bi)" },
+                { value: "accessory", label: "Thiết bị & phụ kiện bida (Bàn, cơ, lơ, nỉ, bi, tủ lạnh)" },
                 { value: "drink", label: "Đồ uống lưu kho (Bia, nước ngọt, cà phê)" },
                 { value: "food", label: "Thực phẩm & Thức ăn nhanh" },
                 { value: "ingredient", label: "Nguyên liệu pha chế" },
@@ -5066,7 +5066,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                 }`}
               >
                 <AppstoreOutlined className="text-sm" />
-                <span>Phụ kiện bida</span>
+                <span>Thiết bị & phụ kiện</span>
               </button>
               <button
                 type="button"

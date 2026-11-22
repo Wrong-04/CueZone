@@ -39,6 +39,9 @@ router.get("/", requireInventoryRead, async (req: Request, res: Response) => {
     if (req.query.status && typeof req.query.status === "string") {
       filter.status = req.query.status;
     }
+    if (req.query.kind === "opening") filter.kind = "opening";
+    // Phiếu cũ chưa có field kind nên "purchase" = mọi phiếu không phải tồn đầu kỳ
+    if (req.query.kind === "purchase") filter.kind = { $ne: "opening" };
     if (req.query.supplierId && typeof req.query.supplierId === "string") {
       if (!mongoose.Types.ObjectId.isValid(req.query.supplierId)) {
         return res.status(400).json({ success: false, message: "supplierId không hợp lệ." });
@@ -116,14 +119,21 @@ router.post("/", requireProductManager, async (req: Request, res: Response) => {
     }
 
     const { supplier: supplierId, items, note } = req.body;
+    const kind = req.body.kind === "opening" ? "opening" : "purchase";
 
-    // Validate supplier
-    if (!supplierId || !mongoose.Types.ObjectId.isValid(supplierId)) {
-      return res.status(400).json({ success: false, message: "Mã nhà cung cấp không hợp lệ." });
-    }
-    const supplier = await Supplier.findById(supplierId).lean();
-    if (!supplier) {
-      return res.status(400).json({ success: false, message: "Nhà cung cấp không tồn tại." });
+    // Validate supplier (phiếu tồn đầu kỳ không bắt buộc nhà cung cấp)
+    const hasSupplier = Boolean(supplierId);
+    if (kind === "purchase" || hasSupplier) {
+      if (!supplierId) {
+        return res.status(400).json({ success: false, message: "Vui lòng chọn nhà cung cấp." });
+      }
+      if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+        return res.status(400).json({ success: false, message: "Mã nhà cung cấp không hợp lệ." });
+      }
+      const supplier = await Supplier.findById(supplierId).lean();
+      if (!supplier) {
+        return res.status(400).json({ success: false, message: "Nhà cung cấp không tồn tại." });
+      }
     }
 
     // Validate items
@@ -203,7 +213,8 @@ router.post("/", requireProductManager, async (req: Request, res: Response) => {
 
     const receipt = await GoodsReceipt.create({
       receiptNumber,
-      supplier: supplierId,
+      kind,
+      supplier: hasSupplier ? supplierId : undefined,
       items: resolvedItems,
       totalAmount,
       status: "draft",
@@ -213,7 +224,7 @@ router.post("/", requireProductManager, async (req: Request, res: Response) => {
 
     return res.status(201).json({
       success: true,
-      message: "Tạo phiếu nhập nháp thành công.",
+      message: kind === "opening" ? "Tạo phiếu tồn đầu kỳ nháp thành công." : "Tạo phiếu nhập nháp thành công.",
       data: receipt,
     });
   } catch (error) {
@@ -245,8 +256,9 @@ router.put("/:id", requireProductManager, async (req: Request, res: Response) =>
 
     const { supplier: supplierId, items, note } = req.body;
     const update: Record<string, unknown> = {};
+    let unsetSupplier = false;
 
-    if (supplierId !== undefined) {
+    if (supplierId !== undefined && supplierId !== "" && supplierId !== null) {
       if (!mongoose.Types.ObjectId.isValid(supplierId)) {
         return res.status(400).json({ success: false, message: "Mã nhà cung cấp không hợp lệ." });
       }
@@ -255,6 +267,11 @@ router.put("/:id", requireProductManager, async (req: Request, res: Response) =>
         return res.status(400).json({ success: false, message: "Nhà cung cấp không tồn tại." });
       }
       update.supplier = supplierId;
+    } else if (supplierId !== undefined) {
+      if (receipt.kind !== "opening") {
+        return res.status(400).json({ success: false, message: "Vui lòng chọn nhà cung cấp." });
+      }
+      unsetSupplier = true; // phiếu tồn đầu kỳ được bỏ nhà cung cấp
     }
 
     if (items !== undefined) {
@@ -326,11 +343,15 @@ router.put("/:id", requireProductManager, async (req: Request, res: Response) =>
       update.note = typeof note === "string" ? note.trim().slice(0, 500) : "";
     }
 
-    const updated = await GoodsReceipt.findByIdAndUpdate(
-      req.params.id,
-      { $set: update },
+    // Điều kiện status để không sửa nhầm phiếu vừa được hoàn tất ở request khác
+    const updated = await GoodsReceipt.findOneAndUpdate(
+      { _id: req.params.id, status: "draft" },
+      unsetSupplier ? { $set: update, $unset: { supplier: 1 } } : { $set: update },
       { new: true, runValidators: true },
     );
+    if (!updated) {
+      return res.status(409).json({ success: false, message: "Phiếu đã được hoàn tất, không thể cập nhật." });
+    }
 
     return res.json({
       success: true,
@@ -362,7 +383,10 @@ router.delete("/:id", requireProductManager, async (req: Request, res: Response)
         message: "Chỉ có thể xóa phiếu ở trạng thái nháp.",
       });
     }
-    await GoodsReceipt.findByIdAndDelete(req.params.id);
+    const deleted = await GoodsReceipt.findOneAndDelete({ _id: req.params.id, status: "draft" });
+    if (!deleted) {
+      return res.status(409).json({ success: false, message: "Phiếu đã được hoàn tất, không thể xóa." });
+    }
     return res.json({ success: true, message: "Đã xóa phiếu nhập." });
   } catch (error) {
     console.error("DELETE GOODS RECEIPT ERROR:", error);
@@ -427,7 +451,10 @@ router.post("/:id/complete", requireProductManager, async (req: Request, res: Re
           quantity: item.quantity,
           previousStock,
           newStock,
-          reason: `Nhập kho theo phiếu ${receipt.receiptNumber}`,
+          reason:
+            receipt.kind === "opening"
+              ? `Tồn đầu kỳ theo phiếu ${receipt.receiptNumber}`
+              : `Nhập kho theo phiếu ${receipt.receiptNumber}`,
           performedBy: new mongoose.Types.ObjectId(userId),
         });
       }

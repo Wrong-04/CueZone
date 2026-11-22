@@ -14,7 +14,8 @@ export type GoodsReceiptItem = {
 export type GoodsReceipt = {
   _id: string;
   receiptNumber: string;
-  supplier: string | { _id: string; name: string; contactPerson?: string };
+  kind?: "purchase" | "opening";
+  supplier?: string | { _id: string; name: string; contactPerson?: string } | null;
   items: GoodsReceiptItem[];
   totalAmount: number;
   status: "draft" | "completed";
@@ -26,7 +27,8 @@ export type GoodsReceipt = {
 };
 
 export type CreateGoodsReceiptPayload = {
-  supplier: string;
+  kind?: "purchase" | "opening";
+  supplier?: string;
   items: { product: string; quantity: number; unitCost: number }[];
   note?: string;
 };
