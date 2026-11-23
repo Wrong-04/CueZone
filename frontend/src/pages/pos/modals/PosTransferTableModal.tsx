@@ -32,6 +32,19 @@ interface PosTransferTableModalProps {
   loadError?: any;
 }
 
+// Tính thời lượng và tiền giờ tạm tính cho modal (dừng tại pausedAt khi bàn đang tạm dừng, cộng kèm carriedCost)
+const getSessionPreviewMetrics = (table: PosTable | null | undefined, now: number) => {
+  const session = table?.currentSession;
+  if (!session) return { mins: 0, playingCost: 0 };
+  const isPaused = session.isPaused || table.status === "paused";
+  const effectiveNow = isPaused && session.pausedAt ? session.pausedAt : now;
+  const elapsedMs = Math.max(0, effectiveNow - session.startedAt - (session.totalPausedMs || 0));
+  const mins = Math.floor(elapsedMs / 60000);
+  const rate = session.pricePerHour || table.pricePerHour || 0;
+  const playingCost = Math.round((mins * rate) / 60) + (session.carriedCost || 0);
+  return { mins, playingCost };
+};
+
 // ============================================================================
 // PHẦN 2: COMPONENT MODAL CHUYỂN BÀN (TRANSFER) & GỘP BÀN (MERGE)
 // ============================================================================
@@ -123,7 +136,10 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
                 <span className="font-bold text-xs text-slate-800">
                   Bàn hiện tại: <strong className="text-emerald-700">{selectedTable.name}</strong> ({selectedTable.typeName})
                 </span>
-                <Tag color="green" className="!text-[10px] !px-1.5 !py-0 !m-0 font-medium">
+                <Tag
+                  color={selectedTable.status === "paused" ? "orange" : "green"}
+                  className="!text-[10px] !px-1.5 !py-0 !m-0 font-medium whitespace-nowrap"
+                >
                   {selectedTable.status === "paused" ? "Tạm dừng" : "Đang chơi"}
                 </Tag>
               </div>
@@ -137,14 +153,7 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
                 <span className="text-[10px] text-slate-500 block">Thời gian đã chơi</span>
                 <span className="font-bold font-mono text-slate-800 text-xs">
                   {(() => {
-                    const now = Date.now();
-                    const elapsed = Math.max(
-                      0,
-                      now -
-                        selectedTable.currentSession.startedAt -
-                        (selectedTable.currentSession.totalPausedMs || 0),
-                    );
-                    const mins = Math.floor(elapsed / 60000);
+                    const { mins } = getSessionPreviewMetrics(selectedTable, Date.now());
                     const hrs = Math.floor(mins / 60);
                     const remMins = mins % 60;
                     return hrs > 0 ? `${hrs}h ${remMins}p` : `${remMins} phút`;
@@ -155,18 +164,8 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
                 <span className="text-[10px] text-slate-500 block">Tiền giờ tạm tính</span>
                 <span className="font-bold font-mono text-emerald-700 text-xs">
                   {(() => {
-                    const now = Date.now();
-                    const elapsed = Math.max(
-                      0,
-                      now -
-                        selectedTable.currentSession.startedAt -
-                        (selectedTable.currentSession.totalPausedMs || 0),
-                    );
-                    const mins = Math.floor(elapsed / 60000);
-                    const rate =
-                      selectedTable.currentSession.pricePerHour || selectedTable.pricePerHour;
-                    const cost = Math.round((mins * rate) / 60);
-                    return `${cost.toLocaleString("vi-VN")}đ`;
+                    const { playingCost } = getSessionPreviewMetrics(selectedTable, Date.now());
+                    return `${playingCost.toLocaleString("vi-VN")}đ`;
                   })()}
                 </span>
               </div>
@@ -294,33 +293,14 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
 
           const now = Date.now();
           // Source cost
-          const sElapsed = Math.max(
-            0,
-            now -
-              (selectedTable?.currentSession?.startedAt || now) -
-              (selectedTable?.currentSession?.totalPausedMs || 0),
-          );
-          const sMins = Math.floor(sElapsed / 60000);
-          const sRate =
-            selectedTable?.currentSession?.pricePerHour || selectedTable?.pricePerHour || 0;
-          const sPlayingCost =
-            Math.round((sMins * sRate) / 60) + (selectedTable?.currentSession?.carriedCost || 0);
+          const { playingCost: sPlayingCost } = getSessionPreviewMetrics(selectedTable, now);
           const sOrders = (selectedTable?.currentSession?.orders || []).filter(
             (o) => o.status !== "cancelled",
           );
           const sFnbCost = sOrders.reduce((sum, o) => sum + o.price * o.quantity, 0);
 
           // Target cost
-          const tElapsed = Math.max(
-            0,
-            now -
-              (target.currentSession?.startedAt || now) -
-              (target.currentSession?.totalPausedMs || 0),
-          );
-          const tMins = Math.floor(tElapsed / 60000);
-          const tRate = target.currentSession?.pricePerHour || target.pricePerHour || 0;
-          const tPlayingCost =
-            Math.round((tMins * tRate) / 60) + (target.currentSession?.carriedCost || 0);
+          const { playingCost: tPlayingCost } = getSessionPreviewMetrics(target, now);
           const tOrders = (target.currentSession?.orders || []).filter(
             (o) => o.status !== "cancelled",
           );

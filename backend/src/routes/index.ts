@@ -21,7 +21,6 @@ import { getPublicTables } from "../modules/table/table.controller";
 import { BookingService } from "../modules/booking/booking.service";
 import { optionalAuthMiddleware, requireRole } from "../middlewares/auth.middleware";
 import { UserRole } from "../modules/user/user.model";
-import { WalletService, type VnpayParameters } from "../modules/wallet/wallet.service";
 
 import productRouter, { productManagementRouter } from "../modules/product/product.routes";
 import catalogManagementRouter from "../modules/product/management.routes";
@@ -36,7 +35,6 @@ import { BANK_POOL_RULES_DATA } from "../modules/rule/bankPoolRules.data";
 import * as pricingController from "../modules/pricing/pricing.controller";
 
 const bookingService = new BookingService();
-const walletService = new WalletService();
 const tournamentService = new TournamentService();
 const tournamentBracketService = new TournamentBracketService();
 const waitlistService = new WaitlistService();
@@ -56,18 +54,6 @@ publicRouter.use("/auth", authRouter);
 publicRouter.use("/products", productRouter);
 publicRouter.get("/public/tables", getPublicTables);
 publicRouter.get("/tables/public", getPublicTables);
-publicRouter.get("/public/vnpay/ipn", async (req, res) => {
-  const parameters = Object.entries(req.query).reduce<VnpayParameters>((result, [key, value]) => {
-    result[key] = typeof value === "string" ? value : "";
-    return result;
-  }, {});
-  try {
-    res.json(await walletService.handleVnpayIpn(parameters));
-  } catch (error) {
-    console.error("Lỗi xử lý IPN VNPay:", error);
-    res.status(200).json({ RspCode: "99", Message: "Unknown error" });
-  }
-});
 publicRouter.get("/public/booking-availability", async (req, res, next) => {
   try {
     const tables = await bookingService.getAvailableTables({
