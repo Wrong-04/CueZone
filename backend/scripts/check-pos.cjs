@@ -7,7 +7,7 @@ try {
 } catch (e) {}
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
-const { randomUUID, createHmac } = require("node:crypto");
+const { randomUUID } = require("node:crypto");
 const { App } = require("../dist/app");
 const { User } = require("../dist/modules/user/user.model");
 const { Table } = require("../dist/modules/table/table.model");
@@ -15,7 +15,6 @@ const { Booking } = require("../dist/modules/booking/booking.model");
 const { BookingPaymentReceipt } = require("../dist/modules/booking/booking-payment.model");
 const { Invoice } = require("../dist/modules/invoice/invoice.model");
 const { Wallet } = require("../dist/modules/wallet/wallet.model");
-const { WalletService, vnpaySignData } = require("../dist/modules/wallet/wallet.service");
 const { Product } = require("../dist/modules/product/product.model");
 const { playingDetails } = require("../dist/modules/session/session.service");
 const { bookingInput } = require("../dist/modules/booking/booking.service");
@@ -227,93 +226,6 @@ async function main() {
     });
     assert.equal(duplicatePhoneRegistration.httpStatus, 400);
     assert.equal(duplicatePhoneRegistration.message, "Số điện thoại đã được sử dụng");
-    const previousVnpayConfig = {
-      tmnCode: process.env.VNPAY_TMN_CODE,
-      hashSecret: process.env.VNPAY_HASH_SECRET,
-      returnUrl: process.env.VNPAY_RETURN_URL,
-    };
-    process.env.VNPAY_TMN_CODE = "TEST0001";
-    process.env.VNPAY_HASH_SECRET = "test-vnpay-hash-secret";
-    process.env.VNPAY_RETURN_URL = "http://localhost:5556/customer/wallet";
-    try {
-      const walletService = new WalletService();
-      const amount = 500_000;
-      const topup = await walletService.createVnpayTopup(
-        customer.user._id,
-        amount,
-        "127.0.0.1",
-      );
-      assert.match(topup.paymentUrl, /vnp_Amount=50000000/);
-      const balanceBeforeVnpay = (await Wallet.findOne({ userId: customer.user._id }))?.balance ?? 0;
-      const callbackDate = new Date(Date.now() + 7 * 60 * 60 * 1000)
-        .toISOString()
-        .replace(/[-:TZ.]/g, "")
-        .slice(0, 14);
-      const callbackParameters = {
-        vnp_Amount: String(amount * 100),
-        vnp_BankCode: "NCB",
-        vnp_CardType: "ATM",
-        vnp_CurrCode: "VND",
-        vnp_OrderInfo: `Nap vi CueZone ${topup.referenceCode}`,
-        vnp_PayDate: callbackDate,
-        vnp_ResponseCode: "00",
-        vnp_TmnCode: "TEST0001",
-        vnp_TransactionNo: "TEST-TRANSACTION-1",
-        vnp_TransactionStatus: "00",
-        vnp_TxnRef: topup.referenceCode,
-      };
-      callbackParameters.vnp_SecureHash = createHmac("sha512", "test-vnpay-hash-secret")
-        .update(vnpaySignData(callbackParameters))
-        .digest("hex");
-      const callbackResult = await ok(
-        "/wallet/topups/vnpay/return",
-        "POST",
-        callbackParameters,
-        customer.accessToken,
-      );
-      assert.equal(callbackResult.status, "success");
-      assert.equal(
-        (await Wallet.findOne({ userId: customer.user._id })).balance,
-        balanceBeforeVnpay + amount,
-        "A verified VNPay return should automatically credit the wallet",
-      );
-      await ok(
-        "/wallet/topups/vnpay/return",
-        "POST",
-        callbackParameters,
-        customer.accessToken,
-      );
-      assert.equal(
-        (await Wallet.findOne({ userId: customer.user._id })).balance,
-        balanceBeforeVnpay + amount,
-        "Replaying a verified VNPay return must not credit the wallet twice",
-      );
-      const tamperedTopup = await walletService.createVnpayTopup(
-        customer.user._id,
-        100_000,
-        "127.0.0.1",
-      );
-      const tamperedResult = await request(
-        "/wallet/topups/vnpay/return",
-        "POST",
-        { ...callbackParameters, vnp_TxnRef: tamperedTopup.referenceCode },
-        customer.accessToken,
-      );
-      assert.equal(tamperedResult.httpStatus, 400);
-      assert.match(tamperedResult.message, /Không thể xác thực kết quả thanh toán VNPay|Chữ ký phản hồi VNPay không hợp lệ/);
-      assert.equal(
-        (await Wallet.findOne({ userId: customer.user._id })).balance,
-        balanceBeforeVnpay + amount,
-        "An invalid VNPay signature must never credit the wallet",
-      );
-    } finally {
-      if (previousVnpayConfig.tmnCode === undefined) delete process.env.VNPAY_TMN_CODE;
-      else process.env.VNPAY_TMN_CODE = previousVnpayConfig.tmnCode;
-      if (previousVnpayConfig.hashSecret === undefined) delete process.env.VNPAY_HASH_SECRET;
-      else process.env.VNPAY_HASH_SECRET = previousVnpayConfig.hashSecret;
-      if (previousVnpayConfig.returnUrl === undefined) delete process.env.VNPAY_RETURN_URL;
-      else process.env.VNPAY_RETURN_URL = previousVnpayConfig.returnUrl;
-    }
     assert.equal(
       (await request("/bookings", "GET", undefined, customer.accessToken)).success,
       false,

@@ -8,7 +8,6 @@ import { Invoice } from "./modules/invoice/invoice.model";
 import { Table } from "./modules/table/table.model";
 import { Notification } from "./modules/notification/notification.model";
 import { Wallet } from "./modules/wallet/wallet.model";
-import { WalletPayment } from "./modules/wallet/wallet-payment.model";
 import { Voucher, VoucherUsage } from "./modules/voucher/voucher.model";
 import { CustomerOrder } from "./modules/customer-order/customer-order.model";
 import { PasswordResetOtp } from "./modules/auth/passwordResetOtp.model";
@@ -62,7 +61,6 @@ async function initialize() {
       Table.init(),
       Notification.init(),
       Wallet.init(),
-      WalletPayment.init(),
       Voucher.init(),
       VoucherUsage.init(),
       CustomerOrder.init(),
