@@ -15,6 +15,7 @@ import {
 import {
   fetchGoodsReceipts,
   createGoodsReceipt,
+  updateGoodsReceipt,
   completeGoodsReceipt,
   deleteGoodsReceipt,
   type GoodsReceipt,
@@ -124,8 +125,10 @@ function ReceiptModal({
 }) {
   const isView = receipt?.status === "completed";
 
+  const [kind, setKind] = useState<"purchase" | "opening">(receipt?.kind ?? "purchase");
+  const isOpening = kind === "opening";
   const [supplierId, setSupplierId] = useState<string>(
-    receipt
+    receipt?.supplier
       ? typeof receipt.supplier === "string"
         ? receipt.supplier
         : receipt.supplier._id
@@ -190,7 +193,7 @@ function ReceiptModal({
   };
 
   const validate = (): boolean => {
-    if (!supplierId) {
+    if (!isOpening && !supplierId) {
       setError("Vui lòng chọn nhà cung cấp.");
       return false;
     }
@@ -212,7 +215,8 @@ function ReceiptModal({
   };
 
   const buildPayload = () => ({
-    supplier: supplierId,
+    kind,
+    supplier: supplierId || undefined,
     items: items.map((it) => ({
       product: it.product,
       quantity: it.quantity,
@@ -221,12 +225,18 @@ function ReceiptModal({
     note: note.trim() || undefined,
   });
 
+  // Phiếu nháp đang mở thì cập nhật, không tạo thêm phiếu mới
+  const saveReceipt = async () =>
+    receipt?._id
+      ? updateGoodsReceipt(receipt._id, { ...buildPayload(), supplier: supplierId })
+      : createGoodsReceipt(buildPayload());
+
   const handleSaveDraft = async () => {
     if (!validate()) return;
     try {
       setError("");
       setSaving(true);
-      await createGoodsReceipt(buildPayload());
+      await saveReceipt();
       onSaved();
     } catch (err) {
       setError(getErrorMessage(err, "Không thể lưu phiếu nhập."));
@@ -241,7 +251,7 @@ function ReceiptModal({
     try {
       setError("");
       setCompleting(true);
-      const created = await createGoodsReceipt({ ...buildPayload() });
+      const created = await saveReceipt();
       await completeGoodsReceipt(created._id);
       onSaved();
     } catch (err) {
@@ -305,14 +315,47 @@ function ReceiptModal({
             </div>
           )}
 
+          {/* loại phiếu */}
+          {!receipt && (
+            <div>
+              <p className={labelClass}>Loại phiếu</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    { value: "opening", title: "Nhập ban đầu khi mở quán", hint: "Bàn, cơ, bi, tủ lạnh, hàng đang có sẵn. Không cần nhà cung cấp." },
+                    { value: "purchase", title: "Nhập hàng từ nhà cung cấp", hint: "Mua thêm hàng, ghi nhận theo nhà cung cấp." },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setKind(opt.value)}
+                    disabled={saving || completing}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      kind === opt.value
+                        ? "border-emerald-500 bg-emerald-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="block text-sm font-bold text-slate-800">{opt.title}</span>
+                    <span className="mt-0.5 block text-xs text-slate-500">{opt.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* supplier */}
           <div>
             <label className={labelClass} htmlFor="modal-supplier">
-              Nhà cung cấp <span className="text-rose-500">*</span>
+              Nhà cung cấp {!isOpening && <span className="text-rose-500">*</span>}
+              {isOpening && !isView && (
+                <span className="font-normal text-slate-400">(không bắt buộc)</span>
+              )}
             </label>
             {isView ? (
               <p className="text-sm font-semibold text-slate-800">
-                {getSupplierName(receipt!.supplier)}
+                {isOpening && !receipt?.supplier ? "Tồn đầu kỳ" : getSupplierName(receipt!.supplier)}
               </p>
             ) : (
               <select
@@ -322,7 +365,7 @@ function ReceiptModal({
                 disabled={saving || completing}
                 className={`${inputClass} cursor-pointer appearance-none`}
               >
-                <option value="">— Chọn nhà cung cấp —</option>
+                <option value="">{isOpening ? "— Không chọn —" : "— Chọn nhà cung cấp —"}</option>
                 {suppliers.map((s) => (
                   <option key={s._id} value={s._id}>
                     {s.name}
@@ -408,16 +451,21 @@ function ReceiptModal({
                         )}
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex items-center gap-1.5">
+                        {isView ? (
+                          <span className="font-mono text-slate-700">{vnd(it.unitCost)}</span>
+                        ) : (
                           <input
-                            type="text"
-                            readOnly
-                            disabled
-                            value={vnd(it.unitCost)}
-                            className={`${inputClass} py-2 w-36 bg-slate-100 text-slate-600 font-mono cursor-not-allowed select-none`}
-                            title="Đơn giá vốn cố định theo Quản lý hàng hóa, không thể chỉnh sửa"
+                            type="number"
+                            min={0}
+                            step={1000}
+                            value={it.unitCost}
+                            onChange={(e) =>
+                              setItemField(it.id, "unitCost", Math.max(0, Number(e.target.value)))
+                            }
+                            disabled={saving || completing}
+                            className={`${inputClass} py-2 w-36 font-mono`}
                           />
-                        </div>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right font-semibold text-slate-800">
                         {vnd(it.quantity * it.unitCost)}
@@ -856,7 +904,15 @@ export default function GoodsReceiptPage() {
                       {r.receiptNumber}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-slate-700">{getSupplierName(r.supplier)}</td>
+                  <td className="px-4 py-4 text-slate-700">
+                    {r.kind === "opening" ? (
+                      <span className="whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                        Tồn đầu kỳ
+                      </span>
+                    ) : (
+                      getSupplierName(r.supplier)
+                    )}
+                  </td>
                   <td className="px-4 py-4 text-slate-500">{r.items.length} sản phẩm</td>
                   <td className="px-4 py-4 text-right font-semibold text-slate-800">
                     {vnd(r.totalAmount)}

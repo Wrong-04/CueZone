@@ -10,9 +10,13 @@ export interface IGoodsReceiptItem {
   totalCost: number;
 }
 
+export type GoodsReceiptKind = "purchase" | "opening";
+
 export interface IGoodsReceipt extends Document {
   receiptNumber: string;
-  supplier: Types.ObjectId;
+  // purchase: nhập từ nhà cung cấp; opening: tồn đầu kỳ khi mới mở quán (không cần nhà cung cấp)
+  kind: GoodsReceiptKind;
+  supplier?: Types.ObjectId;
   items: IGoodsReceiptItem[];
   totalAmount: number;
   status: "draft" | "completed";
@@ -40,7 +44,14 @@ const goodsReceiptItemSchema = new Schema<IGoodsReceiptItem>(
 const goodsReceiptSchema = new Schema<IGoodsReceipt>(
   {
     receiptNumber: { type: String, required: true, unique: true },
-    supplier: { type: Schema.Types.ObjectId, ref: "Supplier", required: true },
+    kind: { type: String, enum: ["purchase", "opening"], default: "purchase", index: true },
+    supplier: {
+      type: Schema.Types.ObjectId,
+      ref: "Supplier",
+      required: function (this: { kind?: string } | undefined) {
+        return this?.kind !== "opening";
+      },
+    },
     items: { type: [goodsReceiptItemSchema], required: true },
     totalAmount: { type: Number, required: true, min: 0, default: 0 },
     status: { type: String, enum: ["draft", "completed"], default: "draft" },

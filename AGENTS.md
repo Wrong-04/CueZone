@@ -9,11 +9,11 @@
 
 ## Operational Permissions
 
-- **MongoDB / Mongoose**: Free to read. Data writes, index creation, migrations/seeds, and tests that create DB fixtures require explicit permission for the target DB/scope before execution.
-- **Environment variables (`.env`)**: Reading `.env` and key files is permitted; editing requires explicit approval. Never log secret values or commit them to Git.
-- **Git**: Các thao tác Git thông thường gồm `add`, `commit`, `merge`, `pull`, và `push` được phép thực hiện thoải mái trong quá trình phát triển (chỉ stage các file thuộc phạm vi task, không gom các file dirty chưa commit của người dùng).
-  Chỉ các thao tác mang tính phá hủy hoặc ghi đè lịch sử (`push --force`, `push -f`, `reset --hard`, `clean -fd`, xóa branch từ xa `push --delete`) và PR/release/deploy mới cần phê duyệt.
-- **Docker**: No separate guard applied during local development; this does not grant permission to delete data.
+- **MongoDB / Mongoose**: Database reads/writes, index changes, migrations/seeds, fixtures and destructive DB actions are authorized within the requested task; no separate project-guard approval is required in full-permission mode. Never infer production is a test target.
+- **Environment variables (`.env`)**: Editing is authorized within the requested task; do not print or commit credentials.
+- **Git**: `add`, `commit`, `merge`, `pull`, `push`, history rewrites, destructive operations and PR/release/deploy are authorized when part of the requested task; stage only files in scope.
+- **Full-permission mode (enabled at the user's request for this checkout)**: `.claude/bypass-approvals` disables CueZone project-guard confirmation and blocking in Pi and Claude, including DB, `.env`, and destructive Git protection. This is not a sandbox or global configuration; host, CLI, OS, and organization controls may still block.
+- **Docker**: No separate guard applies during local development; this does not grant permission to delete data.
 
 ## Scoped Rules (Read Before Modifying)
 

@@ -103,6 +103,7 @@ export interface WarehouseItem {
   sellingPrice?: number;
   location: string;
   supplier: string;
+  supplierId?: string | null;
   isMakeToOrder?: boolean;
   isActive?: boolean;
 }
@@ -166,6 +167,7 @@ export function mapProductToWarehouseItem(p: any): WarehouseItem {
     sellingPrice: p.price ?? p.salePrice ?? 0,
     location: p.storageLocation || "Kho CLB CueZone",
     supplier: p.supplier?.name || "Nhà phân phối CueZone",
+    supplierId: p.supplierId,
     isMakeToOrder: isMakeToOrderProduct(p),
     isActive: p.isActive !== false,
   };
@@ -254,6 +256,7 @@ export const WarehouseInventoryPage: React.FC = () => {
   const { user } = useAuth();
   // Chỉ admin và warehouse được tạo/xuất/hủy phiếu; staff chỉ xem
   const isAdmin = hasPermission(user, "inventory.manage");
+  const canManageSuppliers = hasPermission(user, "suppliers.manage");
 
   // ── 1. STATE ──────────────────────────────────────────────────────────────
   const [stockList, setStockList] = useState<WarehouseItem[]>(() => {
@@ -286,8 +289,6 @@ export const WarehouseInventoryPage: React.FC = () => {
     return [];
   });
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-
   useEffect(() => {
     localStorage.setItem("cuezone_warehouse_stock", JSON.stringify(stockList));
   }, [stockList]);
@@ -296,17 +297,9 @@ export const WarehouseInventoryPage: React.FC = () => {
     localStorage.setItem("cuezone_inventory_slips", JSON.stringify(slipsList));
   }, [slipsList]);
 
-  // Load real suppliers and real receipts/wastes from Backend
+  // Tải phiếu và giao dịch kho từ backend.
   useEffect(() => {
     let isMounted = true;
-    fetchSuppliers({ limit: 100 })
-      .then((res) => {
-        if (isMounted && res && Array.isArray(res.data)) {
-          setSuppliers(res.data);
-        }
-      })
-      .catch(() => {});
-
     const loadRealSlips = async () => {
       try {
         const [receiptsRes, wastesRes, txRes] = await Promise.allSettled([
@@ -692,7 +685,7 @@ export const WarehouseInventoryPage: React.FC = () => {
     "audit",
     "report",
     ...(isAdmin ? ["catalog"] : []),
-    ...(hasPermission(user, "suppliers.manage") ? ["suppliers"] : []),
+    ...(canManageSuppliers ? ["suppliers"] : []),
   ];
   const activeTab = validTabs.includes(rawTab) ? rawTab : "stock";
   const setActiveTab = (tab: string) => {
@@ -1114,6 +1107,26 @@ export const WarehouseInventoryPage: React.FC = () => {
     supplier: "",
     note: "",
   });
+  const [supplierList, setSupplierList] = useState<Supplier[] | "loading" | "error">("loading");
+  const [inwardSupplierError, setInwardSupplierError] = useState(false);
+  const suppliers = canManageSuppliers && Array.isArray(supplierList) ? supplierList : [];
+  const suppliersUnavailable = canManageSuppliers && !Array.isArray(supplierList);
+  const inwardSupplier = suppliers.find(({ _id }) => _id === inwardForm.supplier);
+
+  useEffect(() => {
+    if (!inwardModalVisible || !canManageSuppliers) return;
+    let active = true;
+    fetchSuppliers({ limit: 100 })
+      .then(({ data }) => {
+        if (active) setSupplierList(Array.isArray(data) ? data : "error");
+      })
+      .catch(() => {
+        if (active) setSupplierList("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [canManageSuppliers, inwardModalVisible]);
 
   // Modal & Form 1: Cấp phát xuất kho ra bàn/quầy
   const [transferModalVisible, setTransferModalVisible] = useState<boolean>(false);
@@ -1391,7 +1404,7 @@ export const WarehouseInventoryPage: React.FC = () => {
           ...prev,
           sku: stockList[0].sku,
           unitPrice: stockList[0].costPrice,
-          supplier: stockList[0].supplier || prev.supplier,
+          supplier: stockList[0].supplierId ?? "",
         }));
       }
       if (!transferForm.sku || !stockList.some((it) => it.sku === transferForm.sku)) {
@@ -1564,7 +1577,12 @@ export const WarehouseInventoryPage: React.FC = () => {
   };
 
   const handleCreateInwardSlip = async () => {
-    if (isSubmittingInward) return;
+    if (isSubmittingInward || suppliersUnavailable) return;
+    if (suppliers.length > 0 && !inwardSupplier) {
+      setInwardSupplierError(true);
+      document.getElementById("inward-supplier")?.focus();
+      return;
+    }
     if (inwardForm.qty <= 0) {
       message.warning("Số lượng nhập kho phải lớn hơn 0!");
       return;
@@ -1578,15 +1596,11 @@ export const WarehouseInventoryPage: React.FC = () => {
       Number(inwardForm.unitPrice) >= 0 ? Number(inwardForm.unitPrice) : targetItem.costPrice;
 
     setIsSubmittingInward(true);
-    // Cập nhật trực tiếp vào MongoDB qua Goods Receipt API
+    // Tạo phiếu hoặc giao dịch kho theo nhà cung cấp đã chọn.
     try {
-      const matchedSupplier =
-        suppliers.find((s) => s.name === inwardForm.supplier || s._id === inwardForm.supplier) ||
-        suppliers[0];
-
-      if (matchedSupplier?._id) {
+      if (inwardSupplier) {
         const createdReceipt = await createGoodsReceipt({
-          supplier: matchedSupplier._id,
+          supplier: inwardSupplier._id,
           items: [
             {
               product: targetItem.id,
@@ -1614,7 +1628,7 @@ export const WarehouseInventoryPage: React.FC = () => {
       // Đóng modal NGAY LẬP TỨC để loại bỏ độ trễ và ngăn chặn click lần 2
       setInwardModalVisible(false);
       message.success(
-        `Đã lập phiếu nhập kho! Cộng thêm +${inwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
+        `${inwardSupplier ? "Đã lập phiếu nhập kho!" : "Đã nhập kho!"} Cộng thêm +${inwardForm.qty} ${targetItem.unit} cho "${targetItem.name}".`,
       );
 
       // Re-fetch sản phẩm và phiếu nhập kho song song trong nền từ MongoDB
@@ -1673,8 +1687,8 @@ export const WarehouseInventoryPage: React.FC = () => {
         });
       }
     } catch (err: any) {
-      console.error("Lỗi cập nhật phiếu nhập kho:", err);
-      message.error(err?.message || "Không thể lưu phiếu nhập kho. Vui lòng thử lại.");
+      console.error("Lỗi nhập kho:", err);
+      message.error(err?.message || "Không thể nhập kho. Vui lòng thử lại.");
     } finally {
       setIsSubmittingInward(false);
     }
@@ -2935,15 +2949,14 @@ export const WarehouseInventoryPage: React.FC = () => {
                   onClick={() => {
                     const currentItem =
                       stockList.find((i) => i.sku === inwardForm.sku) || stockList[0];
-                    if (currentItem) {
-                      setInwardForm((prev) => ({
-                        ...prev,
-                        sku: currentItem.sku,
-                        unitPrice: currentItem.costPrice || 0,
-                        supplier:
-                          currentItem.supplier || prev.supplier || (suppliers[0]?.name ?? ""),
-                      }));
-                    }
+                    setInwardForm((prev) => ({
+                      ...prev,
+                      sku: currentItem?.sku ?? "",
+                      unitPrice: currentItem?.costPrice ?? 0,
+                      supplier: currentItem?.supplierId ?? "",
+                    }));
+                    setSupplierList("loading");
+                    setInwardSupplierError(false);
                     setInwardModalVisible(true);
                   }}
                   className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold"
@@ -4220,7 +4233,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               className="!w-full !rounded-xl !text-xs !h-10"
               options={[
                 { value: "all", label: "Toàn bộ kho hàng (Tất cả mặt hàng)" },
-                { value: "accessory", label: "Phụ kiện bida (Cơ, lơ, bao tay, nỉ, bi)" },
+                { value: "accessory", label: "Thiết bị & phụ kiện bida (Bàn, cơ, lơ, nỉ, bi, tủ lạnh)" },
                 { value: "drink", label: "Đồ uống lưu kho (Bia, nước ngọt, cà phê)" },
                 { value: "food", label: "Thực phẩm & Thức ăn nhanh" },
                 { value: "ingredient", label: "Nguyên liệu pha chế" },
@@ -4293,11 +4306,12 @@ export const WarehouseInventoryPage: React.FC = () => {
               value={inwardForm.sku}
               onChange={(val) => {
                 const target = stockList.find((i) => i.sku === val);
+                setInwardSupplierError(false);
                 setInwardForm((prev) => ({
                   ...prev,
                   sku: val,
-                  unitPrice: target?.costPrice || 0, // Strict lock to catalog costPrice
-                  supplier: target?.supplier || prev.supplier,
+                  unitPrice: target?.costPrice ?? 0,
+                  supplier: target?.supplierId ?? "",
                 }));
               }}
               className="!w-full !rounded-xl !text-xs !h-10"
@@ -4353,23 +4367,47 @@ export const WarehouseInventoryPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label
+              htmlFor={suppliers.length > 0 ? "inward-supplier" : undefined}
+              className="block text-xs font-bold text-slate-700 mb-1"
+            >
               Nhà cung cấp / Đối tác giao hàng:
             </label>
-            {suppliers.length > 0 ? (
-              <Select
-                value={inwardForm.supplier || suppliers[0]?.name}
-                onChange={(val) => setInwardForm((prev) => ({ ...prev, supplier: val }))}
-                className="!w-full !rounded-xl !text-xs !h-10"
-                options={suppliers.map((s) => ({ value: s.name, label: s.name }))}
-              />
+            {suppliersUnavailable ? (
+              supplierList === "loading" ? (
+                <p role="status" className="text-text-secondary">Đang tải danh sách nhà cung cấp…</p>
+              ) : (
+                <p role="alert" className="text-status-danger">
+                  Không thể tải danh sách nhà cung cấp. Vui lòng đóng form rồi thử lại.
+                </p>
+              )
+            ) : suppliers.length > 0 ? (
+              <>
+                <Select<string>
+                  id="inward-supplier"
+                  value={inwardSupplier?._id}
+                  placeholder="Chọn nhà cung cấp"
+                  status={inwardSupplierError ? "error" : undefined}
+                  aria-required="true"
+                  aria-invalid={inwardSupplierError}
+                  aria-describedby={inwardSupplierError ? "inward-supplier-error" : undefined}
+                  onChange={(val) => {
+                    setInwardSupplierError(false);
+                    setInwardForm((prev) => ({ ...prev, supplier: val }));
+                  }}
+                  className="!w-full !rounded-xl !text-xs !h-10"
+                  options={suppliers.map(({ _id, name }) => ({ value: _id, label: name }))}
+                />
+                {inwardSupplierError && (
+                  <p id="inward-supplier-error" role="alert" className="mt-1 text-status-danger">
+                    Vui lòng chọn nhà cung cấp
+                  </p>
+                )}
+              </>
             ) : (
-              <Input
-                value={inwardForm.supplier}
-                onChange={(e) => setInwardForm((prev) => ({ ...prev, supplier: e.target.value }))}
-                placeholder="Nhập tên nhà cung cấp..."
-                className="!h-10 !rounded-xl text-xs"
-              />
+              <p className="text-text-secondary">
+                Lần nhập này không gắn nhà cung cấp và sẽ không tạo phiếu nhập
+              </p>
             )}
           </div>
 
@@ -4384,7 +4422,7 @@ export const WarehouseInventoryPage: React.FC = () => {
           </div>
 
           <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center text-xs">
-            <span className="font-semibold text-emerald-800">Tổng giá trị phiếu nhập:</span>
+            <span className="font-semibold text-emerald-800">Tổng giá trị nhập kho:</span>
             <span className="font-black text-emerald-900 text-base font-mono">
               {(inwardForm.qty * inwardForm.unitPrice).toLocaleString("vi-VN")}đ
             </span>
@@ -4404,7 +4442,7 @@ export const WarehouseInventoryPage: React.FC = () => {
               variant="primary"
               size="md"
               loading={isSubmittingInward}
-              disabled={isSubmittingInward}
+              disabled={isSubmittingInward || suppliersUnavailable}
               onClick={handleCreateInwardSlip}
               className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl !font-bold px-6 !text-xs"
             >
@@ -5028,7 +5066,7 @@ export const WarehouseInventoryPage: React.FC = () => {
                 }`}
               >
                 <AppstoreOutlined className="text-sm" />
-                <span>Phụ kiện bida</span>
+                <span>Thiết bị & phụ kiện</span>
               </button>
               <button
                 type="button"
