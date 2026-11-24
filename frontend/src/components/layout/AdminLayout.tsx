@@ -171,9 +171,6 @@ const menuGroups: MenuGroupConfig[] = [
 const roleLabels: Record<string, string> = {
   admin: "Chủ Quán (Admin)",
   staff: "Nhân Viên Vận Hành",
-  cashier: "Thu Ngân",
-  warehouse: "Thủ Kho",
-  referee: "Trọng Tài",
   customer: "Hội Viên CLB",
 };
 

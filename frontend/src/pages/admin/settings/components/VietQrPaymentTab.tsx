@@ -52,7 +52,8 @@ export const VietQrPaymentTab: React.FC<VietQrPaymentTabProps> = ({
               Ngân hàng thụ hưởng <span className="text-rose-500">*</span>
             </label>
             <Select
-              value={settings.bankCode || "TPB"}
+              value={settings.bankCode || undefined}
+              placeholder="Chọn ngân hàng thụ hưởng"
               onChange={(val) => {
                 const matched = POPULAR_BANKS.find((b) => b.code === val);
                 setSettings({
@@ -74,8 +75,9 @@ export const VietQrPaymentTab: React.FC<VietQrPaymentTabProps> = ({
               Tên ngân hàng đầy đủ <span className="text-rose-500">*</span>
             </label>
             <Input
-              value={settings.bankName || "TPBank (Ngân hàng TMCP Tiên Phong)"}
+              value={settings.bankName}
               onChange={(e) => setSettings({ ...settings, bankName: e.target.value })}
+              placeholder="VD: MB Bank (Ngân hàng TMCP Quân Đội)"
             />
           </div>
 
@@ -86,7 +88,7 @@ export const VietQrPaymentTab: React.FC<VietQrPaymentTabProps> = ({
             <Input
               value={settings.bankAccountNo}
               onChange={(e) => setSettings({ ...settings, bankAccountNo: e.target.value.trim() })}
-              placeholder="VD: 0975685609"
+              placeholder="VD: 0123456789"
             />
           </div>
 
@@ -97,7 +99,7 @@ export const VietQrPaymentTab: React.FC<VietQrPaymentTabProps> = ({
             <Input
               value={settings.bankAccountName}
               onChange={(e) => setSettings({ ...settings, bankAccountName: e.target.value.toUpperCase() })}
-              placeholder="VD: NGUYEN QUANG HUY"
+              placeholder="VD: CLB BIDA CUEZONE"
             />
           </div>
         </div>
@@ -110,7 +112,7 @@ export const VietQrPaymentTab: React.FC<VietQrPaymentTabProps> = ({
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-800 block whitespace-nowrap">
-                  Đang liên kết: {settings.bankName?.split(" (")[0]} — STK: {settings.bankAccountNo || "Chưa nhập"}
+                  Đang liên kết: {settings.bankName?.split(" (")[0] || "Chưa chọn ngân hàng"} — STK: {settings.bankAccountNo || "Chưa nhập"}
                 </span>
                 <span className="text-[11px] text-slate-500 whitespace-nowrap">
                   Chủ tài khoản: {settings.bankAccountName || "Chưa nhập"} · Chuẩn Napas 247 VietQR

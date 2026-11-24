@@ -67,7 +67,7 @@ async function main() {
       name: "Portal cashier",
       email: "portal-cashier@check.invalid",
       password: "CheckPassword123",
-      role: "cashier",
+      role: "staff",
     });
     const customerLogin = await request("/auth/login", "POST", {
       email: "portal-customer@check.invalid",

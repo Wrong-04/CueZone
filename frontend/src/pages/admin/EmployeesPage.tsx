@@ -33,16 +33,12 @@ const { Title, Text } = Typography;
 
 const ROLE_LABELS: Record<string, string> = {
   [UserRole.ADMIN]: "Quản lý CLB",
-  [UserRole.CASHIER]: "Thu ngân",
-  [UserRole.STAFF]: "Nhân viên phục vụ",
-  [UserRole.WAREHOUSE]: "Thủ kho",
+  [UserRole.STAFF]: "Nhân viên vận hành",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   [UserRole.ADMIN]: "orange",
-  [UserRole.CASHIER]: "green",
   [UserRole.STAFF]: "blue",
-  [UserRole.WAREHOUSE]: "purple",
 };
 
 const ROLE_OPTIONS = Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }));

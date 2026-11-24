@@ -84,11 +84,7 @@ export type PermissionModule = (typeof PERMISSION_CATALOG)[number]["module"];
 
 // Vai trò nhân sự cấu hình được trên ma trận. Admin luôn toàn quyền (không cấu hình để tránh tự khóa),
 // customer dùng requireRole(CUSTOMER) cho API tự phục vụ nên không nằm trong ma trận.
-export const CONFIGURABLE_ROLES = [
-  UserRole.STAFF,
-  UserRole.CASHIER,
-  UserRole.WAREHOUSE,
-] as const;
+export const CONFIGURABLE_ROLES = [UserRole.STAFF] as const;
 
 const POS_STAFF_DEFAULTS: IPermission[] = [
   { module: "pos", actions: ["read", "operate"] },
@@ -98,17 +94,12 @@ const POS_STAFF_DEFAULTS: IPermission[] = [
   { module: "fnb_orders", actions: ["manage"] },
   { module: "products", actions: ["manage"] },
   { module: "tournaments", actions: ["manage"] },
+  { module: "inventory", actions: ["read"] },
 ];
 
-// Mặc định giữ đúng hành vi của các middleware cũ (requirePosStaff, requireInventoryRead,
-// requireProductManager, requireSupplierManager...). Admin chỉnh trên UI sẽ ghi đè vào collection roles.
+// Quyền mặc định cho Staff (nhân viên vận hành CLB). Admin chỉnh trên UI sẽ ghi đè vào collection roles.
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, IPermission[]> = {
-  [UserRole.STAFF]: [...POS_STAFF_DEFAULTS, { module: "inventory", actions: ["read"] }],
-  [UserRole.CASHIER]: [...POS_STAFF_DEFAULTS],
-  [UserRole.WAREHOUSE]: [
-    { module: "inventory", actions: ["read", "manage"] },
-    { module: "suppliers", actions: ["manage"] },
-  ],
+  [UserRole.STAFF]: [...POS_STAFF_DEFAULTS],
 };
 
 // ponytail: collection roles có thể chứa bản ghi cũ (định dạng trước RBAC động: "manager", "tables:update"...).

@@ -50,7 +50,7 @@ async function main() {
       const route = router.stack.find((layer) => layer.route?.path === path).route;
       assert(route.methods.post);
       assert.equal(route.stack.length, 2);
-      for (const role of [UserRole.CUSTOMER, UserRole.WAREHOUSE, UserRole.STAFF, UserRole.ADMIN]) {
+      for (const role of [UserRole.CUSTOMER, UserRole.STAFF, UserRole.ADMIN]) {
         currentRole = role;
         let passed = false, status;
         const response = { status(value) { status = value; return this; }, json() {} };
