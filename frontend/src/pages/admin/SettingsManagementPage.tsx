@@ -12,6 +12,7 @@ import {
 import { Button, Tag, Typography, message, Modal } from "../../shared/ui";
 
 import { posService } from "../../services/pos.service";
+import { tournamentService } from "../../services/tournament.service";
 import { SettingsKpiCards } from "./settings/components/SettingsKpiCards";
 import { GeneralClubInfoTab } from "./settings/components/GeneralClubInfoTab";
 import { VietQrPaymentTab } from "./settings/components/VietQrPaymentTab";
@@ -20,11 +21,16 @@ import { BillPreviewModal } from "./settings/modals/BillPreviewModal";
 
 import {
   DEFAULT_SETTINGS,
+  POPULAR_BANKS,
+  SETTINGS_STORAGE_KEY,
   type ClubSettingsData,
 } from "./settings/types/settings.types";
 
 // ── 2. TYPES & INTERFACES ─────────────────────────────────────────────────────
-// Types are imported from ./settings/types/settings.types
+type SepayBankDefaults = Pick<
+  ClubSettingsData,
+  "bankCode" | "bankName" | "bankAccountNo" | "bankAccountName"
+>;
 
 // ── 3. CONSTANTS & HELPERS ────────────────────────────────────────────────────
 const { Title, Text } = Typography;
@@ -35,14 +41,14 @@ export const SettingsManagementPage: React.FC = () => {
 
   // State: Settings
   const [settings, setSettings] = useState<ClubSettingsData>(() => {
-    const saved = localStorage.getItem("cuezone_admin_settings");
+    const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         return {
           ...DEFAULT_SETTINGS,
           ...parsed,
-          totalTables: 26,
+          totalTables: typeof parsed.totalTables === "number" ? parsed.totalTables : 0,
           memberTiers:
             Array.isArray(parsed.memberTiers) && parsed.memberTiers.length === 3
               ? parsed.memberTiers
@@ -60,6 +66,8 @@ export const SettingsManagementPage: React.FC = () => {
     }
     return DEFAULT_SETTINGS;
   });
+
+  const [sepayBankDefaults, setSepayBankDefaults] = useState<SepayBankDefaults | null>(null);
 
   // State: Table counts from database
   const [actualTableCount, setActualTableCount] = useState<number>(0);
@@ -91,13 +99,45 @@ export const SettingsManagementPage: React.FC = () => {
     };
   }, []);
 
+  // Tự động lấy cấu hình tài khoản ngân hàng SePay từ backend làm mặc định
   useEffect(() => {
-    localStorage.setItem("cuezone_admin_settings", JSON.stringify(settings));
+    let mounted = true;
+    tournamentService
+      .getBankInfo()
+      .then((data) => {
+        if (!mounted || (!data.bankCode && !data.accountNumber)) return;
+
+        const rawCode = String(data.bankCode || "").trim();
+        const normalized = rawCode.toLowerCase().replace(/\s+/g, "");
+        const matched = normalized
+          ? POPULAR_BANKS.find(
+              (b) =>
+                b.code.toLowerCase() === normalized ||
+                b.name.toLowerCase().replace(/\s+/g, "").startsWith(normalized),
+            )
+          : undefined;
+        const bankDefaults: SepayBankDefaults = {
+          bankCode: matched?.code || rawCode,
+          bankName: matched?.name || rawCode,
+          bankAccountNo: data.accountNumber || "",
+          bankAccountName: data.accountName || "",
+        };
+        setSepayBankDefaults(bankDefaults);
+        setSettings((prev) => (prev.bankAccountNo ? prev : { ...prev, ...bankDefaults }));
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
   // Handlers
   const handleSaveAllSettings = useCallback(() => {
-    localStorage.setItem("cuezone_admin_settings", JSON.stringify(settings));
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     window.dispatchEvent(new Event("cuezone_settings_updated"));
     message.success("Toàn bộ cấu hình hệ thống CueZone đã được lưu thành công!");
   }, [settings]);
@@ -110,13 +150,18 @@ export const SettingsManagementPage: React.FC = () => {
       okText: "Khôi phục",
       cancelText: "Hủy bỏ",
       onOk: () => {
-        setSettings(DEFAULT_SETTINGS);
-        localStorage.setItem("cuezone_admin_settings", JSON.stringify(DEFAULT_SETTINGS));
+        const nextSettings: ClubSettingsData = {
+          ...DEFAULT_SETTINGS,
+          totalTables: actualTableCount,
+          ...(sepayBankDefaults || {}),
+        };
+        setSettings(nextSettings);
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
         window.dispatchEvent(new Event("cuezone_settings_updated"));
         message.success("Đã khôi phục cài đặt mặc định thành công!");
       },
     });
-  }, []);
+  }, [actualTableCount, sepayBankDefaults]);
 
   return (
     <div className="space-y-6 pb-12 max-w-[1440px] mx-auto">

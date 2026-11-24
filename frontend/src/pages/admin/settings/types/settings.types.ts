@@ -34,6 +34,8 @@ export interface ClubSettingsData {
   memberTiers: MemberTierPolicy[];
 }
 
+export const SETTINGS_STORAGE_KEY = "cuezone_admin_settings";
+
 export const DEFAULT_SETTINGS: ClubSettingsData = {
   clubName: "CueZone Billiards Club",
   slogan: "Đẳng cấp cơ thủ - Đỉnh cao không gian thi đấu bida chuyên nghiệp",
@@ -43,12 +45,12 @@ export const DEFAULT_SETTINGS: ClubSettingsData = {
   openingHours: "08:00 - 04:00 Sáng hôm sau (Mở cửa xuyên đêm)",
   wifiSSID: "CueZone_5G_VIP",
   wifiPassword: "cuezone8888",
-  totalTables: 26,
+  totalTables: 0,
 
-  bankCode: "TPB",
-  bankName: "TPBank (Ngân hàng TMCP Tiên Phong)",
-  bankAccountNo: "0975685609",
-  bankAccountName: "NGUYEN QUANG HUY",
+  bankCode: "",
+  bankName: "",
+  bankAccountNo: "",
+  bankAccountName: "",
   isVietQREnabled: true,
   printVietQROnBill: true,
   printClubLogoOnBill: true,

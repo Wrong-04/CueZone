@@ -48,10 +48,11 @@ export const SettingsKpiCards: React.FC<SettingsKpiCardsProps> = ({
           </div>
         </div>
         <div className="text-3xl font-black text-cyan-600 font-mono whitespace-nowrap">
-          {settings.bankName?.split(" (")[0] || "TPBank"}
+          {settings.bankName?.split(" (")[0] || "Chưa cấu hình"}
         </div>
         <div className="text-xs text-slate-400 mt-2 whitespace-nowrap">
-          STK: {settings.bankAccountNo || "Chưa thiết lập"} · {settings.bankAccountName || ""}
+          STK: {settings.bankAccountNo || "Chưa thiết lập"}
+          {settings.bankAccountName ? ` · ${settings.bankAccountName}` : ""}
         </div>
         <div className="absolute top-0 right-0 left-0 h-1 bg-cyan-500" />
       </div>

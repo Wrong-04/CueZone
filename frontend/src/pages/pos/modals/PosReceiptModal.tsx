@@ -239,14 +239,14 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             )}
           </div>
 
-          {clubSettings.printVietQROnBill !== false && clubSettings.bankAccountNo && paidSummary.finalAmount > 0 && (
+          {clubSettings.printVietQROnBill !== false && clubSettings.bankCode && clubSettings.bankAccountNo && paidSummary.finalAmount > 0 && (
             <div className="pt-2 border-t border-dashed border-slate-200 text-center space-y-1">
               <span className="text-[10px] text-slate-700 font-bold block uppercase tracking-wider">
                 Quét Mã VietQR Chuyển Khoản
               </span>
               <div className="flex justify-center py-1">
                 <img
-                  src={`https://api.vietqr.io/image/${clubSettings.bankCode}-${clubSettings.bankAccountNo}-compact2.jpg?amount=${paidSummary.finalAmount}&addInfo=${encodeURIComponent(paidSummary.invoiceCode)}&accountName=${encodeURIComponent(clubSettings.bankAccountName)}`}
+                  src={`https://api.vietqr.io/image/${clubSettings.bankCode}-${clubSettings.bankAccountNo}-compact2.jpg?amount=${paidSummary.finalAmount}&addInfo=${encodeURIComponent(paidSummary.invoiceCode)}&accountName=${encodeURIComponent(clubSettings.bankAccountName || "")}`}
                   alt="VietQR Thanh Toán"
                   className="w-24 h-24 object-contain border border-slate-300 rounded p-1 bg-white"
                   loading="lazy"

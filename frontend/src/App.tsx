@@ -48,7 +48,7 @@ import {
   SettingsPage,
 } from "./pages/PlaceholderPage";
 
-type UserRole = "admin" | "staff" | "cashier" | "warehouse" | "referee" | "customer";
+type UserRole = "admin" | "staff" | "customer";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

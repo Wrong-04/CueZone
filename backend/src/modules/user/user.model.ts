@@ -5,9 +5,6 @@ import { applyErdDefaults } from "../../config/erd-fields";
 export enum UserRole {
   ADMIN = "admin",
   STAFF = "staff",
-  CASHIER = "cashier",
-  WAREHOUSE = "warehouse",
-  REFEREE = "referee",
   CUSTOMER = "customer",
 }
 
