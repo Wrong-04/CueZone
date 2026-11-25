@@ -14,6 +14,26 @@ import { PlayHistoryTab } from "./CustomerMembershipCenter";
 
 const { Title, Text, Paragraph } = Typography;
 
+// =========================================================================================
+// PHẦN 1: ĐỊNH NGHĨA KIỂU DỮ LIỆU & ÁNH XẠ TRẠNG THÁI (TYPES & MAPPINGS)
+// =========================================================================================
+
+/**
+ * Cấu trúc thông tin mỗi lịch đặt bàn hiển thị trong danh sách của khách hàng.
+ * 
+ * @property {string} id - Mã định danh đơn đặt bàn
+ * @property {string} code - Mã đặt bàn rút gọn (ví dụ: CZ-ABC123)
+ * @property {string} tableName - Tên bàn bida
+ * @property {string} tableType - Loại bàn bida (Lỗ, Carom, Snooker)
+ * @property {string} date - Ngày nhận bàn (dd/mm/yyyy)
+ * @property {string} time - Giờ nhận bàn (HH:mm)
+ * @property {number} duration - Thời lượng dự kiến chơi (tiếng)
+ * @property {number} totalCost - Chi phí tạm tính (VNĐ)
+ * @property {BookingRequest["status"]} status - Trạng thái đơn đặt
+ * @property {string} statusLabel - Tên nhãn trạng thái tiếng Việt
+ * @property {string} createdAt - Thời điểm tạo đơn
+ * @property {boolean} canCancel - Cho phép khách hủy đơn hay không (trước giờ chơi 2 tiếng)
+ */
 interface BookingItem {
   id: string;
   code: string;
@@ -29,6 +49,9 @@ interface BookingItem {
   canCancel: boolean;
 }
 
+/**
+ * Bảng ánh xạ nhãn hiển thị trạng thái đơn đặt bàn sang tiếng Việt.
+ */
 const statusLabels: Record<BookingRequest["status"], string> = {
   pending: "Chờ xác nhận",
   approved: "Đã xác nhận",
@@ -38,6 +61,9 @@ const statusLabels: Record<BookingRequest["status"], string> = {
   cancelled: "Đã hủy",
 };
 
+/**
+ * Bảng ánh xạ màu sắc thẻ Tag trạng thái theo thiết kế Ant Design.
+ */
 const statusColors: Record<BookingRequest["status"], string> = {
   pending: "gold",
   approved: "green",
@@ -47,13 +73,30 @@ const statusColors: Record<BookingRequest["status"], string> = {
   cancelled: "default",
 };
 
-const formatDate = (value: string, includeTime = false) =>
+// =========================================================================================
+// PHẦN 2: HÀM TIỆN ÍCH ĐỊNH DẠNG & CHUYỂN ĐỔI (UTILS & MAPPERS)
+// =========================================================================================
+
+/**
+ * Định dạng chuỗi ngày tháng theo tiêu chuẩn Việt Nam UTC+7.
+ *
+ * @param {string} value - Chuỗi ngày tháng ISO cần định dạng
+ * @param {boolean} [includeTime=false] - Có kèm theo giờ phút hay không
+ * @returns {string} Chuỗi ngày tháng đã được định dạng
+ */
+const formatDate = (value: string, includeTime = false): string =>
   new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",
     ...(includeTime ? { timeStyle: "short" as const } : {}),
     timeZone: "Asia/Ho_Chi_Minh",
   }).format(new Date(value));
 
+/**
+ * Chuyển đổi dữ liệu đơn đặt bàn từ API thành định dạng hiển thị cho giao diện.
+ *
+ * @param {BookingRequest} booking - Đối tượng đơn đặt bàn nhận từ máy chủ
+ * @returns {BookingItem} Đối tượng hiển thị lịch đặt bàn
+ */
 const mapBooking = (booking: BookingRequest): BookingItem => {
   const startsAt = new Date(`${booking.date}T${booking.time}:00+07:00`).getTime();
   return {
@@ -68,13 +111,21 @@ const mapBooking = (booking: BookingRequest): BookingItem => {
     status: booking.status,
     statusLabel: statusLabels[booking.status],
     createdAt: booking.createdAt ? formatDate(booking.createdAt, true) : "",
+    // Chỉ cho phép hủy nếu đơn chưa hủy/chưa nhận bàn và cách giờ chơi ít nhất 2 tiếng
     canCancel:
       ["pending", "approved"].includes(booking.status) &&
       startsAt - 2 * 60 * 60 * 1000 > Date.now(),
   };
 };
 
+// =========================================================================================
+// PHẦN 3: MAIN COMPONENT - CUSTOMER HISTORY
+// =========================================================================================
+
 const CustomerHistory = () => {
+  // ---------------------------------------------------------------------------------------
+  // 3.1. KHỞI TẠO STATE
+  // ---------------------------------------------------------------------------------------
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [activeTab, setActiveTab] = useState<"bookings" | "sessions">("bookings");
   const [loading, setLoading] = useState(true);
@@ -84,13 +135,28 @@ const CustomerHistory = () => {
   const [cancelReason, setCancelReason] = useState("");
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
-  const refreshBookings = async () => {
+  // ---------------------------------------------------------------------------------------
+  // 3.2. CÁC HÀM XỬ LÝ DỮ LIỆU & API
+  // ---------------------------------------------------------------------------------------
+
+  /**
+   * Tải lại danh sách các lịch đặt bàn của khách hàng từ máy chủ.
+   *
+   * @returns {Promise<void>}
+   */
+  const refreshBookings = async (): Promise<void> => {
     const records = await bookingService.getMine();
     setBookings(records.map(mapBooking));
     setLoadError("");
   };
 
-  const reportLoadError = (error: unknown) => {
+  /**
+   * Xử lý và hiển thị thông báo lỗi khi không thể tải dữ liệu lịch sử đặt bàn.
+   *
+   * @param {unknown} error - Lỗi phát sinh trong quá trình gọi API
+   * @returns {void}
+   */
+  const reportLoadError = (error: unknown): void => {
     const text = error instanceof Error ? error.message : "Không thể tải lịch sử đặt chỗ";
     setLoadError(text);
     message.error(text);
@@ -102,7 +168,12 @@ const CustomerHistory = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleConfirmCancel = async () => {
+  /**
+   * Xác nhận hủy lịch đặt bàn của khách và giải phóng bàn trên hệ thống.
+   *
+   * @returns {Promise<void>}
+   */
+  const handleConfirmCancel = async (): Promise<void> => {
     if (!cancellingBooking) return;
     if (!cancelReason.trim()) {
       message.warning("Vui lòng nhập lý do hủy đặt bàn");
@@ -123,8 +194,12 @@ const CustomerHistory = () => {
     }
   };
 
+  // ---------------------------------------------------------------------------------------
+  // 3.3. GIAO DIỆN HIỂN THỊ (JSX RENDER)
+  // ---------------------------------------------------------------------------------------
   return (
     <div className="space-y-8">
+      {/* Banner tiêu đề trang */}
       <div className="rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-10 shadow-xs space-y-4">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold uppercase">
           <HistoryOutlined className="text-emerald-600" />
@@ -140,6 +215,7 @@ const CustomerHistory = () => {
           Tra cứu nhanh danh sách đặt bàn hẹn trước và toàn bộ lịch sử các buổi chơi, hóa đơn tiền giờ & dịch vụ F&B tại CLB.
         </Paragraph>
 
+        {/* Tab chuyển đổi giữa Lịch đặt bàn và Hóa đơn buổi chơi */}
         <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
           <button
             type="button"
@@ -173,109 +249,110 @@ const CustomerHistory = () => {
           <PlayHistoryTab />
         </div>
       ) : (
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-          <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0">
-            Lịch đặt của bạn ({bookings.length})
-          </Title>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refreshBookings().catch(reportLoadError)}
-            loading={loading}
-            className="!rounded-xl"
-          >
-            Làm mới
-          </Button>
-        </div>
-
-        {loading ? (
-          <div className="py-12 text-center text-slate-500">Đang tải lịch sử đặt chỗ...</div>
-        ) : loadError ? (
-          <div className="py-12 text-center text-rose-600">{loadError}</div>
-        ) : bookings.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            <CalendarOutlined className="text-4xl text-slate-300 mb-3" />
-            <p>Bạn chưa có lịch đặt bàn nào.</p>
-            <Button variant="primary" to="/customer/booking" className="mt-3 !rounded-xl">
-              Đặt Bàn Ngay
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <Title level={3} className="!text-base !font-bold !text-slate-900 !mb-0">
+              Lịch đặt của bạn ({bookings.length})
+            </Title>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshBookings().catch(reportLoadError)}
+              loading={loading}
+              className="!rounded-xl"
+            >
+              Làm mới
             </Button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {bookings.map((booking) => (
-              <Card
-                key={booking.id}
-                className="!rounded-2xl !border-slate-200 !bg-white hover:!border-emerald-200 hover:!shadow-md transition-all p-5 sm:p-6"
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <Tag
-                        color={statusColors[booking.status]}
-                        className="!text-xs !font-bold !px-2.5 !py-0.5 !rounded-md uppercase"
-                      >
-                        {booking.statusLabel}
-                      </Tag>
-                      <span className="font-mono text-xs font-bold text-slate-400">
-                        {booking.code}
-                      </span>
-                      <span className="text-xs text-slate-400">• Đặt lúc: {booking.createdAt}</span>
+
+          {loading ? (
+            <div className="py-12 text-center text-slate-500">Đang tải lịch sử đặt chỗ...</div>
+          ) : loadError ? (
+            <div className="py-12 text-center text-rose-600">{loadError}</div>
+          ) : bookings.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <CalendarOutlined className="text-4xl text-slate-300 mb-3" />
+              <p>Bạn chưa có lịch đặt bàn nào.</p>
+              <Button variant="primary" to="/customer/booking" className="mt-3 !rounded-xl">
+                Đặt Bàn Ngay
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {bookings.map((booking) => (
+                <Card
+                  key={booking.id}
+                  className="!rounded-2xl !border-slate-200 !bg-white hover:!border-emerald-200 hover:!shadow-md transition-all p-5 sm:p-6"
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <Tag
+                          color={statusColors[booking.status]}
+                          className="!text-xs !font-bold !px-2.5 !py-0.5 !rounded-md uppercase"
+                        >
+                          {booking.statusLabel}
+                        </Tag>
+                        <span className="font-mono text-xs font-bold text-slate-400">
+                          {booking.code}
+                        </span>
+                        <span className="text-xs text-slate-400">• Đặt lúc: {booking.createdAt}</span>
+                      </div>
+
+                      <div className="flex items-baseline gap-3">
+                        <Title level={4} className="!text-lg !font-bold !text-slate-900 !mb-0">
+                          {booking.tableName}
+                        </Title>
+                        <Text className="!text-xs !text-emerald-700 font-semibold">
+                          ({booking.tableType})
+                        </Text>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-y-1 gap-x-5 text-xs text-slate-600">
+                        <span className="flex items-center gap-1.5">
+                          <CalendarOutlined className="text-emerald-600" />
+                          {booking.date}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <ClockCircleOutlined className="text-emerald-600" />
+                          {booking.time} ({booking.duration} tiếng)
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <DollarOutlined className="text-emerald-600" />
+                          Tạm tính: <strong>{booking.totalCost.toLocaleString("vi-VN")}đ</strong>
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex items-baseline gap-3">
-                      <Title level={4} className="!text-lg !font-bold !text-slate-900 !mb-0">
-                        {booking.tableName}
-                      </Title>
-                      <Text className="!text-xs !text-emerald-700 font-semibold">
-                        ({booking.tableType})
-                      </Text>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-y-1 gap-x-5 text-xs text-slate-600">
-                      <span className="flex items-center gap-1.5">
-                        <CalendarOutlined className="text-emerald-600" />
-                        {booking.date}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <ClockCircleOutlined className="text-emerald-600" />
-                        {booking.time} ({booking.duration} tiếng)
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <DollarOutlined className="text-emerald-600" />
-                        Tạm tính: <strong>{booking.totalCost.toLocaleString("vi-VN")}đ</strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end md:self-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setViewingBooking(booking)}
-                      className="!text-xs !rounded-xl"
-                    >
-                      Chi Tiết
-                    </Button>
-                    {booking.canCancel && (
+                    <div className="flex items-center gap-2 self-end md:self-center">
                       <Button
-                        variant="danger"
+                        variant="outline"
                         size="sm"
-                        onClick={() => setCancellingBooking(booking)}
+                        onClick={() => setViewingBooking(booking)}
                         className="!text-xs !rounded-xl"
                       >
-                        Hủy Đặt Bàn
+                        Chi Tiết
                       </Button>
-                    )}
+                      {booking.canCancel && (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => setCancellingBooking(booking)}
+                          className="!text-xs !rounded-xl"
+                        >
+                          Hủy Đặt Bàn
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
+      {/* Modal xem chi tiết lịch đặt bàn */}
       <Modal
         open={!!viewingBooking}
         onCancel={() => setViewingBooking(null)}
@@ -349,6 +426,7 @@ const CustomerHistory = () => {
         )}
       </Modal>
 
+      {/* Modal xác nhận hủy lịch đặt bàn */}
       <Modal
         open={!!cancellingBooking}
         onCancel={() => setCancellingBooking(null)}

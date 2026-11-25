@@ -22,6 +22,19 @@ const { RevenueReportService } = require("../dist/modules/report/revenue-report.
 const { getMemberTier, getPointsForSpend } = require("../dist/modules/member/membership.policy");
 const { PlayReview } = require("../dist/modules/member/play-review.model");
 
+const PUBLIC_AVAILABILITY_FIELDS = [
+  "_id",
+  "area",
+  "code",
+  "floor",
+  "isAvailable",
+  "name",
+  "pricePerHour",
+  "status",
+  "type",
+  "unavailableReason",
+];
+
 async function main() {
   assert.equal(getMemberTier(499).tier.name, "Đồng");
   assert.equal(getMemberTier(500).tier.name, "Bạc");
@@ -346,10 +359,14 @@ async function main() {
       `/public/booking-availability?date=${tomorrow}&time=10%3A00&duration=2&type=carom`,
       "GET",
     );
-    assert.equal(
-      availability.find((availableTable) => availableTable._id === second._id)?.isAvailable,
-      false,
-    );
+    const bookedTable = availability.find((availableTable) => availableTable._id === second._id);
+    assert.ok(bookedTable);
+    assert.equal(bookedTable.isAvailable, false);
+    assert.equal(bookedTable.unavailableReason, "booked");
+    assert.ok((await Table.findById(second._id)).bookedInfo);
+    assert.deepEqual(Object.keys(bookedTable).sort(), PUBLIC_AVAILABILITY_FIELDS);
+    assert.equal(bookedTable.name, second.name);
+    assert.equal(bookedTable.pricePerHour, second.pricePerHour);
     const cancelledOnlineBooking = await ok(
       `/bookings/${onlineBooking._id}/cancel`,
       "POST",
@@ -839,6 +856,17 @@ async function main() {
       "Waitlist should be suggested when pool tables are full",
     );
     assert.equal(poolAvailAfter.availableCount, 0);
+
+    const publicAvailability = await ok(
+      `/public/booking-availability?date=${tomorrow}&time=10%3A00&duration=2`,
+      "GET",
+    );
+    const playingAvailability = publicAvailability.find((item) => item._id === table._id);
+    assert.ok(playingAvailability);
+    assert.equal(playingAvailability.status, "playing");
+    assert.equal(playingAvailability.isAvailable, true);
+    assert.equal(playingAvailability.unavailableReason, null);
+    assert.deepEqual(Object.keys(playingAvailability).sort(), PUBLIC_AVAILABILITY_FIELDS);
 
     const publicTables = await ok("/public/tables", "GET", undefined, undefined);
     assert.equal(Array.isArray(publicTables), true);

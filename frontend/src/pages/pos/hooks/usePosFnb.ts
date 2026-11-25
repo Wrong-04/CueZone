@@ -8,10 +8,12 @@ import type { FnbStockItem } from "../PosTableFloorPage";
 
 // ============================================================================
 // HOOK QUẢN LÝ GỌI MÓN F&B TẠI BÀN & HỦY MÓN HOÀN KHO (USE POS FNB)
-// Nghiệp vụ:
-// - Lọc và tìm kiếm thực đơn ăn uống theo danh mục
-// - Thêm món vào bàn chơi, kiểm tra tồn kho tức thì
-// - Hủy món đã gọi kèm lý do và hoàn trả tồn kho nếu chưa chế biến
+// Sơ đồ luồng dữ liệu:
+//   PosFnbModal / PosCancelItemModal
+//     -> usePosFnb (lọc menu, tạo giỏ gọi món, tính F&B tổng hợp, xử lý hủy món)
+//     -> posService.updateOrders() / posService.cancelOrderItem()
+//     -> Backend: SessionService.updateOrders() / SessionService.cancelOrderItem()
+//     -> Cập nhật currentSession.orders + hoàn tồn kho Product (khi hủy món có restoreStock) + Socket.IO
 // ============================================================================
 
 interface UsePosFnbProps {
@@ -92,6 +94,13 @@ export function usePosFnb({
     );
   }, [activeServedOrders]);
 
+  /**
+   * Mở modal gọi món F&B cho bàn được chọn và đồng bộ lại tồn kho thực đơn mới nhất từ server.
+   * Luồng đi: Nút Gọi món -> productService.getFnbMenu() -> cập nhật fnbStock theo thời gian thực.
+   *
+   * @param {PosTable} table - Bàn đang chơi cần gọi hoặc quản lý món F&B
+   * @returns {Promise<void>}
+   */
   const handleOpenFnbModal = async (table: PosTable) => {
     setSelectedTable(table);
     setNewOrderList([]);
@@ -127,6 +136,12 @@ export function usePosFnb({
     }
   };
 
+  /**
+   * Thêm một phần món ăn/đồ uống vào giỏ gọi tạm (chặn nếu hàng đóng gói đã hết tồn kho).
+   *
+   * @param {FnbStockItem} stockItem - Mặt hàng F&B được thu ngân bấm chọn
+   * @returns {void}
+   */
   const handleAddFnbItem = (stockItem: FnbStockItem) => {
     const isPrepared = isFnbItemPrepared(stockItem);
 
@@ -164,6 +179,13 @@ export function usePosFnb({
     }
   };
 
+  /**
+   * Tăng hoặc giảm số lượng của một món đang nằm trong giỏ chờ xác nhận.
+   *
+   * @param {string} itemId - Mã món trong giỏ gọi tạm
+   * @param {number} delta - Số lượng thay đổi (+1 hoặc -1)
+   * @returns {void}
+   */
   const handleUpdateNewOrderItemQty = (itemId: string, delta: number) => {
     setNewOrderList((prev) => {
       return prev
@@ -186,6 +208,12 @@ export function usePosFnb({
     );
   };
 
+  /**
+   * Gỡ bỏ hẳn một món khỏi giỏ chờ gọi và hoàn trả tồn kho tạm tính trên UI.
+   *
+   * @param {string} itemId - Mã món cần xóa khỏi giỏ tạm
+   * @returns {void}
+   */
   const handleRemoveNewOrderItem = (itemId: string) => {
     const itemToRemove = newOrderList.find((o) => o.id === itemId);
     if (!itemToRemove) return;
@@ -199,6 +227,12 @@ export function usePosFnb({
     );
   };
 
+  /**
+   * Xác nhận gửi danh sách món mới vào phiên chơi hiện tại của bàn trên server.
+   * Luồng đi: Nút Xác nhận gọi món -> posService.updateOrders() -> POST /tables/:id/session/orders -> loadTables().
+   *
+   * @returns {Promise<void>}
+   */
   const handleConfirmAddFnbOrder = async () => {
     if (!selectedTable?.currentSession) return;
     if (newOrderList.length === 0) return;
@@ -240,6 +274,12 @@ export function usePosFnb({
     return !isFnbItemPrepared(matchedStock || item);
   };
 
+  /**
+   * Mở modal hủy món đã gọi cho một dòng order cụ thể và gợi ý mặc định cờ hoàn kho.
+   *
+   * @param {PosOrderItem} item - Dòng món F&B cần hủy toàn phần hoặc một phần
+   * @returns {void}
+   */
   const handleOpenCancelModal = (item: PosOrderItem) => {
     setCancellingItem(item);
     setCancelQty(item.quantity);
@@ -250,6 +290,13 @@ export function usePosFnb({
     setCancelModalVisible(true);
   };
 
+  /**
+   * Cập nhật lý do hủy món và tự động bật/tắt hoàn trả tồn kho theo loại lý do.
+   * (Món hỏng/đổ vỡ hoặc thiếu đồ sẽ không hoàn kho để ghi nhận hao hụt thực tế).
+   *
+   * @param {string} reasonOption - Lý do hủy thu ngân vừa chọn
+   * @returns {void}
+   */
   const handleSelectCancelReason = (reasonOption: string) => {
     setCancelReason(reasonOption);
     if (reasonOption === "Món lỗi / Hỏng / Đổ vỡ" || reasonOption === "Quán hết món / Thiếu đồ") {
@@ -259,6 +306,12 @@ export function usePosFnb({
     }
   };
 
+  /**
+   * Gửi yêu cầu hủy số lượng món đã chọn xuống backend để cập nhật phiên chơi và hoàn kho (nếu chọn).
+   * Luồng đi: PosCancelItemModal -> posService.cancelOrderItem() -> POST /tables/:id/session/orders/cancel -> loadTables().
+   *
+   * @returns {Promise<void>}
+   */
   const handleConfirmCancelItem = async () => {
     if (!selectedTable?.currentSession || !cancellingItem) return;
     const finalReason = cancelReason === "Khác" ? customCancelReason.trim() : cancelReason;

@@ -1,3 +1,9 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: SERVICE XỬ LÝ ORDER F&B TỪ KHÁCH TẠI BÀN
+// customer-order.routes.ts -> CustomerOrderService
+//   - Khách hàng: getActiveTables() -> create() (tạo đơn pending + notification + Socket)
+//   - Nhân viên POS: getQueue() -> updateStatus() (duyệt -> trừ tồn kho Product & thêm món vào Table.currentSession.orders)
+// ============================================================================
 import mongoose, { Types } from "mongoose";
 import { NotificationService } from "../notification/notification.service";
 import { NotificationType } from "../notification/notification.model";
@@ -21,6 +27,12 @@ const notifications = new NotificationService();
 const httpError = (message: string, httpCode = 400) =>
   Object.assign(new Error(message), { httpCode });
 
+/**
+ * Xác nhận bàn đang ở trạng thái chơi/tạm dừng và phiên chưa bước vào khâu chờ thanh toán.
+ *
+ * @param {object} table - Đối tượng bàn lấy từ MongoDB
+ * @returns {void}
+ */
 function assertOrderableSession(table: { status: string; currentSession?: any }) {
   const current = table.currentSession;
   if (
@@ -32,6 +44,12 @@ function assertOrderableSession(table: { status: string; currentSession?: any })
   }
 }
 
+/**
+ * Chuyển mã trạng thái order thành thông điệp tiếng Việt thân thiện hiển thị cho khách hàng.
+ *
+ * @param {CustomerOrderStatus} status - Trạng thái của đơn gọi món
+ * @returns {string} Chuỗi mô tả trạng thái bằng tiếng Việt
+ */
 function formatStatus(status: CustomerOrderStatus) {
   const labels: Record<CustomerOrderStatus, string> = {
     [CustomerOrderStatus.PENDING]: "Đang chờ quầy xác nhận",
@@ -44,10 +62,25 @@ function formatStatus(status: CustomerOrderStatus) {
 }
 
 export class CustomerOrderService {
+  /**
+   * Lấy danh sách các bàn mà tài khoản khách hàng đang chơi để cho phép tự gọi món.
+   * Luồng đi: customerOrderService.getActiveTables() -> GET /active-tables -> SessionService.getCustomerSessions().
+   *
+   * @param {string} customerId - Mã tài khoản khách hàng
+   * @returns {Promise<any[]>} Danh sách phiên chơi đang hoạt động thuộc khách hàng
+   */
   async getActiveTables(customerId: string) {
     return new SessionService().getCustomerSessions(customerId);
   }
 
+  /**
+   * Khách hàng gửi đơn gọi món F&B mới vào hàng đợi quầy POS.
+   * Luồng đi: customerOrderService.create() -> kiểm tra tồn kho -> lưu CustomerOrder (pending) -> Notification & Socket.
+   *
+   * @param {string} customerId - Mã tài khoản khách hàng
+   * @param {object} input - tableId, sessionId, danh sách items và ghi chú
+   * @returns {Promise<ICustomerOrder>} Đơn gọi món vừa khởi tạo
+   */
   async create(customerId: string, input: { tableId?: unknown; sessionId?: unknown; items?: unknown; note?: unknown }) {
     if (!mongoose.isValidObjectId(customerId)) throw httpError("Tài khoản không hợp lệ", 401);
     if (!mongoose.isValidObjectId(input.tableId) || typeof input.sessionId !== "string" || !input.sessionId) {
@@ -161,6 +194,13 @@ export class CustomerOrderService {
     return order;
   }
 
+  /**
+   * Tra cứu chi tiết một đơn gọi món thuộc sở hữu của khách hàng.
+   *
+   * @param {string} orderId - Mã đơn gọi món
+   * @param {string} customerId - Mã tài khoản khách hàng
+   * @returns {Promise<ICustomerOrder>} Thông tin đơn gọi món tương ứng
+   */
   async getForCustomer(orderId: string, customerId: string) {
     if (!mongoose.isValidObjectId(orderId) || !mongoose.isValidObjectId(customerId)) {
       throw httpError("Mã order không hợp lệ");
@@ -170,6 +210,12 @@ export class CustomerOrderService {
     return order;
   }
 
+  /**
+   * Lấy hàng đợi đơn gọi món trực tuyến chưa hoàn tất trong 24 giờ gần nhất cho thu ngân POS.
+   * Luồng đi: staffOrderService.getQueue() -> GET /queue -> CustomerOrder.find().
+   *
+   * @returns {Promise<ICustomerOrder[]>} Danh sách đơn đang chờ xử lý sắp theo thứ tự gửi trước
+   */
   async getQueue() {
     // Chỉ lấy đơn tác nghiệp trong vòng 24 giờ gần nhất để tránh các đơn tồn đọng từ ca/ngày cũ làm phiền thu ngân
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -179,6 +225,18 @@ export class CustomerOrderService {
     }).sort({ createdAt: 1 });
   }
 
+  /**
+   * Nhân viên POS cập nhật trạng thái xử lý đơn gọi món của khách trong MongoDB Transaction.
+   * Luồng đi:
+   *   - pending -> preparing: trừ tồn kho Product & đẩy món vào Table.currentSession.orders
+   *   - preparing -> rejected: hoàn lại tồn kho Product
+   *   - Sau transaction: gửi Notification cho khách + emitSocket cập nhật Order & Bàn.
+   *
+   * @param {string} orderId - Mã đơn gọi món
+   * @param {unknown} statusValue - Trạng thái mới (preparing | ready | served | rejected)
+   * @param {unknown} [rejectedReasonValue] - Lý do từ chối nếu chuyển sang rejected
+   * @returns {Promise<ICustomerOrder>} Đơn sau khi cập nhật trạng thái
+   */
   async updateStatus(orderId: string, statusValue: unknown, rejectedReasonValue?: unknown) {
     if (!mongoose.isValidObjectId(orderId)) throw httpError("Mã order không hợp lệ");
     if (!Object.values(CustomerOrderStatus).includes(statusValue as CustomerOrderStatus)) {
