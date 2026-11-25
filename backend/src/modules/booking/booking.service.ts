@@ -312,7 +312,14 @@ export class BookingService {
     return tables.map((table) => {
       const reason = conflictingTableMap.get(String(table._id));
       return {
-        ...table.toObject(),
+        _id: table._id,
+        code: table.code,
+        name: table.name,
+        type: table.type,
+        area: table.area,
+        floor: table.floor,
+        pricePerHour: table.pricePerHour,
+        status: table.status,
         isAvailable: !reason, // true nếu không bị xung đột (bàn trống)
         unavailableReason: reason ?? null, // "booked" nếu đã có người đặt, "playing" nếu đang chơi
       };
