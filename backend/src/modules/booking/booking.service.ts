@@ -18,17 +18,7 @@ import {
 const notificationService = new NotificationService();
 
 // =========================================================================================
-// TỔNG QUAN MODULE DỊCH VỤ ĐẶT BÀN (BookingService)
-// Chia thành 5 phần nghiệp vụ chính:
-//   - Phần 1: Mã QR Check-in & Đồng bộ trạng thái bàn (bookedInfo)
-//   - Phần 2: Tra cứu bàn trống theo khung giờ & Danh sách đơn đặt bàn
-//   - Phần 3: Tạo đơn đặt bàn & Khởi tạo giao dịch cọc SePay
-//   - Phần 4: Theo dõi trạng thái cọc, Hủy cọc, Webhook SePay & Hết hạn tự động
-//   - Phần 5: Khách hàng tự hủy lịch & Quản trị cập nhật đơn đặt bàn
-// =========================================================================================
-
-// =========================================================================================
-// CÁC HẰNG SỐ CẤU HÌNH NGHIỆP VỤ ĐẶT BÀN
+// PHẦN 1: HẰNG SỐ CẤU HÌNH NGHIỆP VỤ ĐẶT BÀN (CONFIGURATION & CONSTANTS)
 // =========================================================================================
 // Các trạng thái đặt bàn được tính là đang hoạt động / chiếm chỗ
 const ACTIVE_BOOKING_STATUSES = ["pending", "approved", "confirmed", "checked_in"];
@@ -41,6 +31,10 @@ const PAYMENT_HOLD_MS = 5 * 60 * 1000;
 
 // Lý do hệ thống tự hủy đơn khi quá hạn thanh toán cọc
 const PAYMENT_EXPIRY_REASON = "Hết hạn chờ thanh toán tiền cọc";
+
+// =========================================================================================
+// PHẦN 2: CÁC HÀM TIỆN ÍCH DÙNG CHUNG (HELPER FUNCTIONS & VALIDATION)
+// =========================================================================================
 
 /**
  * Tính toán khoảng thời gian bắt đầu và kết thúc của một lịch đặt bàn.
@@ -153,91 +147,9 @@ export function bookingInput(input: any) {
 }
 
 export class BookingService {
-  // ── PHẦN 1: MÃ QR CHECK-IN & ĐỒNG BỘ TRẠNG THÁI BÀN (bookedInfo) ──────────────────────
-
-  /**
-   * Băm chuỗi mã QR Token bằng thuật toán SHA-256 để lưu trữ an toàn.
-   *
-   * @param {string} token - Chuỗi token ngẫu nhiên của mã QR
-   * @returns {string} Chuỗi băm 64 ký tự hex của token
-   */
-  private hashQrToken(token: string) {
-    return createHash("sha256").update(token).digest("hex");
-  }
-
-  /**
-   * Tạo chuỗi ngẫu nhiên bảo mật dùng làm mã QR Check-in nhận bàn.
-   *
-   * @returns {string} Chuỗi ngẫu nhiên 32 bytes (64 ký tự hex)
-   */
-  private createQrToken() {
-    return randomBytes(32).toString("hex");
-  }
-
-  /**
-   * Giải mã và xác thực mã QR khi khách hàng đưa cho nhân viên quét tại quầy lễ tân.
-   *
-   * @param {unknown} tokenValue - Chuỗi token trích xuất từ mã QR của khách hàng
-   * @returns {Promise<object>} Thông tin chi tiết của đơn đặt bàn và thông tin bàn hợp lệ
-   * @throws {Error} Ném lỗi nếu mã QR không hợp lệ, đã hết hạn hoặc không tìm thấy bàn
-   */
-  async resolveQrToken(tokenValue: unknown) {
-    if (typeof tokenValue !== "string" || !/^[a-f0-9]{64}$/.test(tokenValue)) {
-      throw new Error("Mã QR đặt bàn không hợp lệ");
-    }
-    // Tìm đơn đặt bàn có mã hash khớp và đang ở trạng thái 'approved' (đã duyệt/đã cọc)
-    const booking = await Booking.findOne({
-      qrTokenHash: this.hashQrToken(tokenValue),
-      status: "approved",
-    }).select("+qrTokenHash");
-    if (!booking) throw new Error("Mã QR không hợp lệ, đã hủy hoặc lịch đã được nhận bàn");
-
-    // Kiểm tra xem lịch đặt đã quá hạn sử dụng hay chưa
-    const { endDate } = getStoredBookingInterval(booking);
-    if (!Number.isFinite(endDate.getTime()) || endDate.getTime() <= Date.now()) {
-      throw new Error("Mã QR đặt bàn đã hết thời hạn sử dụng");
-    }
-    const table = await Table.findById(booking.table).select("code name");
-    if (!table) throw new Error("Không tìm thấy bàn của lịch đặt");
-
-    return {
-      bookingId: String(booking._id),
-      customerName: booking.customerName,
-      phone: booking.phone,
-      date: booking.date,
-      time: booking.time,
-      duration: booking.duration,
-      status: booking.status,
-      table: { id: String(table._id), code: table.code, name: table.name },
-      preOrderItems: booking.preOrderItems,
-      preOrderTotal: booking.preOrderItems.reduce(
-        (sum: number, item: any) => sum + item.unitPrice * item.quantity,
-        0,
-      ),
-    };
-  }
-
-  /**
-   * Cấp phát mã QR Check-in mới cho khách hàng từ tài khoản của họ.
-   *
-   * @param {string} customerId - Mã định danh của khách hàng sở hữu đơn
-   * @param {string} bookingId - Mã định danh của đơn đặt bàn đã duyệt
-   * @returns {Promise<{ qrToken: string }>} Đối tượng chứa chuỗi mã QR Check-in mới
-   * @throws {Error} Ném lỗi nếu mã khách hàng hoặc mã đặt bàn không hợp lệ
-   */
-  async issueQrToken(customerId: string, bookingId: string) {
-    if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(bookingId)) {
-      throw new Error("Lịch đặt bàn không hợp lệ");
-    }
-    const token = this.createQrToken();
-    const booking = await Booking.findOneAndUpdate(
-      { _id: bookingId, customer: customerId, status: "approved" },
-      { $set: { qrTokenHash: this.hashQrToken(token) } },
-      { new: true },
-    ).select("_id");
-    if (!booking) throw new Error("Không tìm thấy lịch đặt bàn còn hiệu lực của bạn");
-    return { qrToken: token };
-  }
+  // =========================================================================================
+  // NHÓM 1: TÌM KIẾM & TRA CỨU BÀN KHẢ DỤNG (AVAILABILITY & QUERYING)
+  // =========================================================================================
 
   /**
    * Kiểm tra xung đột khung giờ chơi trên cùng một bàn bida.
@@ -467,7 +379,9 @@ export class BookingService {
     });
   }
 
-  // ── PHẦN 3: TẠO ĐƠN ĐẶT BÀN & KHỞI TẠO GIAO DỊCH CỌC SEPAY ─────────────────────────────
+  // =========================================================================================
+  // NHÓM 2: TẠO ĐƠN & THANH TOÁN TIỀN CỌC SEPAY (CREATION & DEPOSIT PAYMENT)
+  // =========================================================================================
 
   /**
    * Tạo đơn đặt bàn mới và khởi tạo thanh toán cọc SePay nếu có yêu cầu.
@@ -801,83 +715,6 @@ export class BookingService {
   }
 
   /**
-   * Khách hàng chủ động hủy yêu cầu đặt cọc trong thời gian chờ thanh toán.
-   *
-   * @param {string} reference - Mã tham chiếu chuyển khoản cần hủy (bắt đầu bằng CB...)
-   * @returns {Promise<{ reference: string, status: "cancelled" | "expired" }>} Trạng thái sau khi hủy yêu cầu
-   * @throws {Error} Ném lỗi nếu mã tham chiếu không hợp lệ hoặc đơn không ở trạng thái cho phép hủy
-   */
-  async cancelPublicPayment(reference: string) {
-    if (!/^CB[A-F0-9]{24}$/.test(reference)) {
-      throw paymentError("Mã thanh toán đặt bàn không hợp lệ");
-    }
-
-    const result = await mongoose.connection.transaction(async (session) => {
-      const booking = await Booking.findOne({ paymentReference: reference }).session(session);
-      if (!booking) throw paymentError("Không tìm thấy yêu cầu thanh toán đặt bàn", 404);
-      if (booking.paymentStatus === "paid") {
-        throw paymentError("Đặt cọc đã được ghi nhận; không thể hủy yêu cầu này", 409);
-      }
-      if (booking.paymentStatus === "refund_required") {
-        throw paymentError("Giao dịch cần được nhân viên đối soát trước khi xử lý", 409);
-      }
-      if (booking.paymentStatus === "cancelled") {
-        return { status: "cancelled" as const, tableId: String(booking.table), changed: false };
-      }
-      if (booking.paymentStatus === "expired") {
-        return { status: "expired" as const, tableId: String(booking.table), changed: false };
-      }
-      if (booking.paymentStatus !== "awaiting_payment" || booking.status !== "pending") {
-        throw paymentError("Yêu cầu đặt cọc không còn ở trạng thái có thể hủy", 409);
-      }
-
-      const cancelledAt = new Date();
-      const cancelledBooking = await Booking.findOneAndUpdate(
-        {
-          _id: booking._id,
-          status: "pending",
-          paymentStatus: "awaiting_payment",
-        },
-        {
-          $set: {
-            status: "cancelled",
-            paymentStatus: "cancelled",
-            cancelledAt,
-            cancellationReason: "Khách hàng hủy yêu cầu đặt cọc",
-          },
-        },
-        { new: true, session },
-      );
-      if (!cancelledBooking) {
-        throw paymentError("Trạng thái thanh toán đã thay đổi; vui lòng kiểm tra lại", 409);
-      }
-
-      if (cancelledBooking.inventoryReserved) {
-        for (const item of cancelledBooking.preOrderItems) {
-          if (!(item as any).isMadeToOrder) {
-            await Product.updateOne(
-              { _id: item.productId },
-              { $inc: { stock: item.quantity } },
-              { session },
-            );
-          }
-        }
-        cancelledBooking.inventoryReserved = false;
-        await cancelledBooking.save({ session });
-      }
-
-      return {
-        status: "cancelled" as const,
-        tableId: String(cancelledBooking.table),
-        changed: true,
-      };
-    });
-
-    if (result.changed) emitTableStatusChanged({ tableId: result.tableId });
-    return { reference, status: result.status };
-  }
-
-  /**
    * Xử lý webhook tự động từ cổng thanh toán SePay khi khách chuyển khoản cọc.
    *
    * @param {string | undefined} header - Tiêu đề Authorization chứa API Key xác thực webhook
@@ -1133,6 +970,87 @@ export class BookingService {
     return true;
   }
 
+  // =========================================================================================
+  // NHÓM 3: HỦY ĐƠN & QUÉT DỌN TỰ ĐỘNG (CANCELLATION & CLEANUP)
+  // =========================================================================================
+
+  /**
+   * Khách hàng chủ động hủy yêu cầu đặt cọc trong thời gian chờ thanh toán.
+   *
+   * @param {string} reference - Mã tham chiếu chuyển khoản cần hủy (bắt đầu bằng CB...)
+   * @returns {Promise<{ reference: string, status: "cancelled" | "expired" }>} Trạng thái sau khi hủy yêu cầu
+   * @throws {Error} Ném lỗi nếu mã tham chiếu không hợp lệ hoặc đơn không ở trạng thái cho phép hủy
+   */
+  async cancelPublicPayment(reference: string) {
+    if (!/^CB[A-F0-9]{24}$/.test(reference)) {
+      throw paymentError("Mã thanh toán đặt bàn không hợp lệ");
+    }
+
+    const result = await mongoose.connection.transaction(async (session) => {
+      const booking = await Booking.findOne({ paymentReference: reference }).session(session);
+      if (!booking) throw paymentError("Không tìm thấy yêu cầu thanh toán đặt bàn", 404);
+      if (booking.paymentStatus === "paid") {
+        throw paymentError("Đặt cọc đã được ghi nhận; không thể hủy yêu cầu này", 409);
+      }
+      if (booking.paymentStatus === "refund_required") {
+        throw paymentError("Giao dịch cần được nhân viên đối soát trước khi xử lý", 409);
+      }
+      if (booking.paymentStatus === "cancelled") {
+        return { status: "cancelled" as const, tableId: String(booking.table), changed: false };
+      }
+      if (booking.paymentStatus === "expired") {
+        return { status: "expired" as const, tableId: String(booking.table), changed: false };
+      }
+      if (booking.paymentStatus !== "awaiting_payment" || booking.status !== "pending") {
+        throw paymentError("Yêu cầu đặt cọc không còn ở trạng thái có thể hủy", 409);
+      }
+
+      const cancelledAt = new Date();
+      const cancelledBooking = await Booking.findOneAndUpdate(
+        {
+          _id: booking._id,
+          status: "pending",
+          paymentStatus: "awaiting_payment",
+        },
+        {
+          $set: {
+            status: "cancelled",
+            paymentStatus: "cancelled",
+            cancelledAt,
+            cancellationReason: "Khách hàng hủy yêu cầu đặt cọc",
+          },
+        },
+        { new: true, session },
+      );
+      if (!cancelledBooking) {
+        throw paymentError("Trạng thái thanh toán đã thay đổi; vui lòng kiểm tra lại", 409);
+      }
+
+      if (cancelledBooking.inventoryReserved) {
+        for (const item of cancelledBooking.preOrderItems) {
+          if (!(item as any).isMadeToOrder) {
+            await Product.updateOne(
+              { _id: item.productId },
+              { $inc: { stock: item.quantity } },
+              { session },
+            );
+          }
+        }
+        cancelledBooking.inventoryReserved = false;
+        await cancelledBooking.save({ session });
+      }
+
+      return {
+        status: "cancelled" as const,
+        tableId: String(cancelledBooking.table),
+        changed: true,
+      };
+    });
+
+    if (result.changed) emitTableStatusChanged({ tableId: result.tableId });
+    return { reference, status: result.status };
+  }
+
   /**
    * Quét và tự động hủy các đơn đặt bàn quá hạn 5 phút chờ thanh toán cọc.
    *
@@ -1277,6 +1195,98 @@ export class BookingService {
     emitTableStatusChanged({ tableId: result.tableId });
     return result.booking;
   }
+
+  // =========================================================================================
+  // NHÓM 4: XÁC THỰC CHECK-IN & BẢO MẬT MÃ QR (QR TOKEN & CHECK-IN)
+  // =========================================================================================
+
+  /**
+   * Tạo chuỗi ngẫu nhiên bảo mật dùng làm mã QR Check-in nhận bàn.
+   *
+   * @returns {string} Chuỗi ngẫu nhiên 32 bytes (64 ký tự hex)
+   */
+  private createQrToken() {
+    return randomBytes(32).toString("hex");
+  }
+
+  /**
+   * Băm chuỗi mã QR Token bằng thuật toán SHA-256 để lưu trữ an toàn.
+   *
+   * @param {string} token - Chuỗi token ngẫu nhiên của mã QR
+   * @returns {string} Chuỗi băm 64 ký tự hex của token
+   */
+  private hashQrToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  /**
+   * Cấp phát mã QR Check-in mới cho khách hàng từ tài khoản của họ.
+   *
+   * @param {string} customerId - Mã định danh của khách hàng sở hữu đơn
+   * @param {string} bookingId - Mã định danh của đơn đặt bàn đã duyệt
+   * @returns {Promise<{ qrToken: string }>} Đối tượng chứa chuỗi mã QR Check-in mới
+   * @throws {Error} Ném lỗi nếu mã khách hàng hoặc mã đặt bàn không hợp lệ
+   */
+  async issueQrToken(customerId: string, bookingId: string) {
+    if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(bookingId)) {
+      throw new Error("Lịch đặt bàn không hợp lệ");
+    }
+    const token = this.createQrToken();
+    const booking = await Booking.findOneAndUpdate(
+      { _id: bookingId, customer: customerId, status: "approved" },
+      { $set: { qrTokenHash: this.hashQrToken(token) } },
+      { new: true },
+    ).select("_id");
+    if (!booking) throw new Error("Không tìm thấy lịch đặt bàn còn hiệu lực của bạn");
+    return { qrToken: token };
+  }
+
+  /**
+   * Giải mã và xác thực mã QR khi khách hàng đưa cho nhân viên quét tại quầy lễ tân.
+   *
+   * @param {unknown} tokenValue - Chuỗi token trích xuất từ mã QR của khách hàng
+   * @returns {Promise<object>} Thông tin chi tiết của đơn đặt bàn và thông tin bàn hợp lệ
+   * @throws {Error} Ném lỗi nếu mã QR không hợp lệ, đã hết hạn hoặc không tìm thấy bàn
+   */
+  async resolveQrToken(tokenValue: unknown) {
+    if (typeof tokenValue !== "string" || !/^[a-f0-9]{64}$/.test(tokenValue)) {
+      throw new Error("Mã QR đặt bàn không hợp lệ");
+    }
+    // Tìm đơn đặt bàn có mã hash khớp và đang ở trạng thái 'approved' (đã duyệt/đã cọc)
+    const booking = await Booking.findOne({
+      qrTokenHash: this.hashQrToken(tokenValue),
+      status: "approved",
+    }).select("+qrTokenHash");
+    if (!booking) throw new Error("Mã QR không hợp lệ, đã hủy hoặc lịch đã được nhận bàn");
+
+    // Kiểm tra xem lịch đặt đã quá hạn sử dụng hay chưa
+    const { endDate } = getStoredBookingInterval(booking);
+    if (!Number.isFinite(endDate.getTime()) || endDate.getTime() <= Date.now()) {
+      throw new Error("Mã QR đặt bàn đã hết thời hạn sử dụng");
+    }
+    const table = await Table.findById(booking.table).select("code name");
+    if (!table) throw new Error("Không tìm thấy bàn của lịch đặt");
+
+    return {
+      bookingId: String(booking._id),
+      customerName: booking.customerName,
+      phone: booking.phone,
+      date: booking.date,
+      time: booking.time,
+      duration: booking.duration,
+      status: booking.status,
+      table: { id: String(table._id), code: table.code, name: table.name },
+      preOrderItems: booking.preOrderItems,
+      preOrderTotal: booking.preOrderItems.reduce(
+        (sum: number, item: any) => sum + item.unitPrice * item.quantity,
+        0,
+      ),
+    };
+  }
+
+  // =========================================================================================
+  // NHÓM 5: QUẢN TRỊ & ĐIỀU PHỐI ĐẶT BÀN (ADMIN / STAFF OPERATIONS)
+  // =========================================================================================
 
   /**
    * Quản trị viên hoặc thu ngân duyệt hoặc từ chối đơn đặt bàn.
