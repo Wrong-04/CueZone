@@ -50,14 +50,32 @@ export function mapRawInvoice(inv: any): ClubInvoice {
     finalTotal: inv.finalTotal || 0,
     paymentMethod: (() => {
       const raw = String(inv.paymentMethod || "").toLowerCase();
+      if (
+        raw === "split" ||
+        raw === "mixed" ||
+        raw === "cash_qr" ||
+        raw.includes("split") ||
+        raw.includes("kết hợp") ||
+        raw.includes("+")
+      ) {
+        return "split";
+      }
       if (raw === "cash" || raw.includes("tiền mặt")) return "cash";
-      if (raw === "split" || raw.includes("split")) return "split";
       return "vietqr";
     })(),
     paymentMethodText: (() => {
       const raw = String(inv.paymentMethodText || inv.paymentMethod || "").toLowerCase();
+      if (
+        raw === "split" ||
+        raw === "mixed" ||
+        raw === "cash_qr" ||
+        raw.includes("split") ||
+        raw.includes("kết hợp") ||
+        raw.includes("+")
+      ) {
+        return "Tiền mặt + Chuyển khoản";
+      }
       if (raw === "cash" || raw.includes("tiền mặt")) return "Tiền mặt";
-      if (raw === "split" || raw.includes("split")) return "Tiền mặt + Chuyển khoản";
       return "VietQR / Ngân Hàng";
     })(),
     status: inv.status === "cancelled" ? "cancelled" : "paid",

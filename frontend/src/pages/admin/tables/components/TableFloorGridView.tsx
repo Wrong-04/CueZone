@@ -63,6 +63,7 @@ export const TableFloorGridView: React.FC<TableFloorGridViewProps> = ({
         {paginatedTables.map((table) => {
           const isMaintenance = table.status === "maintenance";
           const isPlaying = table.status === "playing";
+          const isPaused = table.status === "paused";
           const isBooked = table.status === "booked";
           const isLocked =
             table.status === "playing" ||
@@ -75,11 +76,13 @@ export const TableFloorGridView: React.FC<TableFloorGridViewProps> = ({
               className={`rounded-2xl border transition-all overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-md ${
                 isPlaying
                   ? "bg-rose-50/20 border-rose-200"
-                  : isBooked
-                    ? "bg-blue-50/20 border-blue-200"
-                    : isMaintenance
-                      ? "bg-slate-50 border-slate-300"
-                      : "bg-white border-slate-200"
+                  : isPaused
+                    ? "bg-amber-50/30 border-amber-200"
+                    : isBooked
+                      ? "bg-blue-50/20 border-blue-200"
+                      : isMaintenance
+                        ? "bg-slate-50 border-slate-300"
+                        : "bg-white border-slate-200"
               }`}
             >
               <div className="p-3.5 border-b border-slate-100 flex items-center justify-between">
@@ -96,6 +99,13 @@ export const TableFloorGridView: React.FC<TableFloorGridViewProps> = ({
                     className="!rounded-full !px-2.5 !py-0.5 !font-bold !bg-rose-50 !text-rose-700 !border-rose-200 whitespace-nowrap"
                   >
                     Đang chơi
+                  </Tag>
+                ) : isPaused ? (
+                  <Tag
+                    color="orange"
+                    className="!rounded-full !px-2.5 !py-0.5 !font-bold whitespace-nowrap"
+                  >
+                    Tạm dừng
                   </Tag>
                 ) : isBooked ? (
                   <Tag
