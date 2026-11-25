@@ -260,10 +260,14 @@ export const posService = {
 
 export const bookingService = {
   /**
-   * Lấy danh sách bàn theo khung giờ và loại bàn.
-   * [LUỒNG MỚI]: Backend trả về tất cả bàn (cả bàn đã đặt hoặc đang chơi) kèm theo:
-   * - isAvailable: boolean (true nếu bàn trống, false nếu đã được đặt/đang chơi)
-   * - unavailableReason: "booked" | "playing" | null (lý do không khả dụng)
+   * Lấy danh sách bàn theo khung giờ và loại bàn kèm cờ khả dụng.
+   *
+   * @param {object} input - Điều kiện tìm kiếm khung giờ đặt bàn
+   * @param {string} input.date - Ngày cần đặt bàn (YYYY-MM-DD)
+   * @param {string} input.time - Giờ nhận bàn (HH:mm)
+   * @param {number} input.duration - Số giờ dự kiến chơi
+   * @param {"pool" | "carom" | "snooker"} [input.type] - Thể loại bàn bida
+   * @returns {Promise<Array<BilliardTable & { id: string }>>} Danh sách bàn bida kèm trạng thái
    */
   async getAvailableTables(input: {
     date: string;
@@ -276,6 +280,12 @@ export const bookingService = {
     });
     return result(data).map((table) => ({ ...table, id: table._id }));
   },
+
+  /**
+   * Lấy danh sách các lịch đặt bàn của tài khoản khách hàng hiện tại.
+   *
+   * @returns {Promise<BookingRequest[]>} Danh sách đơn đặt bàn của khách hàng
+   */
   async getMine(): Promise<BookingRequest[]> {
     const { data } = await api.get<ApiResponse<any[]>>("/bookings/mine");
     return result(data).map((booking: any) => ({
@@ -309,12 +319,26 @@ export const bookingService = {
       createdAt: booking.createdAt || "",
     }));
   },
+
+  /**
+   * Khách hàng tự hủy một lịch đặt bàn của mình trước thời hạn quy định.
+   *
+   * @param {string} id - Mã định danh của đơn đặt bàn cần hủy
+   * @param {string} reason - Lý do hủy lịch đặt bàn
+   * @returns {Promise<BookingRequest>} Dữ liệu đơn đặt bàn sau khi hủy
+   */
   async cancelMine(id: string, reason: string): Promise<BookingRequest> {
     const { data } = await api.post<ApiResponse<BookingRequest>>(`/bookings/${id}/cancel`, {
       reason,
     });
     return result(data);
   },
+
+  /**
+   * Lấy toàn bộ danh sách đơn đặt bàn trong hệ thống để quản trị/thu ngân kiểm soát.
+   *
+   * @returns {Promise<BookingRequest[]>} Danh sách toàn bộ các đơn đặt bàn
+   */
   async getAll(): Promise<BookingRequest[]> {
     const { data } = await api.get<ApiResponse<any[]>>("/bookings");
     return result(data).map((b: any) => ({
@@ -345,6 +369,21 @@ export const bookingService = {
       createdAt: b.createdAt || new Date().toISOString(),
     }));
   },
+
+  /**
+   * Tạo đơn đặt bàn trực tiếp từ quầy lễ tân / thu ngân POS.
+   *
+   * @param {object} input - Dữ liệu đặt bàn tại quầy
+   * @param {string} input.customerName - Họ tên khách hàng
+   * @param {string} input.phone - Số điện thoại liên hệ
+   * @param {string} input.tableId - Mã định danh bàn được chọn
+   * @param {string} input.date - Ngày chơi (YYYY-MM-DD)
+   * @param {string} input.time - Giờ nhận bàn (HH:mm)
+   * @param {number} input.duration - Số giờ đặt
+   * @param {number} input.deposit - Số tiền cọc thu tại quầy
+   * @param {string} input.note - Ghi chú đặc biệt
+   * @returns {Promise<any>} Kết quả tạo đơn đặt bàn thành công
+   */
   async create(input: {
     customerName: string;
     phone: string;
@@ -358,6 +397,22 @@ export const bookingService = {
     const { data } = await api.post<ApiResponse<any>>("/bookings", input);
     return result(data);
   },
+
+  /**
+   * Khách hàng đặt bàn trực tuyến qua website công khai kèm cọc SePay.
+   *
+   * @param {object} input - Thông tin đặt bàn trực tuyến
+   * @param {string} input.customerName - Họ tên người đặt
+   * @param {string} input.phone - Số di động nhận mã
+   * @param {string} input.tableId - Mã định danh bàn
+   * @param {string} input.date - Ngày đặt bàn (YYYY-MM-DD)
+   * @param {string} input.time - Giờ nhận bàn (HH:mm)
+   * @param {number} input.duration - Thời lượng chơi dự kiến
+   * @param {number} [input.deposit=0] - Số tiền cọc cần thanh toán
+   * @param {string} [input.note] - Ghi chú đơn đặt bàn
+   * @param {Array<{ productId: string, quantity: number }>} [input.preOrderItems] - Danh sách món F&B đặt trước
+   * @returns {Promise<any>} Đơn đặt bàn kèm thông tin thanh toán VietQR
+   */
   async createPublic(input: {
     customerName: string;
     phone: string;
@@ -375,12 +430,26 @@ export const bookingService = {
     });
     return result(data);
   },
+
+  /**
+   * Kiểm tra trạng thái thanh toán tiền cọc SePay theo mã tham chiếu.
+   *
+   * @param {string} reference - Mã tham chiếu giao dịch cọc (CB...)
+   * @returns {Promise<any>} Thông tin trạng thái thanh toán và đơn đặt bàn
+   */
   async getPublicPaymentStatus(reference: string) {
     const { data } = await api.get<ApiResponse<any>>(
       `/public/bookings/payment/${encodeURIComponent(reference)}`,
     );
     return result(data);
   },
+
+  /**
+   * Hủy yêu cầu đặt cọc trong thời gian chờ thanh toán 5 phút.
+   *
+   * @param {string} reference - Mã tham chiếu chuyển khoản cần hủy
+   * @returns {Promise<{ reference: string, status: "cancelled" | "expired" }>} Trạng thái sau khi hủy
+   */
   async cancelPublicPayment(
     reference: string,
   ): Promise<{ reference: string; status: "cancelled" | "expired" }> {
@@ -389,16 +458,41 @@ export const bookingService = {
     >(`/public/bookings/payment/${encodeURIComponent(reference)}/cancel`);
     return result(data);
   },
+
+  /**
+   * Cấp phát mã QR Check-in điện tử cho một đơn đặt bàn đã thanh toán cọc.
+   *
+   * @param {string} id - Mã định danh của đơn đặt bàn
+   * @returns {Promise<{ qrToken: string }>} Chuỗi token bí mật của mã QR
+   */
   async issueQr(id: string): Promise<{ qrToken: string }> {
     const { data } = await api.post<ApiResponse<{ qrToken: string }>>(`/bookings/${id}/qr`);
     return result(data);
   },
+
+  /**
+   * Nhân viên quét hoặc nhập mã QR Token để trích xuất thông tin lịch đặt tại quầy.
+   *
+   * @param {string} qrToken - Chuỗi token đọc từ mã QR của khách
+   * @returns {Promise<BookingQrDetails>} Chi tiết lịch đặt bàn và thông tin khách
+   */
   async resolveQr(qrToken: string): Promise<BookingQrDetails> {
     const { data } = await api.post<ApiResponse<BookingQrDetails>>("/bookings/qr/resolve", {
       qrToken,
     });
     return result(data);
   },
+
+  /**
+   * Quản trị viên cập nhật trạng thái đơn đặt bàn (Duyệt/Từ chối/Đổi bàn).
+   *
+   * @param {string} id - Mã định danh của đơn đặt bàn
+   * @param {object} input - Dữ liệu cập nhật
+   * @param {"approved" | "rejected" | "pending"} input.status - Trạng thái mới
+   * @param {string} [input.tableId] - Mã bàn mới được phân bổ
+   * @param {string} [input.rejectionReason] - Lý do nếu từ chối đơn
+   * @returns {Promise<any>} Dữ liệu sau khi cập nhật
+   */
   async update(
     id: string,
     input: {

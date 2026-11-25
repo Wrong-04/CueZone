@@ -149,6 +149,7 @@ export const TableTableView: React.FC<TableTableViewProps> = ({
               { value: "all", label: "Tất cả trạng thái" },
               { value: "available", label: "Bàn trống" },
               { value: "playing", label: "Đang chơi" },
+              { value: "paused", label: "Tạm dừng" },
               { value: "booked", label: "Đã đặt trước" },
               { value: "maintenance", label: "Bảo trì" },
             ]}

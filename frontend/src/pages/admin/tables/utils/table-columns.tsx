@@ -117,6 +117,16 @@ export function getTableColumns({
             </Tag>
           );
         }
+        if (status === "paused") {
+          return (
+            <Tag
+              color="orange"
+              className="!rounded-full !px-2.5 !py-0.5 !font-bold whitespace-nowrap"
+            >
+              Tạm dừng
+            </Tag>
+          );
+        }
         if (status === "booked") {
           return (
             <Tag

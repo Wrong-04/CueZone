@@ -46,47 +46,7 @@ export const DEFAULT_CANCEL_REASONS = [
 // ============================================================================
 // PHẦN 3: CẤU HÌNH THÔNG TIN IN PHIẾU THANH TOÁN NHIỆT (RECEIPT PRINT SETTINGS)
 // ============================================================================
-export interface ClubReceiptSettings {
-  clubName: string;
-  address: string;
-  hotline: string;
-  bankCode?: string;
-  bankName?: string;
-  bankAccountNo?: string;
-  bankAccountName?: string;
-  wifiSSID?: string;
-  wifiPassword?: string;
-  printVietQROnBill?: boolean;
-  printClubLogoOnBill?: boolean;
-}
-
-export const getClubReceiptSettings = (): ClubReceiptSettings => {
-  try {
-    const saved = localStorage.getItem("cuezone_admin_settings");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return {
-        clubName: parsed.clubName || "CueZone Billiards Club",
-        address: parsed.address || "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
-        hotline: parsed.hotline || parsed.phone || "0908 888 999",
-        bankCode: parsed.bankCode,
-        bankName: parsed.bankName,
-        bankAccountNo: parsed.bankAccountNo,
-        bankAccountName: parsed.bankAccountName,
-        wifiSSID: parsed.wifiSSID,
-        wifiPassword: parsed.wifiPassword,
-        printVietQROnBill: parsed.printVietQROnBill ?? true,
-        printClubLogoOnBill: parsed.printClubLogoOnBill ?? true,
-      };
-    }
-  } catch {
-    // fallback
-  }
-  return {
-    clubName: "CueZone Billiards Club",
-    address: "128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
-    hotline: "0908 888 999",
-    printVietQROnBill: true,
-    printClubLogoOnBill: true,
-  };
-};
+export {
+  getClubReceiptSettings,
+  type ClubReceiptSettings,
+} from "../../admin/invoices/types/invoice.types";

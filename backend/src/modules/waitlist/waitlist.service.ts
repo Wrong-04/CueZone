@@ -48,7 +48,7 @@ export class WaitlistService {
           content: `Khách ${entry.customerName} (${entry.phone}) đang chờ ${entry.preferredType} (${entry.guests} người).`,
           type: NotificationType.TABLE,
         },
-        [UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER],
+        [UserRole.ADMIN, UserRole.STAFF],
       );
     } catch (e) {
       console.error("Lỗi gửi thông báo waitlist:", e);

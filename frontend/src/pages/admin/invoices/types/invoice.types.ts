@@ -2,6 +2,11 @@
 // ĐỊNH NGHĨA KIỂU DỮ LIỆU & HÀM TIỆN ÍCH DÙNG CHUNG CHO HÓA ĐƠN (INVOICE TYPES)
 // ============================================================================
 
+import {
+  DEFAULT_SETTINGS,
+  SETTINGS_STORAGE_KEY,
+} from "../../settings/types/settings.types";
+
 export interface ClubInvoiceItem {
   id: string;
   name: string;
@@ -75,38 +80,40 @@ export const CANCEL_REASONS_QUICK = [
 
 export function getClubReceiptSettings(): ClubReceiptSettings {
   try {
-    const raw = localStorage.getItem("cuezone_club_settings");
+    const raw =
+      localStorage.getItem(SETTINGS_STORAGE_KEY) ||
+      localStorage.getItem("cuezone_club_settings");
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
-        clubName: parsed.clubName || "CLB BIDA CUEZONE",
-        address: parsed.address || "123 Đường Bida, Phường 1, TP. Hồ Chí Minh",
-        hotline: parsed.hotline || "0901 234 567",
-        bankCode: parsed.bankCode || "MB",
-        bankName: parsed.bankName || "MBBank",
-        bankAccountNo: parsed.bankAccountNo || "0901234567",
-        bankAccountName: parsed.bankAccountName || "CLB BIDA CUEZONE",
-        wifiSSID: parsed.wifiSSID || "CueZone_5G_VIP",
-        wifiPassword: parsed.wifiPassword || "cuezone8888",
-        printVietQROnBill: parsed.printVietQROnBill !== false,
-        printClubLogoOnBill: parsed.printClubLogoOnBill !== false,
+        clubName: parsed.clubName || DEFAULT_SETTINGS.clubName,
+        address: parsed.address || DEFAULT_SETTINGS.address,
+        hotline: parsed.phone || parsed.hotline || DEFAULT_SETTINGS.phone,
+        bankCode: parsed.bankCode || DEFAULT_SETTINGS.bankCode,
+        bankName: parsed.bankName || DEFAULT_SETTINGS.bankName,
+        bankAccountNo: parsed.bankAccountNo || DEFAULT_SETTINGS.bankAccountNo,
+        bankAccountName: parsed.bankAccountName || DEFAULT_SETTINGS.bankAccountName,
+        wifiSSID: parsed.wifiSSID || DEFAULT_SETTINGS.wifiSSID,
+        wifiPassword: parsed.wifiPassword || DEFAULT_SETTINGS.wifiPassword,
+        printVietQROnBill: parsed.printVietQROnBill ?? DEFAULT_SETTINGS.printVietQROnBill,
+        printClubLogoOnBill: parsed.printClubLogoOnBill ?? DEFAULT_SETTINGS.printClubLogoOnBill,
       };
     }
   } catch {
     // ignore json parse error
   }
   return {
-    clubName: "CLB BIDA CUEZONE",
-    address: "123 Đường Bida, Phường 1, TP. Hồ Chí Minh",
-    hotline: "0901 234 567",
-    bankCode: "MB",
-    bankName: "MBBank",
-    bankAccountNo: "0901234567",
-    bankAccountName: "CLB BIDA CUEZONE",
-    wifiSSID: "CueZone_5G_VIP",
-    wifiPassword: "cuezone8888",
-    printVietQROnBill: true,
-    printClubLogoOnBill: true,
+    clubName: DEFAULT_SETTINGS.clubName,
+    address: DEFAULT_SETTINGS.address,
+    hotline: DEFAULT_SETTINGS.phone,
+    bankCode: DEFAULT_SETTINGS.bankCode,
+    bankName: DEFAULT_SETTINGS.bankName,
+    bankAccountNo: DEFAULT_SETTINGS.bankAccountNo,
+    bankAccountName: DEFAULT_SETTINGS.bankAccountName,
+    wifiSSID: DEFAULT_SETTINGS.wifiSSID,
+    wifiPassword: DEFAULT_SETTINGS.wifiPassword,
+    printVietQROnBill: DEFAULT_SETTINGS.printVietQROnBill,
+    printClubLogoOnBill: DEFAULT_SETTINGS.printClubLogoOnBill,
   };
 }
 

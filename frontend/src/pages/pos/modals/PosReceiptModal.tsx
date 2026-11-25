@@ -169,28 +169,34 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             )}
           </div>
 
-          {paidSummary.orders && paidSummary.orders.length > 0 && (
-            <div className="pt-2 border-t border-slate-200 text-[11px] space-y-1">
-              <span className="font-bold block mb-1">ĐỒ UỐNG & MÓN ĐÃ DÙNG:</span>
-              {paidSummary.orders.map((item: PosOrderItem, idx: number) => (
-                <div key={idx} className="flex justify-between">
-                  <span className="flex items-center gap-1">
-                    <span>{item.name || "Món F&B"} x{Number(item.quantity) || 1}</span>
-                    {item.originTableName && (
-                      <span className="text-[9px] px-1 py-0.2 rounded bg-purple-100 text-purple-700 font-bold border border-purple-200">
-                        [{item.originTableName}]
-                      </span>
-                    )}
-                  </span>
-                  <span>{((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString("vi-VN")}đ</span>
+          {(() => {
+            const activeOrders = (paidSummary.orders || []).filter(
+              (item: PosOrderItem) => item.status !== "cancelled" && Number(item.quantity) > 0,
+            );
+            if (activeOrders.length === 0) return null;
+            return (
+              <div className="pt-2 border-t border-slate-200 text-[11px] space-y-1">
+                <span className="font-bold block mb-1">ĐỒ UỐNG & MÓN ĐÃ DÙNG:</span>
+                {activeOrders.map((item: PosOrderItem, idx: number) => (
+                  <div key={idx} className="flex justify-between">
+                    <span className="flex items-center gap-1">
+                      <span>{item.name || "Món F&B"} x{Number(item.quantity) || 1}</span>
+                      {item.originTableName && (
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-purple-100 text-purple-700 font-bold border border-purple-200">
+                          [{item.originTableName}]
+                        </span>
+                      )}
+                    </span>
+                    <span>{((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString("vi-VN")}đ</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-bold pt-1 border-t border-slate-100">
+                  <span>Tổng đồ uống & món:</span>
+                  <span>{paidSummary.fnbTotal.toLocaleString("vi-VN")}đ</span>
                 </div>
-              ))}
-              <div className="flex justify-between font-bold pt-1 border-t border-slate-100">
-                <span>Tổng đồ uống & món:</span>
-                <span>{paidSummary.fnbTotal.toLocaleString("vi-VN")}đ</span>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="pt-2 border-t-2 border-slate-200 text-xs space-y-1">
             <div className="flex justify-between">
@@ -239,14 +245,14 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             )}
           </div>
 
-          {clubSettings.printVietQROnBill !== false && clubSettings.bankAccountNo && paidSummary.finalAmount > 0 && (
+          {clubSettings.printVietQROnBill !== false && clubSettings.bankCode && clubSettings.bankAccountNo && paidSummary.finalAmount > 0 && (
             <div className="pt-2 border-t border-dashed border-slate-200 text-center space-y-1">
               <span className="text-[10px] text-slate-700 font-bold block uppercase tracking-wider">
                 Quét Mã VietQR Chuyển Khoản
               </span>
               <div className="flex justify-center py-1">
                 <img
-                  src={`https://api.vietqr.io/image/${clubSettings.bankCode}-${clubSettings.bankAccountNo}-compact2.jpg?amount=${paidSummary.finalAmount}&addInfo=${encodeURIComponent(paidSummary.invoiceCode)}&accountName=${encodeURIComponent(clubSettings.bankAccountName)}`}
+                  src={`https://api.vietqr.io/image/${clubSettings.bankCode}-${clubSettings.bankAccountNo}-compact2.jpg?amount=${paidSummary.finalAmount}&addInfo=${encodeURIComponent(paidSummary.invoiceCode)}&accountName=${encodeURIComponent(clubSettings.bankAccountName || "")}`}
                   alt="VietQR Thanh Toán"
                   className="w-24 h-24 object-contain border border-slate-300 rounded p-1 bg-white"
                   loading="lazy"

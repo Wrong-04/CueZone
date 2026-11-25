@@ -212,6 +212,16 @@ export const CustomerProfile: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Input chọn ảnh đại diện đặt ở cấp trang để nút camera trên banner hoạt động ở mọi tab */}
+      <input
+        id="customer-avatar-upload"
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleAvatarFileChange}
+      />
+
       {/* Thẻ Hội Viên Điện Tử (VIP Membership Card Banner) */}
       <div className="rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white p-6 sm:p-9 border border-slate-800 shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-full opacity-10 bg-radial-gradient pointer-events-none" />
@@ -238,19 +248,29 @@ export const CustomerProfile: React.FC = () => {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingAvatar}
-                className="absolute -bottom-1 -right-1 h-6 w-6 sm:h-7 sm:w-7 bg-emerald-600 hover:bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-white shadow-md transition cursor-pointer"
+              <label
+                htmlFor={isUploadingAvatar ? undefined : "customer-avatar-upload"}
+                role="button"
+                tabIndex={isUploadingAvatar ? -1 : 0}
+                aria-disabled={isUploadingAvatar}
+                aria-label="Đổi ảnh đại diện"
                 title="Đổi ảnh đại diện"
+                onKeyDown={(e) => {
+                  if (!isUploadingAvatar && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                className={`absolute -bottom-1 -right-1 z-10 h-6 w-6 sm:h-7 sm:w-7 bg-emerald-600 hover:bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-white shadow-md transition ${
+                  isUploadingAvatar ? "pointer-events-none opacity-60 cursor-wait" : "cursor-pointer"
+                }`}
               >
                 {isUploadingAvatar ? (
                   <LoadingOutlined className="text-[10px] sm:text-xs" />
                 ) : (
                   <CameraOutlined className="text-[10px] sm:text-xs" />
                 )}
-              </button>
+              </label>
             </div>
 
             <div className="space-y-1.5">
@@ -358,17 +378,10 @@ export const CustomerProfile: React.FC = () => {
                         loading={isUploadingAvatar}
                         leftIcon={<CameraOutlined />}
                         onClick={() => fileInputRef.current?.click()}
-                        className="!text-xs !h-8 !rounded-lg !font-semibold"
+                        className="!text-xs !h-8 !rounded-lg !font-semibold whitespace-nowrap"
                       >
                         {user?.avatar ? "Đổi Ảnh Khác" : "Tải Ảnh Lên"}
                       </Button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={handleAvatarFileChange}
-                      />
                     </div>
                   </div>
 

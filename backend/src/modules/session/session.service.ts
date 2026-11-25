@@ -1142,7 +1142,7 @@ export class SessionService {
           content: `${request.tableCode}: khách yêu cầu nhân viên hỗ trợ thanh toán hóa đơn ${request.totalDue.toLocaleString("vi-VN")}đ.`,
           type: NotificationType.SYSTEM,
         },
-        [UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER],
+        [UserRole.ADMIN, UserRole.STAFF],
       )
       .catch((error) => console.error("Không thể gửi thông báo yêu cầu thanh toán:", error));
     return { status: "pending_payment", ...request };

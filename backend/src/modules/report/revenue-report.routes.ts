@@ -15,7 +15,7 @@ const tablePerfService = new TablePerformanceService();
 router.get("/revenue", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = (req as any).user;
-    if (user && user.role !== "admin" && user.role !== "staff" && user.role !== "cashier") {
+    if (user && user.role !== "admin" && user.role !== "staff") {
       return res.status(403).json({
         success: false,
         message: "Bạn không có quyền xem báo cáo doanh thu",
@@ -47,7 +47,7 @@ router.get("/revenue", async (req: Request, res: Response, next: NextFunction) =
 router.get("/table-performance", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = (req as any).user;
-    if (user && user.role !== "admin" && user.role !== "staff" && user.role !== "cashier") {
+    if (user && user.role !== "admin" && user.role !== "staff") {
       return res.status(403).json({
         success: false,
         message: "Bạn không có quyền xem báo cáo hiệu suất bàn",
@@ -80,7 +80,7 @@ router.get("/table-performance", async (req: Request, res: Response, next: NextF
 router.get("/top-tables", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = (req as any).user;
-    if (user && user.role !== "admin" && user.role !== "staff" && user.role !== "cashier") {
+    if (user && user.role !== "admin" && user.role !== "staff") {
       return res.status(403).json({
         success: false,
         message: "Bạn không có quyền truy cập",

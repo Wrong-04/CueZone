@@ -226,7 +226,7 @@ export async function createInventoryTransaction(req: Request, res: Response) {
 
     const userRole = user?.role || (req as any).currentUser?.role;
 
-    if (userRole !== "admin" && userRole !== "warehouse" && userRole !== "staff") {
+    if (userRole !== "admin" && userRole !== "staff") {
       return res.status(403).json({
         success: false,
         message: "Chỉ Quản lý hoặc Nhân viên được cập nhật tồn kho.",

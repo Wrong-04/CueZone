@@ -224,11 +224,11 @@ export const RevenueReportPage: React.FC = () => {
     banking: "Chuyển khoản",
     bank: "Chuyển khoản",
     vietqr: "Chuyển khoản VietQR",
-    member_balance: "Ví hội viên",
-    wallet: "Ví hội viên",
-    cuezone_pay: "Ví hội viên",
-    momo: "MoMo",
-    vnpay: "VNPay",
+    vnpay: "Chuyển khoản",
+    momo: "Chuyển khoản",
+    split: "Tiền mặt + Chuyển khoản",
+    cash_qr: "Tiền mặt + Chuyển khoản",
+    mixed: "Tiền mặt + Chuyển khoản",
     card: "Thẻ ngân hàng",
   };
 
@@ -237,8 +237,8 @@ export const RevenueReportPage: React.FC = () => {
     "Tiền mặt": "#10B981",
     transfer: "#3B82F6", // Blue
     "Chuyển khoản": "#3B82F6",
-    member_balance: "#8B5CF6", // Purple
-    "Ví hội viên": "#8B5CF6",
+    split: "#8B5CF6", // Purple
+    "Tiền mặt + Chuyển khoản": "#8B5CF6",
   };
 
   const rawPaymentMethods =
@@ -247,7 +247,7 @@ export const RevenueReportPage: React.FC = () => {
       : [
           { method: "cash", label: "Tiền mặt", amount: 0, count: 0, percentage: 0 },
           { method: "transfer", label: "Chuyển khoản", amount: 0, count: 0, percentage: 0 },
-          { method: "member_balance", label: "Ví hội viên", amount: 0, count: 0, percentage: 0 },
+          { method: "split", label: "Tiền mặt + Chuyển khoản", amount: 0, count: 0, percentage: 0 },
         ];
 
   const pmLabels = rawPaymentMethods.map(
@@ -710,7 +710,7 @@ export const RevenueReportPage: React.FC = () => {
             <h3 className="text-base font-black text-slate-900 mb-0.5">
               Cơ cấu phương thức thanh toán
             </h3>
-            <p className="text-xs text-slate-500 mb-0">Tỷ lệ thanh toán tiền mặt, chuyển khoản, ví</p>
+            <p className="text-xs text-slate-500 mb-0">Tỷ lệ thanh toán tiền mặt, chuyển khoản, kết hợp</p>
           </div>
 
           <div className="h-64 relative flex-1">

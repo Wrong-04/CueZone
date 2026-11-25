@@ -154,7 +154,7 @@ export class CustomerOrderService {
           content: `Mã ${order.orderCode}: ${orderItems.map((item) => `${item.name} x${item.quantity}`).join(", ")}. Tổng ${order.totalAmount.toLocaleString("vi-VN")}đ.`,
           type: NotificationType.SYSTEM,
         },
-        [UserRole.ADMIN, UserRole.STAFF, UserRole.CASHIER],
+        [UserRole.ADMIN, UserRole.STAFF],
       )
       .catch((error) => console.error("Không thể gửi thông báo order mới:", error));
     emitCustomerOrderNew(order);

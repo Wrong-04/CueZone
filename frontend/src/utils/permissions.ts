@@ -7,6 +7,7 @@ export type PermissionKey =
   | "tables.manage"
   | "bookings.manage"
   | "invoices.read"
+  | "invoices.manage"
   | "fnb_orders.manage"
   | "products.manage"
   | "inventory.read"
@@ -18,7 +19,7 @@ export type PermissionKey =
   | "reports.read"
   | "news.manage";
 
-export const STAFF_ROLES = ["admin", "staff", "cashier", "warehouse", "referee"];
+export const STAFF_ROLES = ["admin", "staff"];
 
 export const hasPermission = (user: User | null | undefined, key: PermissionKey): boolean => {
   if (!user) return false;

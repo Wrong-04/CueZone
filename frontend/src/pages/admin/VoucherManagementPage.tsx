@@ -61,7 +61,7 @@ export default function VoucherManagementPage() {
     for (const v of vouchers) {
       const st = getVoucherStatus(v);
       if (st.key === "active") active++;
-      if (st.key === "expired") expired++;
+      if (st.key === "expired" || st.key === "inactive" || st.key === "out_of_quota") expired++;
       totalUses += v.usageCount || 0;
     }
     return { total: vouchers.length, active, expired, totalUses };
@@ -264,7 +264,7 @@ export default function VoucherManagementPage() {
             onClick={openCreateModal}
             className="!rounded-xl !h-10 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 font-bold text-xs shadow-sm whitespace-nowrap"
           >
-            + Tạo mã ưu đãi
+            Tạo mã ưu đãi
           </Button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ConfigProvider, theme } from "antd";
+import { App as AntApp, ConfigProvider, theme } from "antd";
 import { Lock, Mail, ArrowRight } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { authService } from "../../services/auth.service";
@@ -13,18 +13,18 @@ import {
   Space,
   Typography,
   Modal,
-  message,
 } from "../../shared/ui";
 import { AuthBrandingPanel } from "../../components/auth/AuthBrandingPanel";
 
 const { Title, Text } = Typography;
 
-
-const LoginPage: React.FC = () => {
+const LoginPageContent: React.FC = () => {
+  const { message } = AntApp.useApp();
   const [identifier, setIdentifier] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [showForgotModal, setShowForgotModal] = useState<boolean>(false);
   const [forgotEmail, setForgotEmail] = useState<string>("");
@@ -38,13 +38,18 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleFormSubmit = useCallback(async () => {
+    setErrorMsg(null);
     const trimmed = identifier.trim();
     if (!trimmed) {
-      message.warning("Vui lòng nhập email hoặc số điện thoại đăng nhập!");
+      const msg = "Vui lòng nhập email hoặc số điện thoại đăng nhập!";
+      setErrorMsg(msg);
+      message.warning(msg);
       return;
     }
     if (!password) {
-      message.warning("Vui lòng nhập mật khẩu!");
+      const msg = "Vui lòng nhập mật khẩu!";
+      setErrorMsg(msg);
+      message.warning(msg);
       return;
     }
 
@@ -54,27 +59,15 @@ const LoginPage: React.FC = () => {
       message.success("Đăng nhập CueZone thành công!");
       navigate(getHomePath(loggedInUser));
     } catch (err: any) {
-      message.error(err?.message || "Đăng nhập thất bại, vui lòng kiểm tra lại thông tin!");
+      const msg = err?.message || "Email hoặc mật khẩu không chính xác!";
+      setErrorMsg(msg);
+      message.error(msg);
     } finally {
       setLoading(false);
     }
-  }, [identifier, password, login, navigate]);
+  }, [identifier, password, login, navigate, message]);
 
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.defaultAlgorithm,
-        token: {
-          colorPrimary: "#059669",
-          colorBgContainer: "#ffffff",
-          colorBorder: "#e2e8f0",
-          colorText: "#0f172a",
-          colorTextPlaceholder: "#94a3b8",
-          borderRadius: 12,
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-        },
-      }}
-    >
       <div className="relative min-h-screen w-screen overflow-x-hidden bg-[#f8fafc] text-slate-800 flex flex-col lg:flex-row selection:bg-emerald-500 selection:text-white">
         <AuthBrandingPanel />
 
@@ -132,7 +125,10 @@ const LoginPage: React.FC = () => {
                   size="large"
                   prefix={<Mail className="h-4 w-4 text-slate-400 mr-2" />}
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  onChange={(e) => {
+                    setIdentifier(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
                   placeholder="name@example.com hoặc 0988123456"
                   allowClear
                   className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
@@ -157,7 +153,10 @@ const LoginPage: React.FC = () => {
                   size="large"
                   prefix={<Lock className="h-4 w-4 text-slate-400 mr-2" />}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
                   placeholder="••••••••"
                   className="!h-11 !rounded-xl !border-slate-200 !bg-slate-50/80 hover:!bg-white focus:!bg-white !text-slate-900 text-xs placeholder:!text-slate-400 focus:!border-emerald-600 shadow-2xs"
                 />
@@ -170,6 +169,15 @@ const LoginPage: React.FC = () => {
                   </Text>
                 </Checkbox>
               </div>
+
+              {errorMsg && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-700"
+                >
+                  {errorMsg}
+                </div>
+              )}
 
               <Button
                 variant="primary"
@@ -386,8 +394,28 @@ const LoginPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </ConfigProvider>
   );
 };
+
+const LoginPage: React.FC = () => (
+  <ConfigProvider
+    theme={{
+      algorithm: theme.defaultAlgorithm,
+      token: {
+        colorPrimary: "#059669",
+        colorBgContainer: "#ffffff",
+        colorBorder: "#e2e8f0",
+        colorText: "#0f172a",
+        colorTextPlaceholder: "#94a3b8",
+        borderRadius: 12,
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      },
+    }}
+  >
+    <AntApp>
+      <LoginPageContent />
+    </AntApp>
+  </ConfigProvider>
+);
 
 export default LoginPage;

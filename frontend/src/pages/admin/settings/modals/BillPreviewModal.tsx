@@ -91,14 +91,14 @@ export const BillPreviewModal: React.FC<BillPreviewModalProps> = ({
           </div>
         </div>
 
-        {settings.printVietQROnBill !== false && settings.bankAccountNo && (
+        {settings.printVietQROnBill !== false && settings.bankCode && settings.bankAccountNo && (
           <div className="pt-2 border-t border-dashed border-slate-300 text-center space-y-1">
             <span className="text-[10px] text-slate-700 font-bold block uppercase tracking-wider whitespace-nowrap">
               Mã VietQR Thanh Toán
             </span>
             <div className="flex justify-center py-1">
               <img
-                src={`https://api.vietqr.io/image/${settings.bankCode || "TPB"}-${settings.bankAccountNo}-compact2.jpg?amount=352750&addInfo=HD20260924&accountName=${encodeURIComponent(settings.bankAccountName || "")}`}
+                src={`https://api.vietqr.io/image/${settings.bankCode}-${settings.bankAccountNo}-compact2.jpg?amount=352750&addInfo=HD20260924&accountName=${encodeURIComponent(settings.bankAccountName || "")}`}
                 alt="VietQR Demo"
                 className="w-20 h-20 object-contain border border-slate-300 rounded p-1 bg-white"
                 loading="lazy"
@@ -107,9 +107,11 @@ export const BillPreviewModal: React.FC<BillPreviewModalProps> = ({
             <div className="text-[9.5px] text-slate-700 font-medium whitespace-nowrap">
               {settings.bankName?.split(" (")[0] || "Ngân hàng"} · STK: <strong>{settings.bankAccountNo}</strong>
             </div>
-            <div className="text-[9px] text-slate-500 whitespace-nowrap">
-              Chủ TK: {settings.bankAccountName}
-            </div>
+            {settings.bankAccountName && (
+              <div className="text-[9px] text-slate-500 whitespace-nowrap">
+                Chủ TK: {settings.bankAccountName}
+              </div>
+            )}
           </div>
         )}
 

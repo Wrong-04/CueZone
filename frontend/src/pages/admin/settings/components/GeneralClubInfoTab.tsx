@@ -72,21 +72,19 @@ export const GeneralClubInfoTab: React.FC<GeneralClubInfoTabProps> = ({
                   Đồng bộ tự động
                 </span>
               </div>
-              <Input
-                readOnly
-                value={`${actualTableCount} Bàn (${actualTablesBreakdown.pool} Pool · ${actualTablesBreakdown.carom} Carom · ${actualTablesBreakdown.snooker} Snooker)`}
-                suffix={
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={onNavigateTables}
-                    className="!text-xs !p-0 !text-emerald-700 font-bold hover:!text-emerald-800 whitespace-nowrap"
-                  >
-                    Quản lý bàn →
-                  </Button>
-                }
-                className="!bg-slate-50 !text-slate-900 font-medium cursor-default"
-              />
+              <div className="min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+                <span className="text-xs sm:text-sm text-slate-900 font-medium min-w-0 truncate">
+                  {actualTableCount} Bàn ({actualTablesBreakdown.pool} Pool · {actualTablesBreakdown.carom} Carom · {actualTablesBreakdown.snooker} Snooker)
+                </span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={onNavigateTables}
+                  className="!text-xs !p-0 !h-auto !text-emerald-700 font-bold hover:!text-emerald-800 whitespace-nowrap shrink-0"
+                >
+                  Quản lý bàn →
+                </Button>
+              </div>
             </div>
           </div>
 
