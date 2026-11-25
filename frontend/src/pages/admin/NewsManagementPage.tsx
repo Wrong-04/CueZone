@@ -251,7 +251,7 @@ export default function NewsManagementPage() {
       {!loadError && <Pagination current={page} pageSize={pageSize} total={total} showSizeChanger={false}
         onChange={setPage} showTotal={(count) => `${count} bài viết`} />}
       <Modal title={editingId ? "Chỉnh sửa bài viết" : "Tạo bài viết"} open={editorOpen} width={780}
-        onCancel={closeEditor} maskClosable={false} closable={!saving && !uploading}
+        onCancel={closeEditor} mask={{ closable: false }} closable={!saving && !uploading}
         footer={<div className="flex justify-end gap-2">
           <Button variant="outline" disabled={saving || uploading} onClick={closeEditor}>Hủy</Button>
           <Button variant="outline" disabled={saving || uploading} onClick={() => void save("draft")}>

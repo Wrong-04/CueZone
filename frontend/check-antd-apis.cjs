@@ -59,6 +59,10 @@ vm.runInNewContext(compiled, {
   require: (name) => {
     if (name === "antd") return { Select: "Select" };
     if (name === "react") return { useId: () => "input-test", useMemo: (fn) => fn() };
+    // Stub icon components so this CJS check does not load the ESM-only icon package.
+    if (name === "@ant-design/icons") {
+      return new Proxy({}, { get: (_target, prop) => (typeof prop === "string" ? prop : undefined) });
+    }
     return require(name);
   },
 }, { filename: file });

@@ -1005,7 +1005,7 @@ function SupplierModal({
       closable={false}
       width={680}
       centered
-      destroyOnClose
+      destroyOnHidden
       styles={{ body: { padding: 0 } }}
     >
       <div

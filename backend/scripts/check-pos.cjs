@@ -171,7 +171,7 @@ async function main() {
     const splitInvoices = await ok("/invoices?paymentMethod=split", "GET", undefined, token);
     assert.equal(splitInvoices.items.length, 1);
     assert.equal(splitInvoices.items[0].paymentMethod, "split");
-    assert.equal(splitInvoices.items[0].paymentMethodText, "Tiền Mặt + QR");
+    assert.equal(splitInvoices.items[0].paymentMethodText, "Tiền mặt + Chuyển khoản");
     assert.deepEqual(splitInvoices.items[0].paymentDetails, {
       cashAmount: splitCashAmount,
       transferAmount: splitTransferAmount,
@@ -182,7 +182,7 @@ async function main() {
     const splitChannel = revenueReport.paymentMethods.find((method) => method.method === "split");
     assert.deepEqual(
       { label: splitChannel?.label, amount: splitChannel?.amount, count: splitChannel?.count },
-      { label: "Tiền mặt + QR", amount: customerPaymentRequest.totalDue, count: 1 },
+      { label: "Tiền mặt + Chuyển khoản", amount: customerPaymentRequest.totalDue, count: 1 },
     );
     await Invoice.deleteOne({ tableId: paymentTable._id });
     await Table.deleteOne({ _id: paymentTable._id });
@@ -346,7 +346,10 @@ async function main() {
       `/public/booking-availability?date=${tomorrow}&time=10%3A00&duration=2&type=carom`,
       "GET",
     );
-    assert.equal(availability.some((availableTable) => availableTable._id === second._id), false);
+    assert.equal(
+      availability.find((availableTable) => availableTable._id === second._id)?.isAvailable,
+      false,
+    );
     const cancelledOnlineBooking = await ok(
       `/bookings/${onlineBooking._id}/cancel`,
       "POST",

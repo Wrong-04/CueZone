@@ -56,7 +56,7 @@ export const FnbTableView: React.FC<FnbTableViewProps> = ({
               height={56}
               className="!w-14 !h-14 !object-cover rounded-xl transition-transform duration-300 group-hover:scale-110"
               preview={{
-                mask: (
+                cover: (
                   <div className="flex items-center justify-center text-[10px] text-white font-bold bg-black/50 whitespace-nowrap">
                     <EyeOutlined />
                   </div>

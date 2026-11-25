@@ -527,23 +527,26 @@ export const WarehouseInventoryPage: React.FC = () => {
   });
 
   const handleOpenAddMaterialModal = () => {
+    //Tìm danh mục mặc định
     const defaultCat =
       availableCategories.find((c) => c.scope === "warehouse") || availableCategories[0];
-    const catCode = defaultCat?.code || "accessory";
+    //Xác định loại mặt hàng
+      const catCode = defaultCat?.code || "accessory";
     const pType: "accessory" | "ingredient" | "fnb" =
       catCode === "ingredient" ? "ingredient" : "accessory";
+      // tạo mã SKU
     const autoSku = `${catCode === "ingredient" ? "ING" : "ACC"}-${String(stockList.length + 1).padStart(3, "0")}`;
 
     setNewMaterialForm({
-      name: "",
-      sku: autoSku,
-      category: catCode,
-      productType: pType,
-      unit: pType === "accessory" ? "cây" : "kg",
-      costPrice: 0,
-      minStock: 5,
-      location: pType === "accessory" ? "Kệ Gậy & Phụ Kiện" : "Kho Nguyên Liệu",
-      description: "",
+      name: "",         // Tên mặt hàng
+      sku: autoSku,     //Mã SKU tự động
+      category: catCode,//Danh mục mặc định
+      productType: pType,//Loại mặt hàng
+      unit: pType === "accessory" ? "cây" : "kg",//Đơn vị tính
+      costPrice: 0,       //Giá vốn mặc định
+      minStock: 5,        //Ngưỡng tồn kho tối thiểu mặc định
+      location: pType === "accessory" ? "Kệ Gậy & Phụ Kiện" : "Kho Nguyên Liệu",//Vị trí lưu kho mặc định
+      description: "",    //Mô tả mặt hàng
     });
     setIsAddMaterialModalOpen(true);
   };
@@ -559,9 +562,9 @@ export const WarehouseInventoryPage: React.FC = () => {
         availableCategories.find(
           (c) => (c.scope === "warehouse" || c.code === "accessory") && c.code !== "ingredient",
         )?.code || "accessory";
-      defaultUnit = "cây";
-      defaultLocation = "Kệ Gậy & Phụ Kiện";
-      prefix = "ACC";
+      defaultUnit = "cây";                     // Đơn vị mặc định
+      defaultLocation = "Kệ Gậy & Phụ Kiện";  // Vị trí kho mặc định
+      prefix = "ACC";                         // SkU mặc định     
     } else if (pType === "ingredient") {
       matchedCat =
         availableCategories.find(
@@ -4473,17 +4476,17 @@ export const WarehouseInventoryPage: React.FC = () => {
               Chọn mặt hàng xuất kho:
             </label>
             <Select
-              showSearch
+              showSearch={{
+                filterOption: (input, option) =>
+                  String(option?.label ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase()),
+              }}
               value={transferForm.sku}
               onChange={(val) => setTransferForm((prev) => ({ ...prev, sku: val }))}
               className="!w-full !rounded-xl !text-xs !h-10"
               placeholder="Chọn mặt hàng xuất kho..."
               options={transferItemOptions}
-              filterOption={(input, option) =>
-                String(option?.label ?? "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
             />
           </div>
 
@@ -4531,16 +4534,16 @@ export const WarehouseInventoryPage: React.FC = () => {
               </span>
             </div>
             <Select
-              showSearch
+              showSearch={{
+                filterOption: (input, option) =>
+                  String(option?.label ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase()),
+              }}
               value={transferForm.target}
               onChange={(val) => setTransferForm((prev) => ({ ...prev, target: val }))}
               className="!w-full !rounded-xl !text-xs !h-10"
               options={transferTargetOptions}
-              filterOption={(input, option) =>
-                String(option?.label ?? "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
               placeholder="Chọn bàn bida hoặc khu vực tiếp nhận..."
             />
             {isTargetTable && isSelectedItemFnb && (
@@ -4628,7 +4631,12 @@ export const WarehouseInventoryPage: React.FC = () => {
               </div>
             ) : (
               <Select
-                showSearch
+                showSearch={{
+                  filterOption: (input, option) =>
+                    String(option?.label ?? "")
+                      .toLowerCase()
+                      .includes(input.toLowerCase()),
+                }}
                 value={wasteForm.sku}
                 onChange={(val) => setWasteForm((prev) => ({ ...prev, sku: val }))}
                 className="!w-full !rounded-xl !text-xs !h-10"
@@ -4637,11 +4645,6 @@ export const WarehouseInventoryPage: React.FC = () => {
                   label: `${i.sku} - ${i.name} (Tồn hiện tại: ${i.stockQty} ${i.unit})`,
                   disabled: i.stockQty === 0,
                 }))}
-                filterOption={(input, option) =>
-                  String(option?.label ?? "")
-                    .toLowerCase()
-                    .includes(input.toLowerCase())
-                }
                 placeholder="Chọn phụ kiện bida bị hỏng..."
               />
             )}

@@ -1256,7 +1256,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
         closable={false}
         width={700}
         centered
-        destroyOnClose
+        destroyOnHidden
         styles={{ body: { padding: 0 } }}
       >
         <div className="relative my-auto w-full rounded-3xl bg-white border border-slate-100 overflow-hidden">
@@ -1581,7 +1581,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
         closable={false}
         width={540}
         centered
-        destroyOnClose
+        destroyOnHidden
         styles={{ body: { padding: 0 } }}
       >
         <div className="relative my-auto w-full rounded-3xl bg-white border border-slate-100 overflow-hidden">
@@ -1775,7 +1775,7 @@ export default function CatalogManagementPage({ embedded = false }: { embedded?:
         closable={false}
         width={920}
         centered
-        destroyOnClose
+        destroyOnHidden
         styles={{ body: { padding: 0 } }}
       >
         {categoryProductsModal && (

@@ -91,7 +91,7 @@ export const FnbCardGridView: React.FC<FnbCardGridViewProps> = ({
                   alt={item.name}
                   className="group-hover:scale-105 transition-transform duration-500 ease-out"
                   preview={{
-                    mask: (
+                    cover: (
                       <div className="flex items-center gap-1.5 text-xs text-white font-bold bg-black/40 px-3 py-1.5 rounded-full whitespace-nowrap">
                         <EyeOutlined /> Xem ảnh gốc
                       </div>

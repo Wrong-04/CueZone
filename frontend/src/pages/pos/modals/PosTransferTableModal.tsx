@@ -72,7 +72,7 @@ export const PosTransferTableModal: React.FC<PosTransferTableModalProps> = ({
       onCancel={onClose}
       footer={null}
       width={640}
-      destroyOnClose
+      destroyOnHidden
       title={
         <div className="flex items-center justify-between pr-4">
           <Space align="center" size={8}>

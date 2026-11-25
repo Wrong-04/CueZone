@@ -1069,7 +1069,7 @@ export const CustomerBooking = () => {
           if (paymentIntent?.status !== "awaiting_payment") setShowSuccessModal(false);
         }}
         closable={paymentIntent?.status !== "awaiting_payment"}
-        maskClosable={paymentIntent?.status !== "awaiting_payment"}
+        mask={{ closable: paymentIntent?.status !== "awaiting_payment" }}
         footer={
           paymentIntent?.status === "awaiting_payment"
             ? confirmingCancelPayment
