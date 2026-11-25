@@ -1,3 +1,8 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: ROUTER PHIÊN CHƠI POS (/api/v1/tables/:id/session)
+// Yêu cầu quyền: `pos.operate` (Admin / Nhân viên thu ngân vận hành quầy)
+// Luồng đi: posService (Frontend) -> session.routes.ts -> SessionService -> MongoDB & Socket.IO
+// ============================================================================
 import { Router } from "express";
 import mongoose from "mongoose";
 import { SessionService } from "./session.service";
@@ -5,7 +10,11 @@ import { requirePermission } from "../../middlewares/auth.middleware";
 
 const router = Router({ mergeParams: true });
 const service = new SessionService();
+
+// Bảo vệ toàn bộ endpoint thao tác phiên chơi bằng quyền vận hành POS
 router.use(requirePermission("pos", "operate"));
+
+// Kiểm tra định dạng ObjectId của tham số :id bàn trước khi xử lý nghiệp vụ
 router.use((req, res, next) => {
   if (!mongoose.isValidObjectId((req.params as { id: string }).id)) {
     res.status(400).json({ success: false, message: "Mã bàn không hợp lệ" });
@@ -13,6 +22,8 @@ router.use((req, res, next) => {
   }
   next();
 });
+
+// Mở phiên chơi mới trên bàn (POST /api/v1/tables/:id/session)
 router.post("/", async (req, res, next) => {
   try {
     res.status(201).json({
@@ -23,6 +34,8 @@ router.post("/", async (req, res, next) => {
     next(error);
   }
 });
+
+// Alias mở phiên chơi tương thích với các client gọi /session/open
 router.post("/open", async (req, res, next) => {
   try {
     res.status(201).json({
@@ -33,6 +46,8 @@ router.post("/open", async (req, res, next) => {
     next(error);
   }
 });
+
+// Tạm dừng hoặc tiếp tục đồng hồ tính giờ chơi của bàn
 router.patch("/pause", async (req, res, next) => {
   try {
     res.json({
@@ -43,6 +58,8 @@ router.patch("/pause", async (req, res, next) => {
     next(error);
   }
 });
+
+// Lấy danh sách bàn đích hợp lệ phục vụ chuyển bàn hoặc gộp bàn
 router.get("/move-targets", async (req, res, next) => {
   try {
     const action = req.query.action === "merge" ? "merge" : "transfer";
@@ -54,6 +71,8 @@ router.get("/move-targets", async (req, res, next) => {
     next(error);
   }
 });
+
+// Thực hiện chuyển phiên sang bàn trống hoặc gộp hóa đơn vào bàn khác
 router.post("/move", async (req, res, next) => {
   try {
     const user = (req as any).user;
@@ -65,6 +84,8 @@ router.post("/move", async (req, res, next) => {
     next(error);
   }
 });
+
+// Chốt thanh toán, áp voucher/chiết khấu, tạo Invoice và giải phóng bàn
 router.post("/checkout", async (req, res, next) => {
   try {
     res.json({
@@ -75,6 +96,8 @@ router.post("/checkout", async (req, res, next) => {
     next(error);
   }
 });
+
+// Hủy một phần/toàn bộ món F&B trong phiên và hoàn tồn kho (nếu chưa chế biến)
 router.post("/orders/cancel", async (req, res, next) => {
   try {
     const user = (req as any).user;
@@ -86,6 +109,8 @@ router.post("/orders/cancel", async (req, res, next) => {
     next(error);
   }
 });
+
+// Gọi thêm hoặc cập nhật danh sách món F&B trên bàn đang chơi (lưu currentSession.orders & phát Socket)
 router.post("/orders", async (req, res, next) => {
   try {
     res.json({
@@ -96,4 +121,5 @@ router.post("/orders", async (req, res, next) => {
     next(error);
   }
 });
+
 export default router;

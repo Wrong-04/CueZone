@@ -18,6 +18,16 @@ import {
 const notificationService = new NotificationService();
 
 // =========================================================================================
+// TỔNG QUAN MODULE DỊCH VỤ ĐẶT BÀN (BookingService)
+// Chia thành 5 phần nghiệp vụ chính:
+//   - Phần 1: Mã QR Check-in & Đồng bộ trạng thái bàn (bookedInfo)
+//   - Phần 2: Tra cứu bàn trống theo khung giờ & Danh sách đơn đặt bàn
+//   - Phần 3: Tạo đơn đặt bàn & Khởi tạo giao dịch cọc SePay
+//   - Phần 4: Theo dõi trạng thái cọc, Hủy cọc, Webhook SePay & Hết hạn tự động
+//   - Phần 5: Khách hàng tự hủy lịch & Quản trị cập nhật đơn đặt bàn
+// =========================================================================================
+
+// =========================================================================================
 // CÁC HẰNG SỐ CẤU HÌNH NGHIỆP VỤ ĐẶT BÀN
 // =========================================================================================
 // Các trạng thái đặt bàn được tính là đang hoạt động / chiếm chỗ
@@ -143,6 +153,8 @@ export function bookingInput(input: any) {
 }
 
 export class BookingService {
+  // ── PHẦN 1: MÃ QR CHECK-IN & ĐỒNG BỘ TRẠNG THÁI BÀN (bookedInfo) ──────────────────────
+
   /**
    * Băm chuỗi mã QR Token bằng thuật toán SHA-256 để lưu trữ an toàn.
    *
@@ -273,6 +285,8 @@ export class BookingService {
       );
     });
   }
+
+  // ── PHẦN 2: TRA CỨU BÀN TRỐNG & DANH SÁCH ĐƠN ĐẶT BÀN ───────────────────────────────────
 
   /**
    * Lấy danh sách bàn kèm trạng thái khả dụng theo khung giờ khách đã chọn.
@@ -452,6 +466,8 @@ export class BookingService {
       };
     });
   }
+
+  // ── PHẦN 3: TẠO ĐƠN ĐẶT BÀN & KHỞI TẠO GIAO DỊCH CỌC SEPAY ─────────────────────────────
 
   /**
    * Tạo đơn đặt bàn mới và khởi tạo thanh toán cọc SePay nếu có yêu cầu.
@@ -733,6 +749,8 @@ export class BookingService {
     }
     return qr.toString();
   }
+
+  // ── PHẦN 4: THANH TOÁN CỌC SEPAY VIETQR, HỦY CỌC & WEBHOOK TỰ ĐỘNG ─────────────────────
 
   /**
    * Truy vấn trạng thái thanh toán tiền cọc đặt bàn theo mã tham chiếu.
@@ -1166,6 +1184,8 @@ export class BookingService {
     }
     return released;
   }
+
+  // ── PHẦN 5: KHÁCH HÀNG TỰ HỦY LỊCH & QUẢN TRỊ CẬP NHẬT ĐƠN ĐẶT BÀN ─────────────────────
 
   /**
    * Khách hàng tự hủy lịch đặt bàn từ tài khoản cá nhân trước giờ chơi.

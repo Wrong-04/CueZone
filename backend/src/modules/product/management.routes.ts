@@ -1,3 +1,10 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: ROUTER QUẢN LÝ DANH MỤC & HÀNG HÓA (/api/v1/catalog-management)
+// Yêu cầu quyền: requireProductManager (Quản lý / Admin quản lý thực đơn & kho)
+// Luồng đi: catalog-management.service.ts -> management.routes.ts -> MongoDB (Category/Product)
+//   - Nhóm 1 (CATEGORIES): CRUD danh mục & đồng bộ trạng thái sản phẩm liên kết
+//   - Nhóm 2 (PRODUCTS)  : Lọc, CRUD hàng hóa/món F&B & phát Socket `menu:updated`
+// ============================================================================
 import { Router, Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 
@@ -9,6 +16,14 @@ import { emitMenuUpdated } from "../../utils/socketHolder";
 const router = Router();
 router.use(requireProductManager);
 
+// ── 1. HÀM TIỆN ÍCH NỘI BỘ ──────────────────────────────────────────────────
+
+/**
+ * Bọc async handler của Express để tự động chuyển tiếp lỗi về error middleware trung tâm.
+ *
+ * @param {Function} handler - Hàm xử lý route bất đồng bộ
+ * @returns {Function} Middleware Express an toàn ngoại lệ
+ */
 function asyncHandler(
   handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>,
 ) {
@@ -17,6 +32,14 @@ function asyncHandler(
   };
 }
 
+/**
+ * Trả về phản hồi lỗi JSON thống nhất theo định dạng `{ success: false, message }`.
+ *
+ * @param {Response} res - Đối tượng HTTP Response
+ * @param {number} status - Mã trạng thái HTTP (400, 404, 409...)
+ * @param {string} message - Thông báo lỗi tiếng Việt
+ * @returns {Response} HTTP Response dạng JSON
+ */
 function sendError(res: Response, status: number, message: string) {
   return res.status(status).json({
     success: false,
@@ -24,17 +47,27 @@ function sendError(res: Response, status: number, message: string) {
   });
 }
 
+/**
+ * Kiểm tra chuỗi ID có đúng định dạng MongoDB ObjectId hợp lệ hay không.
+ *
+ * @param {string} id - Chuỗi mã định danh cần kiểm tra
+ * @returns {boolean} true nếu là ObjectId hợp lệ
+ */
 function validId(id: string): boolean {
   return mongoose.isValidObjectId(id);
 }
 
+/**
+ * Chuẩn hóa dữ liệu đầu vào về chuỗi đã cắt khoảng trắng hai đầu (hoặc chuỗi rỗng).
+ *
+ * @param {unknown} value - Giá trị thô từ req.body / req.query
+ * @returns {string} Chuỗi đã chuẩn hóa
+ */
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-/* =========================
-   CATEGORIES
-========================= */
+// ── 2. NHÓM ROUTE QUẢN LÝ DANH MỤC (CATEGORIES) ──────────────────────────────
 
 // GET /api/v1/catalog-management/categories
 router.get(
@@ -249,9 +282,7 @@ router.delete(
   }),
 );
 
-/* =========================
-   PRODUCTS
-========================= */
+// ── 3. NHÓM ROUTE QUẢN LÝ HÀNG HÓA & MÓN F&B (PRODUCTS) ──────────────────────
 
 // GET /api/v1/catalog-management/products
 router.get(

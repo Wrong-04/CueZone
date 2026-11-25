@@ -5,11 +5,12 @@ import { waitlistService } from "../../../services/waitlist.service";
 import type { PosTable, BookingRequest } from "../../../types/pos";
 
 // ============================================================================
-// HOOK QUẢN LÝ MỞ BÀN, NHẬN LỊCH HẸN & TRA CỨU HỘI VIÊN (USE POS OPEN TABLE)
-// Nghiệp vụ:
-// - Mở bàn mới bắt đầu tính giờ chơi
-// - Tự động tra cứu hội viên theo số điện thoại để áp dụng ưu đãi
-// - Nhận khách check-in từ lịch đặt trước (booking) hoặc danh sách chờ
+// HOOK QUẢN LÝ MỞ BÀN, NHẬN LỊCH HẸN & TRA CỨU HỘI VIÊN (usePosOpenTable)
+// Sơ đồ luồng dữ liệu:
+//   PosOpenTableModal / PosTableCard
+//     -> usePosOpenTable (tra cứu hội viên theo SĐT, mở bàn, gắn waitlist/booking)
+//     -> posService.lookupCustomer() / posService.open()
+//     -> Backend: SessionService.open() (khởi tạo currentSession, cập nhật pool_tables + Socket.IO)
 // ============================================================================
 
 interface UsePosOpenTableProps {
@@ -43,6 +44,13 @@ export function usePosOpenTable({
   } | null>(null);
   const [isSearchingOpenMember, setIsSearchingOpenMember] = useState<boolean>(false);
 
+  /**
+   * Tự động tra cứu thông tin hội viên theo số điện thoại khi thu ngân nhập vào modal mở bàn.
+   * Luồng đi: Input SĐT -> posService.lookupCustomer -> điền tên & áp dụng ưu đãi hạng thẻ.
+   *
+   * @param {string} phoneInput - Chuỗi số điện thoại thu ngân đang nhập
+   * @returns {Promise<void>}
+   */
   const handlePhoneChangeInOpenModal = async (phoneInput: string) => {
     setCustomerPhone(phoneInput);
     const clean = phoneInput.trim().replace(/[\s.-]/g, "");
@@ -75,6 +83,12 @@ export function usePosOpenTable({
     }
   };
 
+  /**
+   * Xác nhận mở bàn mới hoặc check-in khách từ lịch hẹn / danh sách chờ.
+   * Luồng đi: Nút Mở bàn -> posService.open() -> cập nhật waitlist (nếu có) -> đóng modal.
+   *
+   * @returns {Promise<void>}
+   */
   const handleOpenTable = async () => {
     if (!selectedTable) return;
     if (selectedTable.status !== "available" && selectedTable.status !== "booked") {
@@ -112,6 +126,13 @@ export function usePosOpenTable({
     setIsCheckInMode(false);
   };
 
+  /**
+   * Mở modal cấu hình mở bàn (tự điền thông tin khách nếu là check-in từ lịch đặt trước).
+   *
+   * @param {PosTable} table - Bàn đích cần mở phiên chơi
+   * @param {boolean} [isCheckIn=false] - True nếu khách đã đặt trước (bookedInfo)
+   * @returns {void}
+   */
   const handleOpenTableModal = (table: PosTable, isCheckIn = false) => {
     setSelectedTable(table);
     setIsCheckInMode(isCheckIn);
@@ -132,6 +153,13 @@ export function usePosOpenTable({
     setOpenModalVisible(true);
   };
 
+  /**
+   * Mở modal nhận bàn từ thông tin một đơn đặt trước cụ thể.
+   *
+   * @param {string} tableId - Mã định danh bàn cần check-in
+   * @param {BookingRequest} booking - Dữ liệu đơn đặt bàn của khách
+   * @returns {void}
+   */
   const handleCheckInFromBooking = (tableId: string, booking: BookingRequest) => {
     const table = selectedTable && selectedTable.id === tableId ? selectedTable : null;
     if (table) {

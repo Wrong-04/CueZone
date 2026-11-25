@@ -1,3 +1,8 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: ROUTER ORDER F&B & THANH TOÁN TẠI BÀN (/api/v1/customer/fnb-orders)
+// - Nhóm Khách hàng (CUSTOMER): xem bàn đang chơi, gửi order, tạm tính & gọi thanh toán
+// - Nhóm Nhân viên POS (fnb_orders.manage): duyệt order QR & xác nhận thanh toán tại bàn
+// ============================================================================
 import { Router } from "express";
 import { requirePermission, requireRole } from "../../middlewares/auth.middleware";
 import { UserRole } from "../user/user.model";
@@ -9,6 +14,9 @@ const service = new CustomerOrderService();
 const sessionService = new SessionService();
 const fnbOrdersManage = requirePermission("fnb_orders", "manage");
 
+// ── 1. ROUTE DÀNH CHO KHÁCH HÀNG ĐANG CHƠI TẠI BÀN (role CUSTOMER) ──────────────────────
+
+// Lấy danh sách bàn và phiên chơi hiện tại mà khách hàng có quyền gọi món
 router.get("/active-tables", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   try {
     res.json({
@@ -20,6 +28,7 @@ router.get("/active-tables", requireRole(UserRole.CUSTOMER), async (req, res, ne
   }
 });
 
+// Khách hàng gửi đơn gọi món F&B mới từ điện thoại (bắn thông báo + Socket cho quầy POS)
 router.post("/", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   try {
     const order = await service.create((req as any).user.userId, req.body);
@@ -29,6 +38,9 @@ router.post("/", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   }
 });
 
+// ── 2. ROUTE DÀNH CHO NHÂN VIÊN POS (quyền fnb_orders.manage) ───────────────────────────
+
+// Lấy hàng đợi đơn gọi món trực tuyến trong 24h hiển thị ở CustomerOrderDrawer
 router.get("/queue", fnbOrdersManage, async (_req, res, next) => {
   try {
     res.json({ success: true, data: await service.getQueue() });
@@ -37,6 +49,7 @@ router.get("/queue", fnbOrdersManage, async (_req, res, next) => {
   }
 });
 
+// Lấy danh sách bàn có khách đang yêu cầu thanh toán tại CustomerPaymentRequests
 router.get("/payment-requests", fnbOrdersManage, async (_req, res, next) => {
   try {
     res.json({ success: true, data: await sessionService.getCustomerPaymentRequests() });
@@ -45,6 +58,7 @@ router.get("/payment-requests", fnbOrdersManage, async (_req, res, next) => {
   }
 });
 
+// Thu ngân xác nhận thu tiền (chốt checkout) hoặc từ chối yêu cầu thanh toán của khách
 router.patch("/payment-requests/:tableId", fnbOrdersManage, async (req, res, next) => {
   try {
     if (typeof req.body?.approved !== "boolean") {
@@ -67,6 +81,9 @@ router.patch("/payment-requests/:tableId", fnbOrdersManage, async (req, res, nex
   }
 });
 
+// ── 3. ROUTE TẠM TÍNH, YÊU CẦU THANH TOÁN & THEO DÕI ĐƠN CỦA KHÁCH ──────────────────────
+
+// Khách hàng xem trước hóa đơn tạm tính (tiền giờ, F&B, ưu đãi hội viên, voucher)
 router.post("/:tableId/checkout-preview", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   try {
     const data = await sessionService.previewCustomerCheckout(
@@ -81,6 +98,7 @@ router.post("/:tableId/checkout-preview", requireRole(UserRole.CUSTOMER), async 
   }
 });
 
+// Khách hàng bấm "Gọi thanh toán" để chuyển phiên sang trạng thái pending_payment chờ thu ngân
 router.post("/:tableId/checkout", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   try {
     const data = await sessionService.requestCustomerCheckout(
@@ -98,6 +116,7 @@ router.post("/:tableId/checkout", requireRole(UserRole.CUSTOMER), async (req, re
   }
 });
 
+// Nhân viên POS cập nhật tiến độ order F&B (duyệt pha chế -> trừ kho & gắn vào bill bàn, sẵn sàng, phục vụ, từ chối)
 router.patch("/:id/status", fnbOrdersManage, async (req, res, next) => {
   try {
     const order = await service.updateStatus(
@@ -111,6 +130,7 @@ router.patch("/:id/status", fnbOrdersManage, async (req, res, next) => {
   }
 });
 
+// Khách hàng tra cứu chi tiết một order F&B của chính mình
 router.get("/:id", requireRole(UserRole.CUSTOMER), async (req, res, next) => {
   try {
     const order = await service.getForCustomer(req.params.id, (req as any).user.userId);

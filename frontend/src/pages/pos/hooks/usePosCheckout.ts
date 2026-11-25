@@ -5,11 +5,12 @@ import type { PosTable, CheckoutReceipt } from "../../../types/pos";
 
 // ============================================================================
 // HOOK QUẢN LÝ THANH TOÁN, TÍNH TIỀN & IN PHIẾU (USE POS CHECKOUT)
-// Nghiệp vụ:
-// - Tổng hợp tiền giờ theo biểu phí nhiều khung giờ + tiền F&B
-// - Tra cứu tích điểm hội viên & áp dụng mã giảm giá (voucher)
-// - Hỗ trợ các hình thức thanh toán: Tiền mặt, Chuyển khoản VietQR, Thẻ
-// - Hoàn tất thanh toán ACID và mở modal in phiếu thanh toán nhiệt 80mm
+// Sơ đồ luồng dữ liệu:
+//   PosCheckoutModal
+//     -> usePosCheckout (tra cứu hội viên, kiểm tra voucher, chốt thanh toán)
+//     -> posService.lookupCustomer() / validateVoucher() / checkout()
+//     -> Backend: SessionService.checkout() (MongoDB Transaction: Invoice + trả bàn + cộng điểm)
+//     -> PosReceiptModal (hiển thị & in hóa đơn nhiệt 80mm)
 // ============================================================================
 
 export interface LoyaltyCustomerInfo {
@@ -57,6 +58,12 @@ export function usePosCheckout({
   const [receiptModalVisible, setReceiptModalVisible] = useState<boolean>(false);
   const [paidSummary, setPaidSummary] = useState<CheckoutReceipt | null>(null);
 
+  /**
+   * Tìm kiếm thông tin hội viên theo SĐT tại modal thanh toán để áp dụng giảm giá hạng thẻ và voucher khả dụng.
+   * Luồng đi: Nhập SĐT -> posService.lookupCustomer() -> GET /tables/customer-lookup.
+   *
+   * @returns {Promise<void>}
+   */
   const handleSearchLoyaltyCustomer = async () => {
     const phoneTrimmed = checkoutPhone.trim();
     if (!phoneTrimmed || phoneTrimmed.length < 8) {
@@ -111,6 +118,12 @@ export function usePosCheckout({
     }
   };
 
+  /**
+   * Mở modal thanh toán cho bàn được chọn, tự động tra cứu lại thông tin hội viên nếu phiên đã gắn SĐT.
+   *
+   * @param {PosTable} table - Bàn đang chơi cần tính tiền
+   * @returns {void}
+   */
   const handleOpenCheckout = (table: PosTable) => {
     setSelectedTable(table);
     const sessionPhone = table.currentSession?.customerPhone || "";
@@ -155,6 +168,13 @@ export function usePosCheckout({
     setCheckoutModalVisible(true);
   };
 
+  /**
+   * Xác nhận chốt hóa đơn thanh toán cuối cùng và chuyển sang modal in bill.
+   * Luồng đi: PosCheckoutModal -> posService.checkout() -> POST /tables/:id/session/checkout -> PosReceiptModal.
+   *
+   * @param {NonNullable<CheckoutReceipt["paymentDetails"]>} paymentDetails - Chi tiết số tiền thu theo tiền mặt/chuyển khoản
+   * @returns {Promise<void>}
+   */
   const handleConfirmCheckout = async (
     paymentDetails: NonNullable<CheckoutReceipt["paymentDetails"]>,
   ) => {
@@ -186,6 +206,12 @@ export function usePosCheckout({
     );
   };
 
+  /**
+   * Tạo bản xem trước phiếu tạm tính (chưa chốt thanh toán) để in kiểm tra cho khách.
+   *
+   * @param {PosTable} table - Bàn cần xem trước hóa đơn tạm tính
+   * @returns {void}
+   */
   const handleOpenPrePrintReceipt = (table: PosTable) => {
     const { cost, minutes } = calculatePlayingDetails(table);
     const fnbItems = (table.currentSession?.orders || []).filter(
@@ -223,6 +249,13 @@ export function usePosCheckout({
     setReceiptModalVisible(true);
   };
 
+  /**
+   * Kiểm tra tính hợp lệ của mã voucher đối với tổng tạm tính và hội viên hiện tại.
+   * Luồng đi: Nhấn Áp dụng -> posService.validateVoucher() -> POST /vouchers/validate.
+   *
+   * @param {string} [codeOverride] - Mã voucher truyền trực tiếp khi chọn từ danh sách gợi ý của hội viên
+   * @returns {Promise<void>}
+   */
   const handleValidateVoucher = async (codeOverride?: string) => {
     const code = (codeOverride || voucherCode).trim();
     if (!selectedTable?.currentSession || !code) {
@@ -251,6 +284,12 @@ export function usePosCheckout({
     }
   };
 
+  /**
+   * Chọn nhanh hoặc bỏ chọn một mã voucher trong danh sách ưu đãi của hội viên.
+   *
+   * @param {string} code - Mã voucher được bấm chọn
+   * @returns {Promise<void>}
+   */
   const handleSelectCustomerVoucher = async (code: string) => {
     if (appliedVoucher?.code === code) {
       setAppliedVoucher(null);

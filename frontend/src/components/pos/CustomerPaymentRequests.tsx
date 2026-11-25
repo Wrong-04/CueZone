@@ -1,4 +1,10 @@
 // ============================================================================
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: PHÊ DUYỆT YÊU CẦU THANH TOÁN TỪ KHÁCH TẠI BÀN
+// Khách hàng (/customer/fnb) -> POST /customer/fnb-orders/:tableId/checkout
+//   -> CustomerPaymentRequests -> staffOrderService.getPaymentRequests() / resolvePaymentRequest()
+//   -> Backend: SessionService.resolveCustomerPaymentRequest() -> gọi checkout() & mở PosReceiptModal
+// ----------------------------------------------------------------------------
 // 1. IMPORTS
 // ============================================================================
 // 1.1 Thư viện bên ngoài
@@ -53,6 +59,12 @@ export default function CustomerPaymentRequests() {
   const [paidSummary, setPaidSummary] = useState<CheckoutReceipt | null>(null);
 
   // ── 4.3 Event Handlers (Nạp danh sách & Xác nhận/Từ chối thanh toán) ───────
+  /**
+   * Tải danh sách các bàn có khách bấm gọi thanh toán trực tuyến từ điện thoại.
+   * Luồng đi: Polling 10s / mở modal -> staffOrderService.getPaymentRequests() -> GET /customer/fnb-orders/payment-requests.
+   *
+   * @returns {Promise<void>}
+   */
   const loadRequests = useCallback(async () => {
     try {
       setLoading(true);
@@ -66,6 +78,15 @@ export default function CustomerPaymentRequests() {
     }
   }, []);
 
+  /**
+   * Duyệt thanh toán (kèm hình thức thu tiền thực tế) hoặc từ chối yêu cầu gọi tính tiền của khách.
+   * Luồng đi: PaymentRequestConfirmPanel -> staffOrderService.resolvePaymentRequest() -> trả receipt -> mở PosReceiptModal.
+   *
+   * @param {CheckoutRequest} request - Thông tin bàn và phiên đang yêu cầu thanh toán
+   * @param {boolean} approved - true để xác nhận thu tiền, false để từ chối trả lại trạng thái chơi
+   * @param {{ paymentMethod: CheckoutPaymentMethod; paymentDetails: CheckoutPaymentDetails }} [payment] - Phương thức & số tiền thu
+   * @returns {Promise<void>}
+   */
   const resolve = async (
     request: CheckoutRequest,
     approved: boolean,

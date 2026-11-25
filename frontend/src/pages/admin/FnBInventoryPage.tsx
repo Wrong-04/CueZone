@@ -1,3 +1,12 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU MÀN THỰC ĐƠN & DỊCH VỤ F&B (/fnb)
+// Dành cho Admin / Nhân viên quản lý kho & thực đơn:
+//   FnBInventoryPage (UI & Bộ lọc)
+//     -> useFnbInventory (nạp món, phân loại pha chế vs đóng gói, CRUD món)
+//     -> productService (/products/*) + fetchCategories (/catalog-management/categories)
+//     -> Backend: ProductController / ProductService -> emitMenuUpdated() (Socket.IO)
+//     -> Đồng bộ tức thì lên PosFnbModal (/pos) & CustomerFnB (/customer/fnb)
+// ============================================================================
 // ── 1. IMPORTS ────────────────────────────────────────────────────────────────
 import React from "react";
 import { useNavigate } from "react-router-dom";
@@ -18,7 +27,12 @@ import { FnbItemModal } from "./fnb/modals/FnbItemModal";
 // ── 3. CONSTANTS & HELPERS ────────────────────────────────────────────────────
 const { Title, Text } = Typography;
 
-// ── 4. MAIN COMPONENT ─────────────────────────────────────────────────────────
+// ── 4. MAIN COMPONENT: TRANG QUẢN LÝ THỰC ĐƠN & DỊCH VỤ F&B (/fnb) ──────────
+/**
+ * Trang quản trị thực đơn đồ ăn/thức uống, cấu hình món pha chế và hàng đóng gói bán tại bàn.
+ *
+ * @returns {JSX.Element} Giao diện quản lý thực đơn F&B kèm KPI, bộ lọc và modal thêm/sửa món
+ */
 export const FnBInventoryPage: React.FC = () => {
   const navigate = useNavigate();
   const {
