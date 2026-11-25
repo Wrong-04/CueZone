@@ -179,17 +179,17 @@ const CustomerLayout = () => {
           <div className="flex items-center gap-5">
             <span className="flex items-center gap-1.5">
               <EnvironmentOutlined className="text-emerald-400" />
-              123 Nguyễn Thị Minh Khai, Q.3, TP.HCM
+              128 Nguyễn Trãi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh
             </span>
             <span className="flex items-center gap-1.5">
               <ClockCircleOutlined className="text-emerald-400" />
-              08:00 - 24:00 (Hàng ngày)
+              08:00 - 04:00 (Mở cửa xuyên đêm)
             </span>
           </div>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1 text-slate-300">
               <PhoneOutlined className="text-emerald-400" /> Hotline:{" "}
-              <strong className="text-emerald-400 font-bold">1900 6868</strong>
+              <strong className="text-emerald-400 font-bold">0908 888 999</strong>
             </span>
             <span className="text-slate-600">|</span>
             <span className="text-slate-400">CLB Bida & Hệ Thống Giải Đấu Bank Pool</span>

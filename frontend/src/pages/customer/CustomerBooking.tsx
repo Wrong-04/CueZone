@@ -222,6 +222,26 @@ export const CustomerBooking = () => {
   const [paymentCheckError, setPaymentCheckError] = useState("");
   const [cancellingPayment, setCancellingPayment] = useState(false);
   const [confirmingCancelPayment, setConfirmingCancelPayment] = useState(false);
+  const [countdownNowMs, setCountdownNowMs] = useState<number>(() => Date.now());
+
+  const paymentDeadlineMs =
+    paymentIntent?.status === "awaiting_payment" && paymentIntent.deadline
+      ? new Date(paymentIntent.deadline).getTime()
+      : NaN;
+  const paymentSecondsLeft = Number.isFinite(paymentDeadlineMs)
+    ? Math.max(0, Math.floor((paymentDeadlineMs - countdownNowMs) / 1000))
+    : null;
+
+  // Đồng hồ đếm ngược thời gian giữ chỗ cọc VietQR mỗi giây
+  useEffect(() => {
+    if (!Number.isFinite(paymentDeadlineMs)) return;
+    const immediateTimer = window.setTimeout(() => setCountdownNowMs(Date.now()), 0);
+    const interval = window.setInterval(() => setCountdownNowMs(Date.now()), 1000);
+    return () => {
+      window.clearTimeout(immediateTimer);
+      window.clearInterval(interval);
+    };
+  }, [paymentDeadlineMs]);
 
   // ---------------------------------------------------------------------------------------
   // EFFECT: Polling kiểm tra trạng thái thanh toán tiền cọc mỗi 3 giây
@@ -1132,8 +1152,18 @@ export const CustomerBooking = () => {
             </div>
           ) : paymentIntent?.status === "awaiting_payment" ? (
             <>
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
-                Chuyển đúng <strong>{paymentIntent.amount.toLocaleString("vi-VN")}đ</strong> trong 5 phút. Bàn chỉ được xác nhận khi SePay báo giao dịch thành công.
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span>
+                  Chuyển đúng <strong>{paymentIntent.amount.toLocaleString("vi-VN")}đ</strong> trong 5 phút. Bàn chỉ được xác nhận khi SePay báo giao dịch thành công.
+                </span>
+                {paymentSecondsLeft !== null && (
+                  <span className="inline-flex items-center gap-1.5 font-mono font-bold text-amber-950 bg-amber-200/70 px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0">
+                    <ClockCircleOutlined />
+                    {paymentSecondsLeft > 0
+                      ? `Còn ${String(Math.floor(paymentSecondsLeft / 60)).padStart(2, "0")}:${String(paymentSecondsLeft % 60).padStart(2, "0")}`
+                      : "Đã hết thời gian giữ chỗ"}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 {paymentIntent.qrUrl && (

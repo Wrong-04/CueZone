@@ -131,11 +131,12 @@ export const InvoiceFilterToolbar: React.FC<InvoiceFilterToolbarProps> = ({
           <Select
             value={paymentMethodFilter}
             onChange={onPaymentMethodChange}
-            className="!w-36 !rounded-xl !text-xs"
+            className="!w-44 !rounded-xl !text-xs"
             options={[
               { value: "all", label: "Tất cả hình thức" },
               { value: "cash", label: "Tiền mặt" },
               { value: "vietqr", label: "Chuyển khoản (VietQR)" },
+              { value: "split", label: "Tiền mặt + Chuyển khoản" },
             ]}
           />
         </div>

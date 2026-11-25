@@ -187,51 +187,49 @@ export class RevenueReportService {
           : 0,
     };
 
-    // Parse Payment Methods: Đảm bảo Tiền mặt, Chuyển khoản, Ví hội viên luôn đầy đủ
+    // Parse Payment Methods: Đảm bảo 3 kênh thanh toán (Tiền mặt, Chuyển khoản, Kết hợp) luôn đầy đủ
     const paymentLabelMap: Record<string, string> = {
       cash: "Tiền mặt",
       transfer: "Chuyển khoản",
       banking: "Chuyển khoản",
       bank: "Chuyển khoản",
       vietqr: "Chuyển khoản VietQR",
-      member_balance: "Ví hội viên",
-      wallet: "Ví hội viên",
-      cuezone_pay: "Ví hội viên",
-      split: "Tiền mặt + QR",
-      cash_qr: "Tiền mặt + QR",
-      momo: "MoMo",
-      vnpay: "VNPay",
+      vnpay: "Chuyển khoản",
+      momo: "Chuyển khoản",
+      split: "Tiền mặt + Chuyển khoản",
+      cash_qr: "Tiền mặt + Chuyển khoản",
+      mixed: "Tiền mặt + Chuyển khoản",
       card: "Thẻ ngân hàng",
     };
 
     const channelMap: Record<string, { label: string; amount: number; count: number }> = {
       cash: { label: "Tiền mặt", amount: 0, count: 0 },
       transfer: { label: "Chuyển khoản", amount: 0, count: 0 },
-      member_balance: { label: "Ví hội viên", amount: 0, count: 0 },
-      split: { label: "Tiền mặt + QR", amount: 0, count: 0 },
+      split: { label: "Tiền mặt + Chuyển khoản", amount: 0, count: 0 },
     };
 
     const normalizeMethodKey = (method: string): string => {
       const m = String(method || "cash").toLowerCase();
-      if (m === "cash") return "cash";
-      if (m === "split" || m === "cash_qr") return "split";
+      if (
+        m === "split" ||
+        m === "cash_qr" ||
+        m === "mixed" ||
+        m.includes("split") ||
+        m.includes("kết hợp") ||
+        m.includes("+")
+      ) {
+        return "split";
+      }
+      if (m === "cash" || m.includes("tiền mặt")) return "cash";
       if (
         m.includes("vietqr") ||
         m.includes("transfer") ||
         m.includes("bank") ||
-        m.includes("card") ||
         m.includes("vnpay") ||
-        m.includes("momo")
+        m.includes("momo") ||
+        m.includes("card")
       ) {
         return "transfer";
-      }
-      if (
-        m.includes("member_balance") ||
-        m.includes("wallet") ||
-        m.includes("cuezone_pay") ||
-        m.includes("ví")
-      ) {
-        return "member_balance";
       }
       return m;
     };

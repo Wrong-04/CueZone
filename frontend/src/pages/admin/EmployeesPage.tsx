@@ -294,9 +294,12 @@ export const EmployeesPage: React.FC = () => {
       dataIndex: "createdAt",
       key: "createdAt",
       width: 120,
-      render: (v: string) => (
-        <span className="text-xs text-slate-600">{new Date(v).toLocaleDateString("vi-VN")}</span>
-      ),
+      render: (v?: string) => {
+        const parsed = v ? new Date(v) : null;
+        const text =
+          parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleDateString("vi-VN") : "—";
+        return <span className="text-xs text-slate-600 whitespace-nowrap">{text}</span>;
+      },
     },
     {
       title: "Tài khoản",

@@ -64,7 +64,7 @@ export const PeakHoursWidget: React.FC<PeakHoursWidgetProps> = ({
                 />
               </div>
               <span className="text-[10px] font-mono text-slate-500 whitespace-nowrap">
-                {d.hour.split(":")[0]}h
+                {d.hour.endsWith("h") ? d.hour : `${d.hour.split(":")[0]}h`}
               </span>
             </div>
           ))}

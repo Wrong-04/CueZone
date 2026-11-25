@@ -214,6 +214,7 @@ export const CustomerProfile: React.FC = () => {
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Input chọn ảnh đại diện đặt ở cấp trang để nút camera trên banner hoạt động ở mọi tab */}
       <input
+        id="customer-avatar-upload"
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
@@ -247,19 +248,29 @@ export const CustomerProfile: React.FC = () => {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingAvatar}
-                className="absolute -bottom-1 -right-1 h-6 w-6 sm:h-7 sm:w-7 bg-emerald-600 hover:bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-white shadow-md transition cursor-pointer"
+              <label
+                htmlFor={isUploadingAvatar ? undefined : "customer-avatar-upload"}
+                role="button"
+                tabIndex={isUploadingAvatar ? -1 : 0}
+                aria-disabled={isUploadingAvatar}
+                aria-label="Đổi ảnh đại diện"
                 title="Đổi ảnh đại diện"
+                onKeyDown={(e) => {
+                  if (!isUploadingAvatar && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                className={`absolute -bottom-1 -right-1 z-10 h-6 w-6 sm:h-7 sm:w-7 bg-emerald-600 hover:bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-white shadow-md transition ${
+                  isUploadingAvatar ? "pointer-events-none opacity-60 cursor-wait" : "cursor-pointer"
+                }`}
               >
                 {isUploadingAvatar ? (
                   <LoadingOutlined className="text-[10px] sm:text-xs" />
                 ) : (
                   <CameraOutlined className="text-[10px] sm:text-xs" />
                 )}
-              </button>
+              </label>
             </div>
 
             <div className="space-y-1.5">

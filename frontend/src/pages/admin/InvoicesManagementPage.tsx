@@ -113,8 +113,10 @@ export const InvoicesManagementPage: React.FC = () => {
       if (paymentMethodFilter !== "all") {
         if (paymentMethodFilter === "cash") {
           if (inv.paymentMethod !== "cash") return false;
+        } else if (paymentMethodFilter === "split") {
+          if (inv.paymentMethod !== "split") return false;
         } else if (paymentMethodFilter === "vietqr" || paymentMethodFilter === "banking") {
-          if (inv.paymentMethod === "cash") return false;
+          if (inv.paymentMethod === "cash" || inv.paymentMethod === "split") return false;
         }
       }
 
