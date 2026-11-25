@@ -11,6 +11,7 @@ import {
   QrcodeOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  ShopOutlined,
   TrophyOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -339,9 +340,13 @@ export function TournamentPaymentModal({
           {!isFree && (
             <div className="rounded-xl bg-slate-50 p-3 text-[11px] text-slate-500 flex items-start gap-2 border border-slate-200/80">
               <SafetyCertificateOutlined className="text-brand text-sm mt-0.5 shrink-0" />
-              <p className="mb-0">
-                Sau khi xác nhận, hệ thống sẽ tạo mã chuyển khoản SePay riêng kèm mã QR để bạn hoàn tất thanh toán.
-              </p>
+              <div className="space-y-1">
+                <p className="mb-0">Sau khi xác nhận, hệ thống sẽ tạo mã chuyển khoản SePay riêng kèm mã QR. Bạn có thể chọn một trong hai cách:</p>
+                <ul className="list-disc pl-4 mb-0 space-y-1">
+                  <li>Chuyển khoản qua SePay theo mã được tạo;</li>
+                  <li>Hoặc đến quầy CLB, cung cấp họ tên và số điện thoại đã đăng ký để nhân viên hỗ trợ ghi nhận.</li>
+                </ul>
+              </div>
             </div>
           )}
 
@@ -582,6 +587,18 @@ export function TournamentPaymentModal({
               </div>
             </div>
           </div>
+
+          {!isFree && (
+            <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-[11px] text-sky-950 flex items-start gap-2">
+              <ShopOutlined className="text-sky-700 text-sm mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-bold text-xs mb-0">Hoặc thanh toán tại quầy</p>
+                <p className="mb-0">
+                  Nếu không muốn chuyển khoản, bạn đến quầy CLB và cung cấp họ tên, số điện thoại đã đăng ký cho nhân viên để được hỗ trợ ghi nhận. Mã SePay ở trên vẫn được tạo tự động; khi thanh toán tại quầy bạn không cần chuyển khoản thêm.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
             <Button

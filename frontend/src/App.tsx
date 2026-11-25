@@ -31,6 +31,7 @@ import CustomerPlaySession from "./pages/customer/CustomerPlaySession";
 import CustomerHistory from "./pages/customer/CustomerHistory";
 import CustomerProfile from "./pages/customer/CustomerProfile";
 
+import RefereePage from "./pages/admin/RefereePage";
 import PosTableFloorPage from "./pages/pos/PosTableFloorPage";
 import NoAccessPage from "./pages/admin/NoAccessPage";
 import CatalogManagementPage from "./pages/admin/CatalogManagementPage";
@@ -159,6 +160,15 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute permission="tournaments.manage">
               <TournamentsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/referee"
+          element={
+            <ProtectedRoute permission="tournaments.manage">
+              <RefereePage />
             </ProtectedRoute>
           }
         />

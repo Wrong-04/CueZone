@@ -53,9 +53,9 @@ async function seed() {
 
   // 1. GIẢI ĐẤU 1: Đang mở đăng ký (registration_open)
   const now = new Date();
-  const t1StartDate = new Date(now.getTime() + 10 * 86400000); // 10 ngày sau
-  const t1EndDate = new Date(now.getTime() + 15 * 86400000);   // 15 ngày sau
-  const t1Deadline = new Date(now.getTime() + 7 * 86400000);    // 7 ngày sau (còn mở đăng ký)
+  const t1StartDate = new Date(now.getTime() + 35 * 86400000); // 35 ngày sau
+  const t1EndDate = new Date(now.getTime() + 40 * 86400000);   // 40 ngày sau
+  const t1Deadline = new Date(now.getTime() + 30 * 86400000);  // 30 ngày sau (còn mở đăng ký)
 
   const t1Players = customers.slice(0, 11).map((c, idx) => ({
     user: c._id,
@@ -132,7 +132,7 @@ async function seed() {
     assignedTables: ["Bàn Match 01", "Bàn Match 02"],
     createdBy: adminUser._id,
     description: "Giải đấu 8 cơ thủ có thứ hạng Elo cao nhất tháng tranh cúp vô địch tại đấu trường CueZone Center.",
-    rules: "1. Luật Bank Pool WPA Race to 5.\n2. Trọng tài điều khiển trận đấu trực tiếp.\n3. Đồng hồ đếm giây shot-clock 40 giây mỗi lượt đánh.",
+    rules: "1. Luật Bank Pool WPA Race to 5.\n2. Trọng tài điều khiển trận đấu trực tiếp.\n3. Đồng hồ đếm giây shot-clock 48 giây mỗi lượt đánh.",
     players: t2Players,
     prizes: [
       { rank: 1, reward: "6.000.000đ + Cúp Vô Địch Masters", amount: 6000000 },

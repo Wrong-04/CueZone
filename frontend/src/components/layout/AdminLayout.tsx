@@ -5,6 +5,7 @@ import {
   DashboardOutlined,
   ReadOutlined,
   AppstoreOutlined,
+  AuditOutlined,
   TrophyOutlined,
   CoffeeOutlined,
   InboxOutlined,
@@ -108,6 +109,12 @@ const menuGroups: MenuGroupConfig[] = [
         path: "/tournaments",
         label: "Giải Đấu & Trọng Tài",
         icon: <TrophyOutlined />,
+        permission: "tournaments.manage",
+      },
+      {
+        path: "/referee",
+        label: "Bàn Trọng Tài",
+        icon: <AuditOutlined />,
         permission: "tournaments.manage",
       },
       {

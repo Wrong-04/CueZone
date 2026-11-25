@@ -12,14 +12,12 @@ import {
 import { Alert, Button, message } from "../../shared/ui";
 import {
   tournamentService,
-  type TournamentItem,
   type TournamentPayment,
 } from "../../services/tournament.service";
 
 export default function CustomerPaymentPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [tournament, setTournament] = useState<TournamentItem | null>(null);
   const [payment, setPayment] = useState<TournamentPayment | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,13 +33,16 @@ export default function CustomerPaymentPage() {
     }
     setLoading(true);
     setError("");
-    Promise.all([
-      tournamentService.getTournamentById(id).catch(() => null),
-      tournamentService.getPayment(id),
-    ])
-      .then(([tourneyData, paymentData]) => {
+    tournamentService
+      .getPayment(id)
+      .then((paymentData) => {
         if (!active) return;
-        setTournament(tourneyData);
+        if (paymentData.state === "not_started") {
+          // ponytail: không có API public lấy chi tiết giải cho customer, đưa về danh sách để đăng ký
+          message.warning("Giải này chưa có mã thanh toán. Vui lòng đăng ký tham gia trong danh sách giải đấu.");
+          navigate("/customer/tournaments");
+          return;
+        }
         setPayment(paymentData);
       })
       .catch((err) => {
@@ -55,7 +56,7 @@ export default function CustomerPaymentPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => {
     const deadline = payment?.deadline ? new Date(payment.deadline).getTime() : 0;
@@ -75,6 +76,11 @@ export default function CustomerPaymentPage() {
     setError("");
     try {
       const updated = await tournamentService.getPayment(id);
+      if (updated.state === "not_started") {
+        message.warning("Giải này chưa có mã thanh toán. Vui lòng đăng ký tham gia trong danh sách giải đấu.");
+        navigate("/customer/tournaments");
+        return;
+      }
       setPayment(updated);
       message.success("Đã làm mới trạng thái thanh toán");
     } catch (err) {
@@ -94,10 +100,12 @@ export default function CustomerPaymentPage() {
     }
   }
 
-  const feeAmount = payment?.amount ?? tournament?.registrationFee ?? 0;
+  const feeAmount = payment?.amount ?? 0;
   const isAwaiting = payment?.state === "awaiting_payment";
   const isPaidPending = payment?.state === "paid_pending";
   const isConfirmed = payment?.state === "confirmed";
+  // ponytail: intent confirmed không có amount (player đã feePaid từ seed) → ẩn toàn bộ thông tin SePay
+  const isConfirmedWithoutAmount = isConfirmed && payment?.amount == null;
   const isRefund = payment?.state === "refund_required" || Boolean(payment?.extraPayment);
   const isReconcile = payment?.state === "reconciliation_required";
   const showQr = isAwaiting && Boolean(payment?.qrUrl) && !deadlinePassed;
@@ -120,7 +128,7 @@ export default function CustomerPaymentPage() {
               Chuyển khoản tham gia giải
             </h1>
             <p className="text-xs text-slate-500 mb-0">
-              {tournament?.name || "Giải đấu CueZone"}
+              Giải đấu CueZone
             </p>
           </div>
         </div>
@@ -279,6 +287,12 @@ export default function CustomerPaymentPage() {
               )}
             </div>
 
+            {isConfirmedWithoutAmount ? (
+              <div className="md:col-span-7 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-2xs flex items-center gap-2 text-xs text-emerald-950">
+                <CheckCircleOutlined className="text-emerald-600 text-lg shrink-0" />
+                <span className="font-semibold mb-0">Đã ghi nhận tham gia giải đấu</span>
+              </div>
+            ) : (
             <div className="md:col-span-7 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <BankOutlined className="text-brand text-base" />
@@ -372,6 +386,7 @@ export default function CustomerPaymentPage() {
                 <strong>Lưu ý:</strong> Vui lòng giữ nguyên chính xác nội dung chuyển khoản để hệ thống đối soát giao dịch tự động.
               </div>
             </div>
+            )}
           </div>
 
           {Boolean(payment.receipts?.length) && (
