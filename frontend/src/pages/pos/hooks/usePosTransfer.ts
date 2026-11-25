@@ -5,10 +5,12 @@ import type { PosTable, EligibleMoveTargetsResponse } from "../../../types/pos";
 
 // ============================================================================
 // HOOK QUẢN LÝ CHUYỂN BÀN CHƠI & GHÉP HÓA ĐƠN (USE POS TRANSFER)
-// Nghiệp vụ:
-// - Lấy danh sách bàn đích hợp lệ để chuyển hoặc ghép
-// - Chuyển toàn bộ thời gian chơi và dịch vụ F&B sang bàn trống
-// - Gộp phiên chơi của 2 bàn đang hoạt động lại thành một hóa đơn
+// Sơ đồ luồng dữ liệu:
+//   PosTransferTableModal
+//     -> usePosTransfer (lấy bàn đích hợp lệ, xác nhận chuyển hoặc gộp bàn)
+//     -> posService.getMoveTargets() / posService.move()
+//     -> Backend: SessionService.getEligibleMoveTargets() / SessionService.move()
+//     -> Chuyển phiên chơi, bảo lưu tiền giờ (carriedCost) & F&B + Socket.IO
 // ============================================================================
 
 interface UsePosTransferProps {
@@ -33,6 +35,14 @@ export function usePosTransfer({
   const [eligibleMoveData, setEligibleMoveData] = useState<EligibleMoveTargetsResponse | null>(null);
   const [loadingMoveTargets, setLoadingMoveTargets] = useState<boolean>(false);
 
+  /**
+   * Mở modal chuyển/gộp bàn và tải danh sách bàn đích hợp lệ từ backend.
+   * Luồng đi: PosTableCard -> handleOpenTransferModal -> posService.getMoveTargets().
+   *
+   * @param {PosTable} table - Bàn nguồn đang chơi cần chuyển hoặc gộp
+   * @param {"transfer" | "merge"} [action="transfer"] - Chế độ mặc định ("transfer" chuyển bàn / "merge" gộp bàn)
+   * @returns {Promise<void>}
+   */
   const handleOpenTransferModal = async (
     table: PosTable,
     action: "transfer" | "merge" = "transfer",
@@ -54,6 +64,12 @@ export function usePosTransfer({
     }
   };
 
+  /**
+   * Đổi qua lại giữa chế độ Chuyển bàn trống và Gộp bàn đang chơi, đồng thời nạp lại danh sách bàn đích.
+   *
+   * @param {"transfer" | "merge"} action - Chế độ thao tác mới
+   * @returns {Promise<void>}
+   */
   const handleSwitchTransferAction = async (action: "transfer" | "merge") => {
     setTransferAction(action);
     setTargetTableId("");
@@ -70,6 +86,12 @@ export function usePosTransfer({
     }
   };
 
+  /**
+   * Xác nhận thực hiện chuyển bàn hoặc gộp hóa đơn sang bàn đích đã chọn.
+   * Luồng đi: PosTransferTableModal -> posService.move() -> POST /tables/:id/session/move -> loadTables().
+   *
+   * @returns {Promise<void>}
+   */
   const handleTransferOrMerge = async () => {
     if (!selectedTable || !selectedTable.currentSession || !targetTableId) {
       message.warning("Vui lòng chọn bàn đích!");

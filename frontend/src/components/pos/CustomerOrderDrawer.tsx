@@ -1,4 +1,10 @@
 // ============================================================================
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: DRAWER TIẾP NHẬN ORDER F&B TỪ KHÁCH QUA QR
+// Khách hàng (/customer/fnb) -> POST /customer/fnb-orders -> Socket `customer-order:new`
+//   -> CustomerOrderDrawer -> staffOrderService.getQueue() / updateStatus()
+//   -> Backend: CustomerOrderService.updateStatus() (duyệt -> trừ tồn kho & cộng món vào bàn)
+// ----------------------------------------------------------------------------
 // 1. IMPORTS
 // ============================================================================
 // 1.1 Thư viện bên ngoài
@@ -92,6 +98,13 @@ export const CustomerOrderDrawer: React.FC<CustomerOrderDrawerProps> = ({
   }, [orders, activeFilter, filterTableId]);
 
   // ── 4.3 Event Handlers (Nạp đơn, Cập nhật trạng thái, Từ chối đơn) ────────
+  /**
+   * Tải hàng đợi order F&B trực tuyến từ khách hàng và đồng bộ số lượng đơn chờ lên thẻ bàn POS.
+   * Luồng đi: Drawer / Socket / Polling 15s -> staffOrderService.getQueue() -> onOrdersUpdated().
+   *
+   * @param {boolean} [isSilent=false] - True khi làm mới ngầm (không bật loading)
+   * @returns {Promise<void>}
+   */
   const loadOrders = useCallback(
     async (isSilent = false) => {
       if (!isSilent) setLoading(true);
@@ -108,6 +121,15 @@ export const CustomerOrderDrawer: React.FC<CustomerOrderDrawerProps> = ({
     [onOrdersUpdated],
   );
 
+  /**
+   * Chuyển trạng thái đơn gọi món của khách (Duyệt pha chế -> Sẵn sàng -> Đã phục vụ hoặc Từ chối).
+   * Luồng đi: CustomerOrderCard -> staffOrderService.updateStatus() -> Backend trừ tồn kho & thêm vào bill bàn.
+   *
+   * @param {CustomerOrder} order - Đơn gọi món F&B của khách
+   * @param {CustomerOrderStatus} nextStatus - Trạng thái mục tiêu tiếp theo
+   * @param {string} [reason] - Lý do từ chối nếu nextStatus = "rejected"
+   * @returns {Promise<void>}
+   */
   const handleUpdateStatus = async (
     order: CustomerOrder,
     nextStatus: CustomerOrderStatus,
@@ -148,6 +170,12 @@ export const CustomerOrderDrawer: React.FC<CustomerOrderDrawerProps> = ({
     }
   };
 
+  /**
+   * Mở modal nhập/chọn lý do khi thu ngân từ chối tiếp nhận đơn gọi món của khách.
+   *
+   * @param {CustomerOrder} order - Đơn gọi món cần từ chối
+   * @returns {void}
+   */
   const handleOpenRejectModal = (order: CustomerOrder) => {
     setTargetRejectOrder(order);
     setSelectedRejectTemplate(REJECT_TEMPLATES[0]);
@@ -155,6 +183,11 @@ export const CustomerOrderDrawer: React.FC<CustomerOrderDrawerProps> = ({
     setRejectModalOpen(true);
   };
 
+  /**
+   * Xác nhận từ chối đơn gọi món với lý do đã chọn hoặc tự nhập.
+   *
+   * @returns {Promise<void>}
+   */
   const handleConfirmReject = async () => {
     if (!targetRejectOrder) return;
     const finalReason = customRejectReason.trim() || selectedRejectTemplate;

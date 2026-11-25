@@ -1,3 +1,15 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU MÀN HÌNH SƠ ĐỒ BÀN POS (/pos)
+// Tầng UI trung tâm dành cho Thu ngân / Nhân viên vận hành quầy:
+//   PosTableFloorPage (UI & Socket listener)
+//     ├── usePosOpenTable   -> posService.open()           -> POST /tables/:id/session
+//     ├── usePosFnb         -> posService.updateOrders()   -> POST /tables/:id/session/orders
+//     │                     -> posService.cancelOrderItem()-> POST /tables/:id/session/orders/cancel
+//     ├── usePosTransfer    -> posService.move()           -> POST /tables/:id/session/move
+//     ├── usePosCheckout    -> posService.checkout()       -> POST /tables/:id/session/checkout
+//     ├── PosFloorHeader (chứa CustomerOrderDrawer & CustomerPaymentRequests -> staffOrderService)
+// Đồng bộ realtime: Socket.IO nhận `table:status-changed` -> tải lại sơ đồ bàn tức thì.
+// ============================================================================
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { posService, bookingService } from "../../services/pos.service";
@@ -86,8 +98,14 @@ export const PosTableFloorPage: React.FC = () => {
   // Target table currently focused by any modal
   const [selectedTable, setSelectedTable] = useState<PosTable | null>(null);
 
-  // Common save wrapper
+  // Wrapper dùng chung tránh bấm lặp nhiều lần (double-submit) và hiển thị lỗi API
   const busy = useRef(false);
+  /**
+   * Thực thi một thao tác ghi dữ liệu POS với khóa chống gửi trùng và thông báo lỗi tập trung.
+   *
+   * @param {() => Promise<any>} action - Hàm async gọi API cần thực thi
+   * @returns {Promise<boolean>} true nếu thao tác thành công, false nếu đang bận hoặc có lỗi
+   */
   const save = useCallback(async (action: () => Promise<any>): Promise<boolean> => {
     if (busy.current) return false;
     busy.current = true;
@@ -159,7 +177,13 @@ export const PosTableFloorPage: React.FC = () => {
     [parseBookingDateTime, currentTime],
   );
 
-  // Load tables, pricing tiers, and F&B stock
+  /**
+   * Tải đồng thời danh sách bàn POS, biểu giá khung giờ và thực đơn F&B đang mở bán.
+   * Luồng đi: PosTableFloorPage -> posService.getTables() / productService.getFnbMenu() -> cập nhật state.
+   *
+   * @param {boolean} [silent=false] - True khi làm mới ngầm qua Socket.IO (không bật spinner toàn trang)
+   * @returns {Promise<void>}
+   */
   const loadTables = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
@@ -244,7 +268,12 @@ export const PosTableFloorPage: React.FC = () => {
     void fetchBookingsCount();
   }, []);
 
-  // Online orders handler
+  /**
+   * Xử lý sự kiện đồng bộ đơn gọi món trực tuyến từ CustomerOrderDrawer lên badge từng bàn.
+   *
+   * @param {CustomerOrder[]} orders - Danh sách order F&B hiện có trong hàng đợi
+   * @returns {void}
+   */
   const handleOrdersUpdated = useCallback((orders: CustomerOrder[]) => {
     const map: Record<string, number> = {};
     orders.forEach((o) => {
@@ -308,7 +337,13 @@ export const PosTableFloorPage: React.FC = () => {
     calculatePlayingDetails,
   });
 
-  // Pause / Resume table
+  /**
+   * Tạm dừng hoặc tiếp tục đồng hồ tính giờ chơi của một bàn đang mở phiên.
+   * Luồng đi: PosTableCard -> handleTogglePause -> posService.pause -> PATCH /tables/:id/session/pause.
+   *
+   * @param {PosTable} table - Thông tin bàn đang chơi hoặc tạm dừng
+   * @returns {Promise<void>}
+   */
   const handleTogglePause = async (table: PosTable) => {
     if (!table.currentSession) return;
     if (await save(() => posService.pause(table))) {

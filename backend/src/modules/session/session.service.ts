@@ -1,3 +1,12 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: SERVICE NGHIỆP VỤ PHIÊN CHƠI POS & THANH TOÁN (SessionService)
+// session.routes.ts / customer-order.routes.ts -> SessionService -> MongoDB & Socket.IO
+//   1. Tính tiền giờ đa khung (PHẦN 1): calculateSplitPlayingDetails(), playingDetails()
+//   2. Vận hành quầy POS (open, pause, move): mở bàn, tạm dừng, chuyển/gộp bàn
+//   3. Gọi món & Hủy món tại bàn: updateOrders() (cập nhật currentSession.orders), cancelOrderItem() (hoàn tồn kho Product khi restoreStock)
+//   4. Khách tự thanh toán qua điện thoại: previewCustomerCheckout(), requestCustomerCheckout(), resolveCustomerPaymentRequest()
+//   5. Chốt thanh toán ACID: checkout() (Transaction: Invoice + tích điểm Wallet + giải phóng bàn + Socket)
+// ============================================================================
 import { Product } from "../product/product.model";
 import mongoose, { Types } from "mongoose";
 import { randomUUID } from "crypto";
@@ -455,6 +464,14 @@ export class SessionService {
     return result;
   }
 
+  /**
+   * Tạm dừng hoặc tiếp tục đồng hồ tính giờ chơi của bàn (tính cộng dồn totalPausedMs).
+   * Luồng đi: PATCH /tables/:id/session/pause -> cập nhật isPaused -> emitTableStatusChanged().
+   *
+   * @param {string} tableId - Mã bàn đang mở phiên
+   * @param {object} input - Chứa sessionId và cờ paused (true/false)
+   * @returns {Promise<ITable>} Thông tin bàn sau khi cập nhật trạng thái tạm dừng
+   */
   async pause(tableId: string, input: any) {
     if (typeof input.sessionId !== "string" || typeof input.paused !== "boolean")
       throw new Error("Yêu cầu tạm dừng không hợp lệ");
@@ -572,6 +589,15 @@ export class SessionService {
     }
   }
 
+  /**
+   * Thực hiện chuyển phiên sang bàn trống hoặc gộp 2 phiên bàn trong MongoDB Transaction.
+   * Luồng đi: POST /tables/:id/session/move -> bảo lưu carriedCost & orders -> ghi SessionTransferRecord -> Socket.IO.
+   *
+   * @param {string} tableId - Mã bàn nguồn
+   * @param {object} input - sessionId, targetTableId, action ("transfer" | "merge"), reason, pricingOption
+   * @param {object} [staffUser] - Thông tin nhân viên thực hiện để lưu nhật ký chuyển bàn
+   * @returns {Promise<object>} Dữ liệu bàn nguồn và bàn đích sau khi hoàn tất
+   */
   async move(
     tableId: string,
     input: {
@@ -881,6 +907,14 @@ export class SessionService {
     return result;
   }
 
+  /**
+   * Cập nhật danh sách món F&B trên bàn đang chơi (lưu currentSession.orders & phát Socket.IO, không trực tiếp trừ Product.stock).
+   * Luồng đi: POST /tables/:id/session/orders -> kiểm tra phiên đang mở -> cập nhật currentSession.orders -> emitTableStatusChanged().
+   *
+   * @param {string} tableId - Mã bàn đang chơi
+   * @param {object} input - sessionId và mảng orders mới
+   * @returns {Promise<ITable>} Thông tin bàn kèm danh sách món đã cập nhật
+   */
   async updateOrders(tableId: string, input: any) {
     if (typeof input.sessionId !== "string" || !Array.isArray(input.orders)) {
       throw new Error("Dữ liệu gọi món không hợp lệ");
@@ -970,6 +1004,16 @@ export class SessionService {
       });
   }
 
+  /**
+   * Tính toán bảng báo giá tạm tính trực tiếp trên điện thoại cho khách hàng (tiền giờ, F&B, hạng thẻ, voucher).
+   * Luồng đi: POST /customer/fnb-orders/:tableId/checkout-preview -> customerQuote() -> VoucherService.validate().
+   *
+   * @param {string} customerId - Mã tài khoản khách hàng
+   * @param {string} tableId - Mã bàn đang chơi
+   * @param {unknown} sessionId - Mã phiên chơi hiện tại
+   * @param {unknown} [voucherCode] - Mã voucher khách nhập thử
+   * @returns {Promise<object>} Dữ liệu tạm tính chi tiết kèm số dư ví
+   */
   async previewCustomerCheckout(
     customerId: string,
     tableId: string,
@@ -1024,6 +1068,15 @@ export class SessionService {
     return { ...quote, walletBalance: wallet?.balance ?? 0 };
   }
 
+  /**
+   * Khách hàng gửi yêu cầu thanh toán tại bàn tới quầy thu ngân POS (chuyển checkoutState -> pending_payment).
+   * Luồng đi: POST /customer/fnb-orders/:tableId/checkout -> khóa phiên sang pending_payment -> Notification quầy POS.
+   *
+   * @param {string} customerId - Mã tài khoản khách hàng
+   * @param {string} tableId - Mã bàn đang chơi
+   * @param {object} input - sessionId và voucherCode (nếu có)
+   * @returns {Promise<object>} Trạng thái chờ thanh toán kèm chi tiết yêu cầu
+   */
   async requestCustomerCheckout(
     customerId: string,
     tableId: string,
@@ -1148,6 +1201,11 @@ export class SessionService {
     return { status: "pending_payment", ...request };
   }
 
+  /**
+   * Lấy danh sách các bàn đang ở trạng thái pending_payment cho component CustomerPaymentRequests.
+   *
+   * @returns {Promise<any[]>} Danh sách yêu cầu thanh toán chờ thu ngân xác nhận
+   */
   async getCustomerPaymentRequests() {
     const [tables, pricingTiers] = await Promise.all([
       Table.find({
@@ -1189,6 +1247,16 @@ export class SessionService {
     );
   }
 
+  /**
+   * Thu ngân phê duyệt (chốt hóa đơn qua checkout()) hoặc từ chối yêu cầu thanh toán của khách.
+   * Luồng đi: PATCH /customer/fnb-orders/payment-requests/:tableId -> nếu approved gọi this.checkout(), nếu từ chối mở lại checkoutState="open".
+   *
+   * @param {string} tableId - Mã bàn chờ thanh toán
+   * @param {string} sessionId - Mã phiên chơi hiện tại
+   * @param {boolean} approved - true để xác nhận thu tiền, false để từ chối
+   * @param {object} [payment] - paymentMethod và paymentDetails thực thu tại quầy
+   * @returns {Promise<object>} Biên lai hóa đơn nếu thành công hoặc trạng thái rejected
+   */
   async resolveCustomerPaymentRequest(
     tableId: string,
     sessionId: string,
@@ -1353,6 +1421,14 @@ export class SessionService {
   // 8. Giải phóng bàn về available hoặc booked (nếu có lịch hẹn kế tiếp)
   // 9. Bắn socket realtime cập nhật sơ đồ bàn
   // ============================================================================
+  /**
+   * Chốt thanh toán phiên chơi cuối cùng trong MongoDB Transaction (idempotent theo sessionId).
+   * Luồng đi: POST /tables/:id/session/checkout -> tính tiền giờ đa khung + F&B + voucher -> lưu Invoice -> tích điểm Wallet -> giải phóng bàn -> Socket.IO.
+   *
+   * @param {string} tableId - Mã bàn cần thanh toán
+   * @param {object} input - sessionId, paymentMethod, paymentDetails, discountPercent, voucherCode, customerPhone
+   * @returns {Promise<any>} Đối tượng biên lai snapshot chính thức đã lưu vào Invoices
+   */
   async checkout(tableId: string, input: any) {
     const validPaymentMethods = [
       "cash",

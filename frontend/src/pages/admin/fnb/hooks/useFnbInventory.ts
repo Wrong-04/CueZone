@@ -188,7 +188,13 @@ export function useFnbInventory() {
   ]);
 
   // ── 5. Handlers: Các hành động nghiệp vụ ──────────────────────────────────
-  // Đồng bộ sản phẩm và danh mục từ Database
+  /**
+   * Tải đồng thời danh sách sản phẩm và danh mục F&B từ Database (loại bỏ hàng kho nguyên liệu/thiết bị).
+   * Luồng đi: useFnbInventory -> productService.getAll() & fetchCategories() -> chuẩn hóa thành FnbStockItem[].
+   *
+   * @param {boolean} [silent=false] - True khi làm mới ngầm không hiện spinner
+   * @returns {Promise<void>}
+   */
   const fetchProductsFromDb = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
@@ -261,7 +267,11 @@ export function useFnbInventory() {
     }
   }, []);
 
-  // Đặt lại toàn bộ bộ lọc về trạng thái ban đầu
+  /**
+   * Đặt lại toàn bộ bộ lọc tìm kiếm thực đơn (danh mục, tồn kho, loại phục vụ, ảnh, sắp xếp) về mặc định.
+   *
+   * @returns {void}
+   */
   const handleResetFilters = useCallback(() => {
     setSelectedCategory("all");
     setStockStatusFilter("all");
@@ -271,7 +281,13 @@ export function useFnbInventory() {
     setSearchQuery("");
   }, []);
 
-  // Bật/tắt mở bán món ăn (Bảo vệ: Hàng đóng gói có tồn kho = 0 không được phép mở bán trước khi nhập kho)
+  /**
+   * Bật/tắt trạng thái mở bán món (isForSale); chặn mở bán hàng đóng gói khi tồn kho đang bằng 0.
+   * Luồng đi: FnbCardGridView / FnbTableView -> productService.update(id, { isForSale }) -> optimistic UI.
+   *
+   * @param {FnbStockItem} item - Món F&B cần bật hoặc tạm ngưng phục vụ
+   * @returns {Promise<void>}
+   */
   const handleToggleZeroStock = useCallback(
     async (item: FnbStockItem) => {
       const madeToOrder = isItemMadeToOrder(item);
@@ -319,7 +335,11 @@ export function useFnbInventory() {
     [canManageInventory, stockList],
   );
 
-  // Mở modal thêm món mới vào menu (Tự sinh mã SKU và đơn vị tính theo danh mục)
+  /**
+   * Mở modal thêm món F&B mới, tự động sinh mã SKU và gợi ý đơn vị tính theo danh mục đầu tiên.
+   *
+   * @returns {void}
+   */
   const handleOpenCreateModal = useCallback(() => {
     if (!canManageInventory) {
       message.warning("Chỉ Quản lý / Admin mới có quyền thêm món mới vào thực đơn.");
@@ -350,7 +370,12 @@ export function useFnbInventory() {
     setEditItemModalVisible(true);
   }, [canManageInventory, dbCategories, stockList]);
 
-  // Mở modal chỉnh sửa món hiện có
+  /**
+   * Mở modal chỉnh sửa thông tin chi tiết cho một món F&B đã có trong thực đơn.
+   *
+   * @param {FnbStockItem} item - Món ăn/thức uống được chọn để chỉnh sửa
+   * @returns {void}
+   */
   const handleOpenEditItemModal = useCallback(
     (item: FnbStockItem) => {
       if (!canManageInventory) {
@@ -370,7 +395,12 @@ export function useFnbInventory() {
     [canManageInventory, stockList],
   );
 
-  // Lưu thông tin món ăn / thức uống (Tạo mới vào Database hoặc Cập nhật)
+  /**
+   * Xác thực dữ liệu form và lưu món F&B (tạo mới hoặc cập nhật) xuống MongoDB.
+   * Luồng đi: FnbItemModal -> productService.create() / update() -> Backend phát Socket menu:updated.
+   *
+   * @returns {Promise<void>}
+   */
   const handleSaveItemDetails = useCallback(async () => {
     if (!canManageInventory) {
       message.error("Bạn không có quyền lưu thông tin món!");

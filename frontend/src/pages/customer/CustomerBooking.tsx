@@ -1,3 +1,6 @@
+// =========================================================================================
+// 1. IMPORTS — Thư viện UI, Router, Services & Tiện ích Đặt Bàn
+// =========================================================================================
 import { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -38,7 +41,7 @@ import { isFnbWarehouseItem } from "../../utils/fnb";
 const { Title, Paragraph } = Typography;
 
 // =========================================================================================
-// KIỂU DỮ LIỆU (INTERFACES)
+// 2. KIỂU DỮ LIỆU (TYPES & INTERFACES)
 // =========================================================================================
 
 /**
@@ -76,6 +79,9 @@ interface BookingPaymentInfo {
   qrUrl?: string | null;
 }
 
+// =========================================================================================
+// 3. HẰNG SỐ & HÀM TIỆN ÍCH (CONSTANTS & HELPERS)
+// =========================================================================================
 // Danh mục phân loại bàn phục vụ bộ lọc (Filter)
 const TABLE_CATEGORIES = [
   { key: "", label: "Tất Cả Loại Bàn" },
@@ -98,6 +104,9 @@ function isTournamentTable(table: { area?: string; code?: string }) {
   );
 }
 
+// =========================================================================================
+// 4. COMPONENT CHÍNH: TRANG ĐẶT BÀN TRỰC TUYẾN CHO KHÁCH HÀNG
+// =========================================================================================
 export const CustomerBooking = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -105,7 +114,7 @@ export const CustomerBooking = () => {
   const [now] = useState(() => Date.now());
 
   // ---------------------------------------------------------------------------------------
-  // CÁC STATE QUẢN LÝ DỮ LIỆU ĐẶT BÀN
+  // 4.1 CÁC STATE QUẢN LÝ DỮ LIỆU ĐẶT BÀN & THANH TOÁN CỌC
   // ---------------------------------------------------------------------------------------
   const [tablesList, setTablesList] = useState<BookingTableItem[]>([]); // Danh sách bàn lấy từ API
   const [loadingTables, setLoadingTables] = useState<boolean>(true);   // Trạng thái đang tải danh sách bàn
@@ -453,7 +462,7 @@ export const CustomerBooking = () => {
   }, [date, time, duration, tableType, preSelectedParam, availabilityVersion]);
 
   // ---------------------------------------------------------------------------------------
-  // TÍNH TOÁN CHI PHÍ & THÔNG TIN BÀN ĐANG ĐƯỢC CHỌN
+  // 4.3 DỮ LIỆU SUY XUẤT & XỬ LÝ SỰ KIỆN (DERIVED STATE & EVENT HANDLERS)
   // ---------------------------------------------------------------------------------------
 
   // [LUỒNG MỚI]: Bàn được chọn để đặt bắt buộc phải là bàn có `isAvailable: true`
@@ -633,6 +642,9 @@ export const CustomerBooking = () => {
 
   const selectedDateLabel = dateOptions.find((d) => d.value === date)?.label || date;
 
+  // ---------------------------------------------------------------------------------------
+  // 4.4 GIAO DIỆN HIỂN THỊ CHÍNH (MAIN RENDER JSX)
+  // ---------------------------------------------------------------------------------------
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10">
       {/* Header Banner Thanh Lịch */}

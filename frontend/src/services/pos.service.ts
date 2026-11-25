@@ -1,3 +1,10 @@
+// ============================================================================
+// SƠ ĐỒ LUỒNG DỮ LIỆU: FRONTEND API CLIENT CHO MÀN HÌNH POS & ĐẶT BÀN
+// PosTableFloorPage / CustomerBooking / POS Hooks
+//   -> posService (vận hành bàn, gọi món, chuyển/gộp bàn, thanh toán, voucher)
+//   -> bookingService (lấy bàn trống, đặt bàn, trạng thái cọc SePay, QR Check-in)
+//   -> Backend Routers: /tables/:id/session/*, /tables/*, /bookings/*, /vouchers/*
+// ============================================================================
 import api from "./api";
 import type { ApiResponse, BilliardTable, PricingTier } from "../types";
 import type {
@@ -46,6 +53,12 @@ function result<T>(response: ApiResponse<T>): T {
 }
 
 export const posService = {
+  /**
+   * Lấy toàn bộ danh sách bàn đang hoạt động phục vụ sơ đồ bàn POS.
+   * Luồng đi: PosTableFloorPage -> GET /tables?isActive=true -> chuẩn hóa nhãn pool/carom/snooker.
+   *
+   * @returns {Promise<PosTable[]>} Danh sách bàn kèm phiên chơi hiện tại (nếu có)
+   */
   async getTables(): Promise<PosTable[]> {
     const { data } = await api.get<ApiResponse<TableRecord[]>>("/tables", {
       params: { isActive: true },
@@ -82,10 +95,23 @@ export const posService = {
     });
     return result(data);
   },
+  /**
+   * Lấy biểu giá theo khung giờ (ban ngày, cao điểm, cuối tuần, đêm) để tính tạm tính realtime.
+   *
+   * @returns {Promise<PricingTier[]>} Danh sách khung giá đang cấu hình
+   */
   async getPricingTiers(): Promise<PricingTier[]> {
     const { data } = await api.get<ApiResponse<PricingTier[]>>("/public/pricing").catch(() => api.get<ApiResponse<PricingTier[]>>("/pricing"));
     return result(data);
   },
+  /**
+   * Mở phiên chơi mới trên bàn (hoặc check-in khách đặt trước).
+   * Luồng đi: usePosOpenTable -> POST /tables/:id/session -> SessionService.open().
+   *
+   * @param {string} tableId - Mã định danh bàn cần mở
+   * @param {object} input - Thông tin khách hàng, ghi chú và mã booking (nếu check-in)
+   * @returns {Promise<TableRecord>} Dữ liệu bàn sau khi chuyển sang trạng thái playing
+   */
   async open(
     tableId: string,
     input: {
@@ -99,6 +125,12 @@ export const posService = {
     const { data } = await api.post<ApiResponse<TableRecord>>(`/tables/${tableId}/session`, input);
     return result(data);
   },
+  /**
+   * Tạm dừng hoặc tiếp tục đồng hồ tính giờ trên bàn đang mở.
+   *
+   * @param {PosTable} table - Bàn cần chuyển trạng thái tạm dừng / tiếp tục
+   * @returns {Promise<TableRecord>} Dữ liệu bàn sau khi cập nhật
+   */
   async pause(table: PosTable) {
     const { data } = await api.patch<ApiResponse<TableRecord>>(
       `/tables/${table.id}/session/pause`,
@@ -109,6 +141,16 @@ export const posService = {
     );
     return result(data);
   },
+  /**
+   * Chuyển bàn trống hoặc gộp phiên chơi sang một bàn đích khác.
+   * Luồng đi: usePosTransfer -> POST /tables/:id/session/move -> SessionService.move().
+   *
+   * @param {PosTable} table - Bàn nguồn
+   * @param {string} targetTableId - Mã bàn đích
+   * @param {"transfer" | "merge"} action - Chế độ chuyển bàn hoặc gộp bàn
+   * @param {object} [options] - Lý do và tùy chọn giữ/áp dụng giá giờ
+   * @returns {Promise<TableRecord>} Dữ liệu bàn sau khi chuyển/gộp
+   */
   async move(
     table: PosTable,
     targetTableId: string,
@@ -127,6 +169,13 @@ export const posService = {
     });
     return result(data);
   },
+  /**
+   * Lấy danh sách các bàn đích hợp lệ để chuyển hoặc gộp phiên chơi hiện tại.
+   *
+   * @param {string} tableId - Mã bàn nguồn
+   * @param {"transfer" | "merge"} [action="transfer"] - Hành động chuyển hay gộp
+   * @returns {Promise<EligibleMoveTargetsResponse>} Thông tin bàn nguồn và danh sách bàn đích
+   */
   async getMoveTargets(
     tableId: string,
     action: "transfer" | "merge" = "transfer",
@@ -136,6 +185,18 @@ export const posService = {
     );
     return result(data);
   },
+  /**
+   * Chốt thanh toán phiên chơi, xuất hóa đơn và giải phóng bàn.
+   * Luồng đi: usePosCheckout -> POST /tables/:id/session/checkout -> SessionService.checkout().
+   *
+   * @param {PosTable} table - Bàn cần thanh toán
+   * @param {number} discountPercent - Phần trăm giảm giá hội viên (%)
+   * @param {string} paymentMethod - Phương thức thanh toán (cash | vnpay | split | card; backend cũng hỗ trợ transfer | cash_qr | member_balance | wallet)
+   * @param {string} [voucherCode] - Mã voucher áp dụng
+   * @param {string} [customerPhone] - SĐT khách hàng để tích điểm / dùng voucher
+   * @param {object} [paymentDetails] - Chi tiết tiền mặt & chuyển khoản (cho split)
+   * @returns {Promise<CheckoutReceipt>} Biên lai hóa đơn đã lưu
+   */
   async checkout(
     table: PosTable,
     discountPercent: number,
@@ -157,6 +218,12 @@ export const posService = {
     );
     return result(data);
   },
+  /**
+   * Tra cứu hội viên theo số điện thoại để lấy hạng thẻ, % ưu đãi và danh sách voucher.
+   *
+   * @param {string} phone - Số điện thoại khách hàng
+   * @returns {Promise<ApiResponse<any>>} Thông tin hội viên tương ứng (nếu tồn tại)
+   */
   async lookupCustomer(phone: string) {
     const { data } = await api.get<
       ApiResponse<{
@@ -213,6 +280,14 @@ export const posService = {
     >("/tables/quick-register-customer", input);
     return data;
   },
+  /**
+   * Kiểm tra tính hợp lệ và số tiền giảm thực tế của mã voucher trước khi chốt bill.
+   *
+   * @param {string} code - Mã voucher thu ngân nhập
+   * @param {number} subtotal - Tổng tạm tính trước giảm giá
+   * @param {string} [customerPhone] - SĐT hội viên để kiểm tra đối tượng áp dụng
+   * @returns {Promise<object>} Kết quả giảm giá chi tiết của voucher
+   */
   async validateVoucher(code: string, subtotal: number, customerPhone?: string) {
     const { data } = await api.post<
       ApiResponse<{
@@ -225,6 +300,18 @@ export const posService = {
     >("/vouchers/validate", { code, subtotal, customerPhone });
     return result(data);
   },
+  /**
+   * Hủy một phần hoặc toàn bộ món F&B đã gọi trong phiên và hoàn/ghi nhận hao hụt kho.
+   * Luồng đi: usePosFnb -> POST /tables/:id/session/orders/cancel -> SessionService.cancelOrderItem().
+   *
+   * @param {string} tableId - Mã bàn đang mở phiên
+   * @param {string} sessionId - Mã phiên chơi hiện tại
+   * @param {string} orderItemId - Mã dòng món trong currentSession.orders
+   * @param {number} quantity - Số lượng muốn hủy
+   * @param {string} reason - Lý do hủy món
+   * @param {boolean} [restoreStock=true] - Có hoàn trả lại tồn kho hay không
+   * @returns {Promise<TableRecord>} Dữ liệu bàn sau khi hủy món
+   */
   async cancelOrderItem(
     tableId: string,
     sessionId: string,
@@ -245,6 +332,15 @@ export const posService = {
     );
     return result(data);
   },
+  /**
+   * Cập nhật danh sách món F&B mới vào phiên chơi của bàn và đồng bộ qua Socket.IO.
+   * Luồng đi: usePosFnb -> POST /tables/:id/session/orders -> SessionService.updateOrders() (cập nhật currentSession.orders).
+   *
+   * @param {string} tableId - Mã bàn đang chơi
+   * @param {string} sessionId - Mã phiên chơi hiện tại
+   * @param {any[]} orders - Toàn bộ danh sách món cập nhật của phiên
+   * @returns {Promise<TableRecord>} Dữ liệu bàn sau khi lưu món
+   */
   async updateOrders(tableId: string, sessionId: string, orders: any[]) {
     const { data } = await api.post<ApiResponse<TableRecord>>(`/tables/${tableId}/session/orders`, {
       sessionId,
