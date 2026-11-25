@@ -111,8 +111,12 @@ const RefereePage = () => {
   );
 
   const addExtraTime = () => {
-    setSecondsLeft((s) => s + EXTRA_TIME_SECONDS);
-    setClockRunning(true);
+    setSecondsLeft((s) => {
+      const nextSeconds = s + EXTRA_TIME_SECONDS;
+      // Cộng giờ xong mới bật lại đồng hồ để effect hết giờ không dừng nhầm.
+      setClockRunning(nextSeconds > 0);
+      return nextSeconds;
+    });
   };
 
   const handleNextTurn = () => {
@@ -122,23 +126,44 @@ const RefereePage = () => {
   };
 
   const handleAwardPoint = (slot: Slot) => {
-    const nextScore = scores[slot] + 1;
-    setScores((prev) => ({ ...prev, [slot]: nextScore }));
-    setCurrentSlot(slot === 1 ? 2 : 1);
-    setSecondsLeft(SHOT_CLOCK_SECONDS);
-    setClockRunning(nextScore < (selected?.raceTo ?? Infinity));
+    setScores((prev) => {
+      const raceTo = selected?.raceTo ?? Infinity;
+      // Đã đạt mốc thì không cộng điểm, giữ nguyên đồng hồ.
+      if (prev[slot] >= raceTo) return prev;
+      const nextScore = prev[slot] + 1;
+      // Tính từ điểm mới nhất trong updater để bấm liên tiếp không mất điểm.
+      setCurrentSlot(slot === 1 ? 2 : 1);
+      setSecondsLeft(SHOT_CLOCK_SECONDS);
+      setClockRunning(nextScore < raceTo);
+      return { ...prev, [slot]: nextScore };
+    });
   };
 
   const handleSaveResult = async () => {
     if (!selected || !tournamentId) return;
+    if (scores[1] > selected.raceTo || scores[2] > selected.raceTo) {
+      message.warning("Điểm không được vượt quá mốc của vòng đấu. Vui lòng sửa điểm trước khi lưu.");
+      return;
+    }
+    const slot1Reached = scores[1] >= selected.raceTo;
+    const slot2Reached = scores[2] >= selected.raceTo;
+    const winnerSlot = slot1Reached ? 1 : slot2Reached ? 2 : undefined;
+    const winnerRegistrationId = winnerSlot
+      ? selected.match.participants.find((p) => p.slot === winnerSlot)?.registrationId
+      : undefined;
+
+    // Chặn trước khi gọi API để backend không ném lỗi và người dùng sửa được điểm.
+    if ((slot1Reached && slot2Reached) || (winnerSlot && !winnerRegistrationId)) {
+      message.warning(
+        slot1Reached && slot2Reached
+          ? "Cả hai cơ thủ đều đã đạt mốc điểm. Vui lòng sửa điểm trước khi lưu."
+          : "Không xác định được cơ thủ thắng. Vui lòng kiểm tra lại trận đấu trước khi lưu.",
+      );
+      return;
+    }
+
     setSaving(true);
     try {
-      const winnerRegistrationId =
-        scores[1] >= selected.raceTo
-          ? selected.match.participants.find((p) => p.slot === 1)?.registrationId
-          : scores[2] >= selected.raceTo
-            ? selected.match.participants.find((p) => p.slot === 2)?.registrationId
-            : undefined;
       await tournamentService.updateMatchScore(selected.match._id, {
         score1: scores[1],
         score2: scores[2],
@@ -157,11 +182,15 @@ const RefereePage = () => {
 
   /* 4. Effects */
   useEffect(() => {
+    // Fetch danh sách giải lúc mount là có chủ đích, không phải state suy ra từ props.
+    // oxlint-disable-next-line react/set-state-in-effect
     void loadTournaments();
   }, [loadTournaments]);
 
   useEffect(() => {
     if (!tournamentId) return;
+    // Reset lựa chọn và lỗi rồi tải bracket mới khi đổi giải là có chủ đích.
+    // oxlint-disable-next-line react/set-state-in-effect
     setSelected(null);
     setFaults([]);
     setClockRunning(false);
@@ -178,6 +207,8 @@ const RefereePage = () => {
   useEffect(() => {
     if (!selected || !clockRunning || !clockExpired) return;
     recordFault("Quá giờ");
+    // Hết giờ thì dừng đồng hồ ngay trong effect là có chủ đích.
+    // oxlint-disable-next-line react/set-state-in-effect
     setClockRunning(false);
   }, [selected, clockRunning, clockExpired, recordFault]);
 
