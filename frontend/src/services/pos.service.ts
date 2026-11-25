@@ -423,6 +423,7 @@ export const tableAdminService = {
       area: t.area,
       floor: t.floor,
       pricePerHour: t.pricePerHour,
+      equipment: t.equipment,
       status: t.status,
       isActive: t.isActive !== false,
       createdAt: t.createdAt ? new Date(t.createdAt).toISOString().split("T")[0] : "",

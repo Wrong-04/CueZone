@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { message } from "../../../../shared/ui";
 import { tableAdminService, pricingAdminService } from "../../../../services/pos.service";
-import type { BilliardTable, PricingTier, TableType } from "../../../../types";
+import type { BilliardTable, PricingTier, TableEquipment, TableType } from "../../../../types";
 import {
   getActivePricingTier,
   type TablesStats,
 } from "../types/tables.types";
 import { generateTimelineSegments } from "../utils/timeline.utils";
+import { LEGACY_TABLE_TYPE_MAP } from "../modals/equipment.constants";
 
 /**
  * Custom Hook: useTablesData
@@ -243,7 +244,7 @@ export function useTablesData() {
     setEditingTable(table);
     setTableCode(table.code);
     setTableName(table.name);
-    setTableType(table.type);
+    setTableType(LEGACY_TABLE_TYPE_MAP[table.type] ?? (table.type as TableType));
     setTableArea(table.area);
     setTableFloor(table.floor);
     setTablePrice(table.pricePerHour);
@@ -251,7 +252,7 @@ export function useTablesData() {
   }, []);
 
   // Lưu thông tin bàn bida (Tạo mới hoặc Cập nhật)
-  const handleSaveTable = useCallback(async () => {
+  const handleSaveTable = useCallback(async (equipment: TableEquipment) => {
     if (!tableName.trim() || !tableCode.trim()) {
       message.warning("Vui lòng điền đầy đủ Mã bàn và Tên bàn!");
       return;
@@ -267,6 +268,7 @@ export function useTablesData() {
           area: tableArea.trim(),
           floor: Number(tableFloor),
           pricePerHour: Number(tablePrice),
+          equipment,
         });
         message.success(`Đã lưu bàn ${tableName}!`);
       } else {
@@ -277,6 +279,7 @@ export function useTablesData() {
           area: tableArea.trim(),
           floor: Number(tableFloor),
           pricePerHour: Number(tablePrice),
+          equipment,
         });
         message.success(`Đã thêm bàn ${tableName}!`);
       }

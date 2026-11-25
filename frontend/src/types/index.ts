@@ -67,6 +67,19 @@ export const TableType = {
 } as const;
 export type TableType = (typeof TableType)[keyof typeof TableType];
 
+export type TableEquipmentCondition = "ok" | "low" | "broken";
+
+export interface TableEquipment {
+  ballsSetCount: number;
+  cueCount: number;
+  chalkCount: number;
+  triangleCount: number;
+  glovesCount: number;
+  feltCondition: TableEquipmentCondition;
+  lightCondition: TableEquipmentCondition;
+  note?: string;
+}
+
 export interface BilliardTable {
   _id: string;
   code: string;
@@ -78,6 +91,8 @@ export interface BilliardTable {
   status: TableStatus;
   isActive: boolean;
   pricingTier?: string;
+  // Vật tư ban đầu của bàn (bộ bi, cơ/gậy, phấn/lơ, tam giác, găng tay + tình trạng nỉ/đèn)
+  equipment?: TableEquipment;
   // Các thuộc tính trạng thái khả dụng phục vụ luồng đặt bàn
   isAvailable?: boolean;
   unavailableReason?: "booked" | "playing" | null;

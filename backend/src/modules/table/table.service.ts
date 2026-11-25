@@ -223,7 +223,7 @@ export class TableService {
   async create(dto: CreateTableDTO): Promise<ITable> {
     const existing = await Table.findOne({ code: dto.code });
     if (existing) throw new Error("Mã bàn đã tồn tại");
-    const { code, name, type, area, floor, pricePerHour } = dto;
+    const { code, name, type, area, floor, pricePerHour, equipment } = dto;
     const table = await Table.create({
       code,
       name,
@@ -231,6 +231,8 @@ export class TableService {
       area,
       floor,
       pricePerHour,
+      // Không ghi field này khi client không gửi: bàn cũ giữ nguyên, không backfill.
+      ...(equipment ? { equipment } : {}),
       status: TableStatus.AVAILABLE,
     });
     notificationService
@@ -257,7 +259,7 @@ export class TableService {
       );
     }
 
-    const { name, type, area, floor, pricePerHour, isActive } = dto;
+    const { name, type, area, floor, pricePerHour, isActive, equipment } = dto;
     const updateFields: any = {};
     if (name) updateFields.name = name;
     if (type) updateFields.type = type;
@@ -265,6 +267,7 @@ export class TableService {
     if (floor !== undefined) updateFields.floor = floor;
     if (pricePerHour !== undefined) updateFields.pricePerHour = pricePerHour;
     if (isActive !== undefined) updateFields.isActive = isActive;
+    if (equipment !== undefined) updateFields.equipment = equipment;
 
     const table = await Table.findByIdAndUpdate(
       id,

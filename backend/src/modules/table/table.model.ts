@@ -119,12 +119,27 @@ export interface TableSession {
   pricingSnapshot?: any[];
 }
 
+// Vật tư ban đầu của từng bàn; lưu mã tiếng Anh, UI hiển thị Đủ / Thiếu / Hư.
+export interface TableEquipment {
+  ballsSetCount: number;
+  cueCount: number;
+  chalkCount: number;
+  triangleCount: number;
+  glovesCount: number;
+  feltCondition: "ok" | "low" | "broken";
+  lightCondition: "ok" | "low" | "broken";
+  note?: string;
+}
+
 export interface ITable extends Document {
   code: string;
 
   name: string;
 
   type: TableType;
+
+  // Không bắt buộc: bàn cũ giữ nguyên, không backfill.
+  equipment?: TableEquipment;
 
   area: string;
 
@@ -161,6 +176,24 @@ const tableSchema = new Schema<ITable>(
     name: { type: String, required: true, trim: true },
 
     type: { type: String, enum: Object.values(TableType), required: true },
+
+    // Subdocument tuỳ chọn: bàn cũ không có equipment vẫn đọc/write bình thường.
+    equipment: {
+      type: new Schema<TableEquipment>(
+        {
+          ballsSetCount: { type: Number, default: 0 },
+          cueCount: { type: Number, default: 0 },
+          chalkCount: { type: Number, default: 0 },
+          triangleCount: { type: Number, default: 0 },
+          glovesCount: { type: Number, default: 0 },
+          feltCondition: { type: String, enum: ["ok", "low", "broken"], default: "ok" },
+          lightCondition: { type: String, enum: ["ok", "low", "broken"], default: "ok" },
+          note: String,
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
 
     area: { type: String, required: true, trim: true },
 

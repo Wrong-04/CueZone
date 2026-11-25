@@ -1,10 +1,11 @@
 // ============================================================================
 // 1. IMPORTS & ICONS
 // ============================================================================
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { AppstoreOutlined } from "@ant-design/icons";
 import { Button, Input, Modal, Select } from "../../../../shared/ui";
-import type { BilliardTable, TableType } from "../../../../types";
+import type { BilliardTable, TableEquipment, TableType } from "../../../../types";
+import { getTableEquipmentStandards } from "./equipment.constants";
 
 // ============================================================================
 // 2. TYPES & INTERFACES
@@ -26,8 +27,35 @@ interface TableFormModalProps {
   tablePrice: number;
   saving: boolean;
   distinctFloors: number[];
-  onSave: () => void;
+  onSave: (equipment: TableEquipment) => void;
 }
+
+// ============================================================================
+// 3. CONSTANTS & HELPERS: VẬT TƯ BAN ĐẦU
+// ============================================================================
+type EquipmentCountKey = (typeof EQUIPMENT_COUNT_KEYS)[number];
+
+const EQUIPMENT_COUNT_KEYS = [
+  "ballsSetCount",
+  "cueCount",
+  "chalkCount",
+  "triangleCount",
+  "glovesCount",
+] as const;
+
+const EQUIPMENT_FIELD_LABELS: Record<EquipmentCountKey, string> = {
+  ballsSetCount: "Số bộ bi",
+  cueCount: "Số cơ/gậy",
+  chalkCount: "Số phấn/lơ",
+  triangleCount: "Số tam giác xếp bi",
+  glovesCount: "Số găng tay",
+};
+
+const EQUIPMENT_CONDITION_OPTIONS = [
+  { value: "ok", label: "Đủ" },
+  { value: "low", label: "Thiếu" },
+  { value: "broken", label: "Hư" },
+] as const;
 
 // ============================================================================
 // 4. MAIN COMPONENT: MODAL TẠO MỚI & CHỈNH SỬA BÀN BIDA
@@ -51,6 +79,43 @@ export const TableFormModal: React.FC<TableFormModalProps> = ({
   distinctFloors,
   onSave,
 }) => {
+  // ── State: Vật tư ban đầu của bàn ──────────────────────────────────────
+  const standards = getTableEquipmentStandards(tableType);
+  const [equipment, setEquipment] = useState<TableEquipment>(
+    () => editingTable?.equipment ?? standards
+  );
+
+  // Đồng bộ giá trị vật tư khi mở modal tạo mới hoặc chỉnh sửa bàn
+  useEffect(() => {
+    if (visible) {
+      setEquipment(editingTable?.equipment ?? standards);
+    }
+  }, [visible, editingTable, standards]);
+
+  const setEquipmentCount = (key: EquipmentCountKey, value: number) => {
+    setEquipment((prev) => {
+      const next = { ...prev };
+      next[key] = value;
+      return next;
+    });
+  };
+
+  const setEquipmentCondition = (
+    key: "feltCondition" | "lightCondition",
+    value: TableEquipment["feltCondition"]
+  ) => {
+    setEquipment((prev) => {
+      const next = { ...prev };
+      next[key] = value;
+      return next;
+    });
+  };
+
+  const handleCountChange = (key: EquipmentCountKey, rawValue: string) => {
+    const parsed = Number(rawValue);
+    setEquipmentCount(key, Number.isFinite(parsed) && parsed > 0 ? parsed : 0);
+  };
+
   return (
     <Modal
       open={visible}
@@ -139,6 +204,74 @@ export const TableFormModal: React.FC<TableFormModalProps> = ({
           />
         </div>
 
+        {/* ── Vật tư ban đầu theo từng bàn bida ── */}
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <span className="block text-slate-700 font-semibold whitespace-nowrap">Vật tư ban đầu</span>
+          <div className="grid grid-cols-2 gap-3">
+            {EQUIPMENT_COUNT_KEYS.map((key) => (
+              <div key={key}>
+                <label className="block text-slate-700 font-semibold mb-1 whitespace-nowrap">
+                  {EQUIPMENT_FIELD_LABELS[key]}
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={equipment[key]}
+                    onChange={(e) => handleCountChange(key, e.target.value)}
+                    className="!h-9 !rounded-xl"
+                  />
+                  <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap">
+                    Chuẩn: {standards[key]}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1 whitespace-nowrap">
+                Tình trạng nỉ
+              </label>
+              <Select
+                value={equipment.feltCondition}
+                onChange={(val) =>
+                  setEquipmentCondition("feltCondition", val as TableEquipment["feltCondition"])
+                }
+                className="!w-full !rounded-xl !h-9"
+                options={[...EQUIPMENT_CONDITION_OPTIONS]}
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1 whitespace-nowrap">
+                Tình trạng đèn
+              </label>
+              <Select
+                value={equipment.lightCondition}
+                onChange={(val) =>
+                  setEquipmentCondition("lightCondition", val as TableEquipment["lightCondition"])
+                }
+                className="!w-full !rounded-xl !h-9"
+                options={[...EQUIPMENT_CONDITION_OPTIONS]}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-slate-700 font-semibold mb-1 whitespace-nowrap">
+              Ghi chú kiểm kê
+            </label>
+            <Input.TextArea
+              placeholder="VD: nỉ cũ, đèn yếu, quả trắng nhạt..."
+              value={equipment.note ?? ""}
+              onChange={(e) => setEquipment((prev) => ({ ...prev, note: e.target.value }))}
+              className="!rounded-xl"
+              rows={2}
+            />
+          </div>
+        </div>
+
         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
           <div className="flex items-center justify-between mb-1">
             <span className="text-slate-700 font-semibold whitespace-nowrap">Đơn giá giờ chơi:</span>
@@ -170,7 +303,7 @@ export const TableFormModal: React.FC<TableFormModalProps> = ({
             variant="primary"
             size="sm"
             loading={saving}
-            onClick={onSave}
+            onClick={() => onSave(equipment)}
             className="!bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600 !rounded-xl font-bold px-4 whitespace-nowrap"
           >
             Lưu Thông Tin
